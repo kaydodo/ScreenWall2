@@ -28,8 +28,8 @@
         <option value="6">6列</option>
         <option value="7">7列</option>
         <option value="8">8列</option>
-        <option value="9">9列</option>
-        <option value="10">10列</option>
+        <option value="9">9列宽</option>
+        <option value="10">10列宽</option>
       </select>
     </div>
     <button class="btn btn-ghost desktop-only" id="btnMonitor" title="监控上墙">📺 监控</button>
@@ -3317,10 +3317,6 @@ function naturalCompare(a, b) {
 // ─────────────────────────────────────────
 document.getElementById('selGrid').onchange = function () {
   gridSize = parseInt(this.value);
-  // 9列和10列需要宽屏显示器
-  if (gridSize >= 9) {
-    alert('9列和10列需要宽屏显示器才能完整显示');
-  }
   if (isMobile) {
     // 移动端：使用简单百分比计算，考虑滚动条和边距
     // 滚动条宽度约15-20px，换算成vw约3-4vw
