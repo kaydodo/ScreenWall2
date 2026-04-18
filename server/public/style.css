@@ -3958,6 +3958,22 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
   #filterBackdrop.show {
     display: block;
   }
+
+  /* 侧边栏蒙版 */
+  #sidebarBackdrop {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 998;
+    background: transparent;
+  }
+
+  #sidebarBackdrop.show {
+    display: block;
+  }
 }
 
 /* 移动端隐藏筛选按钮 */

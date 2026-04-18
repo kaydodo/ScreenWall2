@@ -125,6 +125,9 @@
 <!-- 侧边栏折叠按钮 -->
 <button class="sidebar-collapse-btn" id="sidebarCollapseBtn" title="折叠侧边栏"></button>
 
+<!-- 侧边栏蒙版 -->
+<div id="sidebarBackdrop"></div>
+
 <!-- ========== 设备选择浮层 ========== -->
 <div class="overlay" id="deviceOverlay">
   <div class="dialog" id="deviceDialog">
@@ -3705,11 +3708,27 @@ document.getElementById('btnClear').onclick = () => {
 // 侧边栏折叠按钮
 const sidebarCollapseBtn = document.getElementById('sidebarCollapseBtn');
 const sidebar = document.getElementById('sidebar');
+const sidebarBackdrop = document.getElementById('sidebarBackdrop');
 function toggleSidebar() {
   sidebar.classList.toggle('collapsed');
   document.body.classList.toggle('sidebar-collapsed');
+  // 同步蒙版
+  const isCollapsed = sidebar.classList.contains('collapsed');
+  if (isCollapsed) {
+    sidebarBackdrop.classList.remove('show');
+  } else {
+    sidebarBackdrop.classList.add('show');
+  }
 }
 sidebarCollapseBtn.onclick = toggleSidebar;
+// 点击蒙版关闭边栏
+if (sidebarBackdrop) {
+  sidebarBackdrop.onclick = function() {
+    if (!sidebar.classList.contains('collapsed')) {
+      toggleSidebar();
+    }
+  };
+}
 
 function toggleFullscreen() {
   if (!document.fullscreenElement) {
