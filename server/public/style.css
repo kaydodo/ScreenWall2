@@ -3933,6 +3933,11 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
     max-height: 60vh;
     border-radius: var(--radius-lg);
     z-index: 1000;
+    display: none;
+  }
+
+  #filterDropdownMobile.show {
+    display: block !important;
   }
 }
 
