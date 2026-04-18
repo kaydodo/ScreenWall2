@@ -2542,9 +2542,11 @@ function openPreview(cellIndex) {
     dev._monitorCount = dev.monitorCount || 1;
     updateMonitorBtn(dev.monitorIndex || 1);
   }
-  // 1080p 按钮：仅桌面端显示（移动端不显示）
+  // 1080p 按钮：仅桌面端显示（移动端不显示），打开时初始化为关闭状态
   const btn1080Container = document.getElementById('preview1080Container');
   if (btn1080Container) btn1080Container.style.display = isMobile ? 'none' : 'inline-flex';
+  const btn1080 = document.getElementById('preview1080Btn');
+  if (btn1080) btn1080.classList.remove('active'); // 确保每次打开都是关闭状态
   // 重置鼠标提示（后续根据条件重新设置）
   const mouseHint = document.getElementById('previewMouseHint');
   if (mouseHint) mouseHint.style.display = 'none';
