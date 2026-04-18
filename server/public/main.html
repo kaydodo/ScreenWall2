@@ -2620,6 +2620,9 @@ function closePreview() {
   if (kbbtn) kbbtn.style.display = 'none';
   const kbbtnMobile = document.getElementById('previewKBbtnMobile');
   if (kbbtnMobile) kbbtnMobile.style.display = 'none';
+  // 关闭时隐藏显示器切换按钮（移动端）
+  const monitorBtnMobile = document.getElementById('previewMonitorBtnMobile');
+  if (monitorBtnMobile) monitorBtnMobile.style.display = 'none';
   // 关闭时隐藏鼠标提示
   const mouseHint = document.getElementById('previewMouseHint');
   if (mouseHint) mouseHint.style.display = 'none';
