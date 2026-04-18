@@ -1206,6 +1206,7 @@ class ScreenWallClient:
         self._keyclient_socket = None
         self._keyclient_process = None
         self._upgrade_notified = False  # 升级通知只弹一次
+        self._upgrade_triggered = False  # 升级任务只触发一次
         self._heartbeat_tick = 0        # 截图计数，用于定时发送心跳
         if _keyboard_enabled:
             self._start_keyclient()
