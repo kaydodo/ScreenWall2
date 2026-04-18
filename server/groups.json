@@ -1,0 +1,24 @@
+[
+  {
+    "id": "1775730265174",
+    "name": "5555666",
+    "color": "#C5C5EB",
+    "deviceIds": [
+      "aeawtmgwtiau3yfl",
+      "offline_test_003"
+    ]
+  },
+  {
+    "id": "1776042401413",
+    "name": "222233333",
+    "color": "#EBE8C5",
+    "deviceIds": [
+      "offline_test_006",
+      "offline_test_008",
+      "offline_test_009",
+      "offline_test_010",
+      "offline_test_011",
+      "offline_test_016"
+    ]
+  }
+]

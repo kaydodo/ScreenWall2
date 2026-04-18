@@ -1,0 +1,23 @@
+{
+  "name": "screenwall-server",
+  "version": "1.0.0",
+  "description": "Screen Wall Server - 企业级屏幕墙监控系统",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "dependencies": {
+    "sharp": "^0.34.5",
+    "tesseract.js": "^7.0.0",
+    "ws": "^8.16.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.3"
+  },
+  "mijia": {
+    "description": "米家API集成（Python）",
+    "python_dependencies": ["mijiaAPI"],
+    "auth_file": "mijia-auth.json"
+  }
+}

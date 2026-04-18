@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>监控墙</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+.wall-container {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  gap: 2px;
+  padding: 2px;
+}
+.wall-cell {
+  position: relative;
+  background: #1a1d27;
+  overflow: hidden;
+  min-width: 0;
+  min-height: 0;
+}
+.wall-cell img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000;
+}
+.wall-cell.empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.wall-cell.empty::after {
+  content: "无信号";
+  color: #4a4a4a;
+  font-size: 14px;
+}
+/* 时间戳 - 左上 */
+.wall-timestamp {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  background: rgba(0,0,0,0.6);
+  color: #fff;
+  font-size: 14px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-family: "Consolas", monospace;
+}
+/* 标题信息 - 右下 */
+.wall-info {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  background: rgba(0,0,0,0.6);
+  color: #fff;
+  font-size: 13px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  text-align: right;
+}
+.wall-info .name {
+  font-weight: 600;
+}
+.wall-info .detail {
+  font-size: 11px;
+  opacity: 0.8;
+}
+/* 离线状态 */
+.wall-cell.offline img {
+  filter: grayscale(100%);
+  opacity: 0.5;
+}
+/* 删除状态 - 优先级高于离线 */
+.wall-cell.deleted img {
+  filter: grayscale(100%) blur(2px);
+  opacity: 0.3;
+}
+.wall-cell .offline-badge {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(80, 90, 110, 0.82);
+  color: #fff;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  display: none;
+  z-index: 5;
+}
+.wall-cell.offline .offline-badge {
+  display: block;
+}
+.wall-cell.deleted .offline-badge {
+  display: flex !important;
+  background: rgba(180, 50, 50, 0.9) !important;
+}
+/* 浮动UU远程按钮 */
+.uu-float-btn {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(79, 126, 247, 0.92);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  gap: 5px;
+  box-shadow: 0 4px 16px rgba(79, 126, 247, 0.4);
+  transition: all 0.2s;
+  z-index: 6;
+  white-space: nowrap;
+}
+.uu-float-btn:hover {
+  background: rgba(60, 100, 230, 1);
+  transform: translate(-50%, -50%) scale(1.05);
+  box-shadow: 0 6px 20px rgba(79, 126, 247, 0.5);
+}
+.wall-cell:hover .uu-float-btn {
+  display: flex;
+}
+.uu-float-btn.hidden {
+  display: none !important;
+}
+
+/* ── 性能统计面板 ─────────────────────────── */
+.stats-panel {
+  position: fixed;
+  top: 8px;
+  right: 8px;
+  background: rgba(0,0,0,0.8);
+  color: #0f0;
+  font-family: "Consolas", monospace;
+  font-size: 11px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  z-index: 100;
+  pointer-events: none;
+  line-height: 1.6;
+}
+</style>
+</head>
+<body>
+
+<div class="wall-container" id="wallContainer"></div>
+<div class="stats-panel" id="statsPanel" style="display:none;"></div>
+
+<script>
+'use strict';
+
+// ═══════════════════════════════════════════════════════════════
+// 性能优化模块
+// ═══════════════════════════════════════════════════════════════
+
+// ── 1. Blob URL 缓存系统 ─────────────────────────────────────
+// 避免重复创建 Blob，减少内存碎片和 GC 压力
+const blobCache = (function() {
+  const _cache = new Map();  // deviceId -> { url, md5, time }
+  const _blobUrls = new Map();  // md5 -> blobUrl (复用)
+  const TTL = 5000;  // 5秒缓存
+
+  function createBlobUrl(base64Data) {
+    // 提取 mime type 和 base64 内容
+    const match = base64Data.match(/^data:([^;]+);base64,(.+)$/);
+    if (!match) return null;
+    const mimeType = match[1];
+    const data = atob(match[2]);
+    const len = data.length;
+    const buf = new Uint8Array(len);
+    for (let i = 0; i < len; i++) buf[i] = data.charCodeAt(i);
+    return URL.createObjectURL(new Blob([buf], { type: mimeType }));
+  }
+
+  function get(deviceId, md5) {
+    const entry = _cache.get(deviceId);
+    if (!entry) return null;
+    if (Date.now() - entry.time > TTL) {
+      // 过期，清理
+      _cache.delete(deviceId);
+      // 如果没有其他设备使用这个 blob，也清理
+      let used = false;
+      for (const [did, e] of _cache) {
+        if (e.md5 === md5) { used = true; break; }
+      }
+      if (!used) {
+        const url = _blobUrls.get(md5);
+        if (url) { URL.revokeObjectURL(url); _blobUrls.delete(md5); }
+      }
+      return null;
+    }
+    return entry.url;
+  }
+
+  function set(deviceId, base64Data, md5) {
+    // 先清理该设备之前占用的 blobUrl（避免内存泄漏）
+    const oldEntry = _cache.get(deviceId);
+    if (oldEntry) {
+      // 检查是否有其他设备还在用这个 md5
+      let used = false;
+      for (const [did, e] of _cache) {
+        if (did !== deviceId && e.md5 === oldEntry.md5) { used = true; break; }
+      }
+      if (!used) {
+        const oldUrl = _blobUrls.get(oldEntry.md5);
+        if (oldUrl) { URL.revokeObjectURL(oldUrl); _blobUrls.delete(oldEntry.md5); }
+      }
+    }
+
+    // 复用已有的 blobUrl（同一 md5 多设备共享）
+    let blobUrl = _blobUrls.get(md5);
+    if (!blobUrl) {
+      blobUrl = createBlobUrl(base64Data);
+      if (!blobUrl) return null;
+      _blobUrls.set(md5, blobUrl);
+    }
+    _cache.set(deviceId, { url: blobUrl, md5, time: Date.now() });
+    return blobUrl;
+  }
+
+  function revoke(deviceId) {
+    const entry = _cache.get(deviceId);
+    if (!entry) return;
+    _cache.delete(deviceId);
+    // 检查是否还有其他设备使用这个 md5
+    let used = false;
+    for (const [did, e] of _cache) {
+      if (e.md5 === entry.md5) { used = true; break; }
+    }
+    if (!used) {
+      const url = _blobUrls.get(entry.md5);
+      if (url) { URL.revokeObjectURL(url); _blobUrls.delete(entry.md5); }
+    }
+  }
+
+  function revokeAll() {
+    for (const url of _blobUrls.values()) URL.revokeObjectURL(url);
+    _cache.clear();
+    _blobUrls.clear();
+  }
+
+  return { get, set, revoke, revokeAll, getCacheSize: () => _cache.size, getBlobSize: () => _blobUrls.size };
+})();
+
+// ── 2. rAF 批量渲染队列 ─────────────────────────────────────
+// 收集待渲染帧，下一 rAF 统一处理，避免高频 DOM 更新
+const renderQueue = (function() {
+  const _pending = new Map();  // deviceId -> { md5, url, timestamp }
+  let _rafId = null;
+  let _lastFlush = 0;
+
+  function queue(deviceId, md5, url, timestamp) {
+    _pending.set(deviceId, { md5, url, timestamp });
+    if (!_rafId) {
+      _rafId = requestAnimationFrame(flush);
+    }
+  }
+
+  function flush() {
+    _rafId = null;
+    const now = performance.now();
+    if (_pending.size === 0) return;
+
+    for (const [deviceId, frame] of _pending) {
+      const img = document.getElementById('img_' + deviceId);
+      if (!img) continue;
+
+      // 直接设置 URL（不再使用淡入切换）
+      img.src = frame.url;
+
+      // 更新时间戳
+      const ts = document.getElementById('ts_' + deviceId);
+      if (ts) {
+        const d = new Date(frame.timestamp);
+        ts.textContent = formatDate(d);
+      }
+    }
+
+    _pending.clear();
+    _lastFlush = now;
+  }
+
+  function clear() {
+    _pending.clear();
+    if (_rafId) { cancelAnimationFrame(_rafId); _rafId = null; }
+  }
+
+  function getPendingCount() { return _pending.size; }
+
+  return { queue, flush, clear, getPendingCount, getLastFlush: () => _lastFlush };
+})();
+
+// ── 5. 看门狗（增强版）───────────────────────────────────────
+const watchdog = (function() {
+  let _interval = null;
+  let _lastUpdate = {};
+  const TIMEOUT_MS = 3000;
+
+  function start() {
+    if (_interval) clearInterval(_interval);
+    _interval = setInterval(check, 2000);
+  }
+
+  function touch(deviceId) {
+    _lastUpdate[deviceId] = Date.now();
+  }
+
+  function check() {
+    const now = Date.now();
+    for (const deviceId in _lastUpdate) {
+      if (now - _lastUpdate[deviceId] > TIMEOUT_MS) {
+        const img = document.getElementById('img_' + deviceId);
+        if (img && img.src) {
+          // 强制刷新
+          const currentSrc = img.src;
+          img.src = '';
+          img.src = currentSrc;
+        }
+      }
+    }
+  }
+
+  function stop() {
+    if (_interval) { clearInterval(_interval); _interval = null; }
+    _lastUpdate = {};
+  }
+
+  return { start, touch, stop };
+})();
+
+// ═══════════════════════════════════════════════════════════════
+// 主程序
+// ═══════════════════════════════════════════════════════════════
+
+// 获取配置数据
+var wallData = null;
+var devices = {}; // deviceId -> { id, name, groupName, position, online, crop, groupId }
+var groups = [];  // 分组列表
+try {
+  var stored = sessionStorage.getItem('monitorWallData');
+  if (stored) {
+    wallData = JSON.parse(stored);
+    sessionStorage.removeItem('monitorWallData'); // 清理
+    // 初始化设备状态
+    wallData.devices.forEach(function(d) {
+      devices[d.id] = {
+        id: d.id,
+        uuDeviceId: d.uuDeviceId || null,
+        name: d.name,
+        groupName: d.groupName || '未分组',
+        position: d.position,
+        online: d.online !== undefined ? d.online : true,
+        crop: d.crop,
+        groupId: null
+      };
+    });
+  }
+} catch(e) {}
+
+if (!wallData) {
+  document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#fff;font-size:18px;">未找到配置数据，请从主页面重新操作</div>';
+}
+
+// WebSocket 连接
+var ws = null;
+var subscribedDevices = []; // 订阅的设备列表
+
+// ── 性能统计 ────────────────────────────────────────────────
+var stats = {
+  framesReceived: 0,
+  framesRendered: 0,
+  wsReconnects: 0,
+  lastReport: performance.now()
+};
+
+function updateStats() {
+  if (!wallData.debug) return;
+  const now = performance.now();
+  const elapsed = (now - stats.lastReport) / 1000;
+  const fps = elapsed > 0 ? Math.round(stats.framesReceived / elapsed) : 0;
+  document.getElementById('statsPanel').innerHTML =
+    'FPS: ' + fps + '<br>' +
+    'Recv: ' + stats.framesReceived + '<br>' +
+    'Render: ' + stats.framesRendered + '<br>' +
+    'BlobCache: ' + blobCache.getBlobSize() + '<br>' +
+    'Pending: ' + renderQueue.getPendingCount() + '<br>' +
+    'Reconnects: ' + stats.wsReconnects;
+  stats.framesReceived = 0;
+  stats.lastReport = now;
+}
+
+function initWall() {
+  var container = document.getElementById('wallContainer');
+  var cols = Math.sqrt(wallData.layout);
+  var rows = cols;
+  container.style.gridTemplateColumns = 'repeat(' + cols + ', 1fr)';
+  container.style.gridTemplateRows = 'repeat(' + rows + ', 1fr)';
+
+  // 保存订阅的设备列表
+  subscribedDevices = wallData.devices.map(function(d) { return d.id; });
+
+  // 创建格子
+  for (var i = 0; i < wallData.layout; i++) {
+    var cell = document.createElement('div');
+    cell.className = 'wall-cell';
+    cell.id = 'cell_' + i;
+
+    if (i < wallData.devices.length) {
+      var dev = wallData.devices[i];
+      var uuBtnHTML = (dev.online !== false && dev.uuDeviceId) ? '<button class="uu-float-btn" onclick="openUU(\'' + dev.uuDeviceId + '\')">🖱️ UU远程</button>' : '';
+      cell.innerHTML =
+        '<img id="img_' + dev.id + '" src="" style="display:none;">' +
+        '<div class="wall-timestamp" id="ts_' + dev.id + '">等待画面</div>' +
+        '<div class="wall-info" id="info_' + dev.id + '">' +
+          '<div class="name">' + dev.name + '</div>' +
+          '<div class="detail">' + (dev.groupName || '未分组') + ' / 格' + dev.position + '</div>' +
+        '</div>' +
+        '<div class="offline-badge">设备已离线</div>' +
+        uuBtnHTML;
+
+      if (dev.online === false) {
+        cell.classList.add('offline');
+      }
+    } else {
+      cell.classList.add('empty');
+    }
+
+    container.appendChild(cell);
+  }
+
+  // 开启统计面板（调试用）
+  if (wallData.debug) {
+    document.getElementById('statsPanel').style.display = 'block';
+    setInterval(updateStats, 2000);
+  }
+
+  // 连接 WebSocket
+  connectWebSocket();
+
+  // 启动看门狗
+  watchdog.start();
+
+  // 页面关闭时清理
+  window.addEventListener('beforeunload', function() {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'unsubscribeWall', devices: subscribedDevices }));
+    }
+    blobCache.revokeAll();
+    renderQueue.clear();
+    watchdog.stop();
+    try {
+      var stored = localStorage.getItem('walledDevices');
+      if (stored) {
+        var arr = JSON.parse(stored);
+        var deviceIds = wallData.devices.map(function(d) { return d.id; });
+        arr = arr.filter(function(item) { return deviceIds.indexOf(item.deviceId) < 0; });
+        localStorage.setItem('walledDevices', JSON.stringify(arr));
+      }
+    } catch(e) {}
+  });
+}
+
+function connectWebSocket() {
+  var wsUrl = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws/browser';
+  ws = new WebSocket(wsUrl);
+
+  ws.onopen = function() {
+    // 连接成功，请求高清截图（3fps）
+    ws.send(JSON.stringify({
+      type: 'subscribeWall',
+      devices: wallData.devices.map(function(d) { return d.id; }),
+      interval: 333
+    }));
+  };
+
+  ws.onclose = function() {
+    stats.wsReconnects++;
+    // 重连
+    setTimeout(connectWebSocket, 3000);
+  };
+
+  ws.onerror = function(err) {
+    // console.error('WebSocket error:', err);
+  };
+
+  ws.onmessage = function(e) {
+    try {
+      var data = JSON.parse(e.data);
+
+      if (data.type === 'wallScreenshot') {
+        stats.framesReceived++;
+        var deviceId = data.deviceId;
+        var screenshot = data.screenshot;
+        var timestamp = data.timestamp || Date.now();
+
+        // ── Blob URL 获取/创建 ─────────────────────────
+        // 使用时间戳作为伪 md5，确保每次都创建新 URL（不再复用）
+        var pseudoMd5 = 't' + timestamp;
+        var blobUrl = blobCache.set(deviceId, screenshot, pseudoMd5);
+        if (!blobUrl) return;
+
+        // ── 更新看门狗 ─────────────────────────────────
+        watchdog.touch(deviceId);
+
+        // ── rAF 队列渲染 ───────────────────────────────
+        renderQueue.queue(deviceId, pseudoMd5, blobUrl, timestamp);
+        stats.framesRendered++;
+
+        // ── 应用裁剪（提前应用，避免 rAF 抖动）──────────
+        var dev = devices[deviceId];
+        var img = document.getElementById('img_' + deviceId);
+        if (img && dev && dev.crop && dev.crop.scale && dev.crop.scale !== 1) {
+          img.style.transform = 'scale(' + dev.crop.scale + ') translate(' + (dev.crop.translateX || 0) + 'px, ' + (dev.crop.translateY || 0) + 'px)';
+          img.style.transformOrigin = 'center center';
+          img.style.objectFit = 'cover';
+        } else if (img) {
+          img.style.transform = '';
+          img.style.transformOrigin = '';
+          img.style.objectFit = 'contain';
+        }
+
+        img.style.display = 'block';
+      }
+
+      if (data.type === 'wallStateUpdate') {
+        handleWallStateUpdate(data);
+      }
+
+      if (data.type === 'walledDevices') {
+        // console.log('[Wall] Subscribed devices:', data.devices);
+      }
+    } catch(err) {
+      // console.error('Parse error:', err);
+    }
+  };
+}
+
+// 处理状态变化
+function handleWallStateUpdate(data) {
+  var eventType = data.eventType;
+  var serverDevices = data.devices || [];
+  var serverGroups = data.groups || [];
+
+  if (serverGroups.length > 0) {
+    groups = serverGroups;
+  }
+
+  serverDevices.forEach(function(sd) {
+    if (devices[sd.deviceId]) {
+      devices[sd.deviceId].online = sd.online;
+      devices[sd.deviceId].name = sd.deviceName;
+      devices[sd.deviceId].groupId = sd.groupId;
+      if (sd.groupId) {
+        var groupObj = groups.find(function(g) { return g.id === sd.groupId; });
+        devices[sd.deviceId].groupName = groupObj ? groupObj.name : '未分组';
+      } else {
+        devices[sd.deviceId].groupName = '未分组';
+      }
+    }
+  });
+
+  if (eventType === 'deviceOffline') {
+    var deviceId = data.deviceId;
+    var cell = findCellByDeviceId(deviceId);
+    if (cell) {
+      cell.classList.add('offline');
+      cell.classList.remove('deleted');
+      var badge = cell.querySelector('.offline-badge');
+      if (badge) badge.textContent = '设备已离线';
+      updateUUButtonVisibility(cell, false);
+    }
+  }
+
+  if (eventType === 'deviceOnline') {
+    var deviceId = data.deviceId;
+    var cell = findCellByDeviceId(deviceId);
+    if (cell) {
+      cell.classList.remove('offline');
+      cell.classList.remove('deleted');
+      var badge = cell.querySelector('.offline-badge');
+      if (badge) badge.textContent = '设备已离线';
+      var uuBtn = cell.querySelector('.uu-float-btn');
+      var dev = devices[deviceId];
+      if (!uuBtn && dev && dev.uuDeviceId) {
+        var newBtn = document.createElement('button');
+        newBtn.className = 'uu-float-btn';
+        newBtn.onclick = function() { openUU(dev.uuDeviceId); };
+        newBtn.textContent = '🖱️ UU远程';
+        cell.appendChild(newBtn);
+      } else if (uuBtn) {
+        uuBtn.classList.remove('hidden');
+      }
+    }
+    if (data.deviceName) {
+      var dev = devices[deviceId];
+      if (dev) dev.name = data.deviceName;
+      updateDeviceInfo(deviceId, data.deviceName, null);
+    }
+    // 设备恢复时清理 blob 缓存
+    blobCache.revoke(deviceId);
+  }
+
+  if (eventType === 'deviceRenamed') {
+    var deviceId = data.deviceId;
+    var deviceName = data.deviceName;
+    if (devices[deviceId]) {
+      devices[deviceId].name = deviceName;
+    }
+    updateDeviceInfo(deviceId, deviceName, null);
+  }
+
+  if (eventType === 'deviceDeleted') {
+    var deviceId = data.deviceId;
+    if (devices[deviceId]) {
+      devices[deviceId].deleted = true;
+    }
+    for (var i = 0; i < wallData.devices.length; i++) {
+      if (wallData.devices[i].id === deviceId) {
+        wallData.devices[i].deleted = true;
+        break;
+      }
+    }
+    var cell = findCellByDeviceId(deviceId);
+    if (cell) {
+      cell.classList.remove('offline');
+      cell.classList.add('deleted');
+      var badge = cell.querySelector('.offline-badge');
+      if (badge) badge.textContent = '设备已删除';
+      updateUUButtonVisibility(cell, false);
+    }
+    updateDeviceInfo(deviceId, '设备已删除', '已删除');
+    // 清理缓存
+    blobCache.revoke(deviceId);
+  }
+
+  if (eventType === 'gridChanged') {
+    updateAllDevicePositions(serverDevices);
+  }
+
+  if (eventType === 'groupsChanged') {
+    updateAllDeviceInfo(serverDevices);
+  }
+}
+
+function findCellByDeviceId(deviceId) {
+  for (var i = 0; i < wallData.layout; i++) {
+    var cell = document.getElementById('cell_' + i);
+    if (cell) {
+      var img = document.getElementById('img_' + deviceId);
+      if (img && img.parentElement === cell) {
+        return cell;
+      }
+    }
+  }
+  return null;
+}
+
+function updateDeviceInfo(deviceId, name, detail) {
+  var info = document.getElementById('info_' + deviceId);
+  if (info) {
+    var nameEl = info.querySelector('.name');
+    var detailEl = info.querySelector('.detail');
+    if (nameEl && name !== null) nameEl.textContent = name;
+    if (detailEl && detail !== null && detail !== undefined) detailEl.textContent = detail;
+  }
+}
+
+function updateAllDevicePositions(serverDevices) {
+  for (var i = 0; i < wallData.devices.length; i++) {
+    var dev = wallData.devices[i];
+    if (dev.deleted) continue;
+    var sd = serverDevices.find(function(d) { return d.deviceId === dev.id; });
+    if (sd && sd.cellIndex !== undefined) {
+      dev.position = sd.cellIndex + 1;
+      updateDeviceInfo(dev.id, dev.name, (dev.groupName || '未分组') + ' / 格' + dev.position);
+    }
+  }
+}
+
+function updateAllDeviceInfo(serverDevices) {
+  for (var deviceId in devices) {
+    var dev = devices[deviceId];
+    var cell = findCellByDeviceId(deviceId);
+
+    if (dev.deleted) {
+      if (cell) {
+        cell.classList.remove('offline');
+        cell.classList.add('deleted');
+        var badge = cell.querySelector('.offline-badge');
+        if (badge) badge.textContent = '设备已删除';
+        updateUUButtonVisibility(cell, false);
+      }
+      continue;
+    }
+
+    var sd = serverDevices.find(function(d) { return d.deviceId === deviceId; });
+    if (sd) {
+      dev.online = sd.online;
+      dev.name = sd.deviceName;
+      dev.groupId = sd.groupId;
+
+      if (sd.groupId) {
+        var groupObj = groups.find(function(g) { return g.id === sd.groupId; });
+        dev.groupName = groupObj ? groupObj.name : '未分组';
+      } else {
+        dev.groupName = '未分组';
+      }
+
+      updateDeviceInfo(deviceId, sd.deviceName, (dev.groupName || '未分组') + ' / 格' + dev.position);
+
+      if (cell) {
+        cell.classList.remove('deleted');
+        if (sd.online) {
+          cell.classList.remove('offline');
+          var badge = cell.querySelector('.offline-badge');
+          if (badge) badge.textContent = '设备已离线';
+          var uuBtn = cell.querySelector('.uu-float-btn');
+          if (!uuBtn && dev.uuDeviceId) {
+            var newBtn = document.createElement('button');
+            newBtn.className = 'uu-float-btn';
+            newBtn.onclick = function() { openUU(dev.uuDeviceId); };
+            newBtn.textContent = '🖱️ UU远程';
+            cell.appendChild(newBtn);
+          } else if (uuBtn) {
+            uuBtn.classList.remove('hidden');
+          }
+        } else {
+          cell.classList.add('offline');
+          var badge = cell.querySelector('.offline-badge');
+          if (badge) badge.textContent = '设备已离线';
+          updateUUButtonVisibility(cell, false);
+        }
+      }
+    }
+  }
+}
+
+function updateUUButtonVisibility(cell, show) {
+  var uuBtn = cell.querySelector('.uu-float-btn');
+  if (uuBtn) {
+    if (show) {
+      uuBtn.classList.remove('hidden');
+    } else {
+      uuBtn.classList.add('hidden');
+    }
+  }
+}
+
+function formatDate(date) {
+  var y = date.getFullYear();
+  var m = String(date.getMonth() + 1).padStart(2, '0');
+  var d = String(date.getDate()).padStart(2, '0');
+  var h = String(date.getHours()).padStart(2, '0');
+  var min = String(date.getMinutes()).padStart(2, '0');
+  var s = String(date.getSeconds()).padStart(2, '0');
+  return y + '-' + m + '-' + d + ' ' + h + ':' + min + ':' + s;
+}
+
+// 初始化
+initWall();
+
+// 打开UU远程（与main.html一致）
+function openUU(uuDeviceId) {
+  if (!uuDeviceId) { alert('该设备未设置UU设备ID'); return; }
+  var url = 'uuycmgr://' + uuDeviceId;
+
+  // 尝试方法1: window.open
+  try {
+    var opened = window.open(url);
+    if (opened && !opened.closed) return;
+  } catch(e) {}
+
+  // 尝试方法2: 隐藏iframe
+  try {
+    var iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    iframe.src = url;
+    document.body.appendChild(iframe);
+    setTimeout(function() { document.body.removeChild(iframe); }, 1000);
+    return;
+  } catch(e) {}
+
+  // 尝试方法3: 创建链接并点击
+  try {
+    var a = document.createElement('a');
+    a.href = url;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function() { document.body.removeChild(a); }, 1000);
+    return;
+  } catch(e) {}
+}
+</script>
+</body>
+</html>

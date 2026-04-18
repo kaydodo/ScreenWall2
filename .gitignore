@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyd
+*.pdb
+*.egg-info/
+dist/
+build/
+*.egg
+*.spec
+venv/
+.venv/
+
+# Node.js
+node_modules/
+package-lock.json
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs & temporaries
+*.log
+*.tmp
+*.temp
+.upgrade.bat
+.upgrade.log
+*.pid
+ScreenWallClient_new.exe
+
+# IDE
+.vscode/
+.idea/
+*.swp

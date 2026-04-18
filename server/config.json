@@ -1,0 +1,22 @@
+{
+  "server": {
+    "port": 3000,
+    "host": "0.0.0.0"
+  },
+  "auth": {
+    "username": "admin",
+    "password": "admin123",
+    "sessionSecret": "sw_s3cr3t_k3y_2026_change_me"
+  },
+  "security": {
+    "maxLoginAttempts": 5,
+    "lockoutMinutes": 15,
+    "maxConnectionsPerIP": 10
+  },
+  "client": {
+    "heartbeatIntervalMs": 1000,
+    "screenshotQuality": 60,
+    "screenshotResize": 640,
+    "timeoutMs": 30000
+  }
+}
