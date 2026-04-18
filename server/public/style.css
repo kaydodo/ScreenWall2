@@ -758,8 +758,8 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
 }
 
 .grid-section .grid {
-  flex: 1;
-  overflow-y: auto;
+  /* 移除 flex:1 让 grid 自然延伸高度 */
+  overflow-y: visible;
   overflow-x: visible;  /* 让横向溢出流向全局滚动条 */
 }
 
