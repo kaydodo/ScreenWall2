@@ -1356,8 +1356,9 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
 .toast-warn    { background: #fffbeb; color: #92400e; border: 1.5px solid #fde68a; }
 .toast-info    { background: #eff6ff; color: #1e40af; border: 1.5px solid #bfdbfe; }
 
-/* 桌面端隐藏移动端键盘按钮 */
-#previewKBbtnMobile {
+/* 桌面端隐藏移动端键盘按钮和显示器按钮 */
+#previewKBbtnMobile,
+#previewMonitorBtnMobile {
   display: none;
 }
 
@@ -1746,12 +1747,14 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
   .mobile-show {
     display: none !important;
   }
-  /* 移动端显示键盘按钮 */
-  #previewKBbtnMobile {
+  /* 移动端显示键盘按钮和显示器按钮（只在预览画面时显示） */
+  .preview-overlay.active #previewKBbtnMobile,
+  .preview-overlay.active #previewMonitorBtnMobile {
     display: block;
   }
-  /* 移动端键盘按钮旋转90度 */
-  #previewKBbtnMobile {
+  /* 移动端键盘按钮和显示器按钮旋转90度 */
+  #previewKBbtnMobile,
+  #previewMonitorBtnMobile {
     transform: rotate(90deg);
   }
   /* 移动端键盘容器旋转90度 */
@@ -1951,7 +1954,17 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
 
   /* 移动端显示器切换按钮 */
   #previewMonitorBtnMobile {
-    display: none;
+    position: fixed;
+    bottom: 50px;
+    right: 180px;
+    background: #4a5568;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-size: 14px;
+    cursor: pointer;
+    z-index: 2001;
   }
 
   /* 移动端分组弹窗：两栏变单栏堆叠，左边在上，都可滚动 */
