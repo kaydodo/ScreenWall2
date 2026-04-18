@@ -751,10 +751,8 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
   display: grid;
   gap: 8px;
   width: 100%;
-  align-content: start;
   align-items: start;  /* 让格子高度由内容决定 */
   overflow-x: visible;  /* 横向溢出到body的全局滚动条 */
-  overflow-y: visible;  /* 允许格子自然向下延伸 */
   /* 桌面端：使用 minmax 保持最小宽度 */
   grid-template-columns: repeat(var(--grid-cols, 4), minmax(var(--cell-min-w, 180px), 1fr));
 }
