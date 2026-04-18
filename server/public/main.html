@@ -322,7 +322,7 @@
 
 <!-- ========== 监控上墙弹窗 ========== -->
 <div id="monitorOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:10000;align-items:center;justify-content:center;">
-  <div id="monitorDialog" style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;width:60vw;height:90vh;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,0.4);">
+  <div id="monitorDialog" style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;width:1200px;max-width:95vw;aspect-ratio:16/9;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,0.4);">
     <!-- 头部 -->
     <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--border);background:var(--bg-page);border-radius:12px 12px 0 0;flex-shrink:0;">
       <span style="font-size:17px;font-weight:600;color:var(--text);">📺 监控上墙</span>
@@ -331,7 +331,7 @@
     <!-- 主体 -->
     <div style="flex:1;display:flex;overflow:hidden;">
       <!-- 左侧：设备列表 -->
-      <div style="width:280px;flex-shrink:0;border-right:1px solid var(--border);display:flex;flex-direction:column;">
+      <div style="width:320px;flex-shrink:0;border-right:1px solid var(--border);display:flex;flex-direction:column;">
         <div style="padding:12px;border-bottom:1px solid var(--border);font-size:13px;color:var(--text-muted);font-weight:500;">设备列表</div>
         <div id="monitorDeviceList" style="flex:1;overflow-y:auto;padding:8px;"></div>
       </div>
@@ -355,7 +355,7 @@
         </div>
         <!-- 预览区域 -->
         <div style="flex:1;padding:16px;overflow:hidden;background:var(--bg-page);display:flex;flex-direction:column;">
-          <div id="monitorPreviewGrid" class="monitor-preview-grid" style="display:grid;gap:2px;flex:1;min-height:0;align-content:start;overflow-y:auto;"></div>
+          <div id="monitorPreviewGrid" class="monitor-preview-grid" style="display:grid;gap:2px;flex:1;min-height:0;"></div>
         </div>
       </div>
     </div>
@@ -4902,18 +4902,16 @@ function updateMonitorPreview() {
     countEl.textContent = '已选 ' + monitorWallState.selectedDevices.length + '/' + monitorWallState.layout + ' 格';
   }
   
-  // 设置网格布局：列数根据布局计算，行高固定以保持16:9比例
+  // 设置网格布局
   var cols = Math.sqrt(monitorWallState.layout);
   container.style.gridTemplateColumns = 'repeat(' + cols + ', 1fr)';
-  // 高度 = 宽度 / 1.778（16:9比例），减去间距
-  container.style.gridTemplateRows = 'calc((100% - ' + (cols - 1) * 2 + 'px) / ' + cols + ' / 1.778)';
+  container.style.gridTemplateRows = 'repeat(' + cols + ', 1fr)';
   
   // 清空并重建格子
   container.innerHTML = '';
   for (var i = 0; i < monitorWallState.layout; i++) {
     var cell = document.createElement('div');
     cell.className = 'monitor-preview-cell';
-    cell.style.aspectRatio = '16/9';
     
     if (i < monitorWallState.selectedDevices.length) {
       var deviceId = monitorWallState.selectedDevices[i];
