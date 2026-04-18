@@ -3942,6 +3942,22 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
   #filterDropdownMobile.show {
     display: block !important;
   }
+
+  /* 移动端筛选蒙版 */
+  #filterBackdrop {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: transparent;
+    z-index: 999;
+  }
+
+  #filterBackdrop.show {
+    display: block;
+  }
 }
 
 /* 移动端隐藏筛选按钮 */

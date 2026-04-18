@@ -72,6 +72,9 @@
     </div>
   </div>
 
+  <!-- 移动端筛选蒙版 -->
+  <div id="filterBackdrop"></div>
+
   <div class="topbar-right">
     <button class="migrate-btn" id="migrateBtn" title="迁移服务器地址" onclick="openMigrateDialog()">🔄</button>
     <button class="download-btn" id="downloadBtn" title="UU远程配置下载" onclick="openDownloadDialog()">
@@ -3602,13 +3605,26 @@ function applyFilter() {
 (function() {
   const btn = document.getElementById('btnFilterMobile');
   const dropdown = document.getElementById('filterDropdownMobile');
+  const backdrop = document.getElementById('filterBackdrop');
   if (!btn || !dropdown) return;
+
+  function closeFilter() {
+    dropdown.classList.remove('show');
+    backdrop.classList.remove('show');
+  }
+
+  function openFilter() {
+    dropdown.classList.add('show');
+    backdrop.classList.add('show');
+    rebuildFilterPanel();
+  }
 
   btn.onclick = function(e) {
     e.stopPropagation();
-    dropdown.classList.toggle('show');
     if (dropdown.classList.contains('show')) {
-      rebuildFilterPanel();
+      closeFilter();
+    } else {
+      openFilter();
     }
   };
 
@@ -3619,12 +3635,20 @@ function applyFilter() {
   };
 
   document.getElementById('filterCloseBtnMobile').onclick = function() {
-    dropdown.classList.remove('show');
+    closeFilter();
   };
 
+  // 点击蒙版关闭
+  if (backdrop) {
+    backdrop.onclick = function() {
+      closeFilter();
+    };
+  }
+
+  // 点击弹窗外部关闭
   document.addEventListener('click', function(e) {
-    if (!dropdown.contains(e.target) && e.target !== btn) {
-      dropdown.classList.remove('show');
+    if (dropdown.classList.contains('show') && !dropdown.contains(e.target) && e.target !== btn) {
+      closeFilter();
     }
   });
 })();
