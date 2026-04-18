@@ -210,6 +210,36 @@
     display: none;
   }
 }
+
+/* 1080p 开关样式 */
+.toggle-switch {
+  width: 40px;
+  height: 22px;
+  background: #3a3d4a;
+  border-radius: 11px;
+  position: relative;
+  cursor: pointer;
+  transition: background 0.3s ease;
+  border: 1px solid #555;
+}
+.toggle-switch.active {
+  background: #10b981;
+  border-color: #10b981;
+}
+.toggle-slider {
+  width: 16px;
+  height: 16px;
+  background: #fff;
+  border-radius: 50%;
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+.toggle-switch.active .toggle-slider {
+  transform: translateX(18px);
+}
 </style>
 
 <!-- ========== 预览浮层 ========== -->
@@ -219,7 +249,12 @@
     <div class="preview-controls">
       <span class="preview-mouse-hint" id="previewMouseHint" style="display:none;color:#aaa;font-size:13px;">📌 可使用鼠标左键点击屏幕</span>
       <button class="preview-kb-btn" id="previewMonitorBtn" title="切换显示器" onclick="cycleMonitor()" style="display:none;background:#2a2d3a;border:1px solid #444;color:#fff;border-radius:6px;padding:4px 10px;font-size:13px;cursor:pointer;">🖥️ 显示器 1</button>
-      <button class="preview-kb-btn" id="preview1080Btn" title="1080p预览模式（临时高清）" onclick="togglePreview1080()" style="display:none;background:#2a2d3a;border:1px solid #444;color:#aaa;border-radius:6px;padding:4px 10px;font-size:13px;cursor:pointer;">1080p</button>
+      <div style="display:inline-flex;align-items:center;gap:4px;" id="preview1080Container">
+        <div class="toggle-switch" id="preview1080Btn" onclick="togglePreview1080()">
+          <div class="toggle-slider"></div>
+        </div>
+        <span style="font-size:12px;color:#aaa;user-select:none;">1080p</span>
+      </div>
       <button class="preview-kb-btn" id="previewKBbtn" title="键盘控制" onclick="togglePreviewKeyboard()">⌨️ 键盘</button>
       <button class="preview-uu-btn" id="previewUUbtn" title="打开UU远程"> 🖱️ UU远程</button>
       <button class="dialog-close" id="previewClose">✕ 关闭</button>
@@ -2508,8 +2543,8 @@ function openPreview(cellIndex) {
     updateMonitorBtn(dev.monitorIndex || 1);
   }
   // 1080p 按钮：仅桌面端显示（移动端不显示）
-  const btn1080 = document.getElementById('preview1080Btn');
-  if (btn1080) btn1080.style.display = isMobile ? 'none' : 'inline-flex';
+  const btn1080Container = document.getElementById('preview1080Container');
+  if (btn1080Container) btn1080Container.style.display = isMobile ? 'none' : 'inline-flex';
   // 重置鼠标提示（后续根据条件重新设置）
   const mouseHint = document.getElementById('previewMouseHint');
   if (mouseHint) mouseHint.style.display = 'none';
@@ -2546,9 +2581,14 @@ function closePreview() {
   // 关闭时隐藏鼠标提示
   const mouseHint = document.getElementById('previewMouseHint');
   if (mouseHint) mouseHint.style.display = 'none';
-  // 关闭时隐藏 1080p 按钮
-  const btn1080 = document.getElementById('preview1080Btn');
-  if (btn1080) btn1080.style.display = 'none';
+  // 关闭时隐藏 1080p 按钮容器（状态不记录，下次打开时重置为关闭）
+  const btn1080Container = document.getElementById('preview1080Container');
+  if (btn1080Container) {
+    btn1080Container.style.display = 'none';
+    // 重置按钮状态（下次打开时初始化为关闭）
+    const btn1080 = document.getElementById('preview1080Btn');
+    if (btn1080) btn1080.classList.remove('active');
+  }
   // 关闭键盘弹窗（如果打开着）
   if (previewKeyboardOpen) closePreviewKeyboard();
   // 关闭 1080p 模式（如果开启着）
@@ -2781,12 +2821,12 @@ function togglePreview1080() {
     // 关闭 1080p
     preview1080Mode = false;
     ws.send(JSON.stringify({ type: 'hq1080Off' }));
-    if (btn) { btn.style.background = '#2a2d3a'; btn.style.color = '#aaa'; btn.style.borderColor = '#444'; }
+    if (btn) btn.classList.remove('active');
   } else {
     // 开启 1080p
     preview1080Mode = true;
     ws.send(JSON.stringify({ type: 'hq1080On' }));
-    if (btn) { btn.style.background = '#10b981'; btn.style.color = '#fff'; btn.style.borderColor = '#10b981'; }
+    if (btn) btn.classList.add('active');
   }
 }
 
@@ -4354,8 +4394,8 @@ function openAlarmPreview(alarmId) {
   const kbbtn = document.getElementById('previewKBbtn');
   if (kbbtn) kbbtn.style.display = 'none';
   // 报警预览不显示 1080p 按钮
-  const btn1080 = document.getElementById('preview1080Btn');
-  if (btn1080) btn1080.style.display = 'none';
+  const btn1080Container = document.getElementById('preview1080Container');
+  if (btn1080Container) btn1080Container.style.display = 'none';
   // 报警预览不显示鼠标提示
   const mouseHint = document.getElementById('previewMouseHint');
   if (mouseHint) mouseHint.style.display = 'none';
