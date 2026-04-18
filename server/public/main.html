@@ -595,6 +595,14 @@ function renderPendingFrames() {
         // 只渲染最近1秒内的帧（超时丢弃）
         if (now - frame.timestamp < 1000) {
           const cell = gridCells.find(c => c.deviceId === deviceId);
+          // 自愈：收到截图帧证明设备在线，若格子状态为离线则自动恢复
+          if (cell && !cell.online) {
+            cell.online = true;
+            const dot = document.getElementById(`dot_${cell.index}`);
+            const stxt = document.getElementById(`stxt_${cell.index}`);
+            if (dot) { dot.className = 'status-dot online'; dot.style.backgroundColor = '#34d399'; }
+            if (stxt) stxt.textContent = '在线';
+          }
           if (cell && cell.screenshot !== frame.image) {
             cell.screenshot = frame.image;
             updateCellScreenshot(cell.index, frame.image);
@@ -1265,6 +1273,15 @@ function connectWS() {
       for (const sc of msg.screenshots) {
         const frameData = { image: sc.image, hqImage: sc.hqImage || null, timestamp: Date.now() };
         pendingFrames.set(sc.deviceId, frameData);
+        // 自愈：批量截图同样触发在线状态恢复
+        const cell = gridCells.find(c => c && c.deviceId === sc.deviceId);
+        if (cell && !cell.online) {
+          cell.online = true;
+          const dot = document.getElementById(`dot_${cell.index}`);
+          const stxt = document.getElementById(`stxt_${cell.index}`);
+          if (dot) { dot.className = 'status-dot online'; dot.style.backgroundColor = '#34d399'; }
+          if (stxt) stxt.textContent = '在线';
+        }
       }
       scheduleRender();
     }
