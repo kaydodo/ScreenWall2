@@ -1940,7 +1940,7 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
   #previewKBbtnMobile {
     position: fixed;
     bottom: 50px;
-    right: 30px;
+    right: 25px;
     background: #4a5568;
     color: #fff;
     border: none;
