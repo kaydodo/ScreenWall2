@@ -754,7 +754,7 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
   width: 100%;
   min-height: 0;
   align-content: start;
-  align-items: stretch;  /* 让所有格子行高一致 */
+  align-items: start;  /* 让格子高度由内容决定 */
   overflow-x: visible;  /* 横向溢出到body的全局滚动条 */
   overflow-y: auto;     /* 垂直滚动在grid内部 */
   height: 100%;
@@ -800,8 +800,8 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
   position: relative;
   display: flex;
   flex-direction: column;
-  /* 由 JS 根据列数动态设置最小高度 */
-  min-height: var(--cell-min-h, 200px);
+  /* 高度由内容决定（预览图 aspect-ratio + footer） */
+  height: auto;
 }
 
 .wall-cell:hover {
@@ -817,7 +817,6 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
   background: var(--bg-page);
   overflow: hidden;
   flex: 1;
-  min-height: 0;
 }
 
 .cell-preview img,

@@ -1564,38 +1564,22 @@ function updateGridCellHeight() {
   const grid = document.getElementById('mainGrid');
   if (!grid || isMobile) return;
 
-  // 动态计算：根据 grid 实际宽度和列数计算格子高度，保持 16:10 比例
-  const gap = 8;
-  const footerH = 56;  // footer 高度
-  const totalGaps = (gridSize - 1) * gap;
-  // 等待布局完成后再计算
-  requestAnimationFrame(() => {
-    const gridWidth = grid.clientWidth - gap;  // 减去右padding
-    const cellWidth = (gridWidth - totalGaps) / gridSize;
-    const cellHeight = cellWidth * 10 / 16;  // 16:10 比例
-    const previewH = cellHeight - footerH;
-
-    document.documentElement.style.setProperty('--cell-preview-h', Math.max(previewH, 100) + 'px');
-    document.documentElement.style.setProperty('--cell-min-h', Math.max(cellHeight, 180) + 'px');
-    // 设置网格列数 CSS 变量（桌面端使用 minmax 自动计算最小宽度）
-    document.documentElement.style.setProperty('--grid-cols', gridSize);
-    // 每个格子最小宽度 (确保预览可读)
-    document.documentElement.style.setProperty('--cell-min-w', '180px');
-  });
+  // 设置网格列数 CSS 变量（桌面端使用 minmax 自动计算最小宽度）
+  document.documentElement.style.setProperty('--grid-cols', gridSize);
+  // 每个格子最小宽度 (确保预览可读)
+  document.documentElement.style.setProperty('--cell-min-w', '180px');
 
   // 桌面端：设置网格最小宽度，当窗口小于此值时触发横向滚动
   // 公式：列数 * 每列最小宽度 + (列数-1) * gap
-  if (grid && !isMobile) {
-    const gap = 8;
-    const totalGaps = (gridSize - 1) * gap;
-    const minWidth = gridSize * 180 + totalGaps;
-    grid.style.minWidth = minWidth + 'px';
-  }
+  const gap = 8;
+  const totalGaps = (gridSize - 1) * gap;
+  const minWidth = gridSize * 180 + totalGaps;
+  grid.style.minWidth = minWidth + 'px';
 }
 
 function renderGrid() {
   if (!isMobile) {
-    updateGridCellHeight();  // 根据当前列数更新缩略图高度和列数
+    updateGridCellHeight();  // 更新列数相关 CSS 变量
   }
   const grid = document.getElementById('mainGrid');
   const total = TOTAL_CELLS;
@@ -1623,7 +1607,6 @@ function renderGrid() {
     });
     window.addEventListener('resize', function() {
       updateViewport();
-      updateGridCellHeight();  // 窗口大小变化时重新计算格子高度
     });
     // 初始上报
     setTimeout(updateViewport, 1000);
