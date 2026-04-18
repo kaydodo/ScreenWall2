@@ -1936,15 +1936,15 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
     opacity: 0;
   }
 
-  /* 移动端键盘按钮 - fixed定位，旋转90度后贴右侧 */
+  /* 移动端键盘按钮 - fixed定位，贴右侧 */
   #previewKBbtnMobile {
     position: fixed;
-    bottom: 0;
-    right: 26px;
+    bottom: 50px;
+    right: 0;
     background: #4a5568;
     color: #fff;
     border: none;
-    border-radius: 6px 6px 0 0;
+    border-radius: 6px 0 0 6px;
     padding: 8px 14px;
     font-size: 14px;
     cursor: pointer;
@@ -1955,12 +1955,12 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
   /* 移动端显示器切换按钮 - 在键盘按钮上方 */
   #previewMonitorBtnMobile {
     position: fixed;
-    bottom: 0;
+    bottom: 50px;
     right: 180px;
     background: #4a5568;
     color: #fff;
     border: none;
-    border-radius: 6px 6px 0 0;
+    border-radius: 6px 0 0 6px;
     padding: 8px 14px;
     font-size: 14px;
     cursor: pointer;
