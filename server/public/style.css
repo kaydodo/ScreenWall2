@@ -1956,7 +1956,7 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
   #previewMonitorBtnMobile {
     position: fixed;
     bottom: 50px;
-    right: 0;
+    right: -30px;
     background: #4a5568;
     color: #fff;
     border: none;
