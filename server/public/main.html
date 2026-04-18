@@ -56,17 +56,19 @@
       <span class="stat-num" id="statTotal">0</span>
       <span class="stat-label">设备</span>
     </div>
-    <!-- 移动端筛选按钮 -->
-    <button class="btn btn-ghost mobile-filter-btn" id="btnFilterMobile" title="分组筛选">🔍</button>
-    <div class="filter-dropdown" id="filterDropdownMobile">
-      <div class="filter-header">
-        <span>分组筛选</span>
-        <div class="filter-actions">
-          <button class="filter-action-btn" id="filterSelectNoneMobile">恢复默认</button>
-          <button class="filter-action-btn filter-close-btn" id="filterCloseBtnMobile" title="关闭">✕</button>
+    <!-- 移动端筛选 -->
+    <div class="mobile-filter-wrapper">
+      <button class="btn btn-ghost mobile-filter-btn" id="btnFilterMobile" title="分组筛选">🔍</button>
+      <div class="filter-dropdown" id="filterDropdownMobile">
+        <div class="filter-header">
+          <span>分组筛选</span>
+          <div class="filter-actions">
+            <button class="filter-action-btn" id="filterSelectNoneMobile">恢复默认</button>
+            <button class="filter-action-btn filter-close-btn" id="filterCloseBtnMobile" title="关闭">✕</button>
+          </div>
         </div>
+        <div class="filter-list" id="filterListMobile"></div>
       </div>
-      <div class="filter-list" id="filterListMobile"></div>
     </div>
   </div>
 
