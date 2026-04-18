@@ -196,8 +196,8 @@ select {
 
 /* 布局下拉框固定宽度 */
 #selGrid {
-  width: 90px;
-  min-width: 90px;
+  width: 70px;
+  min-width: 70px;
 }
 }
 
