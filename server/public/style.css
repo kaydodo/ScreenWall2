@@ -3930,7 +3930,8 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
   #filterDropdownMobile {
     position: absolute;
     top: calc(100% + 4px);
-    right: 0;
+    left: 50%;
+    transform: translateX(-50%);
     width: 220px;
     max-height: 60vh;
     border-radius: var(--radius-md);
