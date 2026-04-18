@@ -39,8 +39,7 @@
         <div class="filter-header">
           <span>分组筛选</span>
           <div class="filter-actions">
-            <button class="filter-action-btn" id="filterSelectAll">全选</button>
-            <button class="filter-action-btn" id="filterSelectNone">全不选</button>
+            <button class="filter-action-btn" id="filterSelectNone">重置</button>
           </div>
         </div>
         <div class="filter-list" id="filterList"></div>
@@ -3424,6 +3423,7 @@ function rebuildFilterPanel() {
     `;
   }).join('');
 
+
   // 绑定复选框事件
   filterList.querySelectorAll('input[type="checkbox"]').forEach(cb => {
     cb.onchange = function() {
@@ -3440,6 +3440,18 @@ function rebuildFilterPanel() {
           allGroupIds.add(null);  // 未分组
           groups.forEach(g => allGroupIds.add(g.id));
           allGroupIds.forEach(id => activeFilters.add(id));
+        }
+        // 计算取消后会剩几个勾选
+        const remainingAfterDelete = (activeFilters.size - (activeFilters.has(groupId) ? 1 : 0));
+        // 如果取消后只剩0个，不允许（至少保留一个）
+        if (remainingAfterDelete <= 0) {
+          // 恢复勾选状态，不做处理
+          showToast('至少保留一个分组', 'warn');
+          // 重新设置为勾选
+          setTimeout(() => {
+            this.checked = true;
+          }, 0);
+          return;
         }
         // 然后删除当前取消的
         activeFilters.delete(groupId);
@@ -3536,22 +3548,9 @@ function applyFilter() {
     }
   };
 
-  // 全选：清空 activeFilters（表示显示全部）
-  document.getElementById('filterSelectAll').onclick = function() {
-    activeFilters.clear();
-    applyFilter();
-    rebuildFilterPanel();
-  };
-
-  // 全不选：选中所有分组（隐藏所有设备，但空格子根据当前筛选状态显示）
+  // 重置：清空筛选，恢复全显示
   document.getElementById('filterSelectNone').onclick = function() {
-    // 添加所有分组ID到 activeFilters（包含所有分组 = 隐藏所有设备）
     activeFilters.clear();
-    // 获取当前所有分组（包括 null 表示未分组）
-    const allGroupIds = new Set();
-    allGroupIds.add(null);  // 未分组
-    groups.forEach(g => allGroupIds.add(g.id));
-    allGroupIds.forEach(id => activeFilters.add(id));
     applyFilter();
     rebuildFilterPanel();
   };
