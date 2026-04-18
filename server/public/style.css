@@ -1349,6 +1349,11 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
 .toast-warn    { background: #fffbeb; color: #92400e; border: 1.5px solid #fde68a; }
 .toast-info    { background: #eff6ff; color: #1e40af; border: 1.5px solid #bfdbfe; }
 
+/* 桌面端隐藏移动端键盘按钮 */
+#previewKBbtnMobile {
+  display: none;
+}
+
 /* ── 统计和状态 ── */
 .stat-pill {
   display: flex;
