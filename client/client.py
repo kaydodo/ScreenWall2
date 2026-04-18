@@ -1207,7 +1207,6 @@ class ScreenWallClient:
         self._keyclient_process = None
         self._upgrade_notified = False  # 升级通知只弹一次
         self._upgrade_triggered = False  # 升级任务只触发一次
-        self._upgrade_triggered = False  # 升级任务只触发一次
         self._heartbeat_tick = 0        # 截图计数，用于定时发送心跳
         if _keyboard_enabled:
             self._start_keyclient()
@@ -1687,7 +1686,7 @@ class ScreenWallClient:
             # 心跳计数：每 90 帧（约 30 秒 @ 3fps）主动发一次心跳
             # 心跳用于接收服务端的升级通知，不依赖截图失败才触发
             self._heartbeat_tick += 1
-            heartbeat_interval = 90  # 可配置，每 N 帧发一次心跳（约30秒）
+            heartbeat_interval = 180  # 可配置，每 N 帧发一次心跳（约60秒 @ 3fps）
             if self._heartbeat_tick >= heartbeat_interval:
                 self._heartbeat_tick = 0
                 try:
