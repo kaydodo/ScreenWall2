@@ -1317,7 +1317,7 @@ class ScreenWallClient:
             )
             logger.info("[升级] ✅ 升级脚本已启动，客户端即将退出")
             self._upgrade_notified = True
-            await asyncio.sleep(2)
+            time.sleep(2)  # 同步阻塞，不依赖事件循环
             os._exit(0)
         except Exception as e:
             logger.error(f"[升级] ❌ 内部异常: {e}")
