@@ -355,7 +355,7 @@
         </div>
         <!-- 预览区域 -->
         <div style="flex:1;padding:16px;overflow:hidden;background:var(--bg-page);display:flex;flex-direction:column;">
-          <div id="monitorPreviewGrid" class="monitor-preview-grid" style="display:grid;gap:2px;flex:1;min-height:0;"></div>
+          <div id="monitorPreviewGrid" class="monitor-preview-grid" style="display:grid;gap:2px;flex:1;min-height:0;align-content:start;overflow-y:auto;"></div>
         </div>
       </div>
     </div>
@@ -4902,16 +4902,18 @@ function updateMonitorPreview() {
     countEl.textContent = '已选 ' + monitorWallState.selectedDevices.length + '/' + monitorWallState.layout + ' 格';
   }
   
-  // 设置网格布局
+  // 设置网格布局：列数根据布局计算，行高固定以保持16:9比例
   var cols = Math.sqrt(monitorWallState.layout);
   container.style.gridTemplateColumns = 'repeat(' + cols + ', 1fr)';
-  container.style.gridTemplateRows = 'repeat(' + cols + ', 1fr)';
+  // 高度 = 宽度 / 1.778（16:9比例），减去间距
+  container.style.gridTemplateRows = 'calc((100% - ' + (cols - 1) * 2 + 'px) / ' + cols + ' / 1.778)';
   
   // 清空并重建格子
   container.innerHTML = '';
   for (var i = 0; i < monitorWallState.layout; i++) {
     var cell = document.createElement('div');
     cell.className = 'monitor-preview-cell';
+    cell.style.aspectRatio = '16/9';
     
     if (i < monitorWallState.selectedDevices.length) {
       var deviceId = monitorWallState.selectedDevices[i];
