@@ -1561,28 +1561,30 @@ function requestRender() {
 }
 
 function updateGridCellHeight() {
-  // 判断分辨率：1080p vs 2K/4K
-  const screenH = window.screen.height;
-  const isHD = screenH >= 1200;  // 2K及以上都使用大尺寸
-  
-  // 1080p: 当前配置
-  const heightMap1080 = { 4: 220, 5: 180, 6: 150, 7: 130, 8: 110 };
-  // 2K/4K: 更大的高度
-  const heightMapHD = { 4: 310, 5: 255, 6: 215, 7: 185, 8: 160 };
-  
-  const heightMap = isHD ? heightMapHD : heightMap1080;
-  const h = heightMap[gridSize] || Math.round(260 - (gridSize - 3) * 28);
-  const cellMinH = h + 56;  // 缩略图高度 + footer 高度(约56px)
-  document.documentElement.style.setProperty('--cell-preview-h', h + 'px');
-  document.documentElement.style.setProperty('--cell-min-h', cellMinH + 'px');
-  // 设置网格列数 CSS 变量（桌面端使用 minmax 自动计算最小宽度）
-  document.documentElement.style.setProperty('--grid-cols', gridSize);
-  // 每个格子最小宽度 (确保预览可读)
-  document.documentElement.style.setProperty('--cell-min-w', '180px');
+  const grid = document.getElementById('mainGrid');
+  if (!grid || isMobile) return;
+
+  // 动态计算：根据 grid 实际宽度和列数计算格子高度，保持 16:10 比例
+  const gap = 8;
+  const footerH = 56;  // footer 高度
+  const totalGaps = (gridSize - 1) * gap;
+  // 等待布局完成后再计算
+  requestAnimationFrame(() => {
+    const gridWidth = grid.clientWidth - gap;  // 减去右padding
+    const cellWidth = (gridWidth - totalGaps) / gridSize;
+    const cellHeight = cellWidth * 10 / 16;  // 16:10 比例
+    const previewH = cellHeight - footerH;
+
+    document.documentElement.style.setProperty('--cell-preview-h', Math.max(previewH, 100) + 'px');
+    document.documentElement.style.setProperty('--cell-min-h', Math.max(cellHeight, 180) + 'px');
+    // 设置网格列数 CSS 变量（桌面端使用 minmax 自动计算最小宽度）
+    document.documentElement.style.setProperty('--grid-cols', gridSize);
+    // 每个格子最小宽度 (确保预览可读)
+    document.documentElement.style.setProperty('--cell-min-w', '180px');
+  });
 
   // 桌面端：设置网格最小宽度，当窗口小于此值时触发横向滚动
   // 公式：列数 * 每列最小宽度 + (列数-1) * gap
-  const grid = document.getElementById('mainGrid');
   if (grid && !isMobile) {
     const gap = 8;
     const totalGaps = (gridSize - 1) * gap;
@@ -1621,6 +1623,7 @@ function renderGrid() {
     });
     window.addEventListener('resize', function() {
       updateViewport();
+      updateGridCellHeight();  // 窗口大小变化时重新计算格子高度
     });
     // 初始上报
     setTimeout(updateViewport, 1000);
