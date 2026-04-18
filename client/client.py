@@ -75,21 +75,21 @@ def _switch_monitor(idx):
         cfg = load_config()
         cfg["monitorIndex"] = idx
         save_config(cfg)
-        logger.info(f"[Monitor] _switch_monitor: idx={idx}, monitors={monitors}")
+        # info
     except Exception as e:
-        logger.error(f"[Monitor] _switch_monitor config 阶段异常: {e}")
+        # error
     try:
         client = getattr(sys, '_client_instance', None)
         if client:
             client._on_monitor_switch(idx)
-        logger.info(f"[Monitor] _on_monitor_switch({idx}) 完成")
+        # info 完成")
     except Exception as e:
-        logger.error(f"[Monitor] _on_monitor_switch 异常: {e}")
+        # error
     try:
         _rebuild_tray_icon()
     except Exception as e:
-        logger.error(f"[Monitor] _rebuild_tray_icon 异常: {e}")
-    logger.info(f"[Monitor] 切换到显示器 {idx} 完成")
+        # error
+    # info
 
 
 def _roundrect(canvas, x1, y1, x2, y2, r, **kwargs):
@@ -147,30 +147,22 @@ if getattr(sys, 'frozen', False):
 else:
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# ── File Logger ──────────────────────────────────────────────────────
-import logging
-logger = logging.getLogger("ScreenWallClient")
-logger.setLevel(logging.DEBUG)
-fh = logging.FileHandler(os.path.join(BASE_DIR, "client.log"), encoding="utf-8")
-fh.setLevel(logging.DEBUG)
-logger.addHandler(fh)
-
 # 配置文件路径
 CONFIG_PATH = os.path.join(BASE_DIR, "config.json")
 
 # ── Config ──────────────────────────────────────────────
 def load_config():
-    logger.info(f"尝试加载配置文件: {CONFIG_PATH}")
+    # # info
     if os.path.exists(CONFIG_PATH):
         try:
             with open(CONFIG_PATH, "r", encoding="utf-8") as f:
                 cfg = json.load(f)
-                logger.info(f"配置文件加载成功，server: {cfg.get('server', {})}")
+                # # info}")
                 return cfg
         except Exception as e:
-            logger.error(f"Config load error: {e}")
+            # # error
     else:
-        logger.warning(f"配置文件不存在: {CONFIG_PATH}")
+        # # warning
     return {}
 
 
@@ -579,7 +571,7 @@ _on_quit_callback = None
 def _do_exit():
     """统一退出：先关闭 KeyClient，再隐藏托盘图标，再退出进程"""
     global _tray_icon
-    logger.info("准备退出")
+    # # info
     
     # 关闭 KeyClient
     client = getattr(sys, '_client_instance', None)
@@ -1362,9 +1354,9 @@ class ScreenWallClient:
             time.sleep(2)  # 同步阻塞，不依赖事件循环
             os._exit(0)
         except Exception as e:
-            logger.error(f"[升级] ❌ 内部异常: {e}")
+            # error
             import traceback
-            logger.error(f"[升级] 堆栈: {traceback.format_exc()}")
+            # error}")
             self._upgrade_triggered = False
             self._upgrade_notified = False
 
@@ -1414,9 +1406,9 @@ class ScreenWallClient:
 
     def _on_monitor_switch(self, idx):
         """显示器切换回调：触发重连，让服务端通过 register 拿到新偏移量"""
-        logger.info(f"[Monitor] _on_monitor_switch({idx}) 开始")
+        # info 开始")
         self._reconnect_async()
-        logger.info(f"[Monitor] _on_monitor_switch({idx}) _reconnect_async 已调度")
+        # info _reconnect_async 已调度")
 
     def _get_uu_device_id_async(self):
         """
@@ -1584,10 +1576,10 @@ class ScreenWallClient:
                 if output.isdigit():
                     self._uu_device_id = output
                     self._uu_fetch_success = True
-                    logger.info(f"[UU] 成功获取设备ID: {output}")
+                    # info
                     return output
         except Exception as e:
-            logger.debug(f"[UU] 获取失败，{self._uu_fetch_interval}秒后重试: {e}")
+            # debug
 
         return self._uu_device_id or ""
 
@@ -1697,7 +1689,7 @@ class ScreenWallClient:
             # 热更新配置
             new_cfg = self._get_config()
             if self._cfg_hash(new_cfg) != self._last_cfg_hash:
-                logger.info(f"配置已更新: {new_cfg['deviceName']}")
+                # info
                 try:
                     has_kb = _keyboard_enabled
                     sw, sh = self._get_screen_res()
@@ -1951,25 +1943,25 @@ class ScreenWallClient:
                         update_available = data.get("updateAvailable", False)
                         latest_version = data.get("latestVersion", "?")
                         client_ver = data.get("version", "?")
-                        logger.info(f"[心跳] 收到响应 updateAvailable={update_available} latest={latest_version} current={client_ver} notified={self._upgrade_notified}")
+                        # info
                         if update_available and not self._upgrade_notified:
-                            logger.info(f"[升级] ✅ 检测到新版本 {latest_version}（当前 {client_ver}），开始下载...")
+                            # info
                             _show_toast("屏幕墙升级", f"发现新版本 v{latest_version}，正在准备升级...")
                             # 注意：_upgrade_notified 在 _do_upgrade_async 成功启动 bat 后才设置
                             # 这里先不设，由 _do_upgrade_async 自己设置
                             asyncio.create_task(self._do_upgrade_async(cfg, latest_version))
                         elif not update_available:
                             # 版本已是最新，不锁定 _upgrade_notified，下次心跳还会继续检查
-                            logger.info(f"[心跳] 版本已是最新 latest={latest_version} current={client_ver}")
+                            # info
 
                 except Exception as _e:
-                    logger.warning(f"[消息处理] 异常: {_e}")
+                    # warning
         except asyncio.CancelledError:
             raise
         except StopAsyncIteration:
             pass
         except Exception as _outer_e:
-            logger.warning(f"[_listen] 外层异常: {_outer_e}")
+            # warning
 
     async def _cleanup_ws(self):
         """清理 WebSocket 和任务"""
@@ -1990,21 +1982,21 @@ class ScreenWallClient:
         if loop and self.running:
             async def _do_reconnect():
                 # 先关闭当前 ws，触发 on('close')，然后 run() 主循环会自动重连
-                logger.info("[Monitor] _reconnect_async: 即将关闭 WebSocket")
+                # info
                 if self.ws:
                     try:
                         await self.ws.close()
-                        logger.info("[Monitor] _reconnect_async: WebSocket 已关闭")
+                        # info
                     except Exception as e:
-                        logger.error(f"[Monitor] _reconnect_async ws.close 异常: {e}")
+                        # error
                 else:
-                    logger.info("[Monitor] _reconnect_async: self.ws 为 None，跳过关闭")
+                    # info
             try:
                 asyncio.run_coroutine_threadsafe(_do_reconnect(), loop)
             except Exception as e:
-                logger.error(f"[Monitor] _reconnect_async 调度异常: {e}")
+                # error
         else:
-            logger.warning(f"[Monitor] _reconnect_async: loop={loop is not None}, running={self.running}")
+            # warning
 
     async def run(self):
         # 启动时设置 UU 固定连接码
@@ -2015,9 +2007,9 @@ class ScreenWallClient:
                 creationflags=subprocess.CREATE_NO_WINDOW
             )
             if result.returncode == 0:
-                logger.info("[UU] 成功设置连接码 qqww5566")
+                # info
         except Exception as e:
-            logger.debug(f"[UU] 设置连接码失败: {e}")
+            # debug
 
         # 再执行 -d 获取设备ID
         try:
@@ -2030,9 +2022,9 @@ class ScreenWallClient:
                 output = result.stdout.strip()
                 if output.isdigit():
                     self._uu_device_id = output
-                    logger.info(f"[UU] 设备ID: {output}")
+                    # info
         except Exception as e:
-            logger.debug(f"[UU] 获取设备ID失败: {e}")
+            # debug
 
         try:
             loop = asyncio.get_running_loop()

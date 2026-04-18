@@ -1513,7 +1513,7 @@ wssClient.on('connection', (ws, req) => {
       ws._deviceId = deviceId;
       const wasOffline = !existing || !existing.online;
       if (wasOffline) {
-        const kbTag = msg.supportsKeyClient ? '⌨️有键盘' : '❌无键盘';
+        const kbTag = msg.supportsKeyClient ? '有键盘' : '无键盘';
         serverLog(`[+] 上线: ${newDev.deviceName} (${deviceId}) uuId=${newDev.uuDeviceId} | IP: ${ip} | ${kbTag} | 显示器${newDev.monitorIndex} | ${newDev.screenWidth || '?'}×${newDev.screenHeight || '?'}`);
       }
       persistDevices();  // 持久化设备列表
@@ -1734,8 +1734,8 @@ wssClient.on('connection', (ws, req) => {
           broadcastToBrowsers({ type: 'deviceList', devices: getDeviceListPayload() });
         }
         
-        // 保存屏幕分辨率（只在有键盘客户端时才保存）
-        if (msg.screenWidth && msg.screenHeight && dev.supportsKeyClient) {
+        // 保存屏幕分辨率（统一获取，不判断键盘状态）
+        if (msg.screenWidth && msg.screenHeight) {
           dev.screenWidth = msg.screenWidth;
           dev.screenHeight = msg.screenHeight;
         }
