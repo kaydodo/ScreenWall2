@@ -753,7 +753,7 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
   flex: 1;
   width: 100%;
   min-height: 0;
-  align-content: normal;
+  align-content: start;
   align-items: start;  /* 让格子高度由内容决定 */
   overflow-x: visible;  /* 横向溢出到body的全局滚动条 */
   overflow-y: auto;     /* 垂直滚动在grid内部 */
@@ -796,7 +796,6 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
   border: 1.5px solid var(--border);
   overflow: hidden;
   transition: border-color 0.2s, box-shadow 0.2s;
-  animation: fadeIn 0.3s ease-out;
   position: relative;
   display: flex;
   flex-direction: column;
