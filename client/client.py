@@ -1180,6 +1180,8 @@ class ScreenWallClient:
         self._upgrade_notified = False  # 升级通知只弹一次
         self._upgrade_triggered = False  # 升级任务只触发一次
         self._heartbeat_tick = 0        # 截图计数，用于定时发送心跳
+        # 刷新托盘菜单，确保显示正确的键盘状态
+        _rebuild_tray_icon()
         if _keyboard_enabled:
             self._start_keyclient()
 
