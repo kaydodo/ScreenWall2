@@ -932,7 +932,8 @@ class ScreenCapturer:
             return m["left"], m["top"], m["width"], m["height"]
         return 0, 0, 1920, 1080
 
-    def capture(self, hq=False, lossless=False):
+    def capture(self, hq=False, lossless=False, hq_limit=720):
+        # hq_limit: HQ 模式分辨率上限，默认 720p（普通预览），可设为 1080（高清预览）
         img_bytes = None
         use_dxgi = False
 
@@ -956,8 +957,8 @@ class ScreenCapturer:
                         use_dxgi = True
                         if not hq:
                             pic.thumbnail((self.resize_w, self.resize_h), Image.LANCZOS)
-                        if hq and (pic.width > 1280 or pic.height > 720):
-                            pic.thumbnail((1280, 720), Image.LANCZOS)
+                        if hq and (pic.width > hq_limit * 1.5 or pic.height > hq_limit):
+                            pic.thumbnail((int(hq_limit * 1.5), hq_limit), Image.LANCZOS)
                         buf = BytesIO()
                         if lossless:
                             pic.save(buf, format="WEBP", lossless=True)
@@ -984,9 +985,9 @@ class ScreenCapturer:
                     pic = Image.frombytes("RGB", frame.size, frame.bgra, "raw", "BGRX").convert("RGB")
                     if not hq:
                         pic.thumbnail((self.resize_w, self.resize_h), Image.LANCZOS)
-                    # HQ 模式限制分辨率上限为 720p
-                    if hq and (pic.width > 1280 or pic.height > 720):
-                        pic.thumbnail((1280, 720), Image.LANCZOS)
+                    # HQ 模式限制分辨率上限为 hq_limit（默认 720p，可设 1080p）
+                    if hq and (pic.width > hq_limit * 1.5 or pic.height > hq_limit):
+                        pic.thumbnail((int(hq_limit * 1.5), hq_limit), Image.LANCZOS)
                     buf = BytesIO()
                     if lossless:
                         pic.save(buf, format="WEBP", lossless=True)
@@ -1008,9 +1009,9 @@ class ScreenCapturer:
                 pic = pic.convert("RGB")
                 if not hq:
                     pic.thumbnail((self.resize_w, self.resize_h), Image.LANCZOS)
-                # HQ 模式限制分辨率上限为 720p
-                if hq and (pic.width > 1280 or pic.height > 720):
-                    pic.thumbnail((1280, 720), Image.LANCZOS)
+                # HQ 模式限制分辨率上限为 hq_limit（默认 720p，可设 1080p）
+                if hq and (pic.width > hq_limit * 1.5 or pic.height > hq_limit):
+                    pic.thumbnail((int(hq_limit * 1.5), hq_limit), Image.LANCZOS)
                 buf = BytesIO()
                 if lossless:
                     pic.save(buf, format="WEBP", lossless=True)
@@ -1192,6 +1193,7 @@ class ScreenWallClient:
         self.hq_mode = False
         self.hq_streaming = False
         self.hq_interval = None  # 服务器指定的 HQ 截图间隔（秒）
+        self.hq_1080 = False  # 1080p 预览模式（临时开启，不受 720p 上限限制）
         self._tasks = []
         self._last_cfg_hash = ""
         self._migrating = False  # 收到 serverMigrate 后标记，run() 检测到后重新连接
@@ -1729,7 +1731,8 @@ class ScreenWallClient:
             try:
                 if self.hq_mode:
                     # HQ 模式：只截高清图（服务器负责压缩给格子）
-                    img_bytes = capt.capture(hq=True)
+                    # hq_1080=True 时使用 1080p 分辨率上限，否则默认 720p
+                    img_bytes = capt.capture(hq=True, hq_limit=1080 if self.hq_1080 else 720)
                 else:
                     img_bytes = capt.capture(hq=False)
             finally:
@@ -1788,7 +1791,14 @@ class ScreenWallClient:
                         self.hq_mode = False
                         self.hq_streaming = False
                         self.hq_interval = None
+                        self.hq_1080 = False  # 同时关闭 1080p 模式
                         self._last_msg_time = time.time()
+
+                    elif msg_type == "hq1080On":
+                        self.hq_1080 = True
+
+                    elif msg_type == "hq1080Off":
+                        self.hq_1080 = False
 
                     elif msg_type == "requestCollectionScreenshot":
                         device_ids = data.get("deviceIds", [])
