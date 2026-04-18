@@ -3791,3 +3791,128 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
     padding: 6px 10px;
   }
 }
+
+/* ========== 分组筛选下拉 ========== */
+.filter-wrapper {
+  position: relative;
+}
+
+#btnFilter {
+  position: relative;
+}
+
+#btnFilter.has-filter {
+  background: var(--accent-light);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.filter-dropdown {
+  display: none;
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 200px;
+  background: var(--bg-card);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  z-index: 1000;
+  overflow: hidden;
+}
+
+.filter-dropdown.show {
+  display: block;
+}
+
+.filter-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: var(--bg-page);
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.filter-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.filter-action-btn {
+  padding: 3px 8px;
+  font-size: 11px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-card);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.filter-action-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--accent);
+}
+
+.filter-list {
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 6px;
+}
+
+.filter-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.filter-item:hover {
+  background: var(--bg-hover);
+}
+
+.filter-item input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+  accent-color: var(--accent);
+}
+
+.filter-item-label {
+  flex: 1;
+  font-size: 12px;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.filter-item-count {
+  font-size: 11px;
+  color: var(--text-muted);
+  background: var(--bg-page);
+  padding: 1px 6px;
+  border-radius: 10px;
+}
+
+.filter-empty {
+  padding: 20px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+/* 移动端隐藏筛选按钮 */
+@media (max-width: 768px) {
+  .filter-wrapper {
+    display: none;
+  }
+}
