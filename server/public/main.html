@@ -305,16 +305,16 @@
         <!-- 布局选择 -->
         <div style="padding:12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:16px;">
           <span style="font-size:13px;color:var(--text-muted);font-weight:500;">布局：</span>
-          <button class="monitor-layout-btn" data-layout="1" onclick="selectMonitorLayout(1)" title="1格">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="2" width="20" height="20" rx="2"/></svg>
-          </button>
-          <div style="width:1px;height:24px;background:var(--text-muted);"></div>
           <button class="monitor-layout-btn active" data-layout="4" onclick="selectMonitorLayout(4)" title="4格">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="2" width="9" height="9" rx="1"/><rect x="13" y="2" width="9" height="9" rx="1"/><rect x="2" y="13" width="9" height="9" rx="1"/><rect x="13" y="13" width="9" height="9" rx="1"/></svg>
           </button>
           <div style="width:1px;height:24px;background:var(--text-muted);"></div>
           <button class="monitor-layout-btn" data-layout="9" onclick="selectMonitorLayout(9)" title="9格">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="2" width="6" height="6" rx="1"/><rect x="10" y="2" width="6" height="6" rx="1"/><rect x="18" y="2" width="6" height="6" rx="1"/><rect x="2" y="10" width="6" height="6" rx="1"/><rect x="10" y="10" width="6" height="6" rx="1"/><rect x="18" y="10" width="6" height="6" rx="1"/><rect x="2" y="18" width="6" height="6" rx="1"/><rect x="10" y="18" width="6" height="6" rx="1"/><rect x="18" y="18" width="6" height="6" rx="1"/></svg>
+          </button>
+          <div style="width:1px;height:24px;background:var(--text-muted);"></div>
+          <button class="monitor-layout-btn" data-layout="16" onclick="selectMonitorLayout(16)" title="16格">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><rect x="1" y="1" width="4.5" height="4.5" rx="0.5"/><rect x="6.5" y="1" width="4.5" height="4.5" rx="0.5"/><rect x="12" y="1" width="4.5" height="4.5" rx="0.5"/><rect x="17.5" y="1" width="4.5" height="4.5" rx="0.5"/><rect x="1" y="6.5" width="4.5" height="4.5" rx="0.5"/><rect x="6.5" y="6.5" width="4.5" height="4.5" rx="0.5"/><rect x="12" y="6.5" width="4.5" height="4.5" rx="0.5"/><rect x="17.5" y="6.5" width="4.5" height="4.5" rx="0.5"/><rect x="1" y="12" width="4.5" height="4.5" rx="0.5"/><rect x="6.5" y="12" width="4.5" height="4.5" rx="0.5"/><rect x="12" y="12" width="4.5" height="4.5" rx="0.5"/><rect x="17.5" y="12" width="4.5" height="4.5" rx="0.5"/><rect x="1" y="17.5" width="4.5" height="4.5" rx="0.5"/><rect x="6.5" y="17.5" width="4.5" height="4.5" rx="0.5"/><rect x="12" y="17.5" width="4.5" height="4.5" rx="0.5"/><rect x="17.5" y="17.5" width="4.5" height="4.5" rx="0.5"/></svg>
           </button>
           <span id="monitorSelectedCount" style="margin-left:auto;font-size:13px;color:var(--text-muted);">已选 0/4 格</span>
         </div>
@@ -4679,7 +4679,7 @@ document.addEventListener('touchend', function(e) {
 // ========== 监控上墙功能 ==========
 var monitorWallState = {
   selectedDevices: [],
-  layout: 1,
+  layout: 4,
   crops: {}  // deviceId -> { scale, translateX, translateY }
 };
 var walledDevices = new Set(); // 已上墙的设备ID（同一浏览器共享）

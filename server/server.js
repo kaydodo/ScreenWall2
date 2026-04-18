@@ -156,6 +156,8 @@ const hdRequests = new Map(); // deviceId -> Set<ws>  ref counting
 const browserPreviewHD = new Map(); // ws -> Set<deviceId>
 // 格子预览独立通道（不受帧缓存去重影响）
 const previewClients = new Map(); // ws -> { deviceId, interval }
+// 浏览器 1080p 预览模式追踪：browser ws -> Set<deviceId>（哪些设备正在该浏览器预览中启用1080p）
+const browser1080p = new Map(); // ws -> Set<deviceId>
 // 每个浏览器独立管理已上墙设备，同一浏览器的不同窗口共享 localStorage 同步
 
 // ========== 渲染优化 ==========
@@ -1971,6 +1973,45 @@ wssBrowser.on('connection', (ws) => {
       }
     }
 
+    // ========== 1080p 预览模式切换 ==========
+    // 浏览器请求开启 1080p 预览
+    if (msg.type === 'hq1080On') {
+      // 从 previewClients 获取当前浏览器正在预览的设备
+      const previewInfo = previewClients.get(ws);
+      if (previewInfo && previewInfo.deviceId) {
+        const deviceId = previewInfo.deviceId;
+        // 追踪该浏览器的 1080p 设备
+        if (!browser1080p.has(ws)) browser1080p.set(ws, new Set());
+        browser1080p.get(ws).add(deviceId);
+        // 转发给设备客户端
+        for (const client of wssClient.clients) {
+          if (client._deviceId === deviceId && client.readyState === 1) {
+            client.send(JSON.stringify({ type: 'hq1080On' }));
+            break;
+          }
+        }
+      }
+    }
+
+    // 浏览器请求关闭 1080p 预览
+    if (msg.type === 'hq1080Off') {
+      // 从追踪 Map 中获取该浏览器开启 1080p 的所有设备
+      const my1080pDevices = browser1080p.get(ws);
+      if (my1080pDevices) {
+        for (const deviceId of my1080pDevices) {
+          // 转发给设备客户端
+          for (const client of wssClient.clients) {
+            if (client._deviceId === deviceId && client.readyState === 1) {
+              client.send(JSON.stringify({ type: 'hq1080Off' }));
+              break;
+            }
+          }
+        }
+        // 清理追踪
+        browser1080p.delete(ws);
+      }
+    }
+
     if (msg.type === 'getState') {
       // 转换 collections 为数组格式
       const collectionsArr = [];
@@ -2886,6 +2927,21 @@ wssBrowser.on('connection', (ws) => {
     const previewInfo = previewClients.get(ws);
     previewClients.delete(ws);
 
+    // ── 清理 1080p 预览模式 ──────────────────────
+    const my1080pDevices = browser1080p.get(ws);
+    browser1080p.delete(ws);
+    // 如果有 1080p 设备，通知对应客户端关闭
+    if (my1080pDevices && my1080pDevices.size > 0) {
+      for (const deviceId of my1080pDevices) {
+        for (const client of wssClient.clients) {
+          if (client._deviceId === deviceId && client.readyState === 1) {
+            client.send(JSON.stringify({ type: 'hq1080Off' }));
+            break;
+          }
+        }
+      }
+    }
+
     // 处理这个窗口的预览设备：检查其他用户是否还在预览
     for (const deviceId of myPreviews) {
       if (hasOtherPreview(deviceId, ws)) {
@@ -2962,6 +3018,7 @@ wssBrowser.on('connection', (ws) => {
     previewClients.delete(ws);
     wallClients.delete(ws);
     wallHDChannels.delete(ws);
+    browser1080p.delete(ws);
   });
 });
 
