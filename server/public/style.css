@@ -3910,6 +3910,33 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
   font-size: 12px;
 }
 
+/* 移动端筛选按钮 */
+.mobile-filter-btn {
+  display: none;
+  padding: 4px 10px;
+  font-size: 14px;
+}
+
+@media (max-width: 768px) {
+  .mobile-filter-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #filterDropdownMobile {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: calc(100% - 40px);
+    max-width: 300px;
+    min-width: unset;
+    max-height: 60vh;
+    border-radius: var(--radius-lg);
+  }
+}
+
 /* 移动端隐藏筛选按钮 */
 @media (max-width: 768px) {
   .filter-wrapper {

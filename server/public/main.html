@@ -56,6 +56,18 @@
       <span class="stat-num" id="statTotal">0</span>
       <span class="stat-label">设备</span>
     </div>
+    <!-- 移动端筛选按钮 -->
+    <button class="btn btn-ghost mobile-filter-btn" id="btnFilterMobile" title="分组筛选">🔍</button>
+    <div class="filter-dropdown" id="filterDropdownMobile">
+      <div class="filter-header">
+        <span>分组筛选</span>
+        <div class="filter-actions">
+          <button class="filter-action-btn" id="filterSelectNoneMobile">恢复默认</button>
+          <button class="filter-action-btn filter-close-btn" id="filterCloseBtnMobile" title="关闭">✕</button>
+        </div>
+      </div>
+      <div class="filter-list" id="filterListMobile"></div>
+    </div>
   </div>
 
   <div class="topbar-right">
@@ -3346,9 +3358,10 @@ function naturalCompare(a, b) {
 // 分组筛选功能
 // ═══════════════════════════════════════════════════════════════
 
-// 构建筛选面板
+// 构建筛选面板（同时更新桌面端和移动端）
 function rebuildFilterPanel() {
   const filterList = document.getElementById('filterList');
+  const filterListMobile = document.getElementById('filterListMobile');
   if (!filterList) return;
 
   // 调试：打印当前分组状态
@@ -3406,11 +3419,12 @@ function rebuildFilterPanel() {
 
   if (groupIds.length === 0) {
     filterList.innerHTML = '<div class="filter-empty">暂无设备</div>';
+    if (filterListMobile) filterListMobile.innerHTML = '<div class="filter-empty">暂无设备</div>';
     return;
   }
 
-  // 判断初始勾选状态：activeFilters.size === 0 表示全选，否则只勾选在 activeFilters 中的
-  filterList.innerHTML = groupIds.map(groupId => {
+  // 构建 HTML 内容
+  const html = groupIds.map(groupId => {
     const info = groupMap.get(groupId);
     const isChecked = activeFilters.size === 0 || activeFilters.has(groupId);
     const label = groupId === null ? '未分组' : info.name;
@@ -3424,48 +3438,61 @@ function rebuildFilterPanel() {
     `;
   }).join('');
 
+  // 同时设置桌面端和移动端
+  filterList.innerHTML = html;
+  if (filterListMobile) filterListMobile.innerHTML = html;
 
-  // 绑定复选框事件
+  // 绑定复选框事件（桌面端）
   filterList.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-    cb.onchange = function() {
-      const groupId = this.dataset.groupId === 'null' ? null : this.dataset.groupId;
-
-      if (this.checked) {
-        // 勾选：添加到 activeFilters
-        activeFilters.add(groupId);
-      } else {
-        // 取消勾选
-        // 如果当前是全选状态（size=0），先填充所有分组
-        if (activeFilters.size === 0) {
-          const allGroupIds = new Set();
-          allGroupIds.add(null);  // 未分组
-          groups.forEach(g => allGroupIds.add(g.id));
-          allGroupIds.forEach(id => activeFilters.add(id));
-        }
-        // 计算取消后会剩几个勾选
-        const remainingAfterDelete = (activeFilters.size - (activeFilters.has(groupId) ? 1 : 0));
-        // 如果取消后只剩0个，不允许（至少保留一个）
-        if (remainingAfterDelete <= 0) {
-          // 恢复勾选状态，不做处理
-          showToast('至少保留一个分组', 'warn');
-          // 重新设置为勾选
-          setTimeout(() => {
-            this.checked = true;
-          }, 0);
-          return;
-        }
-        // 然后删除当前取消的
-        activeFilters.delete(groupId);
-      }
-
-      applyFilter();
-      updateFilterButton();
-      // 重建面板以同步 checkbox 状态
-      rebuildFilterPanel();
-    };
+    cb.onchange = handleFilterCheckboxChange;
   });
 
+  // 绑定复选框事件（移动端）
+  if (filterListMobile) {
+    filterListMobile.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+      cb.onchange = handleFilterCheckboxChange;
+    });
+  }
+
   updateFilterButton();
+}
+
+// 复选框变化处理函数
+function handleFilterCheckboxChange() {
+  const groupId = this.dataset.groupId === 'null' ? null : this.dataset.groupId;
+
+  if (this.checked) {
+    // 勾选：添加到 activeFilters
+    activeFilters.add(groupId);
+  } else {
+    // 取消勾选
+    // 如果当前是全选状态（size=0），先填充所有分组
+    if (activeFilters.size === 0) {
+      const allGroupIds = new Set();
+      allGroupIds.add(null);  // 未分组
+      groups.forEach(g => allGroupIds.add(g.id));
+      allGroupIds.forEach(id => activeFilters.add(id));
+    }
+    // 计算取消后会剩几个勾选
+    const remainingAfterDelete = (activeFilters.size - (activeFilters.has(groupId) ? 1 : 0));
+    // 如果取消后只剩0个，不允许（至少保留一个）
+    if (remainingAfterDelete <= 0) {
+      // 恢复勾选状态，不做处理
+      showToast('至少保留一个分组', 'warn');
+      // 重新设置为勾选
+      setTimeout(() => {
+        this.checked = true;
+      }, 0);
+      return;
+    }
+    // 然后删除当前取消的
+    activeFilters.delete(groupId);
+  }
+
+  applyFilter();
+  updateFilterButton();
+  // 重建面板以同步 checkbox 状态
+  rebuildFilterPanel();
 }
 
 // 获取分组颜色
@@ -3562,6 +3589,37 @@ function applyFilter() {
   };
 
   // 点击外部关闭
+  document.addEventListener('click', function(e) {
+    if (!dropdown.contains(e.target) && e.target !== btn) {
+      dropdown.classList.remove('show');
+    }
+  });
+})();
+
+// 移动端筛选交互
+(function() {
+  const btn = document.getElementById('btnFilterMobile');
+  const dropdown = document.getElementById('filterDropdownMobile');
+  if (!btn || !dropdown) return;
+
+  btn.onclick = function(e) {
+    e.stopPropagation();
+    dropdown.classList.toggle('show');
+    if (dropdown.classList.contains('show')) {
+      rebuildFilterPanel();
+    }
+  };
+
+  document.getElementById('filterSelectNoneMobile').onclick = function() {
+    activeFilters.clear();
+    applyFilter();
+    rebuildFilterPanel();
+  };
+
+  document.getElementById('filterCloseBtnMobile').onclick = function() {
+    dropdown.classList.remove('show');
+  };
+
   document.addEventListener('click', function(e) {
     if (!dropdown.contains(e.target) && e.target !== btn) {
       dropdown.classList.remove('show');
