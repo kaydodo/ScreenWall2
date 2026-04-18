@@ -1353,6 +1353,7 @@ class ScreenWallClient:
 
             # 下载新版本
             logger.info(f"[升级] 开始下载 v{latest_version}...")
+            _show_toast("屏幕墙升级", f"正在下载 v{latest_version}...")
             try:
                 import urllib.request
                 loop = asyncio.get_event_loop()
@@ -1375,12 +1376,15 @@ class ScreenWallClient:
             # 隐藏托盘图标，然后启动升级脚本
             self._hide_tray_icon()
             
+            _show_toast("屏幕墙升级", "下载完成，准备复制文件...")
+            
             subprocess.Popen(
                 ['cmd', '/c', bat_path],
                 cwd=exe_dir,
                 creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_BREAKAWAY_FROM_JOB
             )
             logger.info("[升级] ✅ 升级脚本已启动，客户端即将退出")
+            _show_toast("屏幕墙升级", "客户端即将退出，请稍候...")
             self._upgrade_notified = True
             time.sleep(2)  # 同步阻塞，不依赖事件循环
             os._exit(0)
@@ -1977,7 +1981,7 @@ class ScreenWallClient:
                         logger.info(f"[心跳] 收到响应 updateAvailable={update_available} latest={latest_version} current={client_ver} notified={self._upgrade_notified}")
                         if update_available and not self._upgrade_notified:
                             logger.info(f"[升级] ✅ 检测到新版本 {latest_version}（当前 {client_ver}），开始下载...")
-                            logger.info(f"[DEBUG] create_task 前: notified={self._upgrade_notified}")
+                            _show_toast("屏幕墙升级", f"发现新版本 v{latest_version}，正在准备升级...")
                             # 注意：_upgrade_notified 在 _do_upgrade_async 成功启动 bat 后才设置
                             # 这里先不设，由 _do_upgrade_async 自己设置
                             asyncio.create_task(self._do_upgrade_async(cfg, latest_version))
