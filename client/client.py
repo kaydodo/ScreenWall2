@@ -1184,13 +1184,12 @@ def _check_upgrade_success():
             
             if diff <= 10:
                 # 刚完成升级，显示提示
-                logger.info(f"[升级] 检测到升级成功，版本 v{version}，显示提示...")
                 time.sleep(0.5)  # 等托盘图标启动
                 _show_toast("屏幕墙升级成功", f"已升级到 v{version}")
-        except Exception as e:
-            logger.warning(f"[升级] 检查升级时间失败: {e}")
-    except Exception as e:
-        logger.warning(f"[升级] 检查升级状态失败: {e}")
+        except Exception:
+            pass
+    except Exception:
+        pass
 
 def _rebuild_tray_icon():
     """刷新托盘图标菜单勾选状态"""
@@ -1263,7 +1262,7 @@ class ScreenWallClient:
         exe_path = sys.executable if getattr(sys, 'frozen', False) else os.path.abspath(__file__)
         exe_dir = os.path.dirname(exe_path) or '.'
         bat_path = os.path.join(exe_dir, 'upgrade.bat')
-        # 静默升级脚本：等待进程退出后复制新版本，不显示黑框，升级成功后写入日志
+        # 静默升级脚本：等待进程退出后复制新版本，用 /min 隐藏新客户端窗口
         bat_content = (
             '@echo off\r\n'
             'setlocal enabledelayedexpansion\r\n'
@@ -1276,7 +1275,7 @@ class ScreenWallClient:
             'timeout /t 2 /nobreak >nul\r\n'
             'copy /Y "%~dp0ScreenWallClient_new.exe" "%~dp0ScreenWallClient.exe" >nul 2>&1\r\n'
             'del "%~dp0ScreenWallClient_new.exe" >nul 2>&1\r\n'
-            'start "" "%~dp0ScreenWallClient.exe"\r\n'
+            'start /min "" "%~dp0ScreenWallClient.exe"\r\n'
             'timeout /t 2 /nobreak >nul\r\n'
             'del "%~dp0upgrade.bat"\r\n'
             'exit\r\n'
@@ -1284,31 +1283,27 @@ class ScreenWallClient:
         try:
             with open(bat_path, 'wb') as f:
                 f.write(bat_content.encode('gbk'))
-            logger.info(f"[升级] upgrade.bat 生成完成: {bat_path}")
-        except Exception as e:
-            logger.error(f"[升级] 脚本生成失败: {e}")
+        except Exception:
             # bat 生成失败，重置标志，让下次心跳重试
             self._upgrade_triggered = False
             self._upgrade_notified = False
             return  # 提前退出，不继续下载
 
     def _hide_tray_icon(self):
-        """隐藏托盘图标（升级前调用）"""
+        """隐藏托盘图标（升级前调用），不断开托盘以便后续显示提示"""
         global _tray_icon
         if _tray_icon:
             try:
                 _tray_icon.visible = False
-                _tray_icon.stop()
+                # 注意：不调用 stop()，这样仍可通过 notify 显示气泡
             except Exception:
                 pass
 
     async def _do_upgrade_async(self, cfg, latest_version="?"):
         """下载新版本 exe 并触发升级"""
         try:
-            logger.info(f"[DEBUG] _do_upgrade_async START")
             if self._upgrade_triggered:
-                logger.warning("[升级] 已触发过，跳过重复")
-                return
+                return  # 已触发过，跳过
             self._upgrade_triggered = True
 
             # cfg 是 load_config() 返回的完整配置，直接用
@@ -1322,53 +1317,32 @@ class ScreenWallClient:
             exe_dir = os.path.dirname(sys.executable if getattr(sys, 'frozen', False) else os.path.abspath(__file__)) or '.'
             new_exe = os.path.join(exe_dir, 'ScreenWallClient_new.exe')
             bat_path = os.path.join(exe_dir, 'upgrade.bat')
-            info_path = os.path.join(exe_dir, 'upgrade.info')  # 写入版本号信息
-
-            logger.info(f"[升级] exe_dir={exe_dir}")
-            logger.info(f"[升级] 下载地址: {download_url}")
+            info_path = os.path.join(exe_dir, 'upgrade.info')
 
             # 先确保 bat 是最新内容
             self._ensure_upgrade_script(latest_version)
 
-            # 写入升级信息文件（bat 升级成功后读取此文件写入日志）
+            # 写入升级信息文件
             try:
                 with open(info_path, 'w', encoding='utf-8') as f:
                     f.write(f"VERSION={latest_version}\n")
                     f.write(f"TIME={time.strftime('%Y-%m-%d %H:%M:%S')}\n")
-            except Exception as e:
-                logger.warning(f"[升级] 写入升级信息文件失败: {e}")
-
-            # 检查目录是否可写
-            try:
-                test_file = os.path.join(exe_dir, '_upgrade_test.tmp')
-                with open(test_file, 'w') as f:
-                    f.write('test')
-                os.remove(test_file)
-                logger.info("[升级] ✅ 目录可写")
-            except Exception as e:
-                logger.error(f"[升级] ❌ 目录不可写: {e}")
-                self._upgrade_triggered = False
-                self._upgrade_notified = False
-                return
+            except Exception:
+                pass
 
             # 下载新版本
-            logger.info(f"[升级] 开始下载 v{latest_version}...")
             _show_toast("屏幕墙升级", f"正在下载 v{latest_version}...")
             try:
                 import urllib.request
                 loop = asyncio.get_event_loop()
                 await loop.run_in_executor(None, lambda: urllib.request.urlretrieve(download_url, new_exe))
-                file_size = os.path.getsize(new_exe)
-                logger.info(f"[升级] ✅ 下载完成，大小={file_size} bytes")
-            except Exception as e:
-                logger.error(f"[升级] ❌ 下载失败: {e}")
+            except Exception:
                 self._upgrade_triggered = False
                 self._upgrade_notified = False
                 return
 
             # 启动 upgrade.bat 替换自身
             if not os.path.exists(bat_path):
-                logger.error(f"[升级] ❌ upgrade.bat 不存在: {bat_path}")
                 self._upgrade_triggered = False
                 self._upgrade_notified = False
                 return
@@ -1383,7 +1357,6 @@ class ScreenWallClient:
                 cwd=exe_dir,
                 creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_BREAKAWAY_FROM_JOB
             )
-            logger.info("[升级] ✅ 升级脚本已启动，客户端即将退出")
             _show_toast("屏幕墙升级", "客户端即将退出，请稍候...")
             self._upgrade_notified = True
             time.sleep(2)  # 同步阻塞，不依赖事件循环
