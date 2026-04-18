@@ -508,6 +508,16 @@ function connectWebSocket() {
         var screenshot = data.screenshot;
         var timestamp = data.timestamp || Date.now();
 
+        // 自愈：收到截图帧证明设备在线，若格子状态为离线则自动恢复
+        var cell = findCellByDeviceId(deviceId);
+        if (cell && cell.classList.contains('offline')) {
+          cell.classList.remove('offline');
+          cell.classList.remove('deleted');
+          var badge = cell.querySelector('.offline-badge');
+          if (badge) badge.style.display = 'none';
+          updateUUButtonVisibility(cell, true);
+        }
+
         // ── Blob URL 获取/创建 ─────────────────────────
         // 使用时间戳作为伪 md5，确保每次都创建新 URL（不再复用）
         var pseudoMd5 = 't' + timestamp;
