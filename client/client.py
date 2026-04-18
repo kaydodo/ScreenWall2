@@ -1207,6 +1207,7 @@ class ScreenWallClient:
         self._keyclient_process = None
         self._upgrade_notified = False  # 升级通知只弹一次
         self._upgrade_triggered = False  # 升级任务只触发一次
+        self._upgrade_triggered = False  # 升级任务只触发一次
         self._heartbeat_tick = 0        # 截图计数，用于定时发送心跳
         if _keyboard_enabled:
             self._start_keyclient()
@@ -1221,19 +1222,20 @@ class ScreenWallClient:
         bat_content = (
             '@echo off\r\n'
             '(echo bat_running %date% %time%) > "%~dp0upgrade.log"\r\n'
+            '(echo waiting_old_proc %date% %time%) >> "%~dp0upgrade.log"\r\n'
             ':wait\r\n'
-            'tasklist /FI "IMAGENAME eq ScreenWallClient.exe" 2>nul | find /I "ScreenWallClient.exe" >nul\r\n'
+            'powershell -NoProfile -Command "if (Get-Process ScreenWallClient -ErrorAction SilentlyContinue) { exit 0 } else { exit 1 }"\r\n'
             'if not errorlevel 1 (\r\n'
             '    timeout /t 1 /nobreak >nul\r\n'
             '    goto wait\r\n'
             ')\r\n'
             '(echo old_proc_gone %date% %time%) >> "%~dp0upgrade.log"\r\n'
-            'timeout /t 3 /nobreak >nul\r\n'
-            '(echo copying... %date% %time%) >> "%~dp0upgrade.log"\r\n'
+            'timeout /t 2 /nobreak >nul\r\n'
+            '(echo copying %date% %time%) >> "%~dp0upgrade.log"\r\n'
             'copy /Y "%~dp0ScreenWallClient_new.exe" "%~dp0ScreenWallClient.exe" >> "%~dp0upgrade.log" 2>&1\r\n'
             '(echo copied %date% %time%) >> "%~dp0upgrade.log"\r\n'
             'del "%~dp0ScreenWallClient_new.exe"\r\n'
-            '(echo launching new exe) >> "%~dp0upgrade.log"\r\n'
+            '(echo launching %date% %time%) >> "%~dp0upgrade.log"\r\n'
             'start "" "%~dp0ScreenWallClient.exe"\r\n'
             '(echo done %date% %time%) >> "%~dp0upgrade.log"\r\n'
             'del "%~dp0upgrade.bat"\r\n'
