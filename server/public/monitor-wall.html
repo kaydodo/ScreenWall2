@@ -388,6 +388,10 @@ var stats = {
   lastReport: performance.now()
 };
 
+// ── 自愈帧计数 ──────────────────────────────────────────────
+var frameHealCount = new Map(); // deviceId -> count
+var WALL_FRAME_HEAL_THRESHOLD = 2; // 至少收到2帧才恢复离线格子
+
 function updateStats() {
   if (!wallData.debug) return;
   const now = performance.now();
@@ -508,14 +512,21 @@ function connectWebSocket() {
         var screenshot = data.screenshot;
         var timestamp = data.timestamp || Date.now();
 
-        // 自愈：收到截图帧证明设备在线，若格子状态为离线则自动恢复
+        // 自愈：累加帧计数，只有连续收到多帧才恢复在线状态
         var cell = findCellByDeviceId(deviceId);
         if (cell && cell.classList.contains('offline')) {
-          cell.classList.remove('offline');
-          cell.classList.remove('deleted');
-          var badge = cell.querySelector('.offline-badge');
-          if (badge) badge.style.display = 'none';
-          updateUUButtonVisibility(cell, true);
+          if (!frameHealCount.has(deviceId)) frameHealCount.set(deviceId, 0);
+          frameHealCount.set(deviceId, frameHealCount.get(deviceId) + 1);
+          if (frameHealCount.get(deviceId) >= WALL_FRAME_HEAL_THRESHOLD) {
+            cell.classList.remove('offline');
+            cell.classList.remove('deleted');
+            var badge = cell.querySelector('.offline-badge');
+            if (badge) badge.style.display = 'none';
+            updateUUButtonVisibility(cell, true);
+          }
+        } else if (cell) {
+          // 非离线格子，重置帧计数（下次离线会重新累加）
+          frameHealCount.delete(deviceId);
         }
 
         // ── Blob URL 获取/创建 ─────────────────────────

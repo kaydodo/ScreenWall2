@@ -519,9 +519,13 @@
 // ─────────────────────────────────────────
 // 帧缓冲系统：只显示最新帧，丢弃过时帧
 // ─────────────────────────────────────────
-const pendingFrames = new Map(); // deviceId -> {image, timestamp}
+const pendingFrames = new Map(); // deviceId -> {image, timestamp, frameCount}
 const pendingPreviewFrame = { deviceId: null, image: null, timestamp: 0 };
 let renderScheduled = false;
+
+// 自愈帧计数：deviceId -> 收到的新鲜帧数量（超过阈值才算真正在线）
+const frameHealCount = new Map(); // deviceId -> count
+const FRAME_HEAL_THRESHOLD = 2;   // 至少收到2帧才恢复离线格子
 
 // Tab 切换时清理积压帧，避免切回时一次性处理大量帧
 let _wasHidden = false;
@@ -596,13 +600,18 @@ function renderPendingFrames() {
         // 只渲染最近1秒内的帧（超时丢弃）
         if (now - frame.timestamp < 1000) {
           const cell = gridCells.find(c => c.deviceId === deviceId);
-          // 自愈：收到截图帧证明设备在线，若格子状态为离线则自动恢复
-          if (cell && !cell.online) {
-            cell.online = true;
-            const dot = document.getElementById(`dot_${cell.index}`);
-            const stxt = document.getElementById(`stxt_${cell.index}`);
-            if (dot) { dot.className = 'status-dot online'; dot.style.backgroundColor = '#34d399'; }
-            if (stxt) stxt.textContent = '在线';
+          // 自愈：增加帧计数，只有连续收到多帧才恢复在线状态
+          if (cell) {
+            if (!frameHealCount.has(deviceId)) frameHealCount.set(deviceId, 0);
+            frameHealCount.set(deviceId, frameHealCount.get(deviceId) + 1);
+            // 帧计数达到阈值才恢复在线（防止单帧缓存误判）
+            if (!cell.online && frameHealCount.get(deviceId) >= FRAME_HEAL_THRESHOLD) {
+              cell.online = true;
+              const dot = document.getElementById(`dot_${cell.index}`);
+              const stxt = document.getElementById(`stxt_${cell.index}`);
+              if (dot) { dot.className = 'status-dot online'; dot.style.backgroundColor = '#34d399'; }
+              if (stxt) stxt.textContent = '在线';
+            }
           }
           if (cell && cell.screenshot !== frame.image) {
             cell.screenshot = frame.image;
@@ -615,6 +624,10 @@ function renderPendingFrames() {
       const t1 = performance.now();
       if (cellCount > 0 && t1 - t0 > 5) {
 //         console.log(`[rAF] 格子渲染 ${cellCount}个, 耗时 ${(t1-t0).toFixed(1)}ms`);
+      }
+      // 渲染后重置帧计数（下次收到帧会重新累加）
+      for (const [deviceId] of pendingFrames) {
+        frameHealCount.delete(deviceId);
       }
       pendingFrames.clear();
     } else {
@@ -828,7 +841,7 @@ function setCell(cellIndex, deviceId) {
   // 如果设备已在其他格子，先移除（1对1限制）
   for (let i = 0; i < gridCells.length; i++) {
     if (gridCells[i] && gridCells[i].deviceId === deviceId && i !== cellIndex) {
-      gridCells[i] = { index: i, deviceId: null, deviceName: null, uuDeviceId: null, online: false, screenshot: null };
+      gridCells[i] = { index: i, deviceId: null, deviceName: null, uuDeviceId: null, online: false, screenshot: null, frameCount: 0 };
       updateCellElement(i);
     }
   }
@@ -841,9 +854,9 @@ function setCell(cellIndex, deviceId) {
   // 乐观更新：立即更新本地 UI，等服务器广播后会再次确认
   const dev = devices.find(d => d.deviceId === deviceId);
   if (dev) {
-    gridCells[cellIndex] = { index: cellIndex, deviceId: dev.deviceId, deviceName: dev.deviceName, uuDeviceId: dev.uuDeviceId, online: dev.online, screenshot: null };
+    gridCells[cellIndex] = { index: cellIndex, deviceId: dev.deviceId, deviceName: dev.deviceName, uuDeviceId: dev.uuDeviceId, online: dev.online, screenshot: null, frameCount: 0 };
   } else {
-    gridCells[cellIndex] = { index: cellIndex, deviceId, deviceName: null, uuDeviceId: null, online: false, screenshot: null };
+    gridCells[cellIndex] = { index: cellIndex, deviceId, deviceName: null, uuDeviceId: null, online: false, screenshot: null, frameCount: 0 };
   }
 
   updateCellElement(cellIndex);
@@ -1281,14 +1294,18 @@ function connectWS() {
       for (const sc of msg.screenshots) {
         const frameData = { image: sc.image, hqImage: sc.hqImage || null, timestamp: Date.now() };
         pendingFrames.set(sc.deviceId, frameData);
-        // 自愈：批量截图同样触发在线状态恢复
+        // 自愈：批量截图也累加帧计数，达到阈值才恢复
         const cell = gridCells.find(c => c && c.deviceId === sc.deviceId);
         if (cell && !cell.online) {
-          cell.online = true;
-          const dot = document.getElementById(`dot_${cell.index}`);
-          const stxt = document.getElementById(`stxt_${cell.index}`);
-          if (dot) { dot.className = 'status-dot online'; dot.style.backgroundColor = '#34d399'; }
-          if (stxt) stxt.textContent = '在线';
+          if (!frameHealCount.has(sc.deviceId)) frameHealCount.set(sc.deviceId, 0);
+          frameHealCount.set(sc.deviceId, frameHealCount.get(sc.deviceId) + 1);
+          if (frameHealCount.get(sc.deviceId) >= FRAME_HEAL_THRESHOLD) {
+            cell.online = true;
+            const dot = document.getElementById(`dot_${cell.index}`);
+            const stxt = document.getElementById(`stxt_${cell.index}`);
+            if (dot) { dot.className = 'status-dot online'; dot.style.backgroundColor = '#34d399'; }
+            if (stxt) stxt.textContent = '在线';
+          }
         }
       }
       scheduleRender();
@@ -3299,7 +3316,7 @@ document.getElementById('btnClear').onclick = () => {
   // 乐观更新：立即清空本地UI
   for (let i = 0; i < gridCells.length; i++) {
     if (gridCells[i] && gridCells[i].deviceId) {
-      gridCells[i] = { index: i, deviceId: null, deviceName: null, uuDeviceId: null, online: false, screenshot: null };
+      gridCells[i] = { index: i, deviceId: null, deviceName: null, uuDeviceId: null, online: false, screenshot: null, frameCount: 0 };
       updateCellElement(i);
     }
   }
@@ -3334,7 +3351,7 @@ document.getElementById('dialogClose').onclick = closeDeviceDialog;
 document.getElementById('dialogClear').onclick = () => {
   if (selectedCell !== null) {
     ws.send(JSON.stringify({ type: 'setCell', gridSize, cellIndex: selectedCell, deviceId: null }));
-    gridCells[selectedCell] = { index: selectedCell, deviceId: null, deviceName: null, uuDeviceId: null, online: false, screenshot: null };
+    gridCells[selectedCell] = { index: selectedCell, deviceId: null, deviceName: null, uuDeviceId: null, online: false, screenshot: null, frameCount: 0 };
     updateCellElement(selectedCell);
     rebuildSidebar();
     renderAlarmPanel();
@@ -3856,7 +3873,7 @@ function deleteOfflineDevice(deviceId) {
         
         for (var i = 0; i < gridCells.length; i++) {
           if (gridCells[i] && gridCells[i].deviceId === deviceId) {
-            gridCells[i] = { index: i, deviceId: null, deviceName: null, uuDeviceId: null, online: false, screenshot: null };
+            gridCells[i] = { index: i, deviceId: null, deviceName: null, uuDeviceId: null, online: false, screenshot: null, frameCount: 0 };
             updateCellElement(i);
             if (ws && ws.readyState === WebSocket.OPEN) {
               ws.send(JSON.stringify({ type: 'setCell', gridSize: gridSize, cellIndex: i, deviceId: null }));
@@ -4104,7 +4121,7 @@ function deleteAllOfflineDevices() {
           if (typeof gridCells !== 'undefined') {
             for (var i = 0; i < gridCells.length; i++) {
               if (gridCells[i] && gridCells[i].deviceId === d.deviceId) {
-                gridCells[i] = { index: i, deviceId: null, deviceName: null, uuDeviceId: null, online: false, screenshot: null };
+                gridCells[i] = { index: i, deviceId: null, deviceName: null, uuDeviceId: null, online: false, screenshot: null, frameCount: 0 };
                 updateCellElement(i);
               }
             }
