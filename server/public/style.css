@@ -198,6 +198,7 @@ select {
 #selGrid {
   width: 65px;
   min-width: 65px;
+  text-align: left;
 }
 }
 
