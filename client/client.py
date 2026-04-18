@@ -15,7 +15,7 @@ import uuid
 import time
 
 # 客户端版本号（每次功能更新时手动递增）
-CLIENT_VERSION = "1.2.6"
+CLIENT_VERSION = "1.2.7"
 
 
 def has_key_client():
@@ -1858,6 +1858,31 @@ class ScreenWallClient:
                                     save_config(cfg_obj)
                             except Exception:
                                 pass
+
+                    elif msg_type == "setKeyboardEnabled":
+                        # 服务端开启键盘功能
+                        self._set_keyboard_enabled(True)
+                        if not self._keyclient_socket and not self._keyclient_process:
+                            self._start_keyclient()
+                        # 通知服务端键盘状态变更
+                        if self.ws:
+                            await self.ws.send(json.dumps({
+                                "type": "keyboardState",
+                                "deviceId": cfg["deviceId"],
+                                "supportsKeyClient": True
+                            }))
+
+                    elif msg_type == "setKeyboardDisabled":
+                        # 服务端关闭键盘功能
+                        self._set_keyboard_enabled(False)
+                        self._close_keyclient()
+                        # 通知服务端键盘状态变更
+                        if self.ws:
+                            await self.ws.send(json.dumps({
+                                "type": "keyboardState",
+                                "deviceId": cfg["deviceId"],
+                                "supportsKeyClient": False
+                            }))
 
                     elif msg_type == "heartbeat":
                         # 服务端心跳响应：检查是否需要升级
