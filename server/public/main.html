@@ -3437,11 +3437,16 @@ function rebuildFilterPanel() {
     const isChecked = activeFilters.size === 0 || activeFilters.has(groupId);
     const label = groupId === null ? '未分组' : info.name;
     const color = groupId !== null ? getGroupColor(groupId) : null;
+    const count = cellGroupCount.get(groupId) || 0;
+    // 设备数为0的分组：禁用checkbox，灰色显示
+    const isEmpty = count === 0;
+    const disabledAttr = isEmpty ? 'disabled' : '';
+    const itemClass = isEmpty ? 'filter-item disabled' : 'filter-item';
     return `
-      <label class="filter-item">
-        <input type="checkbox" data-group-id="${groupId === null ? 'null' : groupId}" ${isChecked ? 'checked' : ''}>
+      <label class="${itemClass}">
+        <input type="checkbox" data-group-id="${groupId === null ? 'null' : groupId}" ${isChecked ? 'checked' : ''} ${disabledAttr}>
         <span class="filter-item-label" style="${color ? 'background:' + color + ';padding:1px 6px;border-radius:4px;' : ''}">${label}</span>
-        <span class="filter-item-count">${cellGroupCount.get(groupId)}</span>
+        <span class="filter-item-count">${count}</span>
       </label>
     `;
   }).join('');
@@ -3467,6 +3472,9 @@ function rebuildFilterPanel() {
 
 // 复选框变化处理函数
 function handleFilterCheckboxChange() {
+  // 跳过禁用的checkbox
+  if (this.disabled) return;
+
   const groupId = this.dataset.groupId === 'null' ? null : this.dataset.groupId;
 
   if (this.checked) {

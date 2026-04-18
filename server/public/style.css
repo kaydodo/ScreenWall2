@@ -3879,6 +3879,20 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
   background: var(--bg-hover);
 }
 
+/* 设备数为0的分组：灰色禁用状态 */
+.filter-item.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.filter-item.disabled:hover {
+  background: transparent;
+}
+
+.filter-item.disabled input[type="checkbox"] {
+  cursor: not-allowed;
+}
+
 .filter-item input[type="checkbox"] {
   width: 15px;
   height: 15px;
