@@ -800,8 +800,8 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
   position: relative;
   display: flex;
   flex-direction: column;
-  /* 动态保持 16:10 比例 */
-  aspect-ratio: 16 / 10;
+  /* 由 JS 根据列数动态设置最小高度 */
+  min-height: var(--cell-min-h, 200px);
 }
 
 .wall-cell:hover {
