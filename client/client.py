@@ -1132,7 +1132,6 @@ def _create_tray_img():
     return img
 
 def _show_toast(title, message):
-    # TODO: 泡泡通知在升级场景下不生效，待排查
     """通过系统托盘气泡显示通知（pystray notify 必须在 tk 线程中调度）"""
     root = _get_tk_root()
     if root is None:
@@ -1147,6 +1146,51 @@ def _show_toast(title, message):
         root.after(0, _do_notify)
     except Exception:
         pass
+
+def _check_upgrade_success():
+    """检查升级日志，如果刚完成升级则显示提示（3秒内）"""
+    try:
+        exe_dir = os.path.dirname(sys.executable if getattr(sys, 'frozen', False) else os.path.abspath(__file__)) or '.'
+        info_path = os.path.join(exe_dir, 'upgrade.info')
+        
+        if not os.path.exists(info_path):
+            return  # 没有升级记录
+        
+        # 读取升级信息
+        version = None
+        upgrade_time = None
+        with open(info_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                if line.startswith('VERSION='):
+                    version = line.strip().split('=', 1)[1]
+                elif line.startswith('TIME='):
+                    upgrade_time = line.strip().split('=', 1)[1]
+        
+        if not version or not upgrade_time:
+            return
+        
+        # 删除 info 文件（只检查一次）
+        try:
+            os.remove(info_path)
+        except Exception:
+            pass
+        
+        # 检查时间是否在 10 秒内（允许一点误差）
+        try:
+            from datetime import datetime
+            upgrade_dt = datetime.strptime(upgrade_time, '%Y-%m-%d %H:%M:%S')
+            now_dt = datetime.now()
+            diff = abs((now_dt - upgrade_dt).total_seconds())
+            
+            if diff <= 10:
+                # 刚完成升级，显示提示
+                logger.info(f"[升级] 检测到升级成功，版本 v{version}，显示提示...")
+                time.sleep(0.5)  # 等托盘图标启动
+                _show_toast("屏幕墙升级成功", f"已升级到 v{version}")
+        except Exception as e:
+            logger.warning(f"[升级] 检查升级时间失败: {e}")
+    except Exception as e:
+        logger.warning(f"[升级] 检查升级状态失败: {e}")
 
 def _rebuild_tray_icon():
     """刷新托盘图标菜单勾选状态"""
@@ -1214,32 +1258,28 @@ class ScreenWallClient:
             self._start_keyclient()
 
     # ── 自动升级 ───────────────────────────────────────────
-    def _ensure_upgrade_script(self):
-        """生成 upgrade.bat（简洁版：等旧进程退出后直接复制，无 taskkill，无 Python helper）。每次调用都覆盖写，保证内容最新。"""
+    def _ensure_upgrade_script(self, latest_version="?"):
+        """生成 upgrade.bat（静默升级版）。每次调用都覆盖写，保证内容最新。"""
         exe_path = sys.executable if getattr(sys, 'frozen', False) else os.path.abspath(__file__)
         exe_dir = os.path.dirname(exe_path) or '.'
         bat_path = os.path.join(exe_dir, 'upgrade.bat')
-        # 每次都重新生成，保证内容最新
+        # 静默升级脚本：等待进程退出后复制新版本，不显示黑框，升级成功后写入日志
         bat_content = (
             '@echo off\r\n'
-            '(echo bat_running %date% %time%) > "%~dp0upgrade.log"\r\n'
-            '(echo waiting_old_proc %date% %time%) >> "%~dp0upgrade.log"\r\n'
+            'setlocal enabledelayedexpansion\r\n'
             ':wait\r\n'
             'powershell -NoProfile -Command "if (Get-Process ScreenWallClient -ErrorAction SilentlyContinue) { exit 0 } else { exit 1 }"\r\n'
             'if not errorlevel 1 (\r\n'
             '    timeout /t 1 /nobreak >nul\r\n'
             '    goto wait\r\n'
             ')\r\n'
-            '(echo old_proc_gone %date% %time%) >> "%~dp0upgrade.log"\r\n'
             'timeout /t 2 /nobreak >nul\r\n'
-            '(echo copying %date% %time%) >> "%~dp0upgrade.log"\r\n'
-            'copy /Y "%~dp0ScreenWallClient_new.exe" "%~dp0ScreenWallClient.exe" >> "%~dp0upgrade.log" 2>&1\r\n'
-            '(echo copied %date% %time%) >> "%~dp0upgrade.log"\r\n'
-            'del "%~dp0ScreenWallClient_new.exe"\r\n'
-            '(echo launching %date% %time%) >> "%~dp0upgrade.log"\r\n'
+            'copy /Y "%~dp0ScreenWallClient_new.exe" "%~dp0ScreenWallClient.exe" >nul 2>&1\r\n'
+            'del "%~dp0ScreenWallClient_new.exe" >nul 2>&1\r\n'
             'start "" "%~dp0ScreenWallClient.exe"\r\n'
-            '(echo done %date% %time%) >> "%~dp0upgrade.log"\r\n'
+            'timeout /t 2 /nobreak >nul\r\n'
             'del "%~dp0upgrade.bat"\r\n'
+            'exit\r\n'
         )
         try:
             with open(bat_path, 'wb') as f:
@@ -1251,6 +1291,16 @@ class ScreenWallClient:
             self._upgrade_triggered = False
             self._upgrade_notified = False
             return  # 提前退出，不继续下载
+
+    def _hide_tray_icon(self):
+        """隐藏托盘图标（升级前调用）"""
+        global _tray_icon
+        if _tray_icon:
+            try:
+                _tray_icon.visible = False
+                _tray_icon.stop()
+            except Exception:
+                pass
 
     async def _do_upgrade_async(self, cfg, latest_version="?"):
         """下载新版本 exe 并触发升级"""
@@ -1272,12 +1322,21 @@ class ScreenWallClient:
             exe_dir = os.path.dirname(sys.executable if getattr(sys, 'frozen', False) else os.path.abspath(__file__)) or '.'
             new_exe = os.path.join(exe_dir, 'ScreenWallClient_new.exe')
             bat_path = os.path.join(exe_dir, 'upgrade.bat')
+            info_path = os.path.join(exe_dir, 'upgrade.info')  # 写入版本号信息
 
             logger.info(f"[升级] exe_dir={exe_dir}")
             logger.info(f"[升级] 下载地址: {download_url}")
 
             # 先确保 bat 是最新内容
-            self._ensure_upgrade_script()
+            self._ensure_upgrade_script(latest_version)
+
+            # 写入升级信息文件（bat 升级成功后读取此文件写入日志）
+            try:
+                with open(info_path, 'w', encoding='utf-8') as f:
+                    f.write(f"VERSION={latest_version}\n")
+                    f.write(f"TIME={time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+            except Exception as e:
+                logger.warning(f"[升级] 写入升级信息文件失败: {e}")
 
             # 检查目录是否可写
             try:
@@ -1313,6 +1372,9 @@ class ScreenWallClient:
                 self._upgrade_notified = False
                 return
 
+            # 隐藏托盘图标，然后启动升级脚本
+            self._hide_tray_icon()
+            
             subprocess.Popen(
                 ['cmd', '/c', bat_path],
                 cwd=exe_dir,
@@ -2052,6 +2114,9 @@ def main():
 
     # 启动系统托盘
     tray_icon = start_tray()
+
+    # 检查是否刚完成升级（需要在托盘启动后调用）
+    _check_upgrade_success()
 
     client = ScreenWallClient()
     sys._client_instance = client  # 保存实例供 _do_exit 使用
