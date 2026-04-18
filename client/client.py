@@ -1265,7 +1265,15 @@ class ScreenWallClient:
                 creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_BREAKAWAY_FROM_JOB
             )
             self._upgrade_notified = True
-            time.sleep(2)  # 同步阻塞，不依赖事件循环
+            
+            # 升级前隐藏托盘图标，避免升级完成后出现两个图标
+            if _tray_icon:
+                try:
+                    _tray_icon.visible = False
+                except Exception:
+                    pass
+            
+            time.sleep(1)  # 等待托盘图标隐藏后再退出
             os._exit(0)
         except Exception as e:
             # error
