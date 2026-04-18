@@ -3915,6 +3915,7 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
   display: none;
   padding: 4px 10px;
   font-size: 14px;
+  position: relative;
 }
 
 @media (max-width: 768px) {
@@ -3925,15 +3926,13 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
   }
 
   #filterDropdownMobile {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: calc(100% - 40px);
-    max-width: 300px;
-    min-width: unset;
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    width: 220px;
     max-height: 60vh;
     border-radius: var(--radius-lg);
+    z-index: 1000;
   }
 }
 
