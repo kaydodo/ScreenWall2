@@ -15,7 +15,7 @@ import uuid
 import time
 
 # 客户端版本号（每次功能更新时手动递增）
-CLIENT_VERSION = "1.1.9"
+CLIENT_VERSION = "1.2.6"
 
 
 def has_key_client():
