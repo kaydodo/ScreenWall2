@@ -312,6 +312,8 @@
 
 <!-- 移动端键盘按钮（preview-overlay外部，使用fixed定位） -->
 <button id="previewKBbtnMobile" onclick="togglePreviewKeyboard()" title="键盘控制">⌨️ 键盘</button>
+<!-- 移动端显示器切换按钮 -->
+<button id="previewMonitorBtnMobile" onclick="cycleMonitor()" title="切换显示器" style="display:none;position:fixed;bottom:50px;right:110px;background:#4a5568;color:#fff;border:none;border-radius:6px;padding:8px 14px;font-size:14px;cursor:pointer;z-index:2001;">🖥️ 显示器 1</button>
 
 <!-- ========== Toast ========== -->
 <div class="toast" id="toast"></div>
@@ -2886,14 +2888,23 @@ function cycleMonitor() {
 
 function updateMonitorBtn(monitorIndex) {
   const btn = document.getElementById('previewMonitorBtn');
-  if (!btn) return;
+  const btnMobile = document.getElementById('previewMonitorBtnMobile');
   const dev = devices.find(d => d.deviceId === previewDeviceId);
   const monitors = dev && dev._monitorCount ? dev._monitorCount : 1;
+  const label = '🖥️ 显示器 ' + (monitorIndex || 1);
+
   if (monitors <= 1) {
-    btn.style.display = 'none';
+    if (btn) btn.style.display = 'none';
+    if (btnMobile) btnMobile.style.display = 'none';
   } else {
-    btn.style.display = 'inline-flex';
-    btn.textContent = '🖥️ 显示器 ' + (monitorIndex || 1);
+    if (btn) {
+      btn.style.display = 'inline-flex';
+      btn.textContent = label;
+    }
+    if (btnMobile) {
+      btnMobile.style.display = 'block';
+      btnMobile.textContent = label;
+    }
   }
 }
 

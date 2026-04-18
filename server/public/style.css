@@ -1949,6 +1949,11 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
     display: none;
   }
 
+  /* 移动端显示器切换按钮 */
+  #previewMonitorBtnMobile {
+    display: none;
+  }
+
   /* 移动端分组弹窗：两栏变单栏堆叠，左边在上，都可滚动 */
   #groupOverlay.active #groupDialog {
     height: 90vh !important;
