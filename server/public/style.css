@@ -194,6 +194,13 @@ select {
   padding-right: 30px;
 }
 
+/* 布局下拉框固定宽度 */
+#selGrid {
+  width: 90px;
+  min-width: 90px;
+}
+}
+
 select:hover { border-color: var(--border-hover); }
 select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(79,126,247,0.12); }
 
