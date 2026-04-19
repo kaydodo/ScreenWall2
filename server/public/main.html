@@ -2923,6 +2923,9 @@ function updatePreviewRemoteBtn() {
   slider.style.cursor = 'pointer';
 
   // 读取服务端权威状态 supportsKeyClient（和鼠标提示/键盘按钮保持一致）
+  // 设备离线时不更新按钮，保持当前状态
+  if (dev && dev.online === false) return;
+  
   const isEnabled = dev && dev.supportsKeyClient === true;
   if (isEnabled) {
     slider.style.background = '#22c55e'; // 绿色
