@@ -2941,7 +2941,7 @@ function updatePreviewRemoteBtn() {
 function togglePreviewRemote() {
   if (!previewDeviceId) return;
   const dev = devices.find(d => d.deviceId === previewDeviceId);
-  if (!dev) return;
+  if (!dev || !dev.online) return;
 
   const slider = document.getElementById('previewRemoteSlider');
   const knob = document.getElementById('previewRemoteKnob');
