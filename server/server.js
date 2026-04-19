@@ -1670,19 +1670,16 @@ wssClient.on('connection', (ws, req) => {
           // ── 帧缓存去重 ───────────────────────────────
           const rawBase64 = msg.image.replace(/^data:image\/\w+;base64,/, '');
           const frameMd5 = crypto.createHash('md5').update(rawBase64).digest('hex');
-          const cached = frameCache.get(msg.deviceId);
-          const now = Date.now();
-          const frameIsDuplicate = cached && cached.md5 === frameMd5 && (now - cached.time) < FRAME_CACHE_TTL;
-          if (!frameIsDuplicate) {
-            frameCache.set(msg.deviceId, { md5: frameMd5, time: now });
-            dev.screenshot = msg.image;
-            dev.hqScreenshot = null;
-            broadcastToBrowsers({ type: 'screenshot', deviceId: msg.deviceId, image: msg.image, hq: false, hqImage: null });
-          } else {
-            // 重复帧：只更新存储，不广播
-            dev.screenshot = msg.image;
-            dev.hqScreenshot = null;
-          }
+          // TODO: [临时禁用] 333ms去重，测试停帧问题
+          // const cached = frameCache.get(msg.deviceId);
+          // const now = Date.now();
+          // const frameIsDuplicate = cached && cached.md5 === frameMd5 && (now - cached.time) < FRAME_CACHE_TTL;
+          // if (!frameIsDuplicate) {
+          //   frameCache.set(msg.deviceId, { md5: frameMd5, time: now });
+          // }
+          dev.screenshot = msg.image;
+          dev.hqScreenshot = null;
+          broadcastToBrowsers({ type: 'screenshot', deviceId: msg.deviceId, image: msg.image, hq: false, hqImage: null });
         }
       }
     }
