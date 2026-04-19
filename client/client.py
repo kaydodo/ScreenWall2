@@ -1740,6 +1740,7 @@ class ScreenWallClient:
                 try:
                     data = json.loads(msg)
                     msg_type = data.get("type")
+                    global _keyboard_enabled
 
                     if msg_type == "startHQ":
                         self.hq_mode = True
@@ -1908,7 +1909,6 @@ class ScreenWallClient:
                         if not self._keyclient_socket and not self._keyclient_process:
                             self._start_keyclient()
                         # 同步更新托盘菜单
-                        global _keyboard_enabled
                         _keyboard_enabled = True
                         if _tray_icon:
                             _tray_icon.menu = _build_menu()
@@ -1920,7 +1920,6 @@ class ScreenWallClient:
                         self._set_keyboard_enabled(False)
                         self._close_keyclient()
                         # 同步更新托盘菜单
-                        global _keyboard_enabled
                         _keyboard_enabled = False
                         if _tray_icon:
                             _tray_icon.menu = _build_menu()
