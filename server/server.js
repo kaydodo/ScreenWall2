@@ -2920,6 +2920,18 @@ wssBrowser.on('connection', (ws) => {
         broadcastToBrowsers({ type: 'devicePreviewStatus', deviceId: msg.deviceId, status: 'refresh' });
       }
     }
+
+    // 页面端切换远控指令（服务转发给客户端）
+    if ((msg.type === 'setKeyboardEnabled' || msg.type === 'setKeyboardDisabled') && msg.deviceId) {
+      const enable = msg.type === 'setKeyboardEnabled';
+      for (const client of wssClient.clients) {
+        if (client._deviceId === msg.deviceId && client.readyState === 1) {
+          client.send(JSON.stringify({ type: enable ? 'setKeyboardEnabled' : 'setKeyboardDisabled' }));
+          serverLog(`[远控] ${enable ? '启动远控' : '关闭远控'} -> ${msg.deviceId}`);
+          break;
+        }
+      }
+    }
     } catch (err) {
       serverError(`[浏览器消息] 处理消息 ${msg.type} 时发生未捕获错误: ${err.message}`);
     }
