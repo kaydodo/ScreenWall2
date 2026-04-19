@@ -794,20 +794,21 @@ async function compareImages(buffer1, buffer2) {
 
 /**
  * OCR识别图片中的文字
+ * @param {Buffer} imageBuffer - 图片数据
+ * @param {Object} deviceInfo - 设备信息，包含 screenWidth/screenHeight
  */
-async function ocrRegion(imageBuffer) {
+async function ocrRegion(imageBuffer, deviceInfo) {
   try {
-    // 根据图片尺寸决定放大倍数（高分辨率图片放大后识别效果更好）
-    const metadata = await sharp(imageBuffer).metadata();
+    // 根据设备原始分辨率判断是否需要放大（高分辨率图片放大后识别效果更好）
+    const screenWidth = deviceInfo?.screenWidth || 1920;
     let scaleFactor = 1.0;
-    if (metadata.width > 1000) {
-      scaleFactor = 4.5;  // 超高分辨率放大4.5倍
-    } else if (metadata.width > 800) {
-      scaleFactor = 3.0;  // 高分辨率放大3倍
+    if (screenWidth > 2200) {
+      scaleFactor = 3.0;  // 2K/4K分辨率放大3倍
     }
 
     let processedBuffer = imageBuffer;
     if (scaleFactor > 1) {
+      const metadata = await sharp(imageBuffer).metadata();
       const newWidth = Math.round(metadata.width * scaleFactor);
       const newHeight = Math.round(metadata.height * scaleFactor);
       processedBuffer = await sharp(imageBuffer)
@@ -1056,7 +1057,7 @@ async function processAlarmImage(deviceId, imageBuffer, deviceInfo) {
   let ocrText = '';
 
   try {
-    ocrText = await ocrRegion(regionBuffer);
+    ocrText = await ocrRegion(regionBuffer, deviceInfo);
 
   } catch (ocrErr) {
     // OCR异常静默，不打印
@@ -1762,6 +1763,8 @@ wssClient.on('connection', (ws, req) => {
             uuDeviceId: dev.uuDeviceId || null,
             groupName: '',
             cellStr: '',
+            screenWidth: dev.screenWidth || 1920,
+            screenHeight: dev.screenHeight || 1080,
           }).catch(err => {
             serverError(`[报警] ${dev.deviceName} 处理失败:`, err.message);
           });
@@ -1810,6 +1813,8 @@ wssClient.on('connection', (ws, req) => {
         uuDeviceId: msg.uuDeviceId || dev?.uuDeviceId || null,
         groupName,
         cellStr,
+        screenWidth: dev?.screenWidth || msg.screenWidth || 1920,
+        screenHeight: dev?.screenHeight || msg.screenHeight || 1080,
       };
       
       processAlarmImage(msg.deviceId, imageBuffer, deviceInfo).catch(err => {
