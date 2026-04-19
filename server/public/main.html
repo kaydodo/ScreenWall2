@@ -2951,8 +2951,17 @@ function togglePreviewRemote() {
   const dev = devices.find(d => d.deviceId === previewDeviceId);
   if (!dev) return;
 
-  // 记录点击前的状态（用于设备离线时动画变化）
+  const slider = document.getElementById('previewRemoteSlider');
+  const knob = document.getElementById('previewRemoteKnob');
+  if (!slider || !knob) return;
+
+  // 记录预期状态（用于设备离线时动画变化）
   _pendingRemoteState = dev.supportsKeyClient !== true;
+
+  // 滑块移动到中间位置（10px = (36-14)/2 - 2）
+  // 中间位置作为"等待确认"的中间态
+  slider.style.background = '#f59e0b'; // 橙色表示"切换中"
+  knob.style.transform = 'translateX(10px)';
 
   // 切换状态：当前是true就变成false，当前是false/undefined就变成true
   const newState = dev.supportsKeyClient !== true;
