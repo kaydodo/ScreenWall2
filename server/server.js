@@ -235,18 +235,16 @@ const ALARM_SCREENSHOTS_DIR = path.join(__dirname, 'alarm-screenshots');
 if (!fs.existsSync(ALARM_SCREENSHOTS_DIR)) {
   fs.mkdirSync(ALARM_SCREENSHOTS_DIR, { recursive: true });
 }
-// 报警关键词（3字简短关键词，匹配到2个才触发）
-const ALARM_KEYWORDS_3CHAR = [
-  '网络错',      // 网络错误
-  '络错误',
-  '重新登',      // 重新登录
-  '新登录',
-  '网络有',      // 网络有问题
-  '络有问',
-  '检查一',      // 检查一下
-  '查一下',
-  '检测一',      // 检测一下（OCR容错）
-  '测一下',
+// 报警关键词（2字关键词，匹配到2个才触发）
+const ALARM_KEYWORDS_2CHAR = [
+  '网络',    // 网络错误、网络有问题
+  '错误',    // 网络错误
+  '重新',    // 重新登录
+  '登录',    // 重新登录
+  '有问题',  // 网络有问题
+  '检测',    // 检测一下吧
+  '检查',    // 检测一下吧
+  '一下',    // 检测一下吧
 ];
 
 // 核心词（单匹配权重低，需组合）
@@ -855,15 +853,15 @@ function preprocessOcrText(text) {
 }
 
 /**
- * 检查文字是否包含报警关键词（3字关键词，匹配到2个才触发）
+ * 检查文字是否包含报警关键词（2字关键词，匹配到2个才触发）
  */
 function matchAlarmKeywords(text) {
   const processedText = preprocessOcrText(text);
   let matchCount = 0;
   const matchedKeywords = [];
   
-  // 匹配3字关键词
-  for (const keyword of ALARM_KEYWORDS_3CHAR) {
+  // 匹配2字关键词
+  for (const keyword of ALARM_KEYWORDS_2CHAR) {
     if (processedText.includes(keyword)) {
       matchCount++;
       matchedKeywords.push(keyword);
