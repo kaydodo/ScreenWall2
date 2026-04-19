@@ -2659,6 +2659,9 @@ function closePreview() {
   // 关闭时隐藏鼠标提示
   const mouseHint = document.getElementById('previewMouseHint');
   if (mouseHint) mouseHint.style.display = 'none';
+  // 关闭时恢复远控按钮显示
+  const remoteToggle = document.getElementById('previewRemoteToggle');
+  if (remoteToggle) remoteToggle.parentElement.style.display = 'inline-flex';
   // 关闭时隐藏 1080p 按钮容器（状态不记录，下次打开时重置为关闭）
   const btn1080Container = document.getElementById('preview1080Container');
   if (btn1080Container) {
