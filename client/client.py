@@ -1660,15 +1660,35 @@ class ScreenWallClient:
                         "monitorOffsetY":     off_y,
                     }
                     # 报警开启时：心跳包合并报警截图，二合一节省资源
+                    # 固定截取屏幕中心 640×360 区域，用于报警检测
                     if _alarm_enabled:
                         try:
-                            ac = ScreenCapturer(quality=30, resize_w=1920, resize_h=1080, monitor_index=_current_monitor_index)
-                            try:
-                                alarm_img = ac.capture(hq=False, lossless=False)
+                            # 计算中心区域坐标
+                            crop_x = (off_w - 640) // 2
+                            crop_y = (off_h - 360) // 2
+                            
+                            # 用 MSS 截取中心区域
+                            import mss
+                            with mss.mss() as sct:
+                                monitor = sct.monitors[_current_monitor_index + 1]
+                                # 截取中心 640×360 区域
+                                region = {
+                                    "left": monitor["left"] + crop_x,
+                                    "top": monitor["top"] + crop_y,
+                                    "width": 640,
+                                    "height": 360
+                                }
+                                sct_img = sct.grab(region)
+                                alarm_img = mss.tools.to_bytes(sct_img)
+                                
                                 if alarm_img:
-                                    payload["alarmScreenshot"] = "data:image/webp;base64," + base64.b64encode(alarm_img).decode("ascii")
-                            finally:
-                                ac.close()
+                                    # 转 webp
+                                    from PIL import Image
+                                    import io
+                                    img = Image.frombytes("RGB", sct_img.size, sct_img.bgra, "raw", "BGRX")
+                                    out = io.BytesIO()
+                                    img.save(out, format='WEBP', quality=30)
+                                    payload["alarmScreenshot"] = "data:image/webp;base64," + base64.b64encode(out.getvalue()).decode("ascii")
                         except Exception:
                             pass
                     await ws.send(json.dumps(payload))

@@ -797,29 +797,11 @@ async function compareImages(buffer1, buffer2) {
  * @param {Buffer} imageBuffer - 图片数据
  * @param {Object} deviceInfo - 设备信息，包含 screenWidth/screenHeight
  */
-async function ocrRegion(imageBuffer, deviceInfo) {
+async function ocrRegion(imageBuffer) {
   try {
-    // 根据设备原始分辨率判断是否需要放大（高分辨率图片放大后识别效果更好）
-    const screenWidth = deviceInfo?.screenWidth || 1920;
-    let scaleFactor = 1.0;
-    if (screenWidth > 2200) {
-      scaleFactor = 3.0;  // 2K/4K分辨率放大3倍
-    }
-
-    let processedBuffer = imageBuffer;
-    if (scaleFactor > 1) {
-      const metadata = await sharp(imageBuffer).metadata();
-      const newWidth = Math.round(metadata.width * scaleFactor);
-      const newHeight = Math.round(metadata.height * scaleFactor);
-      processedBuffer = await sharp(imageBuffer)
-        .resize(newWidth, newHeight, { fit: 'fill' })
-        .toBuffer();
-    }
-
-    // 先尝试中文识别
-    const result = await Tesseract.recognize(processedBuffer, 'chi_sim', {
+    // 客户端送来的 640×360 图片，直接识别不放大
+    const result = await Tesseract.recognize(imageBuffer, 'chi_sim', {
       logger: (m) => {
-        // 显示加载进度
         if (m.status === 'loading language traineddata') {
           // 下载进度不打印
         }
@@ -828,8 +810,7 @@ async function ocrRegion(imageBuffer, deviceInfo) {
         serverError('[OCR] 训练数据加载错误:', err.message);
       },
     });
-    const text = result.data.text.trim();
-    return text;
+    return result.data.text.trim();
   } catch (e) {
     serverError('[OCR] 识别失败:', e.message);
     return '';
@@ -948,26 +929,12 @@ async function processAlarmImage(deviceId, imageBuffer, deviceInfo) {
     return false;
   }
   
-  // 获取原图尺寸
+  // 获取原图尺寸（客户端已固定为 640×360）
   const metadata = await sharp(imageBuffer).metadata();
   const imgW = metadata.width;
   const imgH = metadata.height;
   
-  // 1. 九宫格取中心区域
-  const cellW = Math.floor(imgW / 3);
-  const cellH = Math.floor(imgH / 3);
-  const centerX = cellW;  // 中心区域左上角X
-  const centerY = cellH;  // 中心区域左上角Y
-  
-  // 提取中心区域
-  const centerBuffer = await sharp(imageBuffer)
-    .extract({ left: centerX, top: centerY, width: cellW, height: cellH })
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-  
-  const centerData = centerBuffer.data;
-  const centerW = centerBuffer.info.width;
-  const centerH = centerBuffer.info.height;
+  // 客户端已截取中心 640×360，直接使用原图进行分析
   
   // 详细日志已移除，仅在报警确认时输出日志
   
@@ -1031,33 +998,21 @@ async function processAlarmImage(deviceId, imageBuffer, deviceInfo) {
     return false;
   }
   
-  // 5. 坐标换算：中心区域坐标 → 原图坐标
-  // 取第一个有效区域作为OCR区域
+  // 5. 坐标换算：客户端送来的 640×360 图片，直接在里面找连通域
   const reg = validRegions[0];
-  const ocrX1 = centerX + reg.x;
-  const ocrY1 = centerY + reg.y;
-  const ocrX2 = ocrX1 + reg.w;
-  const ocrY2 = ocrY1 + reg.h;
-  
-  // 173x160尺寸时 Y1+30 偏移
-  let y1 = ocrY1;
-  if (reg.targetSize.h === 160) {
-    y1 = ocrY1 + 30;
-  }
-  const x1 = ocrX1;
-  const x2 = Math.min(imgW, ocrX2);
-  const y2 = Math.min(imgH, ocrY2);
-  
-
+  const x1 = reg.x;
+  const y1 = reg.y;
+  const x2 = Math.min(imgW, reg.x + reg.w);
+  const y2 = Math.min(imgH, reg.y + reg.h);
   
   // 提取OCR区域
   const regionBuffer = await extractRegion(imageBuffer, x1, y1, x2 - x1, y2 - y1);
   
-  // 6. OCR识别
+  // 6. OCR识别（固定1倍大小，不放大）
   let ocrText = '';
 
   try {
-    ocrText = await ocrRegion(regionBuffer, deviceInfo);
+    ocrText = await ocrRegion(regionBuffer, null);
 
   } catch (ocrErr) {
     // OCR异常静默，不打印
