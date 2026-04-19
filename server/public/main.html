@@ -4017,10 +4017,10 @@ document.getElementById('previewClose').onclick = closePreview;
 // 点击预览区域或背景关闭
 document.getElementById('previewOverlay').onclick = (e) => {
   // 关闭按钮在任何时候都可以点击关闭，无需排除
-  // 报警预览不关闭
-  const isAlarm = previewDeviceId && previewDeviceId.startsWith('__ALARM__');
-  if (isAlarm) return;
-  // 其他情况：点击任意位置关闭
+  // 电脑端+当前设备有键盘时，禁止点击关闭（需要远程控制）
+  const previewDev = devices.find(d => d.deviceId === previewDeviceId);
+  const currentDevHasKeyboard = previewDev && previewDev.supportsKeyClient;
+  if (!isMobile && currentDevHasKeyboard) return;
   closePreview();
 };
 
