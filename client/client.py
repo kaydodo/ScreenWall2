@@ -1671,7 +1671,10 @@ class ScreenWallClient:
                             # 用 MSS 截取中心区域
                             import mss
                             with mss.mss() as sct:
-                                monitor = sct.monitors[_current_monitor_index + 1]
+                                monitors = sct.monitors
+                                # 确保索引不越界
+                                mon_idx = min(_current_monitor_index, len(monitors) - 2)  # -2 因为 index 0 是总区域
+                                monitor = monitors[mon_idx + 1]
                                 # 截取中心 640×360 区域
                                 region = {
                                     "left": monitor["left"] + crop_x,
@@ -1680,19 +1683,15 @@ class ScreenWallClient:
                                     "height": 360
                                 }
                                 sct_img = sct.grab(region)
-                                alarm_img = mss.tools.to_bytes(sct_img)
                                 
-                                if alarm_img:
-                                    # 转 webp
-                                    from PIL import Image
-                                    import io
-                                    img = Image.frombytes("RGB", sct_img.size, sct_img.bgra, "raw", "BGRX")
-                                    out = io.BytesIO()
-                                    img.save(out, format='WEBP', quality=30)
-                                    payload["alarmScreenshot"] = "data:image/webp;base64," + base64.b64encode(out.getvalue()).decode("ascii")
-                                    print(f"[心跳] alarmScreenshot 已截取，长度={len(payload['alarmScreenshot'])}")
-                                else:
-                                    print("[心跳] alarmScreenshot 截取失败: alarm_img 为空")
+                                # 转 webp
+                                from PIL import Image
+                                import io
+                                img = Image.frombytes("RGB", sct_img.size, sct_img.bgra, "raw", "BGRX")
+                                out = io.BytesIO()
+                                img.save(out, format='WEBP', quality=30)
+                                payload["alarmScreenshot"] = "data:image/webp;base64," + base64.b64encode(out.getvalue()).decode("ascii")
+                                print(f"[心跳] alarmScreenshot 已截取，长度={len(payload['alarmScreenshot'])}")
                         except Exception as e:
                             print(f"[心跳] alarmScreenshot 异常: {e}")
                             pass
