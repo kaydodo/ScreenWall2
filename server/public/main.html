@@ -1237,7 +1237,6 @@ function connectWS() {
           closeRemoteListModal();
           // 远控按钮：离线时什么都不做，保持当前状态
           _pendingRemoteState = null;
-          }
         } else if (status === 'online') {
           // 设备重新上线，恢复彩色图 + 隐藏水印
           previewImg.style.filter = '';
