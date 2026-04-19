@@ -237,18 +237,13 @@ if (!fs.existsSync(ALARM_SCREENSHOTS_DIR)) {
 }
 // 报警关键词（2字关键词，匹配到2个才触发）
 const ALARM_KEYWORDS_2CHAR = [
-  '网络',    // 网络错误、网络有问题
-  '错误',    // 网络错误
-  '重新',    // 重新登录
-  '登录',    // 重新登录
-  '有问题',  // 网络有问题
-  '检测',    // 检测一下吧
-  '检查',    // 检测一下吧
-  '一下',    // 检测一下吧
+  '网络', '络错', '请重', '新登', '络有', '有问', '检测', '检查', '一下', '下吧',
 ];
 
-// 核心词（单匹配权重低，需组合）
-const ALARM_KEYWORDS_CORE = ['错误', '登录', '有问题', '检查', '检测'];
+// 三字词（单匹配直接触发报警）
+const ALARM_KEYWORDS_3CHAR = [
+  '网络错', '请重新', '网络有', '检测一', '查一下', '检测吧',
+];
 // 模板图片路径
 const ALARM_TEMPLATE_PATH = path.join(__dirname, 'diao.png');
 // 查重间隔（30秒）
@@ -853,38 +848,33 @@ function preprocessOcrText(text) {
 }
 
 /**
- * 检查文字是否包含报警关键词（2字关键词，匹配到2个才触发）
+ * 检查文字是否包含报警关键词
+ * - 2字关键词：匹配到2个才触发
+ * - 3字关键词：匹配到1个就触发
  */
 function matchAlarmKeywords(text) {
   const processedText = preprocessOcrText(text);
+
+  // 先检查3字词（单匹配直接触发）
+  for (const keyword of ALARM_KEYWORDS_3CHAR) {
+    if (processedText.includes(keyword)) {
+      return keyword; // 直接返回匹配的3字词
+    }
+  }
+
+  // 再检查2字词（需匹配到2个才触发）
   let matchCount = 0;
   const matchedKeywords = [];
-  
-  // 匹配2字关键词
   for (const keyword of ALARM_KEYWORDS_2CHAR) {
     if (processedText.includes(keyword)) {
-      matchCount++;
       matchedKeywords.push(keyword);
-      // 避免同一区域重复计数（跳过相似词）
+      matchCount++;
       if (matchCount >= 2) {
-
         return matchedKeywords[0]; // 返回第一个匹配的词
       }
     }
   }
-  
-  // 核心词辅助匹配（核心词+3字词=2个也触发）
-  for (const keyword of ALARM_KEYWORDS_CORE) {
-    if (processedText.includes(keyword)) {
-      matchCount++;
-      matchedKeywords.push(keyword);
-      if (matchCount >= 2) {
 
-        return matchedKeywords[0];
-      }
-    }
-  }
-  
   return null;
 }
 
