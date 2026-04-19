@@ -224,11 +224,9 @@ const ALARM_DEDUP_MS = 60 * 1000; // 1分钟去重窗口（严格小于，大于
 let pending_alarms = new Map();
 
 // ========== 新报警系统：状态机 ==========
-// alarmStates: deviceId -> { state, matchCount, verifyCount, templateRegion, templateBuffer, lastImage, occurrenceCount, firstPendingTime, alarmRecord }
+// alarmStates: deviceId -> { state, matchCount, templateRegion, templateBuffer, lastImage, occurrenceCount, firstPendingTime, alarmRecord }
 // state: 'idle' | 'matching' | 'verifying' | 'confirmed'
-// matchCount: 匹配成功的次数（用于计数>=0.9的次数）
-// verifyCount: 查重验证的次数（连续<0.9的次数）
-// templateRegion: { x1, y1, x2, y2 } 报警时截取的150x60区域
+// templateRegion: { x1, y1, x2, y2 } 报警时截取的区域坐标（相对于640×360图片）
 // templateBuffer: 报警时截取的150x60区域的Buffer（用于查重对比）
 // lastImage: 报警时的原始截图（base64）
 // occurrenceCount: 本日报警次数
@@ -891,7 +889,6 @@ async function processAlarmImage(deviceId, imageBuffer, deviceInfo) {
   const now = Date.now();
   const state = alarmStates.get(deviceId) || {
     state: 'idle',
-    verifyCount: 0,
     templateRegion: null,
     templateBuffer: null,
     lastImage: null,
@@ -912,20 +909,16 @@ async function processAlarmImage(deviceId, imageBuffer, deviceInfo) {
     const similarity = await compareImages(state.templateBuffer, newRegionBuffer);
 
     if (similarity < 0.9) {
-      state.verifyCount++;
-      if (state.verifyCount >= 2) {
-        alarmStates.set(deviceId, {
-          state: 'idle',
-          verifyCount: 0,
-          templateRegion: null,
-          templateBuffer: null,
-          lastImage: null,
-          occurrenceCount: state.occurrenceCount,
-        });
-        return false;
-      }
-    } else {
-      state.verifyCount = 0;
+      // 相似度不符合，说明画面已变化，本轮报警结束
+      alarmStates.set(deviceId, {
+        state: 'idle',
+        verifyCount: 0,
+        templateRegion: null,
+        templateBuffer: null,
+        lastImage: null,
+        occurrenceCount: state.occurrenceCount,
+      });
+      return false;
     }
 
     alarmStates.set(deviceId, state);
@@ -938,6 +931,13 @@ async function processAlarmImage(deviceId, imageBuffer, deviceInfo) {
   const imgH = metadata.height;
   
   // 客户端已截取中心 640×360，直接使用原图进行分析
+  const centerW = imgW;
+  const centerH = imgH;
+  
+  // 将图片转为 RGB 原始数据
+  const { data: centerData } = await sharp(imageBuffer)
+    .raw()
+    .toBuffer({ resolveWithObject: true });
   
   // 详细日志已移除，仅在报警确认时输出日志
   
@@ -1091,7 +1091,6 @@ async function processAlarmImage(deviceId, imageBuffer, deviceInfo) {
   // 11. 更新状态为查重阶段
   alarmStates.set(deviceId, {
     state: 'verifying',
-    verifyCount: 0,
     templateRegion: { x1, y1, x2, y2 },
     templateBuffer: regionBuffer,
     lastImage: imageBuffer,
