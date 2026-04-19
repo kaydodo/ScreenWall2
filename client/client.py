@@ -15,7 +15,7 @@ import uuid
 import time
 
 # 客户端版本号（每次功能更新时手动递增）
-CLIENT_VERSION = "1.2.7"
+CLIENT_VERSION = "1.2.8"
 
 
 def has_key_client():
@@ -1640,7 +1640,7 @@ class ScreenWallClient:
             # 心跳计数：每 90 帧（约 30 秒 @ 3fps）主动发一次心跳
             # 心跳用于接收服务端的升级通知，不依赖截图失败才触发
             self._heartbeat_tick += 1
-            heartbeat_interval = 180  # 可配置，每 N 帧发一次心跳（约60秒 @ 3fps）
+            heartbeat_interval = 90  # 可配置，每 N 帧发一次心跳（约30秒 @ 3fps）
             if self._heartbeat_tick >= heartbeat_interval:
                 self._heartbeat_tick = 0
                 try:
