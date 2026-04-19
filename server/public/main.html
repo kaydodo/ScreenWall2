@@ -2298,10 +2298,6 @@ function openCollectionPreview(timestamp, deviceId) {
 }
 
 function openPreviewImage(imgSrc, deviceName, deviceId, online) {
-  // 清除报警区域标记层（格子预览不显示标记框）
-  var oldOverlay = document.getElementById('alarmRegionOverlay');
-  if (oldOverlay) oldOverlay.remove();
-
   // 创建或显示预览弹窗
   let overlay = document.getElementById('previewImageOverlay');
   if (!overlay) {
@@ -2549,14 +2545,6 @@ function openPreview(cellIndex) {
   previewActive = true;  // 暂停格子渲染
   pendingFrames.clear(); // 清空旧的格子帧缓冲
 
-  // 移除报警区域标记层（格子预览不显示标记框）
-  var oldOverlay = document.getElementById('alarmRegionOverlay');
-  if (oldOverlay) oldOverlay.remove();
-
-  // 清除报警预览可能残留的onload处理器（防止报警标记再次出现）
-  const previewImg = document.getElementById('previewImg');
-  previewImg.onload = null;
-
   const dev = devices.find(d => d.deviceId === cell.deviceId);
 
   document.getElementById('previewDeviceName').textContent = (cell.deviceName || '未知') + ' - 实时预览' + ((dev && dev.monitorCount > 1) ? ' 🖥️' + (dev.monitorIndex || 1) : '');
@@ -2653,11 +2641,6 @@ function closePreview() {
 
   document.getElementById('previewOverlay').classList.remove('active');
   document.getElementById('previewOfflineWatermark').style.display = 'none';
-  // 移除报警区域标记层
-  var alarmOverlay = document.getElementById('alarmRegionOverlay');
-  if (alarmOverlay) alarmOverlay.remove();
-  // 清除报警预览的onload处理器（防止报警标记再次出现）
-  previewImg.onload = null;
   // 取消订阅格子预览独立通道（服务端会自动检查是否需要关闭高清流）
   if (previewDeviceId && ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'unsubscribePreview', deviceId: previewDeviceId }));
@@ -4788,11 +4771,7 @@ function openAlarmPreview(alarmId) {
   // 报警预览时解绑点击事件（不允许点击操作）
   previewImg.onclick = null;
 
-  // 图片加载完成后添加OCR区域标记
-  previewImg.onload = function() {
-    previewImg.onload = null;
-    addAlarmRegionOverlay(rec.region);
-  };
+
   // 移动端关闭提示：2秒后淡出
   var phint = document.getElementById('previewMobileClose');
   if (phint) { phint.classList.remove('fade-out'); setTimeout(function() { phint.classList.add('fade-out'); }, 2000); }
@@ -4823,101 +4802,6 @@ function openAlarmPreview(alarmId) {
   var watermark = document.getElementById('previewOfflineWatermark');
   if (watermark) {
     watermark.style.display = isOnline ? 'none' : 'block';
-  }
-}
-
-// 添加报警区域标记框（OCR识别区域）
-function addAlarmRegionOverlay(region) {
-  // 移除旧的标记层
-  var oldOverlay = document.getElementById('alarmRegionOverlay');
-  if (oldOverlay) oldOverlay.remove();
-
-  // 如果没有区域信息，不添加标记
-  if (!region) return;
-
-  // 获取图片元素
-  var img = document.getElementById('previewImg');
-  if (!img || !img.naturalWidth || !img.naturalHeight) {
-    // 图片未加载，延迟重试
-    setTimeout(function() { addAlarmRegionOverlay(region); }, 100);
-    return;
-  }
-
-  var imgWidth = img.naturalWidth;   // 图片原始宽度
-  var imgHeight = img.naturalHeight; // 图片原始高度
-
-  // OCR区域坐标（基于原图的像素坐标）
-  var ocrX1 = region.x1;
-  var ocrX2 = region.x2;
-  var ocrY1 = region.y1;
-  var ocrY2 = region.y2;
-
-  // 获取图片在页面上的实际显示尺寸和位置
-  var rect = img.getBoundingClientRect();
-  var displayWidth = rect.width;
-  var displayHeight = rect.height;
-
-  // 计算图片实际显示的缩放比例（object-fit: contain）
-  var containerWidth = img.parentElement.clientWidth;
-  var containerHeight = img.parentElement.clientHeight;
-
-  // 计算缩放比例
-  var scaleX = displayWidth / imgWidth;
-  var scaleY = displayHeight / imgHeight;
-
-  // 计算图片在容器中的偏移（居中显示时的留白）
-  var offsetX = (containerWidth - displayWidth) / 2;
-  var offsetY = (containerHeight - displayHeight) / 2;
-
-  // 计算青色框在容器中的位置
-  var boxLeft = offsetX + ocrX1 * scaleX;
-  var boxTop = offsetY + ocrY1 * scaleY;
-  var boxWidth = (ocrX2 - ocrX1) * scaleX;
-  var boxHeight = (ocrY2 - ocrY1) * scaleY;
-  // 移动端：Y1偏移+37，高度固定40
-  if (isMobile) {
-    boxTop = offsetY + (ocrY1 + 37) * scaleY;
-    boxHeight = 40 * scaleY;
-  }
-
-  // 转换为百分比（相对于容器）
-  var leftPct = (boxLeft / containerWidth * 100).toFixed(2);
-  var topPct = (boxTop / containerHeight * 100).toFixed(2);
-  var widthPct = (boxWidth / containerWidth * 100).toFixed(2);
-  var heightPct = (boxHeight / containerHeight * 100).toFixed(2);
-
-  // 创建标记层
-  var overlay = document.createElement('div');
-  overlay.id = 'alarmRegionOverlay';
-  overlay.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:5;';
-
-  // 根据端别设置不同线宽：移动端1，桌面端3
-  var strokeW = isMobile ? 1 : 3;
-  var cornerExt = isMobile ? 1 : 3;
-
-  // 亮色边框标记OCR区域（青色高亮边框）
-  var svgContent = '<svg width="100%" height="100%" style="position:absolute;top:0;left:0;">' +
-    // OCR区域标记 - 青色边框
-    '<rect x="' + leftPct + '%" y="' + topPct + '%" width="' + widthPct + '%" height="' + heightPct + '%" ' +
-    'fill="rgba(0,255,255,0.15)" stroke="#00ffff" stroke-width="' + strokeW + '"/>' +
-    // 四角标记
-    '<line x1="' + leftPct + '%" y1="' + topPct + '%" x2="' + (parseFloat(leftPct) + cornerExt) + '%" y2="' + topPct + '%" stroke="#00ffff" stroke-width="' + strokeW + '"/>' +
-    '<line x1="' + leftPct + '%" y1="' + topPct + '%" x2="' + leftPct + '%" y2="' + (parseFloat(topPct) + cornerExt) + '%" stroke="#00ffff" stroke-width="' + strokeW + '"/>' +
-    '<line x1="' + (parseFloat(leftPct) + parseFloat(widthPct)) + '%" y1="' + topPct + '%" x2="' + (parseFloat(leftPct) + parseFloat(widthPct) - cornerExt) + '%" y2="' + topPct + '%" stroke="#00ffff" stroke-width="' + strokeW + '"/>' +
-    '<line x1="' + (parseFloat(leftPct) + parseFloat(widthPct)) + '%" y1="' + topPct + '%" x2="' + (parseFloat(leftPct) + parseFloat(widthPct)) + '%" y2="' + (parseFloat(topPct) + cornerExt) + '%" stroke="#00ffff" stroke-width="' + strokeW + '"/>' +
-    '<line x1="' + leftPct + '%" y1="' + (parseFloat(topPct) + parseFloat(heightPct)) + '%" x2="' + (parseFloat(leftPct) + cornerExt) + '%" y2="' + (parseFloat(topPct) + parseFloat(heightPct)) + '%" stroke="#00ffff" stroke-width="' + strokeW + '"/>' +
-    '<line x1="' + leftPct + '%" y1="' + (parseFloat(topPct) + parseFloat(heightPct)) + '%" x2="' + leftPct + '%" y2="' + (parseFloat(topPct) + parseFloat(heightPct) - cornerExt) + '%" stroke="#00ffff" stroke-width="' + strokeW + '"/>' +
-    '<line x1="' + (parseFloat(leftPct) + parseFloat(widthPct)) + '%" y1="' + (parseFloat(topPct) + parseFloat(heightPct)) + '%" x2="' + (parseFloat(leftPct) + parseFloat(widthPct) - cornerExt) + '%" y2="' + (parseFloat(topPct) + parseFloat(heightPct)) + '%" stroke="#00ffff" stroke-width="' + strokeW + '"/>' +
-    '<line x1="' + (parseFloat(leftPct) + parseFloat(widthPct)) + '%" y1="' + (parseFloat(topPct) + parseFloat(heightPct)) + '%" x2="' + (parseFloat(leftPct) + parseFloat(widthPct)) + '%" y2="' + (parseFloat(topPct) + parseFloat(heightPct) - cornerExt) + '%" stroke="#00ffff" stroke-width="' + strokeW + '"/>' +
-    '</svg>';
-
-  overlay.innerHTML = svgContent;
-
-  // 添加到预览区域
-  var previewArea = document.getElementById('previewArea');
-  if (previewArea) {
-    previewArea.style.position = 'relative';
-    previewArea.appendChild(overlay);
   }
 }
 

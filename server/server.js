@@ -178,6 +178,9 @@ let gridSizeSetting = 4;  // 默认布局大小
 const frameCache = new Map(); // deviceId -> { md5, time }
 // 333ms内相同 MD5 的帧不重复推送（约3fps，减少重复传输）
 const FRAME_CACHE_TTL = 333;
+
+// 报警截图查重缓存（存储最近一张 640×360 截图）
+const alarmPrevCache = new Map(); // deviceId -> { md5, time }
 const GRID_PERSIST_PATH = path.join(__dirname, 'grid-layout.json');
 const GRID_SIZE_PATH = path.join(__dirname, 'grid-size.json');
 try {
@@ -1025,14 +1028,32 @@ async function processAlarmImage(deviceId, imageBuffer, deviceInfo) {
     return false;
   }
   
-
+  // 8. 查重：计算与上一帧的相似度，过滤连续相似帧
+  const imageMd5 = crypto.createHash('md5').update(imageBuffer).digest('hex');
+  const prev = alarmPrevCache.get(deviceId);
+  if (prev && prev.md5 === imageMd5) {
+    // 与上一帧完全相同，跳过
+    return false;
+  }
+  alarmPrevCache.set(deviceId, { md5: imageMd5, time: now });
   
-  // 8. 保存截图
+  // 9. 向客户端请求 1080P 截图（真正报警时才请求）
+  const dev = devices.get(deviceId);
+  if (dev) {
+    for (const client of wssClient.clients) {
+      if (client._deviceId === deviceId && client.readyState === 1) {
+        client.send(JSON.stringify({ type: 'requestAlarmFullScreenshot', alarmTimestamp: now }));
+        break;
+      }
+    }
+  }
+  
+  // 10. 临时保存 640×360 截图（等 1080P 回来后替换）
   const screenshotId = crypto.randomUUID();
   const screenshotPath = path.join(ALARM_SCREENSHOTS_DIR, `${screenshotId}.png`);
   fs.writeFileSync(screenshotPath, imageBuffer);
   
-  // 9. 计算本日报警次数
+  // 11. 计算本日报警次数
   const dayStart = new Date(now).setHours(0, 0, 0, 0);
   let occurrenceCount = 1;
   for (const rec of alarmRecords) {
@@ -1051,6 +1072,7 @@ async function processAlarmImage(deviceId, imageBuffer, deviceInfo) {
     uuDeviceId: deviceInfo.uuDeviceId,
     screenshot: `/alarm-screenshots/${screenshotId}.png`,
     screenshotId,
+    screenshotPath,
     timestamp: now,
     groupName: deviceInfo.groupName,
     cellStr: deviceInfo.cellStr,
@@ -1744,6 +1766,24 @@ wssClient.on('connection', (ws, req) => {
           updateAvailable: needsUpdate,
           version: dev.version || '0.0.0'
         }));
+      }
+    }
+
+    // 处理客户端返回的 1080P 报警截图（用于保存）
+    if (msg.type === 'alarmFullScreenshot' && msg.deviceId && msg.image) {
+      const alarmTimestamp = msg.alarmTimestamp;
+      const deviceId = msg.deviceId;
+      const imageData = msg.image;
+
+      // 查找对应的报警记录
+      const matchedRecord = alarmRecords.find(r =>
+        r.deviceId === deviceId && Math.abs(r.timestamp - alarmTimestamp) < 5000
+      );
+
+      if (matchedRecord) {
+        // 更新报警记录的截图
+        const imgBuffer = Buffer.from(imageData.replace(/^data:image\/\w+;base64,/, ''), 'base64');
+        fs.writeFileSync(matchedRecord.screenshotPath, imgBuffer);
       }
     }
 

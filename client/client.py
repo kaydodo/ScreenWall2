@@ -1869,6 +1869,25 @@ class ScreenWallClient:
                         delta = data.get("delta", 120)
                         self._send_mouse_to_keyclient(0, 0, action='scroll', delta=delta)
 
+                    elif msg_type == "requestAlarmFullScreenshot":
+                        # 服务端请求 1080P 报警截图
+                        try:
+                            capt = ScreenCapturer(quality=80, resize_w=1920, resize_h=1080, monitor_index=_current_monitor_index)
+                            try:
+                                full_img = capt.capture(hq=True, hq_limit=1080)
+                                if full_img:
+                                    alarm_full_b64 = "data:image/webp;base64," + base64.b64encode(full_img).decode("ascii")
+                                    await ws.send(json.dumps({
+                                        "type": "alarmFullScreenshot",
+                                        "deviceId": cfg["deviceId"],
+                                        "alarmTimestamp": data.get("alarmTimestamp", 0),
+                                        "image": alarm_full_b64
+                                    }))
+                            finally:
+                                capt.close()
+                        except Exception:
+                            pass
+
                     elif msg_type == "deviceNameSync":
                         # 服务器同步设备名到本地配置
                         server_name = data.get("deviceName", "")
