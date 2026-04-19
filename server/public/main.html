@@ -305,7 +305,7 @@
       <span id="previewDeviceName">实时预览</span>
       <!-- 远控开关和列表按钮，紧跟标题 -->
       <div style="display:inline-flex;align-items:center;gap:4px;position:relative;z-index:10;" id="previewRemoteWrap">
-        <div id="previewRemoteSlider" onclick="togglePreviewRemote()" style="width:36px;height:18px;background:#555;border-radius:9px;position:relative;transition:background 0.2s;cursor:pointer;pointer-events:auto;">
+        <div id="previewRemoteSlider" onclick="event.stopPropagation();togglePreviewRemote()" style="width:36px;height:18px;background:#555;border-radius:9px;position:relative;transition:background 0.2s;cursor:pointer;pointer-events:auto;">
           <div id="previewRemoteKnob" style="width:14px;height:14px;background:#fff;border-radius:50%;position:absolute;top:2px;left:2px;transition:transform 0.2s;"></div>
         </div>
         <span style="font-size:12px;color:#888;">远控</span>
