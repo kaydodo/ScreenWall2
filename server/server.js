@@ -1567,6 +1567,12 @@ wssClient.on('connection', (ws, req) => {
         dev.lastSeen = receiveTime;
         dev.online = true;
 
+        // 实时同步分辨率（防止人工修改后坐标映射错误）
+        if (msg.screenWidth && msg.screenHeight) {
+          dev.screenWidth = msg.screenWidth;
+          dev.screenHeight = msg.screenHeight;
+        }
+
         // ========== 收藏截图处理（不受 667ms 延迟限制）==========
         if (msg.collectionTimestamp) {
           // 收到收藏截图请求的响应

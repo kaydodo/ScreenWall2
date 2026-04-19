@@ -1692,12 +1692,16 @@ class ScreenWallClient:
 
             if img_bytes:
                 try:
+                    # 获取当前分辨率（实时同步到服务端，用于鼠标点击坐标映射）
+                    off_x, off_y, off_w, off_h = _get_current_monitor_offset()
                     payload = {
                         "type":       "screenshot",
                         "deviceId":   cfg["deviceId"],
                         "image":      "data:image/webp;base64," + base64.b64encode(img_bytes).decode("ascii"),
                         "hq":         self.hq_mode,
                         "clientTime": int(time.time() * 1000),
+                        "screenWidth": off_w,
+                        "screenHeight": off_h,
                     }
                     await ws.send(json.dumps(payload))
                 except Exception:
