@@ -797,8 +797,21 @@ async function compareImages(buffer1, buffer2) {
  */
 async function ocrRegion(imageBuffer) {
   try {
+    // 根据图片尺寸决定是否放大（高分辨率图片放大后识别效果更好）
+    const metadata = await sharp(imageBuffer).metadata();
+    const scaleFactor = metadata.width > 800 ? 2.0 : 1.0;  // 宽>800px放大2倍
+
+    let processedBuffer = imageBuffer;
+    if (scaleFactor > 1) {
+      const newWidth = Math.round(metadata.width * scaleFactor);
+      const newHeight = Math.round(metadata.height * scaleFactor);
+      processedBuffer = await sharp(imageBuffer)
+        .resize(newWidth, newHeight, { fit: 'fill' })
+        .toBuffer();
+    }
+
     // 先尝试中文识别
-    const result = await Tesseract.recognize(imageBuffer, 'chi_sim', {
+    const result = await Tesseract.recognize(processedBuffer, 'chi_sim', {
       logger: (m) => {
         // 显示加载进度
         if (m.status === 'loading language traineddata') {
@@ -813,7 +826,7 @@ async function ocrRegion(imageBuffer) {
 
     // 如果中文识别为空，尝试英文
     if (!text) {
-      const engResult = await Tesseract.recognize(imageBuffer, 'eng', {
+      const engResult = await Tesseract.recognize(processedBuffer, 'eng', {
         logger: () => {},
       });
       text = engResult.data.text.trim();
@@ -827,7 +840,7 @@ async function ocrRegion(imageBuffer) {
     serverError('[OCR] 识别失败:', e.message);
     // 尝试备用英文识别
     try {
-      const engResult = await Tesseract.recognize(imageBuffer, 'eng', {
+      const engResult = await Tesseract.recognize(processedBuffer, 'eng', {
         logger: () => {},
       });
       return engResult.data.text.trim();
