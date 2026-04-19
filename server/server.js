@@ -1637,7 +1637,14 @@ wssClient.on('connection', (ws, req) => {
           }
 
           // ── 格子预览独立通道（不受帧缓存去重影响）────────
-          const previewMsg = JSON.stringify({ type: 'previewScreenshot', deviceId: msg.deviceId, image: msg.image, timestamp: now });
+          const previewMsg = JSON.stringify({
+            type: 'previewScreenshot',
+            deviceId: msg.deviceId,
+            image: msg.image,
+            timestamp: now,
+            screenWidth: dev.screenWidth || 1920,
+            screenHeight: dev.screenHeight || 1080
+          });
           for (const [previewWs, previewInfo] of previewClients) {
             if (previewInfo.deviceId === msg.deviceId && previewWs.readyState === 1) {
               previewWs.send(previewMsg);
