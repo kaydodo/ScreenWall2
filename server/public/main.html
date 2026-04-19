@@ -156,6 +156,18 @@
     <div id="previewKeyboardContent"></div>
   </div>
 </div>
+
+<!-- ========== 远控设备列表弹窗 ========== -->
+<div class="remote-list-overlay" id="remoteListOverlay" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:10002;align-items:center;justify-content:center;">
+  <div class="remote-list-dialog" style="background:#1a1d27;border-radius:12px;padding:20px;min-width:400px;max-width:600px;max-height:70vh;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,0.5);">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <span style="color:#fff;font-size:16px;font-weight:bold;">🔌 远控设备列表</span>
+      <button onclick="closeRemoteListModal()" style="background:none;border:none;color:#888;cursor:pointer;font-size:20px;">✕</button>
+    </div>
+    <div id="remoteListContent" style="flex:1;overflow-y:auto;color:#ccc;font-size:13px;"></div>
+  </div>
+</div>
+
 <style>
 /* 键盘布局样式 */
 .keyboard-layout {
@@ -304,6 +316,7 @@
         <div id="previewRemoteSlider" onclick="togglePreviewRemote()" style="width:44px;height:24px;background:#555;border-radius:12px;cursor:pointer;position:relative;transition:background 0.3s;">
           <div id="previewRemoteKnob" style="width:20px;height:20px;background:#fff;border-radius:50%;position:absolute;top:2px;left:2px;transition:transform 0.3s,background 0.3s;box-shadow:0 1px 3px rgba(0,0,0,0.3);"></div>
         </div>
+        <span onclick="openRemoteListModal()" style="cursor:pointer;color:#fff;font-size:14px;margin-left:4px;" title="查看远控设备列表">🔍</span>
       </div>
     </div>
     <img id="previewImg" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="实时预览" style="border-radius:0;box-shadow:none;border:none;" />
@@ -2874,22 +2887,12 @@ function updatePreviewRemoteBtn() {
   const knob = document.getElementById('previewRemoteKnob');
   const toggle = document.getElementById('previewRemoteToggle');
 
-  // 能远控时显示，不能远控时显示禁用状态
-  if (!canRemote) {
-    toggle.style.opacity = '0.5';
-    slider.style.cursor = 'not-allowed';
-    // 禁用状态：滑块在左侧灰色
-    slider.style.background = '#444';
-    knob.style.transform = 'translateX(0)';
-    return;
-  }
-
-  // 能远控：正常显示
-  toggle.style.opacity = '1';
+  // 始终显示，只有启动和关闭两种状态
+  toggle.style.opacity = canRemote ? '1' : '1';
   slider.style.cursor = 'pointer';
 
   // 获取当前客户端远控状态，状态未知时默认关闭
-  const isEnabled = dev._remoteEnabled !== false;
+  const isEnabled = canRemote && dev._remoteEnabled !== false;
   if (isEnabled) {
     slider.style.background = '#22c55e'; // 绿色
     knob.style.transform = 'translateX(20px)';
@@ -2927,6 +2930,41 @@ openPreview = function(cell) {
   // 预览打开后更新远控按钮状态
   setTimeout(updatePreviewRemoteBtn, 100);
 };
+
+// ── 远控设备列表弹窗 ────────────────────────
+function naturalSort(strA, strB) {
+  return strA.localeCompare(strB, undefined, { numeric: true, sensitivity: 'base' });
+}
+
+function openRemoteListModal() {
+  const overlay = document.getElementById('remoteListOverlay');
+  const content = document.getElementById('remoteListContent');
+  
+  // 获取所有在线设备，按自然排序
+  const onlineDevices = devices.filter(d => d.online).sort((a, b) => naturalSort(a.deviceName, b.deviceName));
+  
+  if (onlineDevices.length === 0) {
+    content.innerHTML = '<div style="text-align:center;color:#666;padding:20px;">暂无在线设备</div>';
+  } else {
+    let html = '<table style="width:100%;border-collapse:collapse;">';
+    html += '<tr style="border-bottom:1px solid #333;color:#888;font-size:12px;"><td style="padding:8px;">设备名称</td><td style="padding:8px;text-align:center;">远控状态</td></tr>';
+    onlineDevices.forEach(dev => {
+      const isEnabled = dev._remoteEnabled !== false;
+      const statusHtml = isEnabled 
+        ? '<span style="color:#22c55e;">● 启动</span>' 
+        : '<span style="color:#666;">○ 关闭</span>';
+      html += `<tr style="border-bottom:1px solid #2a2a2a;"><td style="padding:8px;">${dev.deviceName}</td><td style="padding:8px;text-align:center;">${statusHtml}</td></tr>`;
+    });
+    html += '</table>';
+    content.innerHTML = html;
+  }
+  
+  overlay.style.display = 'flex';
+}
+
+function closeRemoteListModal() {
+  document.getElementById('remoteListOverlay').style.display = 'none';
+}
 
 // ─────────────────────────────────────────
 // 1080p 预览模式切换
