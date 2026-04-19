@@ -297,13 +297,14 @@
     </div>
   </div>
   <div class="preview-area" id="previewArea">
-    <!-- 远控开关（absolute定位在左上角） -->
-    <div id="previewRemoteToggle" style="position:absolute;top:12px;left:12px;z-index:10;display:none;">
-      <button class="preview-remote-btn" id="previewRemoteBtn" onclick="togglePreviewRemote()" style="background:#374151;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:6px;">
-        <span id="previewRemoteIcon">🔌</span>
-        <span id="previewRemoteText">远控</span>
-        <span id="previewRemoteStatus" style="font-size:11px;opacity:0.8;">关</span>
-      </button>
+    <!-- 远控开关（absolute定位在左上角，始终显示） -->
+    <div id="previewRemoteToggle" style="position:absolute;top:12px;left:12px;z-index:10;">
+      <div style="display:flex;align-items:center;gap:8px;background:rgba(0,0,0,0.5);padding:6px 10px;border-radius:20px;backdrop-filter:blur(8px);">
+        <span style="font-size:12px;color:#fff;">远控</span>
+        <div id="previewRemoteSlider" onclick="togglePreviewRemote()" style="width:44px;height:24px;background:#555;border-radius:12px;cursor:pointer;position:relative;transition:background 0.3s;">
+          <div id="previewRemoteKnob" style="width:20px;height:20px;background:#fff;border-radius:50%;position:absolute;top:2px;left:2px;transition:transform 0.3s,background 0.3s;box-shadow:0 1px 3px rgba(0,0,0,0.3);"></div>
+        </div>
+      </div>
     </div>
     <img id="previewImg" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="实时预览" style="border-radius:0;box-shadow:none;border:none;" />
     <div class="preview-loading" id="previewLoading" style="aspect-ratio: 16/9; width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #1a1d27; border-radius: 0;">
@@ -2867,33 +2868,34 @@ function togglePreviewKeyboard() {
 
 // ── 远控开关 ────────────────────────────────
 function updatePreviewRemoteBtn() {
-  const toggle = document.getElementById('previewRemoteToggle');
-  const icon = document.getElementById('previewRemoteIcon');
-  const text = document.getElementById('previewRemoteText');
-  const status = document.getElementById('previewRemoteStatus');
-
-  // 找到当前预览设备的远控状态
   const dev = devices.find(d => d.deviceId === previewDeviceId);
   const canRemote = dev && dev.supportsKeyClient;
+  const slider = document.getElementById('previewRemoteSlider');
+  const knob = document.getElementById('previewRemoteKnob');
+  const toggle = document.getElementById('previewRemoteToggle');
 
-  if (canRemote) {
-    // 能远控：显示开关
-    toggle.style.display = 'block';
-    // 获取当前客户端远控状态（从服务端广播的设备列表中获取）
-    // 状态未知时默认关闭
-    const isEnabled = dev._remoteEnabled !== false; // 默认关
-    if (isEnabled) {
-      icon.textContent = '🔌';
-      status.textContent = '开';
-      status.style.color = '#4ade80';
-    } else {
-      icon.textContent = '🔌';
-      status.textContent = '关';
-      status.style.color = '#f87171';
-    }
+  // 能远控时显示，不能远控时显示禁用状态
+  if (!canRemote) {
+    toggle.style.opacity = '0.5';
+    slider.style.cursor = 'not-allowed';
+    // 禁用状态：滑块在左侧灰色
+    slider.style.background = '#444';
+    knob.style.transform = 'translateX(0)';
+    return;
+  }
+
+  // 能远控：正常显示
+  toggle.style.opacity = '1';
+  slider.style.cursor = 'pointer';
+
+  // 获取当前客户端远控状态，状态未知时默认关闭
+  const isEnabled = dev._remoteEnabled !== false;
+  if (isEnabled) {
+    slider.style.background = '#22c55e'; // 绿色
+    knob.style.transform = 'translateX(20px)';
   } else {
-    // 不能远控：隐藏开关
-    toggle.style.display = 'none';
+    slider.style.background = '#555'; // 灰色
+    knob.style.transform = 'translateX(0)';
   }
 }
 
