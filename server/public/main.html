@@ -157,18 +157,24 @@
   </div>
 </div>
 
-<!-- ========== 远控设备列表弹窗 ========== -->
-<div class="remote-list-overlay" id="remoteListOverlay" style="display:none;position:fixed;z-index:10002;">
-  <div class="remote-list-dialog" style="background:#fff;border:1px solid #ddd;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.15);min-width:280px;max-height:300px;overflow:hidden;display:flex;flex-direction:column;">
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid #eee;background:#fafafa;">
-      <span style="color:#333;font-size:13px;font-weight:bold;">远控设备</span>
-      <button onclick="closeRemoteListModal()" style="background:none;border:none;color:#999;cursor:pointer;font-size:16px;padding:2px 6px;">✕</button>
-    </div>
-    <div id="remoteListContent" style="flex:1;overflow-y:auto;padding:8px 0;"></div>
-  </div>
-</div>
-
 <style>
+/* 预览弹窗关闭按钮样式 */
+.preview-close-btn {
+  color: #888;
+  background: transparent;
+  border: 1px solid #555;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px 10px;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+.preview-close-btn:hover {
+  color: #e2e8f0;
+  background: #3a3d4a;
+  border-color: #666;
+}
+
 /* 键盘布局样式 */
 .keyboard-layout {
   display: flex;
@@ -293,19 +299,19 @@
 <!-- ========== 预览浮层 ========== -->
 <div class="preview-overlay" id="previewOverlay">
   <div class="preview-titlebar" id="previewTitlebar">
-    <span id="previewDeviceName">实时预览</span>
+    <div style="display:flex;align-items:center;gap:30px;">
+      <span id="previewDeviceName">实时预览</span>
+      <!-- 远控开关和列表按钮，紧跟标题 -->
+      <div style="display:inline-flex;align-items:center;gap:4px;position:relative;z-index:10;" id="previewRemoteWrap">
+        <div id="previewRemoteSlider" onclick="togglePreviewRemote()" style="width:36px;height:18px;background:#555;border-radius:9px;position:relative;transition:background 0.2s;cursor:pointer;pointer-events:auto;">
+          <div id="previewRemoteKnob" style="width:14px;height:14px;background:#fff;border-radius:50%;position:absolute;top:2px;left:2px;transition:transform 0.2s;"></div>
+        </div>
+        <span style="font-size:12px;color:#888;">远控</span>
+        <button onclick="event.stopPropagation();toggleRemoteListModal()" title="远控设备列表" style="background:none;border:none;color:#888;font-size:14px;cursor:pointer;padding:2px;">🔍</button>
+      </div>
+    </div>
     <div class="preview-controls">
       <span class="preview-mouse-hint" id="previewMouseHint" style="display:none;color:#aaa;font-size:13px;">📌 可使用鼠标左键点击屏幕</span>
-      <!-- 远控开关和列表按钮 -->
-      <div style="display:inline-flex;align-items:center;gap:6px;margin-right:8px;">
-        <div class="remote-toggle-wrap" id="previewRemoteToggle" onclick="togglePreviewRemote()" style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;">
-          <span style="font-size:12px;color:#888;">远控</span>
-          <div id="previewRemoteSlider" style="width:36px;height:18px;background:#555;border-radius:9px;position:relative;transition:background 0.2s;">
-            <div id="previewRemoteKnob" style="width:14px;height:14px;background:#fff;border-radius:50%;position:absolute;top:2px;left:2px;transition:transform 0.2s;"></div>
-          </div>
-        </div>
-        <button onclick="openRemoteListModal()" title="远控设备列表" style="background:#2a2d3a;border:1px solid #444;color:#fff;border-radius:6px;padding:3px 8px;font-size:12px;cursor:pointer;">🔍</button>
-      </div>
       <button class="preview-kb-btn" id="previewMonitorBtn" title="切换显示器" onclick="cycleMonitor()" style="display:none;background:#2a2d3a;border:1px solid #444;color:#fff;border-radius:6px;padding:4px 10px;font-size:13px;cursor:pointer;">🖥️ 显示器 1</button>
       <div style="display:inline-flex;align-items:center;gap:4px;" id="preview1080Container">
         <div class="toggle-switch" id="preview1080Btn" onclick="togglePreview1080()">
@@ -1094,9 +1100,13 @@ function connectWS() {
 
     if (msg.type === 'deviceList') {
       const newDevices = msg.devices || [];
-      // 保留本地的 groupId（服务器返回的 devices 也包含 groupId，优先用服务器的）
+      // 保留本地的 _remoteEnabled（这是本地维护的状态，不会被服务端覆盖）
       newDevices.forEach(function(newDev) {
         const existing = devices.find(function(d) { return d.deviceId === newDev.deviceId; });
+        if (existing) {
+          newDev._remoteEnabled = existing._remoteEnabled;
+        }
+        // 保留本地的 groupId
         if (existing && existing.groupId && !newDev.groupId) {
           newDev.groupId = existing.groupId;
         }
@@ -1133,6 +1143,8 @@ function connectWS() {
         if (mouseHint) {
           mouseHint.style.display = (previewDev && previewDev.supportsKeyClient && !isMobile) ? 'inline' : 'none';
         }
+        // 更新预览弹窗远控按钮状态
+        updatePreviewRemoteBtn();
       }
       groups.forEach(function(g) {
         if (g.deviceIds) {
@@ -1177,6 +1189,8 @@ function connectWS() {
       }
       // 更新标题栏远控设备选择下拉框
       updateRemoteDeviceSelect();
+      // 更新预览远控按钮状态（设备上线时刷新状态）
+      updatePreviewRemoteBtn();
     }
 
     // 设备名同步广播（设备重连改名时实时刷新标题）
@@ -1219,6 +1233,23 @@ function connectWS() {
           // 隐藏UU按钮
           if (uubtn) uubtn.style.display = 'none';
           // 不关闭预览，保持打开状态（水印+灰度表示离线）
+          // 关闭远控设备列表弹窗
+          closeRemoteListModal();
+          // 如果有待处理的远控切换，执行动画变化（基于点击前的预期状态）
+          if (_pendingRemoteState !== null && previewDeviceId === deviceId) {
+            const slider = document.getElementById('previewRemoteSlider');
+            const knob = document.getElementById('previewRemoteKnob');
+            if (slider && knob) {
+              if (_pendingRemoteState) {
+                slider.style.background = '#22c55e'; // 绿色
+                knob.style.transform = 'translateX(20px)';
+              } else {
+                slider.style.background = '#555'; // 灰色
+                knob.style.transform = 'translateX(0)';
+              }
+            }
+            _pendingRemoteState = null;
+          }
         } else if (status === 'online') {
           // 设备重新上线，恢复彩色图 + 隐藏水印
           previewImg.style.filter = '';
@@ -1235,6 +1266,8 @@ function connectWS() {
             uubtn.style.display = 'inline-flex';
             uubtn.onclick = () => { openUU(dev.uuDeviceId); };
           }
+          // 设备上线后清除待处理状态，让正常的状态同步接管
+          _pendingRemoteState = null;
         } else if (status === 'refresh') {
           // 键盘状态切换等场景，强制刷新当前预览画面和设备列表
           if (ws && ws.readyState === WebSocket.OPEN) {
@@ -2659,9 +2692,11 @@ function closePreview() {
   // 关闭时隐藏鼠标提示
   const mouseHint = document.getElementById('previewMouseHint');
   if (mouseHint) mouseHint.style.display = 'none';
-  // 关闭时恢复远控按钮显示
-  const remoteToggle = document.getElementById('previewRemoteToggle');
-  if (remoteToggle) remoteToggle.parentElement.style.display = 'inline-flex';
+  // 关闭时隐藏远控设备列表弹窗
+  closeRemoteListModal();
+  // 关闭时隐藏远控按钮
+  const remoteWrap = document.getElementById('previewRemoteWrap');
+  if (remoteWrap) remoteWrap.style.display = 'none';
   // 关闭时隐藏 1080p 按钮容器（状态不记录，下次打开时重置为关闭）
   const btn1080Container = document.getElementById('preview1080Container');
   if (btn1080Container) {
@@ -2888,19 +2923,20 @@ function togglePreviewKeyboard() {
 }
 
 // ── 远控开关 ────────────────────────────────
+// 记录点击时的"预期状态"（用于离线时动画变化）
+let _pendingRemoteState = null;
+
 function updatePreviewRemoteBtn() {
   const dev = devices.find(d => d.deviceId === previewDeviceId);
-  const canRemote = dev && dev.supportsKeyClient;
   const slider = document.getElementById('previewRemoteSlider');
   const knob = document.getElementById('previewRemoteKnob');
-  const toggle = document.getElementById('previewRemoteToggle');
 
-  // 始终显示，只有启动和关闭两种状态
-  toggle.style.opacity = canRemote ? '1' : '1';
+  // 始终显示
+  slider.style.opacity = '1';
   slider.style.cursor = 'pointer';
 
-  // 获取当前客户端远控状态，状态未知时默认关闭
-  const isEnabled = canRemote && dev._remoteEnabled !== false;
+  // 读取服务端权威状态 supportsKeyClient（和鼠标提示/键盘按钮保持一致）
+  const isEnabled = dev && dev.supportsKeyClient === true;
   if (isEnabled) {
     slider.style.background = '#22c55e'; // 绿色
     knob.style.transform = 'translateX(20px)';
@@ -2913,28 +2949,31 @@ function updatePreviewRemoteBtn() {
 function togglePreviewRemote() {
   if (!previewDeviceId) return;
   const dev = devices.find(d => d.deviceId === previewDeviceId);
-  if (!dev || !dev.supportsKeyClient) return;
+  if (!dev) return;
 
-  // 切换状态
-  const newState = !dev._remoteEnabled;
-  dev._remoteEnabled = newState;
+  // 记录点击前的状态（用于设备离线时动画变化）
+  _pendingRemoteState = dev.supportsKeyClient !== true;
 
-  // 发送指令给服务端
+  // 切换状态：当前是true就变成false，当前是false/undefined就变成true
+  const newState = dev.supportsKeyClient !== true;
+
+  // 只发送指令，不更新本地状态
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({
       type: newState ? 'setKeyboardEnabled' : 'setKeyboardDisabled',
       deviceId: previewDeviceId
     }));
   }
-
-  // 更新按钮显示
-  updatePreviewRemoteBtn();
+  // 颜色变化在设备离线时执行（见 deviceOffline 处理）
 }
 
-// 预览打开时更新远控按钮
+// 预览打开时条件显示远控按钮（和 1080p / 键盘按钮一样的模式）
 const originalOpenPreview = openPreview;
 openPreview = function(cell) {
   originalOpenPreview(cell);
+  // 远控按钮：仅桌面端显示（移动端不显示）
+  const remoteWrap = document.getElementById('previewRemoteWrap');
+  if (remoteWrap) remoteWrap.style.display = isMobile ? 'none' : 'inline-flex';
   // 预览打开后更新远控按钮状态
   setTimeout(updatePreviewRemoteBtn, 100);
 };
@@ -2947,34 +2986,45 @@ function naturalSort(strA, strB) {
 function openRemoteListModal() {
   const overlay = document.getElementById('remoteListOverlay');
   const content = document.getElementById('remoteListContent');
+  const dialog = overlay.querySelector('.remote-list-dialog');
   
   // 获取所有在线设备，按自然排序
   const onlineDevices = devices.filter(d => d.online).sort((a, b) => naturalSort(a.deviceName, b.deviceName));
   
-  if (onlineDevices.length === 0) {
-    content.innerHTML = '<div style="text-align:center;color:#888;padding:20px;font-size:13px;">暂无在线设备</div>';
-  } else {
-    let html = '';
-    onlineDevices.forEach(dev => {
-      const isEnabled = dev._remoteEnabled !== false;
-      const statusHtml = isEnabled 
-        ? '<span style="color:#22c55e;">启动</span>' 
-        : '<span style="color:#999;">关闭</span>';
-      html += `<div style="display:flex;justify-content:space-between;padding:8px 12px;border-bottom:1px solid #f0f0f0;font-size:13px;color:#333;"><span>${dev.deviceName}</span><span>${statusHtml}</span></div>`;
-    });
-    content.innerHTML = html;
+  // 显示所有在线设备的状态
+  let html = '';
+  onlineDevices.forEach(dev => {
+    const isEnabled = dev.supportsKeyClient;
+    const statusHtml = isEnabled 
+      ? '<span style="color:#22c55e;font-size:12px;">远控</span>' 
+      : '<span style="color:#666;font-size:12px;">—</span>';
+    html += `<div style="display:flex;justify-content:space-between;padding:8px 12px;font-size:12px;color:#e2e8f0;"><span>${dev.deviceName}</span><span>${statusHtml}</span></div>`;
+  });
+  content.innerHTML = html;
+  
+  // 弹窗定位到放大镜按钮下方
+  const searchBtn = document.querySelector('#previewRemoteWrap button');
+  if (searchBtn && dialog) {
+    const rect = searchBtn.getBoundingClientRect();
+    dialog.style.top = (rect.bottom + 4) + 'px';
+    dialog.style.left = rect.left + 'px';
+    dialog.style.transform = 'none';
   }
   
-  // 定位到预览标题栏下方
-  const titlebar = document.getElementById('previewTitlebar');
-  const rect = titlebar.getBoundingClientRect();
-  overlay.style.top = (rect.bottom + 2) + 'px';
-  overlay.style.left = (rect.right - 290) + 'px';
   overlay.style.display = 'block';
 }
 
 function closeRemoteListModal() {
   document.getElementById('remoteListOverlay').style.display = 'none';
+}
+
+function toggleRemoteListModal() {
+  const overlay = document.getElementById('remoteListOverlay');
+  if (overlay.style.display === 'block') {
+    closeRemoteListModal();
+  } else {
+    openRemoteListModal();
+  }
 }
 
 // ── 标题栏远控控制 ────────────────────────
@@ -3573,9 +3623,6 @@ function rebuildFilterPanel() {
   const filterListMobile = document.getElementById('filterListMobile');
   if (!filterList) return;
 
-  // 调试：打印当前分组状态
-  console.log('[筛选] 重建面板，groups:', groups.length, '个分组，activeFilters:', Array.from(activeFilters));
-
   // 收集所有分组（从 groups 数组获取权威名称）
   const groupMap = new Map();
   // 初始化未分组
@@ -3608,13 +3655,6 @@ function rebuildFilterPanel() {
     if (groupId === null || cellGroupCount.get(groupId) > 0 || groups.some(g => g.id === groupId)) {
       groupIds.push(groupId);
     }
-  });
-
-  // 调试：打印分组信息
-  console.log('[筛选] groupMap 大小:', groupMap.size, 'groupIds:', groupIds.length);
-  groupIds.forEach(gid => {
-    const info = groupMap.get(gid);
-    console.log('  - 分组ID:', gid, '名称:', info?.name, '设备数:', cellGroupCount.get(gid));
   });
 
   // 按名称排序（未分组放最后）
@@ -4966,9 +5006,9 @@ function openAlarmPreview(alarmId) {
   // 报警预览不显示鼠标提示
   const mouseHint = document.getElementById('previewMouseHint');
   if (mouseHint) mouseHint.style.display = 'none';
-  // 报警预览不显示远控按钮
-  const remoteToggle = document.getElementById('previewRemoteToggle');
-  if (remoteToggle) remoteToggle.parentElement.style.display = 'none';
+  // 报警预览不显示远控按钮（默认隐藏，这里确保不显示）
+  const remoteWrap = document.getElementById('previewRemoteWrap');
+  if (remoteWrap) remoteWrap.style.display = 'none';
   // 报警预览时解绑点击事件（不允许点击操作）
   previewImg.onclick = null;
 
@@ -5815,7 +5855,13 @@ function renderAllTaskBadges() {
 }
 
 // 点击遮罩不关闭弹窗，只能通过右上角按钮关闭
-
 </script>
+
+<!-- ========== 远控设备列表弹窗 ========== -->
+<div class="remote-list-overlay" id="remoteListOverlay" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:99999;background:transparent;" onclick="closeRemoteListModal()">
+  <div class="remote-list-dialog" id="remoteListDialog" style="position:absolute;background:#2a2d3a;border:1px solid #444;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.3);min-width:200px;max-height:300px;overflow:hidden;pointer-events:auto;" onclick="event.stopPropagation()">
+    <div id="remoteListContent" style="flex:1;overflow-y:auto;padding:4px 0;"></div>
+  </div>
+</div>
 </body>
 </html>

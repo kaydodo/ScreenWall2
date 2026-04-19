@@ -1,30 +1,5 @@
 [
   {
-    "id": "97aeea9d-b8bb-48a6-83f6-383ae2c71aee",
-    "deviceId": "aeawtmgwtiau3yfl",
-    "deviceName": "9999999999UXW",
-    "uuDeviceId": "441947603",
-    "screenshot": "/alarm-screenshots/4979fb94-e116-476a-8059-74880d35292a.png",
-    "screenshotId": "4979fb94-e116-476a-8059-74880d35292a",
-    "timestamp": 1776531167302,
-    "groupName": "",
-    "cellStr": "",
-    "occurrenceCount": 1,
-    "status": "confirmed",
-    "matchedKeyword": "网络错",
-    "region": {
-      "x1": 1024,
-      "y1": 569,
-      "x2": 1197,
-      "y2": 699
-    },
-    "regionSize": {
-      "w": 173,
-      "h": 160
-    },
-    "viewed": true
-  },
-  {
     "id": "d82faf25-7ecc-4f71-95ba-11836c5622a4",
     "deviceId": "aeawtmgwtiau3yfl",
     "deviceName": "9999999999UXW",
