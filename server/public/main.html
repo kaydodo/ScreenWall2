@@ -4014,14 +4014,12 @@ document.getElementById('deviceSearch').oninput = (e) => renderDeviceList(e.targ
 
 // 预览浮层
 document.getElementById('previewClose').onclick = closePreview;
-// 点击预览区域或背景关闭（移动端友好）
+// 点击预览区域或背景关闭
 document.getElementById('previewOverlay').onclick = (e) => {
   // 关闭按钮在任何时候都可以点击关闭，无需排除
-  // 电脑端+格子预览+当前设备有键盘时，点击背景禁止关闭
+  // 报警预览不关闭
   const isAlarm = previewDeviceId && previewDeviceId.startsWith('__ALARM__');
-  const previewDev = devices.find(d => d.deviceId === previewDeviceId);
-  const currentDevHasKeyboard = previewDev && previewDev.supportsKeyClient;
-  if (!isMobile && !isAlarm && currentDevHasKeyboard) return;
+  if (isAlarm) return;
   // 其他情况：点击任意位置关闭
   closePreview();
 };
