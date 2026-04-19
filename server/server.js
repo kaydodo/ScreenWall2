@@ -827,31 +827,11 @@ async function ocrRegion(imageBuffer) {
         serverError('[OCR] 训练数据加载错误:', err.message);
       },
     });
-    let text = result.data.text.trim();
-
-    // 如果中文识别为空，尝试英文
-    if (!text) {
-      const engResult = await Tesseract.recognize(processedBuffer, 'eng', {
-        logger: () => {},
-      });
-      text = engResult.data.text.trim();
-      if (text) {
-        // 英文识别结果不打印
-      }
-    }
-
+    const text = result.data.text.trim();
     return text;
   } catch (e) {
     serverError('[OCR] 识别失败:', e.message);
-    // 尝试备用英文识别
-    try {
-      const engResult = await Tesseract.recognize(processedBuffer, 'eng', {
-        logger: () => {},
-      });
-      return engResult.data.text.trim();
-    } catch (e2) {
-      return '';
-    }
+    return '';
   }
 }
 
