@@ -1661,6 +1661,7 @@ class ScreenWallClient:
                     }
                     # 报警开启时：心跳包合并报警截图，二合一节省资源
                     # 固定截取屏幕中心 640×360 区域，用于报警检测
+                    print(f"[心跳] _alarm_enabled={_alarm_enabled}, 准备截取 alarmScreenshot")
                     if _alarm_enabled:
                         try:
                             # 计算中心区域坐标
@@ -1689,7 +1690,11 @@ class ScreenWallClient:
                                     out = io.BytesIO()
                                     img.save(out, format='WEBP', quality=30)
                                     payload["alarmScreenshot"] = "data:image/webp;base64," + base64.b64encode(out.getvalue()).decode("ascii")
-                        except Exception:
+                                    print(f"[心跳] alarmScreenshot 已截取，长度={len(payload['alarmScreenshot'])}")
+                                else:
+                                    print("[心跳] alarmScreenshot 截取失败: alarm_img 为空")
+                        except Exception as e:
+                            print(f"[心跳] alarmScreenshot 异常: {e}")
                             pass
                     await ws.send(json.dumps(payload))
                 except Exception:
