@@ -1021,7 +1021,7 @@ async function processAlarmImage(deviceId, imageBuffer, deviceInfo) {
     { w: 173, h: 160 },
     { w: 173, h: 130 }
   ];
-  const sizeTolerance = 0.10;  // 10%
+  const sizeTolerance = 0.20;  // 20%
   
   const validRegions = [];
   for (const reg of regions) {
