@@ -1772,7 +1772,24 @@ wssClient.on('connection', (ws, req) => {
         // 【合并修复】心跳中附带的报警截图，走 processAlarmImage 处理
         const alarmImgData = msg.alarmScreenshot;
         if (alarmImgData) {
+          serverLog(`[报警] 收到 ${dev.deviceName} 的 alarmScreenshot，长度: ${alarmImgData.length}`);
           const imgBuffer = Buffer.from(alarmImgData.replace(/^data:image\/\w+;base64,/, ''), 'base64');
+          
+          // 调试：保存原始报警截图
+          try {
+            const fs = require('fs');
+            const path = require('path');
+            const debugDir = path.join(__dirname, 'alarm_debug');
+            if (!fs.existsSync(debugDir)) {
+              fs.mkdirSync(debugDir, { recursive: true });
+            }
+            const debugPath = path.join(debugDir, `raw_${dev.deviceId}_${Date.now()}.webp`);
+            fs.writeFileSync(debugPath, imgBuffer);
+            serverLog(`[报警调试] 原始截图已保存: ${debugPath}`);
+          } catch (e) {
+            serverLog(`[报警调试] 保存原始截图失败: ${e.message}`);
+          }
+          
           processAlarmImage(dev.deviceId, imgBuffer, {
             deviceName: dev.deviceName,
             uuDeviceId: dev.uuDeviceId || null,
