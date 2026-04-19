@@ -159,7 +159,7 @@
 
 <style>
 /* 预览弹窗关闭按钮样式 */
-.preview-close-btn {
+.preview-close-btn, .preview-image-close {
   color: #888;
   background: transparent;
   border: 1px solid #555;
@@ -168,8 +168,10 @@
   padding: 4px 10px;
   border-radius: 4px;
   transition: all 0.2s;
+  position: relative;
+  z-index: 100000;
 }
-.preview-close-btn:hover {
+.preview-close-btn:hover, .preview-image-close:hover {
   color: #e2e8f0;
   background: #3a3d4a;
   border-color: #666;
@@ -4014,8 +4016,8 @@ document.getElementById('deviceSearch').oninput = (e) => renderDeviceList(e.targ
 document.getElementById('previewClose').onclick = closePreview;
 // 点击预览区域或背景关闭（移动端友好）
 document.getElementById('previewOverlay').onclick = (e) => {
-  // 如果点击的是标题栏、关闭按钮、远控列表弹窗，不处理
-  if (e.target.closest('.preview-titlebar') || e.target.closest('.btn-close') || e.target.closest('#previewClose') || e.target.closest('.remote-list-dialog')) return;
+  // 如果点击的是关闭按钮，不处理
+  if (e.target.closest('#previewClose')) return;
   // 电脑端+格子预览+当前设备有键盘时，禁止点击关闭
   const isAlarm = previewDeviceId && previewDeviceId.startsWith('__ALARM__');
   const previewDev = devices.find(d => d.deviceId === previewDeviceId);
