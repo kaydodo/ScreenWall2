@@ -1041,7 +1041,7 @@ def _build_menu():
         return None
     return Menu(
         MenuItem(f"ScreenWall v{CLIENT_VERSION}", lambda i, t: None, enabled=False),
-        MenuItem("启动键盘", _tray_on_toggle_keyboard,
+        MenuItem("启动远控", _tray_on_toggle_keyboard,
                  checked=lambda item: _keyboard_enabled),
         MenuItem("游戏掉线报警", _tray_on_toggle_alarm,
                  checked=lambda item: _alarm_enabled),
@@ -1907,25 +1907,25 @@ class ScreenWallClient:
                         self._set_keyboard_enabled(True)
                         if not self._keyclient_socket and not self._keyclient_process:
                             self._start_keyclient()
-                        # 通知服务端键盘状态变更
-                        if self.ws:
-                            await self.ws.send(json.dumps({
-                                "type": "keyboardState",
-                                "deviceId": cfg["deviceId"],
-                                "supportsKeyClient": True
-                            }))
+                        # 同步更新托盘菜单
+                        global _keyboard_enabled
+                        _keyboard_enabled = True
+                        if _tray_icon:
+                            _tray_icon.menu = _build_menu()
+                        # 重新注册
+                        self._reconnect_async()
 
                     elif msg_type == "setKeyboardDisabled":
                         # 服务端关闭键盘功能
                         self._set_keyboard_enabled(False)
                         self._close_keyclient()
-                        # 通知服务端键盘状态变更
-                        if self.ws:
-                            await self.ws.send(json.dumps({
-                                "type": "keyboardState",
-                                "deviceId": cfg["deviceId"],
-                                "supportsKeyClient": False
-                            }))
+                        # 同步更新托盘菜单
+                        global _keyboard_enabled
+                        _keyboard_enabled = False
+                        if _tray_icon:
+                            _tray_icon.menu = _build_menu()
+                        # 重新注册
+                        self._reconnect_async()
 
                     elif msg_type == "heartbeat":
                         # 服务端心跳响应：检查是否需要升级

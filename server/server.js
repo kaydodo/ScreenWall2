@@ -1487,7 +1487,7 @@ wssClient.on('connection', (ws, req) => {
       ws._deviceId = deviceId;
       const wasOffline = !existing || !existing.online;
       if (wasOffline) {
-        const kbTag = msg.supportsKeyClient ? '有键盘' : '无键盘';
+        const kbTag = msg.supportsKeyClient ? '远控' : '—';
         serverLog(`[+] 上线: ${newDev.deviceName} (${deviceId}) uuId=${newDev.uuDeviceId} | IP: ${ip} | ${kbTag} | 显示器${newDev.monitorIndex} | ${newDev.screenWidth || '?'}×${newDev.screenHeight || '?'}`);
       }
       persistDevices();  // 持久化设备列表
@@ -2914,7 +2914,7 @@ wssBrowser.on('connection', (ws) => {
       const dev = devices.get(msg.deviceId);
       if (dev) {
         dev.supportsKeyClient = !!msg.supportsKeyClient;
-        serverLog(`[键盘] ${dev.deviceName} 键盘${dev.supportsKeyClient ? '启动' : '关闭'}`);
+        serverLog(`[远控] ${dev.deviceName} ${dev.supportsKeyClient ? '启动远控' : '关闭远控'}`);
         // 广播设备列表更新 + 强制刷新预览状态
         broadcastToBrowsers({ type: 'deviceList', devices: getDeviceListPayload() });
         broadcastToBrowsers({ type: 'devicePreviewStatus', deviceId: msg.deviceId, status: 'refresh' });

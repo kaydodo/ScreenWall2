@@ -297,6 +297,14 @@
     </div>
   </div>
   <div class="preview-area" id="previewArea">
+    <!-- 远控开关（absolute定位在左上角） -->
+    <div id="previewRemoteToggle" style="position:absolute;top:12px;left:12px;z-index:10;display:none;">
+      <button class="preview-remote-btn" id="previewRemoteBtn" onclick="togglePreviewRemote()" style="background:#374151;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:6px;">
+        <span id="previewRemoteIcon">🔌</span>
+        <span id="previewRemoteText">远控</span>
+        <span id="previewRemoteStatus" style="font-size:11px;opacity:0.8;">关</span>
+      </button>
+    </div>
     <img id="previewImg" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="实时预览" style="border-radius:0;box-shadow:none;border:none;" />
     <div class="preview-loading" id="previewLoading" style="aspect-ratio: 16/9; width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #1a1d27; border-radius: 0;">
       <div class="spinner-lg"></div>
@@ -1428,6 +1436,18 @@ function connectWS() {
         // 任务弹窗标题/角标同步刷新
         if (document.getElementById('taskOverlay').classList.contains('open')) {
           renderTaskDialog();
+        }
+      }
+    }
+
+    // 键盘状态变更（远控开关状态）
+    if (msg.type === 'keyboardState') {
+      const dev = devices.find(d => d.deviceId === msg.deviceId);
+      if (dev) {
+        dev._remoteEnabled = msg.supportsKeyClient;
+        // 如果当前正在预览这个设备，更新按钮状态
+        if (previewDeviceId === msg.deviceId) {
+          updatePreviewRemoteBtn();
         }
       }
     }
@@ -2844,6 +2864,67 @@ function togglePreviewKeyboard() {
     openPreviewKeyboard();
   }
 }
+
+// ── 远控开关 ────────────────────────────────
+function updatePreviewRemoteBtn() {
+  const toggle = document.getElementById('previewRemoteToggle');
+  const icon = document.getElementById('previewRemoteIcon');
+  const text = document.getElementById('previewRemoteText');
+  const status = document.getElementById('previewRemoteStatus');
+
+  // 找到当前预览设备的远控状态
+  const dev = devices.find(d => d.deviceId === previewDeviceId);
+  const canRemote = dev && dev.supportsKeyClient;
+
+  if (canRemote) {
+    // 能远控：显示开关
+    toggle.style.display = 'block';
+    // 获取当前客户端远控状态（从服务端广播的设备列表中获取）
+    // 状态未知时默认关闭
+    const isEnabled = dev._remoteEnabled !== false; // 默认关
+    if (isEnabled) {
+      icon.textContent = '🔌';
+      status.textContent = '开';
+      status.style.color = '#4ade80';
+    } else {
+      icon.textContent = '🔌';
+      status.textContent = '关';
+      status.style.color = '#f87171';
+    }
+  } else {
+    // 不能远控：隐藏开关
+    toggle.style.display = 'none';
+  }
+}
+
+function togglePreviewRemote() {
+  if (!previewDeviceId) return;
+  const dev = devices.find(d => d.deviceId === previewDeviceId);
+  if (!dev || !dev.supportsKeyClient) return;
+
+  // 切换状态
+  const newState = !dev._remoteEnabled;
+  dev._remoteEnabled = newState;
+
+  // 发送指令给服务端
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({
+      type: newState ? 'setKeyboardEnabled' : 'setKeyboardDisabled',
+      deviceId: previewDeviceId
+    }));
+  }
+
+  // 更新按钮显示
+  updatePreviewRemoteBtn();
+}
+
+// 预览打开时更新远控按钮
+const originalOpenPreview = openPreview;
+openPreview = function(cell) {
+  originalOpenPreview(cell);
+  // 预览打开后更新远控按钮状态
+  setTimeout(updatePreviewRemoteBtn, 100);
+};
 
 // ─────────────────────────────────────────
 // 1080p 预览模式切换
