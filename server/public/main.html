@@ -76,18 +76,6 @@
   <div id="filterBackdrop"></div>
 
   <div class="topbar-right">
-    <!-- 远控控制 -->
-    <div class="remote-ctrl-bar" id="remoteCtrlBar">
-      <select id="remoteDeviceSelect" title="选择设备">
-        <option value="">选择设备</option>
-      </select>
-      <label class="remote-switch" title="远控开关">
-        <input type="checkbox" id="remoteToggle" onchange="onRemoteToggleChange()">
-        <span class="remote-slider"></span>
-      </label>
-      <span class="remote-label" id="remoteLabel">远控</span>
-      <span onclick="openRemoteListModal()" style="cursor:pointer;color:#fff;font-size:14px;margin-left:4px;" title="查看远控设备列表">🔍</span>
-    </div>
     <button class="migrate-btn" id="migrateBtn" title="迁移服务器地址" onclick="openMigrateDialog()">🔄</button>
     <button class="download-btn" id="downloadBtn" title="UU远程配置下载" onclick="openDownloadDialog()">
       <span style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;background:#e06c75;font-size:7px;font-weight:700;color:#fff;line-height:1;padding-top:2px;flex-shrink:0;">UU</span>

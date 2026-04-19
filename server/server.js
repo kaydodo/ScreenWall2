@@ -895,6 +895,21 @@ async function processAlarmImage(deviceId, imageBuffer, deviceInfo) {
     lastImage: null,
     occurrenceCount: 1,
   };
+
+  // ========== 调试：保存报警截图到本地 ==========
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const debugDir = path.join(__dirname, 'alarm_debug');
+    if (!fs.existsSync(debugDir)) {
+      fs.mkdirSync(debugDir, { recursive: true });
+    }
+    const debugPath = path.join(debugDir, `${deviceId}_${Date.now()}.png`);
+    fs.writeFileSync(debugPath, imageBuffer);
+    serverLog(`[报警调试] 截图已保存: ${debugPath}`);
+  } catch (e) {
+    serverLog(`[报警调试] 保存失败: ${e.message}`);
+  }
   
   // ========== 查重阶段 ==========
   if (state.state === 'verifying' && state.templateBuffer && state.templateRegion) {
