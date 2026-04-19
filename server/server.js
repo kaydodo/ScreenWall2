@@ -1679,10 +1679,9 @@ wssClient.on('connection', (ws, req) => {
             dev.hqScreenshot = null;
             broadcastToBrowsers({ type: 'screenshot', deviceId: msg.deviceId, image: msg.image, hq: false, hqImage: null });
           } else {
-            // 重复帧：更新存储，但广播轻量心跳让浏览器保持刷新
+            // 重复帧：只更新存储，不广播
             dev.screenshot = msg.image;
             dev.hqScreenshot = null;
-            broadcastToBrowsers({ type: 'screenshot', deviceId: msg.deviceId, skipped: true });
           }
         }
       }
