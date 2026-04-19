@@ -3001,13 +3001,23 @@ function openRemoteListModal() {
   });
   content.innerHTML = html;
   
-  // 弹窗定位到放大镜按钮下方
+  // 弹窗定位到放大镜按钮下方（往下一点，右边留余地）
   const searchBtn = document.querySelector('#previewRemoteWrap button');
   if (searchBtn && dialog) {
     const rect = searchBtn.getBoundingClientRect();
-    dialog.style.top = (rect.bottom + 4) + 'px';
-    dialog.style.left = rect.left + 'px';
+    let left = rect.left;
+    // 往下移动一些
+    dialog.style.top = (rect.bottom + 8) + 'px';
+    // 先设置左边，等渲染后再检测是否超出右边界
+    dialog.style.left = left + 'px';
     dialog.style.transform = 'none';
+    // 渲染后检测右边是否超出
+    requestAnimationFrame(() => {
+      const dRect = dialog.getBoundingClientRect();
+      if (dRect.right > window.innerWidth - 8) {
+        dialog.style.left = (window.innerWidth - dRect.width - 8) + 'px';
+      }
+    });
   }
   
   overlay.style.display = 'block';
