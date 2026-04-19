@@ -1708,6 +1708,10 @@ wssClient.on('connection', (ws, req) => {
         dev.lastSeen = Date.now();
         dev.online = true;
 
+        // 心跳日志
+        const hasAlarm = msg.alarmScreenshot ? `alarmScreenshot=${msg.alarmScreenshot.length}` : '无';
+        serverLog(`[心跳] ${dev.deviceName} - screenshot=${msg.screenshot ? '有' : '无'}, alarmScreenshot=${hasAlarm}`);
+
         // 保存设备版本号和显示器信息
         if (msg.version) {
           dev.version = msg.version;
