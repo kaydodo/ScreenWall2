@@ -1235,21 +1235,8 @@ function connectWS() {
           // 不关闭预览，保持打开状态（水印+灰度表示离线）
           // 关闭远控设备列表弹窗
           closeRemoteListModal();
-          // 如果有待处理的远控切换，执行动画变化（基于点击前的预期状态）
-          if (_pendingRemoteState !== null && previewDeviceId === deviceId) {
-            const slider = document.getElementById('previewRemoteSlider');
-            const knob = document.getElementById('previewRemoteKnob');
-            if (slider && knob) {
-              if (_pendingRemoteState) {
-                slider.style.background = '#22c55e'; // 绿色
-                knob.style.transform = 'translateX(20px)';
-              } else {
-                slider.style.background = '#555'; // 灰色
-                knob.style.transform = 'translateX(0)';
-              }
-            }
-            _pendingRemoteState = null;
-          }
+          // 清除待处理状态（按钮已在点击时变化，保持不变）
+          _pendingRemoteState = null;
         } else if (status === 'online') {
           // 设备重新上线，恢复彩色图 + 隐藏水印
           previewImg.style.filter = '';
@@ -2955,25 +2942,25 @@ function togglePreviewRemote() {
   const knob = document.getElementById('previewRemoteKnob');
   if (!slider || !knob) return;
 
-  // 记录预期状态（用于设备离线时动画变化）
+  // 记录预期状态
   _pendingRemoteState = dev.supportsKeyClient !== true;
 
-  // 滑块移动到中间位置（10px = (36-14)/2 - 2）
-  // 中间位置作为"等待确认"的中间态
-  slider.style.background = '#f59e0b'; // 橙色表示"切换中"
-  knob.style.transform = 'translateX(10px)';
-
-  // 切换状态：当前是true就变成false，当前是false/undefined就变成true
-  const newState = dev.supportsKeyClient !== true;
+  // 立即执行最终状态的动画
+  if (_pendingRemoteState) {
+    slider.style.background = '#22c55e'; // 绿色
+    knob.style.transform = 'translateX(20px)';
+  } else {
+    slider.style.background = '#555'; // 灰色
+    knob.style.transform = 'translateX(0)';
+  }
 
   // 只发送指令，不更新本地状态
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({
-      type: newState ? 'setKeyboardEnabled' : 'setKeyboardDisabled',
+      type: _pendingRemoteState ? 'setKeyboardEnabled' : 'setKeyboardDisabled',
       deviceId: previewDeviceId
     }));
   }
-  // 颜色变化在设备离线时执行（见 deviceOffline 处理）
 }
 
 // 预览打开时条件显示远控按钮（和 1080p / 键盘按钮一样的模式）
