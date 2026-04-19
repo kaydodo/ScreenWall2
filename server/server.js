@@ -896,21 +896,6 @@ async function processAlarmImage(deviceId, imageBuffer, deviceInfo) {
     occurrenceCount: 1,
   };
 
-  // ========== 调试：保存报警截图到本地 ==========
-  try {
-    const fs = require('fs');
-    const path = require('path');
-    const debugDir = path.join(__dirname, 'alarm_debug');
-    if (!fs.existsSync(debugDir)) {
-      fs.mkdirSync(debugDir, { recursive: true });
-    }
-    const debugPath = path.join(debugDir, `${deviceId}_${Date.now()}.png`);
-    fs.writeFileSync(debugPath, imageBuffer);
-    serverLog(`[报警调试] 截图已保存: ${debugPath}`);
-  } catch (e) {
-    serverLog(`[报警调试] 保存失败: ${e.message}`);
-  }
-  
   // ========== 查重阶段 ==========
   if (state.state === 'verifying' && state.templateBuffer && state.templateRegion) {
     const { x1, y1, x2, y2 } = state.templateRegion;
@@ -1778,21 +1763,6 @@ wssClient.on('connection', (ws, req) => {
         if (alarmImgData) {
           serverLog(`[报警] 收到 ${dev.deviceName} 的 alarmScreenshot，长度: ${alarmImgData.length}`);
           const imgBuffer = Buffer.from(alarmImgData.replace(/^data:image\/\w+;base64,/, ''), 'base64');
-          
-          // 调试：保存原始报警截图
-          try {
-            const fs = require('fs');
-            const path = require('path');
-            const debugDir = path.join(__dirname, 'alarm_debug');
-            if (!fs.existsSync(debugDir)) {
-              fs.mkdirSync(debugDir, { recursive: true });
-            }
-            const debugPath = path.join(debugDir, `raw_${dev.deviceId}_${Date.now()}.webp`);
-            fs.writeFileSync(debugPath, imgBuffer);
-            serverLog(`[报警调试] 原始截图已保存: ${debugPath}`);
-          } catch (e) {
-            serverLog(`[报警调试] 保存原始截图失败: ${e.message}`);
-          }
           
           processAlarmImage(dev.deviceId, imgBuffer, {
             deviceName: dev.deviceName,
