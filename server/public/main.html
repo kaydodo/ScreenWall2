@@ -1235,16 +1235,27 @@ function connectWS() {
           // 不关闭预览，保持打开状态（水印+灰度表示离线）
           // 关闭远控设备列表弹窗
           closeRemoteListModal();
-          // 处理远控按钮：离线时无动画，直接定在最终位置
+          // 处理远控按钮：离线时无动画，颜色对调
           const slider = document.getElementById('previewRemoteSlider');
           const knob = document.getElementById('previewRemoteKnob');
           if (slider && knob && previewDeviceId === deviceId) {
-            // 移除动画，立即设置最终状态
+            // 移除动画
             slider.style.transition = 'none';
             knob.style.transition = 'none';
             if (_pendingRemoteState === null) {
               // 没点击过，根据服务端状态显示
               updatePreviewRemoteBtn();
+            } else {
+              // 点击过：对调颜色（灰变绿，绿变灰）
+              if (_pendingRemoteState) {
+                // 预期是绿色，离线时显示灰色
+                slider.style.background = '#555';
+                knob.style.transform = 'translateX(0)';
+              } else {
+                // 预期是灰色，离线时显示绿色
+                slider.style.background = '#22c55e';
+                knob.style.transform = 'translateX(20px)';
+              }
             }
             // 恢复动画
             slider.style.transition = '';
