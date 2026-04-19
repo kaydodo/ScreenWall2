@@ -2990,14 +2990,14 @@ function openRemoteListModal() {
   // 获取所有在线设备，按自然排序
   const onlineDevices = devices.filter(d => d.online).sort((a, b) => naturalSort(a.deviceName, b.deviceName));
   
-  // 显示所有在线设备的状态
+  // 显示所有在线设备的状态（网格布局）
   let html = '';
   onlineDevices.forEach(dev => {
     const isEnabled = dev.supportsKeyClient;
-    const statusHtml = isEnabled 
-      ? '<span style="color:#22c55e;font-size:12px;">远控</span>' 
-      : '<span style="color:#666;font-size:12px;">—</span>';
-    html += `<div style="display:flex;justify-content:space-between;padding:8px 12px;font-size:12px;color:#e2e8f0;"><span>${dev.deviceName}</span><span>${statusHtml}</span></div>`;
+    const bgColor = isEnabled ? 'rgba(34,197,94,0.15)' : 'rgba(255,255,255,0.05)';
+    const borderColor = isEnabled ? 'rgba(34,197,94,0.4)' : 'rgba(255,255,255,0.1)';
+    const textColor = isEnabled ? '#22c55e' : '#888';
+    html += `<div style="background:${bgColor};border:1px solid ${borderColor};border-radius:6px;padding:8px 14px;font-size:12px;color:${textColor};white-space:nowrap;">${dev.deviceName}</div>`;
   });
   content.innerHTML = html;
   
@@ -5858,8 +5858,8 @@ function renderAllTaskBadges() {
 
 <!-- ========== 远控设备列表弹窗 ========== -->
 <div class="remote-list-overlay" id="remoteListOverlay" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:99999;background:transparent;" onclick="closeRemoteListModal()">
-  <div class="remote-list-dialog" id="remoteListDialog" style="position:absolute;background:#2a2d3a;border:1px solid #444;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.3);min-width:200px;pointer-events:auto;" onclick="event.stopPropagation()">
-    <div id="remoteListContent" style="flex:1;max-height:300px;overflow-y:auto;padding:4px 0;"></div>
+  <div class="remote-list-dialog" id="remoteListDialog" style="position:absolute;background:#2a2d3a;border:1px solid #444;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.3);pointer-events:auto;" onclick="event.stopPropagation()">
+    <div id="remoteListContent" style="display:flex;flex-wrap:wrap;gap:8px;padding:12px;"></div>
   </div>
 </div>
 </body>
