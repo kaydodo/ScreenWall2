@@ -76,6 +76,18 @@
   <div id="filterBackdrop"></div>
 
   <div class="topbar-right">
+    <!-- 远控控制 -->
+    <div class="remote-ctrl-bar" id="remoteCtrlBar">
+      <select id="remoteDeviceSelect" title="选择设备">
+        <option value="">选择设备</option>
+      </select>
+      <label class="remote-switch" title="远控开关">
+        <input type="checkbox" id="remoteToggle" onchange="onRemoteToggleChange()">
+        <span class="remote-slider"></span>
+      </label>
+      <span class="remote-label" id="remoteLabel">远控</span>
+      <span onclick="openRemoteListModal()" style="cursor:pointer;color:#fff;font-size:14px;margin-left:4px;" title="查看远控设备列表">🔍</span>
+    </div>
     <button class="migrate-btn" id="migrateBtn" title="迁移服务器地址" onclick="openMigrateDialog()">🔄</button>
     <button class="download-btn" id="downloadBtn" title="UU远程配置下载" onclick="openDownloadDialog()">
       <span style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;background:#e06c75;font-size:7px;font-weight:700;color:#fff;line-height:1;padding-top:2px;flex-shrink:0;">UU</span>
@@ -158,13 +170,13 @@
 </div>
 
 <!-- ========== 远控设备列表弹窗 ========== -->
-<div class="remote-list-overlay" id="remoteListOverlay" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:10002;align-items:center;justify-content:center;">
-  <div class="remote-list-dialog" style="background:#1a1d27;border-radius:12px;padding:20px;min-width:400px;max-width:600px;max-height:70vh;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,0.5);">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-      <span style="color:#fff;font-size:16px;font-weight:bold;">🔌 远控设备列表</span>
-      <button onclick="closeRemoteListModal()" style="background:none;border:none;color:#888;cursor:pointer;font-size:20px;">✕</button>
+<div class="remote-list-overlay" id="remoteListOverlay" style="display:none;position:fixed;z-index:10002;">
+  <div class="remote-list-dialog" style="background:#fff;border:1px solid #ddd;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.15);min-width:280px;max-height:300px;overflow:hidden;display:flex;flex-direction:column;">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid #eee;background:#fafafa;">
+      <span style="color:#333;font-size:13px;font-weight:bold;">远控设备</span>
+      <button onclick="closeRemoteListModal()" style="background:none;border:none;color:#999;cursor:pointer;font-size:16px;padding:2px 6px;">✕</button>
     </div>
-    <div id="remoteListContent" style="flex:1;overflow-y:auto;color:#ccc;font-size:13px;"></div>
+    <div id="remoteListContent" style="flex:1;overflow-y:auto;padding:8px 0;"></div>
   </div>
 </div>
 
@@ -295,6 +307,16 @@
   <div class="preview-titlebar" id="previewTitlebar">
     <span id="previewDeviceName">实时预览</span>
     <div class="preview-controls">
+      <!-- 远控开关和列表按钮 -->
+      <div style="display:inline-flex;align-items:center;gap:6px;margin-right:8px;">
+        <div class="remote-toggle-wrap" id="previewRemoteToggle" onclick="togglePreviewRemote()" style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;">
+          <span style="font-size:12px;color:#888;">远控</span>
+          <div id="previewRemoteSlider" style="width:36px;height:18px;background:#555;border-radius:9px;position:relative;transition:background 0.2s;">
+            <div id="previewRemoteKnob" style="width:14px;height:14px;background:#fff;border-radius:50%;position:absolute;top:2px;left:2px;transition:transform 0.2s;"></div>
+          </div>
+        </div>
+        <button onclick="openRemoteListModal()" title="远控设备列表" style="background:#2a2d3a;border:1px solid #444;color:#fff;border-radius:6px;padding:3px 8px;font-size:12px;cursor:pointer;">🔍</button>
+      </div>
       <span class="preview-mouse-hint" id="previewMouseHint" style="display:none;color:#aaa;font-size:13px;">📌 可使用鼠标左键点击屏幕</span>
       <button class="preview-kb-btn" id="previewMonitorBtn" title="切换显示器" onclick="cycleMonitor()" style="display:none;background:#2a2d3a;border:1px solid #444;color:#fff;border-radius:6px;padding:4px 10px;font-size:13px;cursor:pointer;">🖥️ 显示器 1</button>
       <div style="display:inline-flex;align-items:center;gap:4px;" id="preview1080Container">
@@ -305,20 +327,10 @@
       </div>
       <button class="preview-kb-btn" id="previewKBbtn" title="键盘控制" onclick="togglePreviewKeyboard()">⌨️ 键盘</button>
       <button class="preview-uu-btn" id="previewUUbtn" title="打开UU远程"> 🖱️ UU远程</button>
-      <button class="dialog-close" id="previewClose">✕ 关闭</button>
+      <button class="dialog-close" id="previewClose">✕</button>
     </div>
   </div>
   <div class="preview-area" id="previewArea">
-    <!-- 远控开关（absolute定位在左上角，始终显示） -->
-    <div id="previewRemoteToggle" style="position:absolute;top:12px;left:12px;z-index:10;">
-      <div style="display:flex;align-items:center;gap:8px;background:rgba(0,0,0,0.5);padding:6px 10px;border-radius:20px;backdrop-filter:blur(8px);">
-        <span style="font-size:12px;color:#fff;">远控</span>
-        <div id="previewRemoteSlider" onclick="togglePreviewRemote()" style="width:44px;height:24px;background:#555;border-radius:12px;cursor:pointer;position:relative;transition:background 0.3s;">
-          <div id="previewRemoteKnob" style="width:20px;height:20px;background:#fff;border-radius:50%;position:absolute;top:2px;left:2px;transition:transform 0.3s,background 0.3s;box-shadow:0 1px 3px rgba(0,0,0,0.3);"></div>
-        </div>
-        <span onclick="openRemoteListModal()" style="cursor:pointer;color:#fff;font-size:14px;margin-left:4px;" title="查看远控设备列表">🔍</span>
-      </div>
-    </div>
     <img id="previewImg" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="实时预览" style="border-radius:0;box-shadow:none;border:none;" />
     <div class="preview-loading" id="previewLoading" style="aspect-ratio: 16/9; width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #1a1d27; border-radius: 0;">
       <div class="spinner-lg"></div>
@@ -1175,6 +1187,8 @@ function connectWS() {
       if (document.getElementById('taskOverlay').classList.contains('open')) {
         renderTaskDialog();
       }
+      // 更新标题栏远控设备选择下拉框
+      updateRemoteDeviceSelect();
     }
 
     // 设备名同步广播（设备重连改名时实时刷新标题）
@@ -1459,7 +1473,10 @@ function connectWS() {
       const dev = devices.find(d => d.deviceId === msg.deviceId);
       if (dev) {
         dev._remoteEnabled = msg.supportsKeyClient;
-        // 如果当前正在预览这个设备，更新按钮状态
+        // 更新标题栏远控按钮状态
+        updateRemoteToggleState();
+        updateRemoteDeviceSelect();
+        // 更新预览弹窗远控按钮状态
         if (previewDeviceId === msg.deviceId) {
           updatePreviewRemoteBtn();
         }
@@ -2944,27 +2961,96 @@ function openRemoteListModal() {
   const onlineDevices = devices.filter(d => d.online).sort((a, b) => naturalSort(a.deviceName, b.deviceName));
   
   if (onlineDevices.length === 0) {
-    content.innerHTML = '<div style="text-align:center;color:#666;padding:20px;">暂无在线设备</div>';
+    content.innerHTML = '<div style="text-align:center;color:#888;padding:20px;font-size:13px;">暂无在线设备</div>';
   } else {
-    let html = '<table style="width:100%;border-collapse:collapse;">';
-    html += '<tr style="border-bottom:1px solid #333;color:#888;font-size:12px;"><td style="padding:8px;">设备名称</td><td style="padding:8px;text-align:center;">远控状态</td></tr>';
+    let html = '';
     onlineDevices.forEach(dev => {
       const isEnabled = dev._remoteEnabled !== false;
       const statusHtml = isEnabled 
-        ? '<span style="color:#22c55e;">● 启动</span>' 
-        : '<span style="color:#666;">○ 关闭</span>';
-      html += `<tr style="border-bottom:1px solid #2a2a2a;"><td style="padding:8px;">${dev.deviceName}</td><td style="padding:8px;text-align:center;">${statusHtml}</td></tr>`;
+        ? '<span style="color:#22c55e;">启动</span>' 
+        : '<span style="color:#999;">关闭</span>';
+      html += `<div style="display:flex;justify-content:space-between;padding:8px 12px;border-bottom:1px solid #f0f0f0;font-size:13px;color:#333;"><span>${dev.deviceName}</span><span>${statusHtml}</span></div>`;
     });
-    html += '</table>';
     content.innerHTML = html;
   }
   
-  overlay.style.display = 'flex';
+  // 定位到预览标题栏下方
+  const titlebar = document.getElementById('previewTitlebar');
+  const rect = titlebar.getBoundingClientRect();
+  overlay.style.top = (rect.bottom + 2) + 'px';
+  overlay.style.left = (rect.right - 290) + 'px';
+  overlay.style.display = 'block';
 }
 
 function closeRemoteListModal() {
   document.getElementById('remoteListOverlay').style.display = 'none';
 }
+
+// ── 标题栏远控控制 ────────────────────────
+
+// 更新设备选择下拉框
+function updateRemoteDeviceSelect() {
+  const select = document.getElementById('remoteDeviceSelect');
+  if (!select) return;
+  
+  const currentValue = select.value;
+  select.innerHTML = '<option value="">选择设备</option>';
+  
+  // 只添加在线设备
+  const onlineDevices = devices.filter(d => d.online).sort((a, b) => naturalSort(a.deviceName, b.deviceName));
+  onlineDevices.forEach(dev => {
+    const opt = document.createElement('option');
+    opt.value = dev.deviceId;
+    opt.textContent = dev.deviceName;
+    select.appendChild(opt);
+  });
+  
+  // 恢复之前选中的设备
+  if (currentValue && onlineDevices.some(d => d.deviceId === currentValue)) {
+    select.value = currentValue;
+  }
+  
+  updateRemoteToggleState();
+}
+
+// 更新远控开关状态
+function updateRemoteToggleState() {
+  const select = document.getElementById('remoteDeviceSelect');
+  const toggle = document.getElementById('remoteToggle');
+  if (!select || !toggle) return;
+  
+  const deviceId = select.value;
+  if (!deviceId) {
+    toggle.checked = false;
+    toggle.disabled = true;
+    return;
+  }
+  
+  toggle.disabled = false;
+  const dev = devices.find(d => d.deviceId === deviceId);
+  toggle.checked = dev && dev._remoteEnabled !== false;
+}
+
+// 远控开关切换
+function onRemoteToggleChange() {
+  const select = document.getElementById('remoteDeviceSelect');
+  const toggle = document.getElementById('remoteToggle');
+  if (!select || !toggle || !ws || ws.readyState !== WebSocket.OPEN) return;
+  
+  const deviceId = select.value;
+  if (!deviceId) return;
+  
+  const enable = toggle.checked;
+  ws.send(JSON.stringify({
+    type: enable ? 'setKeyboardEnabled' : 'setKeyboardDisabled',
+    deviceId: deviceId
+  }));
+}
+
+// 设备选择变更
+document.getElementById('remoteDeviceSelect')?.addEventListener('change', function() {
+  updateRemoteToggleState();
+});
 
 // ─────────────────────────────────────────
 // 1080p 预览模式切换

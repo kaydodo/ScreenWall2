@@ -1905,7 +1905,7 @@ class ScreenWallClient:
 
                     elif msg_type == "setKeyboardEnabled":
                         # 服务端开启键盘功能
-                        self._set_keyboard_enabled(True)
+                        _set_keyboard_enabled(True)
                         if not self._keyclient_socket and not self._keyclient_process:
                             self._start_keyclient()
                         # 同步更新托盘菜单
@@ -1917,7 +1917,7 @@ class ScreenWallClient:
 
                     elif msg_type == "setKeyboardDisabled":
                         # 服务端关闭键盘功能
-                        self._set_keyboard_enabled(False)
+                        _set_keyboard_enabled(False)
                         self._close_keyclient()
                         # 同步更新托盘菜单
                         _keyboard_enabled = False
