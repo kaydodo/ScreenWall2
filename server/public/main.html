@@ -3001,21 +3001,19 @@ function openRemoteListModal() {
   });
   content.innerHTML = html;
   
-  // 弹窗定位到放大镜按钮下方（往下一点，右边留余地）
+  // 弹窗定位到放大镜按钮下方（按比例留余量，不超出屏幕）
   const searchBtn = document.querySelector('#previewRemoteWrap button');
   if (searchBtn && dialog) {
     const rect = searchBtn.getBoundingClientRect();
-    let left = rect.left;
-    // 往下移动一些
     dialog.style.top = (rect.bottom + 8) + 'px';
-    // 先设置左边，等渲染后再检测是否超出右边界
-    dialog.style.left = left + 'px';
+    dialog.style.left = rect.left + 'px';
     dialog.style.transform = 'none';
-    // 渲染后检测右边是否超出
+    dialog.style.maxWidth = '90vw'; // 按屏幕比例留余量
+    // 渲染后检测右边是否超出，自动调整
     requestAnimationFrame(() => {
       const dRect = dialog.getBoundingClientRect();
-      if (dRect.right > window.innerWidth - 8) {
-        dialog.style.left = (window.innerWidth - dRect.width - 8) + 'px';
+      if (dRect.right > window.innerWidth - 10) {
+        dialog.style.left = (window.innerWidth - dRect.width - 10) + 'px';
       }
     });
   }
@@ -4016,8 +4014,8 @@ document.getElementById('deviceSearch').oninput = (e) => renderDeviceList(e.targ
 document.getElementById('previewClose').onclick = closePreview;
 // 点击预览区域或背景关闭（移动端友好）
 document.getElementById('previewOverlay').onclick = (e) => {
-  // 如果点击的是关闭按钮或标题栏按钮，不处理
-  if (e.target.closest('.preview-titlebar') || e.target.closest('.btn-close')) return;
+  // 如果点击的是标题栏、关闭按钮、远控列表弹窗，不处理
+  if (e.target.closest('.preview-titlebar') || e.target.closest('.btn-close') || e.target.closest('#previewClose') || e.target.closest('.remote-list-dialog')) return;
   // 电脑端+格子预览+当前设备有键盘时，禁止点击关闭
   const isAlarm = previewDeviceId && previewDeviceId.startsWith('__ALARM__');
   const previewDev = devices.find(d => d.deviceId === previewDeviceId);
