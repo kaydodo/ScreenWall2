@@ -1320,6 +1320,12 @@ function connectWS() {
 
     if (msg.type === 'screenshot') {
       const t0 = performance.now();
+
+      // 丢包/空帧：跳过这一帧，不渲染
+      if (!msg.image || msg.image.length < 100) {
+        return;
+      }
+
       // 存入帧缓冲，由 requestAnimationFrame 统一渲染
       const frameData = { image: msg.image, hqImage: msg.hqImage || null, timestamp: Date.now() };
       pendingFrames.set(msg.deviceId, frameData);
