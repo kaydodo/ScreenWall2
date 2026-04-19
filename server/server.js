@@ -797,9 +797,14 @@ async function compareImages(buffer1, buffer2) {
  */
 async function ocrRegion(imageBuffer) {
   try {
-    // 根据图片尺寸决定是否放大（高分辨率图片放大后识别效果更好）
+    // 根据图片尺寸决定放大倍数（高分辨率图片放大后识别效果更好）
     const metadata = await sharp(imageBuffer).metadata();
-    const scaleFactor = metadata.width > 800 ? 2.0 : 1.0;  // 宽>800px放大2倍
+    let scaleFactor = 1.0;
+    if (metadata.width > 1000) {
+      scaleFactor = 4.5;  // 超高分辨率放大4.5倍
+    } else if (metadata.width > 800) {
+      scaleFactor = 3.0;  // 高分辨率放大3倍
+    }
 
     let processedBuffer = imageBuffer;
     if (scaleFactor > 1) {
