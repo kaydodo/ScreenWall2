@@ -1235,8 +1235,17 @@ function connectWS() {
           // 不关闭预览，保持打开状态（水印+灰度表示离线）
           // 关闭远控设备列表弹窗
           closeRemoteListModal();
-          // 清除待处理状态（按钮已在点击时变化，保持不变）
-          _pendingRemoteState = null;
+          // 处理远控按钮：如果点击过，保持点击后的颜色；如果没点击过，根据 supportsKeyClient 显示
+          const slider = document.getElementById('previewRemoteSlider');
+          const knob = document.getElementById('previewRemoteKnob');
+          if (slider && knob && previewDeviceId === deviceId) {
+            if (_pendingRemoteState === null) {
+              // 没点击过，根据服务端状态显示
+              updatePreviewRemoteBtn();
+            }
+            // 点击过：保持点击后的颜色不变
+            _pendingRemoteState = null;
+          }
         } else if (status === 'online') {
           // 设备重新上线，恢复彩色图 + 隐藏水印
           previewImg.style.filter = '';
