@@ -889,6 +889,7 @@ async function processAlarmImage(deviceId, imageBuffer, deviceInfo) {
   const now = Date.now();
   const state = alarmStates.get(deviceId) || {
     state: 'idle',
+    verifyCount: 0,  // 连续不符合查重的次数
     templateRegion: null,
     templateBuffer: null,
     lastImage: null,
@@ -909,18 +910,27 @@ async function processAlarmImage(deviceId, imageBuffer, deviceInfo) {
     const similarity = await compareImages(state.templateBuffer, newRegionBuffer);
 
     if (similarity < 0.9) {
-      // 相似度不符合，说明画面已变化，本轮报警结束
-      alarmStates.set(deviceId, {
-        state: 'idle',
-        verifyCount: 0,
-        templateRegion: null,
-        templateBuffer: null,
-        lastImage: null,
-        occurrenceCount: state.occurrenceCount,
-      });
+      // 相似度不符合，计数器+1
+      state.verifyCount++;
+      if (state.verifyCount >= 2) {
+        // 连续2次不符合，本轮报警结束
+        alarmStates.set(deviceId, {
+          state: 'idle',
+          verifyCount: 0,
+          templateRegion: null,
+          templateBuffer: null,
+          lastImage: null,
+          occurrenceCount: state.occurrenceCount,
+        });
+        return false;
+      }
+      // 继续等待下一帧
+      alarmStates.set(deviceId, state);
       return false;
     }
 
+    // 相似度符合，重置计数器，继续等待
+    state.verifyCount = 0;
     alarmStates.set(deviceId, state);
     return false;
   }
@@ -1091,6 +1101,7 @@ async function processAlarmImage(deviceId, imageBuffer, deviceInfo) {
   // 11. 更新状态为查重阶段
   alarmStates.set(deviceId, {
     state: 'verifying',
+    verifyCount: 0,
     templateRegion: { x1, y1, x2, y2 },
     templateBuffer: regionBuffer,
     lastImage: imageBuffer,
