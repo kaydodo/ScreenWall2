@@ -319,13 +319,13 @@
     <div class="preview-controls" style="padding-right:70px;">
       <span class="preview-mouse-hint" id="previewMouseHint" style="display:none;color:#aaa;font-size:13px;">📌 可使用鼠标左键点击屏幕</span>
       <button class="preview-kb-btn" id="previewMonitorBtn" title="切换显示器" onclick="cycleMonitor()" style="display:none;background:#2a2d3a;border:1px solid #444;color:#fff;border-radius:6px;padding:4px 10px;font-size:13px;cursor:pointer;">🖥️ 显示器 1</button>
+      <button class="preview-kb-btn" id="previewKBbtn" title="键盘控制" onclick="togglePreviewKeyboard()">⌨️ 键盘</button>
       <div style="display:inline-flex;align-items:center;gap:4px;position:relative;z-index:100000;" id="preview1080Container">
         <div class="toggle-switch" id="preview1080Btn" onclick="event.stopPropagation();togglePreview1080()">
           <div class="toggle-slider"></div>
         </div>
         <span style="font-size:12px;color:#aaa;user-select:none;">1080p</span>
       </div>
-      <button class="preview-kb-btn" id="previewKBbtn" title="键盘控制" onclick="togglePreviewKeyboard()">⌨️ 键盘</button>
       <button class="preview-uu-btn" id="previewUUbtn" title="打开UU远程"> 🖱️ UU远程</button>
     </div>
   </div>
