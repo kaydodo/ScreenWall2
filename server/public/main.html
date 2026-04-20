@@ -323,8 +323,11 @@
       </div>
       <button class="preview-kb-btn" id="previewKBbtn" title="键盘控制" onclick="togglePreviewKeyboard()">⌨️ 键盘</button>
       <button class="preview-uu-btn" id="previewUUbtn" title="打开UU远程"> 🖱️ UU远程</button>
-      <button class="preview-image-close" id="previewClose" onclick="closePreview()">✕ 关闭</button>
     </div>
+  </div>
+  <!-- 关闭按钮：独立浮动容器，浮在最上层 -->
+  <div id="previewFloatingClose" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:999999;pointer-events:none;">
+    <button id="previewClose" onclick="closePreview()" style="position:absolute;top:16px;right:16px;color:#888;background:rgba(30,33,45,0.9);border:1px solid #444;font-size:14px;cursor:pointer;padding:6px 12px;border-radius:6px;pointer-events:auto;transition:all 0.2s;white-space:nowrap;">✕ 关闭</button>
   </div>
   <div class="preview-area" id="previewArea">
     <img id="previewImg" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="实时预览" style="border-radius:0;box-shadow:none;border:none;" />
@@ -1260,10 +1263,6 @@ function connectWS() {
         if (previewImageTitleEl) previewImageTitleEl.textContent = (msg.deviceName || '未知') + ' - 收藏截图';
       }
       // 如果任务弹窗打开，刷新标题
-      if (document.getElementById('taskOverlay').classList.contains('open')) {
-        renderTaskDialog();
-      }
-    }
       if (document.getElementById('taskOverlay').classList.contains('open')) {
         renderTaskDialog();
       }
@@ -2735,6 +2734,9 @@ function openPreview(cellIndex) {
   document.getElementById('previewImg').style.filter = '';  // 清除可能残留的灰度滤镜
   document.getElementById('previewLoading').style.display = 'flex';
   document.getElementById('previewOverlay').classList.add('active');
+  // 显示浮动关闭按钮
+  const floatingClose = document.getElementById('previewFloatingClose');
+  if (floatingClose) floatingClose.style.display = 'block';
   // 移动端关闭提示：2秒后淡出
   var hint = document.getElementById('previewMobileClose');
   if (hint) { hint.classList.remove('fade-out'); setTimeout(function() { hint.classList.add('fade-out'); }, 2000); }
@@ -2826,7 +2828,11 @@ function closePreview() {
   const previewImg = document.getElementById('previewImg');
   if (previewImg) previewImg.onclick = null;
 
+
   document.getElementById('previewOverlay').classList.remove('active');
+  // 隐藏浮动关闭按钮
+  const floatingClose = document.getElementById('previewFloatingClose');
+  if (floatingClose) floatingClose.style.display = 'none';
   document.getElementById('previewOfflineWatermark').style.display = 'none';
   // 取消订阅格子预览独立通道（服务端会自动检查是否需要关闭高清流）
   if (previewDeviceId && ws && ws.readyState === WebSocket.OPEN) {
@@ -4134,8 +4140,7 @@ document.getElementById('dialogClear').onclick = () => {
 };
 document.getElementById('deviceSearch').oninput = (e) => renderDeviceList(e.target.value);
 
-// 预览浮层
-document.getElementById('previewClose').onclick = closePreview;
+// 预览浮层关闭按钮（已内联onclick，这里只控制浮动容器显示）
 // 点击预览区域或背景关闭
 document.getElementById('previewOverlay').onclick = (e) => {
   // 关闭按钮在任何时候都可以点击关闭，无需排除
