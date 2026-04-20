@@ -1281,7 +1281,7 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
   color: #e2e8f0;
 }
 
-.preview-controls { display: flex; gap: 10px; padding-right: 110px; }
+.preview-controls { display: flex; gap: 10px; padding-right: 70px; }
 
 .preview-area {
   flex: 1;
