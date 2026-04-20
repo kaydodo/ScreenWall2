@@ -301,7 +301,7 @@
 <!-- ========== 预览浮层 ========== -->
 <!-- 浮动关闭按钮：移到 previewOverlay 外部，避免被 stacking context 限制，z-index 最高 -->
 <div id="previewFloatingClose" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999999;pointer-events:none;">
-  <button id="previewClose" onclick="closePreview()" style="position:absolute;top:16px;right:16px;color:#888;background:rgba(30,33,45,0.9);border:1px solid #444;font-size:14px;cursor:pointer;padding:6px 12px;border-radius:6px;pointer-events:auto;transition:all 0.2s;white-space:nowrap;">✕ 关闭</button>
+  <button id="previewClose" onclick="closePreview()" style="position:absolute;top:8px;right:16px;color:#888;background:rgba(30,33,45,0.9);border:1px solid #444;font-size:14px;cursor:pointer;padding:6px 12px;border-radius:6px;pointer-events:auto;transition:all 0.2s;white-space:nowrap;">✕ 关闭</button>
 </div>
 <div class="preview-overlay" id="previewOverlay">
   <div class="preview-titlebar" id="previewTitlebar">
@@ -5138,6 +5138,9 @@ function openAlarmPreview(alarmId) {
   previewImg.style.opacity = '1';  // 直接显示
   document.getElementById('previewLoading').style.display = 'none';  // 隐藏 loading
   document.getElementById('previewOverlay').classList.add('active');
+  // 显示浮动关闭按钮
+  const floatingClose = document.getElementById('previewFloatingClose');
+  if (floatingClose) floatingClose.style.display = 'block';
   
   // 报警预览不显示键盘按钮
   const kbbtn = document.getElementById('previewKBbtn');
