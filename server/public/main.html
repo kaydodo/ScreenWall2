@@ -1229,7 +1229,41 @@ function connectWS() {
         const previewImageTitleEl = document.querySelector('.preview-image-title');
         if (previewImageTitleEl) previewImageTitleEl.textContent = (msg.deviceName || '未知') + ' - 收藏截图';
       }
+    }
+
+    // 设备改名广播（离线设备改名时刷新标题）
+    if (msg.type === 'deviceRenamed' && msg.deviceId) {
+      // 同步到 devices 数组
+      var d = devices.find(function(dev) { return dev.deviceId === msg.deviceId; });
+      if (d && msg.deviceName) d.deviceName = msg.deviceName;
+      // 同步到 gridCells
+      gridCells.forEach(function(c) {
+        if (c && c.deviceId === msg.deviceId && msg.deviceName) c.deviceName = msg.deviceName;
+      });
+      // 更新普通预览标题
+      if (previewDeviceId === msg.deviceId && document.getElementById('previewOverlay').classList.contains('active') && !previewDeviceId.startsWith('__ALARM__')) {
+        const previewNameEl = document.getElementById('previewDeviceName');
+        if (previewNameEl) {
+          const dev = devices.find(function(dev) { return dev.deviceId === msg.deviceId; });
+          const mon = dev && dev.monitorCount > 1 ? ' 🖥️' + (dev.monitorIndex || 1) : '';
+          previewNameEl.textContent = (msg.deviceName || '未知') + ' - 实时预览' + mon;
+        }
+      }
+      // 更新报警预览标题
+      if (alarmPreviewDeviceId === msg.deviceId && document.getElementById('previewOverlay').classList.contains('active') && previewDeviceId && previewDeviceId.startsWith('__ALARM__')) {
+        const previewNameEl = document.getElementById('previewDeviceName');
+        if (previewNameEl) previewNameEl.textContent = (msg.deviceName || '未知') + ' - 报警截图';
+      }
+      // 更新截图收藏预览标题
+      if (previewImageDeviceId === msg.deviceId && document.getElementById('previewImageOverlay').classList.contains('active')) {
+        const previewImageTitleEl = document.querySelector('.preview-image-title');
+        if (previewImageTitleEl) previewImageTitleEl.textContent = (msg.deviceName || '未知') + ' - 收藏截图';
+      }
       // 如果任务弹窗打开，刷新标题
+      if (document.getElementById('taskOverlay').classList.contains('open')) {
+        renderTaskDialog();
+      }
+    }
       if (document.getElementById('taskOverlay').classList.contains('open')) {
         renderTaskDialog();
       }
