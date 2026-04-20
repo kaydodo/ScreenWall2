@@ -897,6 +897,7 @@ let ws = null;               // WebSocket 连接
 let activeFilters = new Set();  // 当前激活的分组筛选，空=全显示
 let selectedCell = null;    // 当前选中待设置的格子
 let previewDeviceId = null;  // 当前预览设备
+let alarmPreviewDeviceId = null;  // 报警预览绑定的真实设备ID
 let previewImageDeviceId = null;  // 当前查看的收藏截图设备ID
 let previewActive = false;   // 预览激活时暂停格子渲染
 let previewWS = null;       // 预览专用连接（请求高清）
@@ -1265,6 +1266,29 @@ function connectWS() {
           }
           // 更新预览区键盘按钮状态
           updatePreviewKeyboardBtn();
+        }
+      }
+      // 检查报警预览是否在查看该设备
+      if (alarmPreviewDeviceId && alarmPreviewDeviceId === deviceId && document.getElementById('previewOverlay').classList.contains('active') && previewDeviceId && previewDeviceId.startsWith('__ALARM__')) {
+        const watermark = document.getElementById('previewOfflineWatermark');
+        const uubtn = document.getElementById('previewUUbtn');
+        if (status === 'offline') {
+          if (watermark) { watermark.textContent = '设备已离线'; watermark.style.display = 'block'; }
+          if (uubtn) { uubtn.disabled = true; uubtn.style.opacity = '0.35'; uubtn.style.cursor = 'not-allowed'; uubtn.style.pointerEvents = 'none'; }
+        } else if (status === 'deleted') {
+          if (watermark) { watermark.textContent = '设备已删除'; watermark.style.display = 'block'; }
+          if (uubtn) { uubtn.disabled = true; uubtn.style.opacity = '0.35'; uubtn.style.cursor = 'not-allowed'; uubtn.style.pointerEvents = 'none'; }
+        } else if (status === 'online') {
+          if (watermark) watermark.style.display = 'none';
+          if (uubtn) {
+            var dev = devices.find(function(d) { return d.deviceId === alarmPreviewDeviceId; });
+            var uuId = dev ? dev.uuDeviceId : null;
+            uubtn.disabled = false;
+            uubtn.style.opacity = '';
+            uubtn.style.cursor = '';
+            uubtn.style.pointerEvents = '';
+            uubtn.onclick = function() { if (uuId) openUU(uuId); };
+          }
         }
       }
       // 检查收藏截图预览是否在查看该设备
@@ -2730,6 +2754,7 @@ function closePreview() {
     ws.send(JSON.stringify({ type: 'unsubscribePreview', deviceId: previewDeviceId }));
   }
   previewDeviceId = null;
+  alarmPreviewDeviceId = null;  // 清除报警预览绑定的设备ID
   previewActive = false;  // 恢复格子渲染
   // 先移除图片显示，再设置src，避免浏览器尝试加载base64作为URL
   previewImg.style.display = 'none';
@@ -5001,6 +5026,8 @@ function openAlarmPreview(alarmId) {
   // 【修复】设置为特殊值，阻止实时截图覆盖报警图片
   previewDeviceId = '__ALARM__' + alarmId;
   previewActive = false;  // 暂停格子渲染
+  // 保存真实设备ID，用于接收上下线广播
+  alarmPreviewDeviceId = rec.deviceId;
   
   // 复用预览浮层显示报警截图
   document.getElementById('previewDeviceName').textContent = (rec.deviceName || '未知') + ' - 报警截图';
