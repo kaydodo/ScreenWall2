@@ -5171,17 +5171,25 @@ function openAlarmPreview(alarmId) {
   }
   if (uubtn) {
     if (isOnline) {
-      uubtn.style.display = 'inline-flex';
       // 从设备列表获取uuDeviceId
       var uuId = null;
       if (rec.deviceId) {
         var dev = devices.find(function(d) { return d.deviceId === rec.deviceId; });
         uuId = dev ? dev.uuDeviceId : null;
       }
+      uubtn.style.display = 'inline-flex';
+      uubtn.disabled = false;
+      uubtn.style.opacity = '';
+      uubtn.style.cursor = '';
+      uubtn.style.pointerEvents = '';
       uubtn.onclick = function() { if (uuId) openUU(uuId); };
     } else {
       // 离线：变灰不可点
-      if (uubtn) { uubtn.disabled = true; uubtn.style.opacity = '0.35'; uubtn.style.cursor = 'not-allowed'; uubtn.style.pointerEvents = 'none'; }
+      uubtn.style.display = 'inline-flex';
+      uubtn.disabled = true;
+      uubtn.style.opacity = '0.35';
+      uubtn.style.cursor = 'not-allowed';
+      uubtn.style.pointerEvents = 'none';
     }
   }
 
