@@ -16,7 +16,7 @@
 <header class="topbar">
   <div class="topbar-left">
     <div class="topbar-logo">🖥️</div>
-    <div class="topbar-title">屏幕墙</div>
+    <div class="topbar-title">屏幕墙 <span id="topbarVersion" style="font-size:11px;opacity:0.5;font-weight:normal;"></span></div>
   </div>
 
   <div class="topbar-center">
@@ -897,6 +897,7 @@ let gridSize = isMobile ? 2 : 4;  // 移动端默认2列，桌面默认4列
 let devices = [];           // 所有设备列表
 let gridCells = [];         // 当前格子配置
 let ws = null;               // WebSocket 连接
+let serverVersion = '';      // 服务端版本号
 let activeFilters = new Set();  // 当前激活的分组筛选，空=全显示
 let selectedCell = null;    // 当前选中待设置的格子
 let previewDeviceId = null;  // 当前预览设备
@@ -1021,6 +1022,12 @@ function connectWS() {
     }
 
     if (msg.type === 'state') {
+      // 服务端版本号
+      if (msg.serverVersion) {
+        serverVersion = msg.serverVersion;
+        var vEl = document.getElementById('topbarVersion');
+        if (vEl) vEl.textContent = 'v' + msg.serverVersion;
+      }
       devices = msg.devices || [];
       if (msg.groups) {
         groups = msg.groups;

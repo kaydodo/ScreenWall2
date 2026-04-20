@@ -2037,6 +2037,7 @@ wssBrowser.on('connection', (ws) => {
       
       ws.send(JSON.stringify({
         type: 'state',
+        serverVersion: CURRENT_VERSION,
         gridSize: gridSizeSetting,
         cells: getGridPayload(gridSizeSetting),
         devices: getDeviceListPayload(),
