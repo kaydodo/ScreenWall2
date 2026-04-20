@@ -1232,8 +1232,8 @@ function connectWS() {
           }
           // 隐藏loading
           document.getElementById('previewLoading').style.display = 'none';
-          // 隐藏UU按钮
-          if (uubtn) uubtn.style.display = 'none';
+          // UU按钮变灰不可点
+          if (uubtn) { uubtn.disabled = true; uubtn.style.opacity = '0.35'; uubtn.style.cursor = 'not-allowed'; uubtn.style.pointerEvents = 'none'; }
           // 不关闭预览，保持打开状态（水印+灰度表示离线）
           // 关闭远控设备列表弹窗
           closeRemoteListModal();
@@ -1249,8 +1249,9 @@ function connectWS() {
           if (ws && ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ type: 'startHQ', deviceId: previewDeviceId }));
           }
-          // 显示UU按钮（如果有uuDeviceId）
+          // 显示UU按钮（如果有uuDeviceId），恢复可点状态
           const dev = devices.find(d => d.deviceId === previewDeviceId);
+          if (uubtn) { uubtn.disabled = false; uubtn.style.opacity = ''; uubtn.style.cursor = ''; uubtn.style.pointerEvents = ''; }
           if (uubtn && dev && dev.uuDeviceId) {
             uubtn.style.display = 'inline-flex';
             uubtn.onclick = () => { openUU(dev.uuDeviceId); };
@@ -1277,17 +1278,21 @@ function connectWS() {
             watermark.textContent = '设备已离线';
             watermark.style.display = 'block';
           }
-          if (uubtn) uubtn.style.display = 'none';
+          // UU按钮变灰不可点
+          if (uubtn) { uubtn.disabled = true; uubtn.style.opacity = '0.35'; uubtn.style.cursor = 'not-allowed'; uubtn.style.pointerEvents = 'none'; }
         } else if (status === 'deleted') {
           if (previewImg) previewImg.style.filter = '';  // 彩色图
           if (watermark) {
             watermark.textContent = '设备已删除';
             watermark.style.display = 'block';
           }
-          if (uubtn) uubtn.style.display = 'none';
+          // UU按钮变灰不可点
+          if (uubtn) { uubtn.disabled = true; uubtn.style.opacity = '0.35'; uubtn.style.cursor = 'not-allowed'; uubtn.style.pointerEvents = 'none'; }
         } else if (status === 'online') {
           if (previewImg) previewImg.style.filter = '';
           if (watermark) watermark.style.display = 'none';
+          // UU按钮恢复可点
+          if (uubtn) { uubtn.disabled = false; uubtn.style.opacity = ''; uubtn.style.cursor = ''; uubtn.style.pointerEvents = ''; }
           // 显示UU按钮（如果有uuDeviceId）
           const dev = devices.find(d => d.deviceId === previewImageDeviceId);
           const uuDeviceId = dev && dev.uuDeviceId;
@@ -5038,9 +5043,9 @@ function openAlarmPreview(alarmId) {
       }
       uubtn.onclick = function() { if (uuId) openUU(uuId); };
     } else {
-      uubtn.style.display = 'none';
+      // 离线：变灰不可点
+      if (uubtn) { uubtn.disabled = true; uubtn.style.opacity = '0.35'; uubtn.style.cursor = 'not-allowed'; uubtn.style.pointerEvents = 'none'; }
     }
-  }
 
   // 离线设备显示水印
   var watermark = document.getElementById('previewOfflineWatermark');
@@ -5862,7 +5867,7 @@ function renderAllTaskBadges() {
 
 <!-- ========== 远控设备列表弹窗 ========== -->
 <div class="remote-list-overlay" id="remoteListOverlay" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999;background:transparent;" onclick="closeRemoteListModal()">
-  <div class="remote-list-dialog" id="remoteListDialog" style="position:absolute;background:#2a2d3a;border:1px solid #444;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.3);pointer-events:auto;" onclick="event.stopPropagation()">
+  <div class="remote-list-dialog" id="remoteListDialog" style="position:absolute;background:#2a2d3a;border:1px solid #444;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.3);pointer-events:auto;max-width:60vw;" onclick="event.stopPropagation()">
     <div id="remoteListContent" style="display:flex;flex-wrap:wrap;gap:8px;padding:12px;"></div>
   </div>
 </div>

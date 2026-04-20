@@ -1,55 +1,5 @@
 [
   {
-    "id": "d82faf25-7ecc-4f71-95ba-11836c5622a4",
-    "deviceId": "aeawtmgwtiau3yfl",
-    "deviceName": "9999999999UXW",
-    "uuDeviceId": "441947603",
-    "screenshot": "/alarm-screenshots/ebf010d9-6017-471e-acfc-07830b3db6f9.png",
-    "screenshotId": "ebf010d9-6017-471e-acfc-07830b3db6f9",
-    "timestamp": 1776575025780,
-    "groupName": "",
-    "cellStr": "",
-    "occurrenceCount": 2,
-    "status": "confirmed",
-    "matchedKeyword": "重新登",
-    "region": {
-      "x1": 804,
-      "y1": 390,
-      "x2": 989,
-      "y2": 522
-    },
-    "regionSize": {
-      "w": 185,
-      "h": 162
-    },
-    "viewed": true
-  },
-  {
-    "id": "be4233c9-0add-4d51-a097-bc364db6270f",
-    "deviceId": "aeawtmgwtiau3yfl",
-    "deviceName": "9999999999UXW",
-    "uuDeviceId": "441947603",
-    "screenshot": "/alarm-screenshots/2143e509-cf0a-47fe-9da2-02b2add9a10e.png",
-    "screenshotId": "2143e509-cf0a-47fe-9da2-02b2add9a10e",
-    "timestamp": 1776575431255,
-    "groupName": "",
-    "cellStr": "",
-    "occurrenceCount": 3,
-    "status": "confirmed",
-    "matchedKeyword": "网络错",
-    "region": {
-      "x1": 803,
-      "y1": 459,
-      "x2": 988,
-      "y2": 601
-    },
-    "regionSize": {
-      "w": 185,
-      "h": 172
-    },
-    "viewed": true
-  },
-  {
     "id": "b8a2d6a3-d251-4c08-acee-9bb4ff2e833f",
     "deviceId": "aeawtmgwtiau3yfl",
     "deviceName": "9999999999UXW",
