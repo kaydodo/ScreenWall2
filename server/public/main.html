@@ -299,6 +299,10 @@
 </style>
 
 <!-- ========== 预览浮层 ========== -->
+<!-- 浮动关闭按钮：移到 previewOverlay 外部，避免被 stacking context 限制，z-index 最高 -->
+<div id="previewFloatingClose" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999999;pointer-events:none;">
+  <button id="previewClose" onclick="closePreview()" style="position:absolute;top:16px;right:16px;color:#888;background:rgba(30,33,45,0.9);border:1px solid #444;font-size:14px;cursor:pointer;padding:6px 12px;border-radius:6px;pointer-events:auto;transition:all 0.2s;white-space:nowrap;">✕ 关闭</button>
+</div>
 <div class="preview-overlay" id="previewOverlay">
   <div class="preview-titlebar" id="previewTitlebar">
     <div style="display:flex;align-items:center;gap:30px;">
@@ -312,7 +316,7 @@
         <button onclick="event.stopPropagation();toggleRemoteListModal()" title="远控设备列表" style="background:none;border:none;color:#888;font-size:14px;cursor:pointer;padding:2px;">🔍</button>
       </div>
     </div>
-    <div class="preview-controls">
+    <div class="preview-controls" style="padding-right:90px;">
       <span class="preview-mouse-hint" id="previewMouseHint" style="display:none;color:#aaa;font-size:13px;">📌 可使用鼠标左键点击屏幕</span>
       <button class="preview-kb-btn" id="previewMonitorBtn" title="切换显示器" onclick="cycleMonitor()" style="display:none;background:#2a2d3a;border:1px solid #444;color:#fff;border-radius:6px;padding:4px 10px;font-size:13px;cursor:pointer;">🖥️ 显示器 1</button>
       <div style="display:inline-flex;align-items:center;gap:4px;position:relative;z-index:100000;" id="preview1080Container">
@@ -324,10 +328,6 @@
       <button class="preview-kb-btn" id="previewKBbtn" title="键盘控制" onclick="togglePreviewKeyboard()">⌨️ 键盘</button>
       <button class="preview-uu-btn" id="previewUUbtn" title="打开UU远程"> 🖱️ UU远程</button>
     </div>
-  </div>
-  <!-- 关闭按钮：独立浮动容器，浮在最上层 -->
-  <div id="previewFloatingClose" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:999999;pointer-events:none;">
-    <button id="previewClose" onclick="closePreview()" style="position:absolute;top:16px;right:16px;color:#888;background:rgba(30,33,45,0.9);border:1px solid #444;font-size:14px;cursor:pointer;padding:6px 12px;border-radius:6px;pointer-events:auto;transition:all 0.2s;white-space:nowrap;">✕ 关闭</button>
   </div>
   <div class="preview-area" id="previewArea">
     <img id="previewImg" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="实时预览" style="border-radius:0;box-shadow:none;border:none;" />
@@ -2716,15 +2716,25 @@ function openPreview(cellIndex) {
   const cell = gridCells[cellIndex];
   if (!cell || !cell.deviceId) return;
 
+  // 记住设备ID（即使离线也要，刷新后恢复预览时需要）
+  previewDeviceId = cell.deviceId;
+  previewActive = true;  // 暂停格子渲染
+  pendingFrames.clear(); // 清空旧的格子帧缓冲
+
+  // 初始化UU按钮（无论在线离线都要设置，否则刷新后按钮丢失功能）
+  const uuId = cell.uuDeviceId || null;
+  const uubtn = document.getElementById('previewUUbtn');
+  if (uuId) {
+    if (uubtn) { uubtn.style.display = 'inline-flex'; uubtn.disabled = false; uubtn.style.opacity = ''; uubtn.style.cursor = ''; uubtn.style.pointerEvents = ''; uubtn.onclick = () => { openUU(uuId); }; }
+  } else {
+    if (uubtn) { uubtn.style.display = 'inline-flex'; uubtn.disabled = true; uubtn.style.opacity = '0.35'; uubtn.style.cursor = 'not-allowed'; uubtn.style.pointerEvents = 'none'; }
+  }
+
   // 离线设备不允许打开预览
   if (!cell.online) {
     showToast('离线设备无法预览', 'warn');
     return;
   }
-
-  previewDeviceId = cell.deviceId;
-  previewActive = true;  // 暂停格子渲染
-  pendingFrames.clear(); // 清空旧的格子帧缓冲
 
   const dev = devices.find(d => d.deviceId === cell.deviceId);
 
