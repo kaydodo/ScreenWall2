@@ -1196,6 +1196,7 @@ function getDeviceListPayload() {
       screenHeight: d.screenHeight || null,
       monitorOffsetX: d.monitorOffsetX || 0,
       monitorOffsetY: d.monitorOffsetY || 0,
+      version: d.version || null,
     }));
 }
 
