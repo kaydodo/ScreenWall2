@@ -128,5 +128,18 @@
     "revoked": false,
     "deleted": false,
     "deviceDeleted": false
+  },
+  {
+    "id": "e80924fd-1f1b-4377-8aa9-5ba3da0e26af",
+    "deviceId": "aeawtmgwtiau3yfl",
+    "deviceName": "9999999999UXW",
+    "groupName": "5555666",
+    "content": "1",
+    "timestamp": 1776687601920,
+    "accepted": false,
+    "acceptedAt": null,
+    "revoked": true,
+    "deleted": false,
+    "deviceDeleted": false
   }
 ]

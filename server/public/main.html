@@ -2432,12 +2432,25 @@ function openPreviewImage(imgSrc, deviceName, deviceId, online) {
     const uuDeviceId = (cell && cell.uuDeviceId) || (dev && dev.uuDeviceId);
     if (uuDeviceId) {
       uuBtn.style.display = 'block';
+      uuBtn.style.display = 'inline-flex';
+      uuBtn.disabled = false;
+      uuBtn.style.opacity = '';
+      uuBtn.style.cursor = '';
+      uuBtn.style.pointerEvents = '';
       uuBtn.onclick = () => openUU(uuDeviceId);
     } else {
-      uuBtn.style.display = 'none';
+      uuBtn.style.display = 'inline-flex';
+      uuBtn.disabled = true;
+      uuBtn.style.opacity = '0.35';
+      uuBtn.style.cursor = 'not-allowed';
+      uuBtn.style.pointerEvents = 'none';
     }
   } else {
-    uuBtn.style.display = 'none';
+    uuBtn.style.display = 'inline-flex';
+    uuBtn.disabled = true;
+    uuBtn.style.opacity = '0.35';
+    uuBtn.style.cursor = 'not-allowed';
+    uuBtn.style.pointerEvents = 'none';
   }
   
   // 移动端适配
