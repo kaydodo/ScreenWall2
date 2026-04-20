@@ -1210,6 +1210,25 @@ function connectWS() {
           if (msg.deviceName) c.deviceName = msg.deviceName;
         }
       });
+      // 更新普通预览标题
+      if (previewDeviceId === msg.deviceId && document.getElementById('previewOverlay').classList.contains('active') && !previewDeviceId.startsWith('__ALARM__')) {
+        const previewNameEl = document.getElementById('previewDeviceName');
+        if (previewNameEl) {
+          const dev = devices.find(function(dev) { return dev.deviceId === msg.deviceId; });
+          const mon = dev && dev.monitorCount > 1 ? ' 🖥️' + (dev.monitorIndex || 1) : '';
+          previewNameEl.textContent = (msg.deviceName || '未知') + ' - 实时预览' + mon;
+        }
+      }
+      // 更新报警预览标题
+      if (alarmPreviewDeviceId === msg.deviceId && document.getElementById('previewOverlay').classList.contains('active') && previewDeviceId && previewDeviceId.startsWith('__ALARM__')) {
+        const previewNameEl = document.getElementById('previewDeviceName');
+        if (previewNameEl) previewNameEl.textContent = (msg.deviceName || '未知') + ' - 报警截图';
+      }
+      // 更新截图收藏预览标题
+      if (previewImageDeviceId === msg.deviceId && document.getElementById('previewImageOverlay').classList.contains('active')) {
+        const previewImageTitleEl = document.querySelector('.preview-image-title');
+        if (previewImageTitleEl) previewImageTitleEl.textContent = (msg.deviceName || '未知') + ' - 收藏截图';
+      }
       // 如果任务弹窗打开，刷新标题
       if (document.getElementById('taskOverlay').classList.contains('open')) {
         renderTaskDialog();
@@ -1224,12 +1243,19 @@ function connectWS() {
         const previewImg = document.getElementById('previewImg');
         const watermark = document.getElementById('previewOfflineWatermark');
         const uubtn = document.getElementById('previewUUbtn');
+        const previewNameEl = document.getElementById('previewDeviceName');
         if (status === 'offline' || status === 'deleted') {
           // 显示灰度图 + 水印
           previewImg.style.filter = 'grayscale(100%)';
           if (watermark) {
             watermark.textContent = status === 'deleted' ? '设备已删除' : '设备已离线';
             watermark.style.display = 'block';
+          }
+          // 更新标题
+          if (previewNameEl) {
+            const dev = devices.find(d => d.deviceId === deviceId);
+            const mon = dev && dev.monitorCount > 1 ? ' 🖥️' + (dev.monitorIndex || 1) : '';
+            previewNameEl.textContent = (dev && dev.deviceName ? dev.deviceName : '未知') + ' - 实时预览' + mon;
           }
           // 隐藏loading
           document.getElementById('previewLoading').style.display = 'none';
@@ -1244,6 +1270,12 @@ function connectWS() {
           // 设备重新上线，恢复彩色图 + 隐藏水印
           previewImg.style.filter = '';
           if (watermark) watermark.style.display = 'none';
+          // 更新标题
+          if (previewNameEl) {
+            const dev = devices.find(d => d.deviceId === deviceId);
+            const mon = dev && dev.monitorCount > 1 ? ' 🖥️' + (dev.monitorIndex || 1) : '';
+            previewNameEl.textContent = (dev && dev.deviceName ? dev.deviceName : '未知') + ' - 实时预览' + mon;
+          }
           // 重新显示loading等待新帧
           document.getElementById('previewLoading').style.display = 'flex';
           // 重新申请高清流
@@ -1272,16 +1304,20 @@ function connectWS() {
       if (alarmPreviewDeviceId && alarmPreviewDeviceId === deviceId && document.getElementById('previewOverlay').classList.contains('active') && previewDeviceId && previewDeviceId.startsWith('__ALARM__')) {
         const watermark = document.getElementById('previewOfflineWatermark');
         const uubtn = document.getElementById('previewUUbtn');
+        const previewNameEl = document.getElementById('previewDeviceName');
+        const dev = devices.find(d => d.deviceId === alarmPreviewDeviceId);
         if (status === 'offline') {
           if (watermark) { watermark.textContent = '设备已离线'; watermark.style.display = 'block'; }
+          if (previewNameEl) previewNameEl.textContent = (dev && dev.deviceName ? dev.deviceName : '未知') + ' - 报警截图';
           if (uubtn) { uubtn.disabled = true; uubtn.style.opacity = '0.35'; uubtn.style.cursor = 'not-allowed'; uubtn.style.pointerEvents = 'none'; }
         } else if (status === 'deleted') {
           if (watermark) { watermark.textContent = '设备已删除'; watermark.style.display = 'block'; }
+          if (previewNameEl) previewNameEl.textContent = (dev && dev.deviceName ? dev.deviceName : '未知') + ' - 报警截图';
           if (uubtn) { uubtn.disabled = true; uubtn.style.opacity = '0.35'; uubtn.style.cursor = 'not-allowed'; uubtn.style.pointerEvents = 'none'; }
         } else if (status === 'online') {
           if (watermark) watermark.style.display = 'none';
+          if (previewNameEl) previewNameEl.textContent = (dev && dev.deviceName ? dev.deviceName : '未知') + ' - 报警截图';
           if (uubtn) {
-            var dev = devices.find(function(d) { return d.deviceId === alarmPreviewDeviceId; });
             var uuId = dev ? dev.uuDeviceId : null;
             uubtn.disabled = false;
             uubtn.style.opacity = '';
@@ -1296,12 +1332,16 @@ function connectWS() {
         const previewImg = document.getElementById('previewImageImg');
         const watermark = document.getElementById('previewImageWatermark');
         const uubtn = document.getElementById('previewImageUU');
+        const previewImageTitleEl = document.querySelector('.preview-image-title');
         if (status === 'offline') {
           if (previewImg) previewImg.style.filter = '';  // 彩色图，不灰度
           if (watermark) {
             watermark.textContent = '设备已离线';
             watermark.style.display = 'block';
           }
+          // 更新标题
+          const dev = devices.find(d => d.deviceId === previewImageDeviceId);
+          if (previewImageTitleEl) previewImageTitleEl.textContent = (dev && dev.deviceName ? dev.deviceName : '未知') + ' - 收藏截图';
           // UU按钮变灰不可点
           if (uubtn) { uubtn.disabled = true; uubtn.style.opacity = '0.35'; uubtn.style.cursor = 'not-allowed'; uubtn.style.pointerEvents = 'none'; }
         } else if (status === 'deleted') {
@@ -1310,15 +1350,20 @@ function connectWS() {
             watermark.textContent = '设备已删除';
             watermark.style.display = 'block';
           }
+          // 更新标题
+          const dev = devices.find(d => d.deviceId === previewImageDeviceId);
+          if (previewImageTitleEl) previewImageTitleEl.textContent = (dev && dev.deviceName ? dev.deviceName : '未知') + ' - 收藏截图';
           // UU按钮变灰不可点
           if (uubtn) { uubtn.disabled = true; uubtn.style.opacity = '0.35'; uubtn.style.cursor = 'not-allowed'; uubtn.style.pointerEvents = 'none'; }
         } else if (status === 'online') {
           if (previewImg) previewImg.style.filter = '';
           if (watermark) watermark.style.display = 'none';
+          // 更新标题
+          const dev = devices.find(d => d.deviceId === previewImageDeviceId);
+          if (previewImageTitleEl) previewImageTitleEl.textContent = (dev && dev.deviceName ? dev.deviceName : '未知') + ' - 收藏截图';
           // UU按钮恢复可点
           if (uubtn) { uubtn.disabled = false; uubtn.style.opacity = ''; uubtn.style.cursor = ''; uubtn.style.pointerEvents = ''; }
           // 显示UU按钮（如果有uuDeviceId）
-          const dev = devices.find(d => d.deviceId === previewImageDeviceId);
           const uuDeviceId = dev && dev.uuDeviceId;
           if (uubtn && uuDeviceId) {
             uubtn.style.display = 'block';
