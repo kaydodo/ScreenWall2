@@ -1851,6 +1851,7 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
   /* 移动端离线水印也旋转90度 */
   .preview-overlay.active #previewOfflineWatermark {
     transform: translate(-50%,-50%) rotate(90deg) !important;
+    z-index: 10 !important;
   }
 
   /* 移动端全屏：加载动画填满整个预览区域 */

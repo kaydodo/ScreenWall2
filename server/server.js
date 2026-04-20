@@ -1694,8 +1694,7 @@ wssClient.on('connection', (ws, req) => {
         dev.online = true;
 
         // 心跳日志
-        const hasAlarm = msg.alarmScreenshot ? `alarmScreenshot=${msg.alarmScreenshot.length}` : '无';
-        serverLog(`[心跳] ${dev.deviceName} - screenshot=${msg.screenshot ? '有' : '无'}, alarmScreenshot=${hasAlarm}`);
+
 
         // 保存设备版本号和显示器信息
         if (msg.version) {
@@ -1761,7 +1760,7 @@ wssClient.on('connection', (ws, req) => {
         // 【合并修复】心跳中附带的报警截图，走 processAlarmImage 处理
         const alarmImgData = msg.alarmScreenshot;
         if (alarmImgData) {
-          serverLog(`[报警] 收到 ${dev.deviceName} 的 alarmScreenshot，长度: ${alarmImgData.length}`);
+
           const imgBuffer = Buffer.from(alarmImgData.replace(/^data:image\/\w+;base64,/, ''), 'base64');
           
           processAlarmImage(dev.deviceId, imgBuffer, {
