@@ -140,6 +140,22 @@ html, body {
   display: none !important;
 }
 
+/* 缩放比例显示 */
+.wall-zoom-level {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  z-index: 10;
+  transition: opacity 0.3s;
+  pointer-events: none;
+}
+
 /* ── 性能统计面板 ─────────────────────────── */
 .stats-panel {
   position: fixed;
@@ -430,6 +446,7 @@ function initWall() {
       var uuBtnHTML = (dev.online !== false && dev.uuDeviceId) ? '<button class="uu-float-btn" onclick="openUU(\'' + dev.uuDeviceId + '\')">🖱️ UU远程</button>' : '';
       cell.innerHTML =
         '<img id="img_' + dev.id + '" src="" style="display:none;">' +
+        '<div class="wall-zoom-level" id="zoom_' + dev.id + '" style="opacity:0;">100%</div>' +
         '<div class="wall-timestamp" id="ts_' + dev.id + '">等待画面</div>' +
         '<div class="wall-info" id="info_' + dev.id + '">' +
           '<div class="name">' + dev.name + '</div>' +
@@ -857,6 +874,13 @@ function makeWallCellDraggable(cell, deviceId) {
     img.style.transform = 'scale(' + crop.scale + ') translate(' + (crop.translateX || 0) + 'px, ' + (crop.translateY || 0) + 'px)';
     img.style.transformOrigin = 'center center';
     img.style.objectFit = 'cover';
+
+    // 更新缩放比例显示
+    var zoomEl = document.getElementById('zoom_' + deviceId);
+    if (zoomEl) {
+      zoomEl.textContent = Math.round(crop.scale * 100) + '%';
+      zoomEl.style.opacity = crop.scale === 1 ? '0' : '1';
+    }
   }, { passive: false });
 
   // 拖拽开始
