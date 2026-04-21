@@ -5675,12 +5675,14 @@ function makeMonitorDraggable(wrapper, img, deviceId) {
   var startX, startY;
   var movedX, movedY;
   
+  var _sX, _sY, _moved;
   wrapper.onmousedown = function(e) {
     if (e.target.tagName === 'BUTTON') return;
+    _sX = e.clientX;
+    _sY = e.clientY;
+    _moved = false;
     var crop = monitorWallState.crops[deviceId] || { scale: 1, translateX: 0, translateY: 0 };
-    if (crop.scale <= 1) return; // 未放大时不可拖动
-    
-    wrapper._dragged = false;
+    if (crop.scale <= 1) return;
     isDragging = false;
     startX = e.clientX;
     startY = e.clientY;
@@ -5693,7 +5695,7 @@ function makeMonitorDraggable(wrapper, img, deviceId) {
     var dy = e.clientY - startY;
     if (!isDragging && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
       isDragging = true;
-      wrapper._dragged = true;
+      _moved = true;
     }
     if (!isDragging) return;
     var crop = monitorWallState.crops[deviceId] || { scale: 1, translateX: 0, translateY: 0 };
@@ -5703,16 +5705,18 @@ function makeMonitorDraggable(wrapper, img, deviceId) {
     img.style.transform = 'scale(' + crop.scale + ') translate(' + crop.translateX + 'px, ' + crop.translateY + 'px)';
   });
   
-  document.addEventListener('mouseup', function() {
+  document.addEventListener('mouseup', function(e) {
     isDragging = false;
     startX = undefined;
     startY = undefined;
-    // 拖拽后禁用点击，稍后恢复
-    wrapper.style.pointerEvents = 'none';
-    setTimeout(function() {
-      wrapper.style.pointerEvents = '';
-      wrapper._dragged = false;
-    }, 200);
+    // 鼠标松开且未移动超过3px = 点击
+    if (!_moved && _sX !== undefined) {
+      var dx = e.clientX - _sX;
+      var dy = e.clientY - _sY;
+      if (Math.abs(dx) < 4 && Math.abs(dy) < 4) {
+        removeMonitorPreview(deviceId);
+      }
+    }
   });
 
   // 滚轮缩放：以鼠标位置为中心，步进0.05
