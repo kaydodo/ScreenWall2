@@ -919,14 +919,14 @@ function updateMouseHint() {
     hint.style.display = 'none';
     return;
   }
-  if (w >= 1400) {
-    hint.textContent = '📌 可使用鼠标左键点击屏幕/shift点击=右键/alt点击=下滚轮/alt+shift点击=上滚轮/shift点击键盘切换大写和字符';
-    hint.style.display = '';
-  } else if (w >= 1100) {
+  if (w < 1100) {
+    hint.style.display = 'none';
+  } else if (w < 1400) {
     hint.textContent = '📌 可使用鼠标左键点击屏幕';
     hint.style.display = '';
   } else {
-    hint.style.display = 'none';
+    hint.textContent = '📌 可使用鼠标左键点击屏幕/shift点击=右键/alt点击=下滚轮/alt+shift点击=上滚轮/shift点击键盘切换大写和字符';
+    hint.style.display = '';
   }
 }
 
