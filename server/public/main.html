@@ -5694,8 +5694,9 @@ function makeMonitorDraggable(wrapper, img, deviceId) {
     }
     if (!isDragging) return;
     var crop = monitorWallState.crops[deviceId] || { scale: 1, translateX: 0, translateY: 0 };
-    crop.translateX = dx;
-    crop.translateY = dy;
+    // 按缩放倍数调整移动速度，倍数越大移动越慢
+    crop.translateX = dx / crop.scale;
+    crop.translateY = dy / crop.scale;
     monitorWallState.crops[deviceId] = crop;
     img.style.transform = 'scale(' + crop.scale + ') translate(' + crop.translateX + 'px, ' + crop.translateY + 'px)';
   });
