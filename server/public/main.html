@@ -5665,7 +5665,9 @@ function updateMonitorPreviewImages() {
   
   for (const deviceId of monitorWallState.selectedDevices) {
     const frame = pendingFrames.get(deviceId);
-    if (!frame || !frame.image) continue;
+    if (!frame) continue;
+    const imageToUse = frame.hqImage || frame.image;
+    if (!imageToUse) continue;
     
     const wrapper = document.querySelector('.monitor-preview-img-wrapper[data-device-id="' + deviceId + '"]');
     if (!wrapper) continue;
@@ -5674,15 +5676,15 @@ function updateMonitorPreviewImages() {
     if (!img) continue;
     
     // 如果图片已相同则跳过
-    if (img._lastSrc === frame.image) continue;
-    img._lastSrc = frame.image;
+    if (img._lastSrc === imageToUse) continue;
+    img._lastSrc = imageToUse;
     
     // 保存当前 transform（缩放/拖拽偏移）
     const currentTransform = img.style.transform || '';
     
     // 使用 Blob URL 避免 431
     revokeMonitorBlobUrl(deviceId);
-    const blobUrl = base64ToBlobUrl(frame.image);
+    const blobUrl = base64ToBlobUrl(imageToUse);
     if (blobUrl) {
       monitorBlobUrlCache.set(deviceId, blobUrl);
       img.src = blobUrl;
