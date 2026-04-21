@@ -5699,11 +5699,11 @@ function makeMonitorDraggable(wrapper, img, deviceId) {
   wrapper.addEventListener('wheel', function(e) {
     e.preventDefault();
     var now = Date.now();
-    if (now - lastWheelTime < 80) return; // 80ms节流
+    if (now - lastWheelTime < 50) return; // 50ms节流
     lastWheelTime = now;
 
     var crop = monitorWallState.crops[deviceId] || { scale: 1, translateX: 0, translateY: 0 };
-    var delta = e.deltaY < 0 ? 0.05 : -0.05;
+    var delta = e.deltaY < 0 ? 0.1 : -0.1;
     var newScale = Math.max(1, Math.min(3, crop.scale + delta));
 
     if (newScale === crop.scale) return;
