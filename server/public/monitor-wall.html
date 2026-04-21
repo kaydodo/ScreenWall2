@@ -823,7 +823,11 @@ function makeWallCellDraggable(cell, deviceId) {
     if (!dev) return;
     var crop = dev.crop || { scale: 1, translateX: 0, translateY: 0 };
     var delta = e.deltaY > 0 ? -0.05 : 0.05;
-    var newScale = Math.max(1, Math.min(3, crop.scale + delta));
+    var newScale = crop.scale + delta;
+    // 限制范围：不能小于1
+    if (newScale < 1) newScale = 1;
+    if (newScale > 3) newScale = 3;
+    if (newScale === crop.scale) return; // 没有变化则跳过
 
     // 以鼠标位置为中心缩放（计算偏移）
     var rect = cell.getBoundingClientRect();
