@@ -5609,6 +5609,11 @@ function updateMonitorPreview() {
           var wrapper = cell.querySelector('.monitor-preview-img-wrapper');
           var img = cell.querySelector('img');
           makeMonitorDraggable(wrapper, img, deviceId);
+          // 点击关闭（拖拽时不触发）
+          wrapper.addEventListener('click', function(e) {
+            if (wrapper._isDragging) return;
+            removeMonitorPreview(deviceId);
+          });
         } else {
           cell.innerHTML = '<div class="monitor-preview-empty">' + (isOffline ? '设备已离线' : '等待画面...') + '</div>';
         }
@@ -5671,11 +5676,13 @@ function makeMonitorDraggable(wrapper, img, deviceId) {
   var crop = monitorWallState.crops[deviceId] || { scale: 1, translateX: 0, translateY: 0 };
   
   wrapper.onmousedown = function(e) {
+    wrapper._isDragging = false;
     if (e.target.tagName === 'BUTTON') return;
     var crop = monitorWallState.crops[deviceId] || { scale: 1, translateX: 0, translateY: 0 };
     if (crop.scale <= 1) return; // 未放大时不可拖动
     
     isDragging = true;
+    wrapper._isDragging = true;
     startX = e.clientX - (crop.translateX || 0);
     startY = e.clientY - (crop.translateY || 0);
     e.preventDefault();
@@ -5692,6 +5699,7 @@ function makeMonitorDraggable(wrapper, img, deviceId) {
   
   document.addEventListener('mouseup', function() {
     isDragging = false;
+    wrapper._isDragging = false;
   });
 
   // 滚轮缩放：以鼠标位置为中心，步进0.05
