@@ -822,7 +822,10 @@ function makeWallCellDraggable(cell, deviceId) {
     var dev = devices[deviceId];
     if (!dev) return;
     var crop = dev.crop || { scale: 1, translateX: 0, translateY: 0 };
-    var delta = e.deltaY > 0 ? -0.05 : 0.05;
+    // 归一化 deltaY（Chrome/Firefox/Safari 可能返回不同量级的值）
+    var normalizedDelta = Math.abs(e.deltaY) > 1 ? e.deltaY / 120 : e.deltaY;
+    // 方向判断：deltaY < 0 向上滚动（放大），> 0 向下滚动（缩小）
+    var delta = normalizedDelta < 0 ? 0.05 : -0.05;
     var newScale = crop.scale + delta;
     // 限制范围：不能小于1
     if (newScale < 1) newScale = 1;
