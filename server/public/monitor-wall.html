@@ -31,7 +31,7 @@ html, body {
 .wall-cell img {
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: cover;
   background: #000;
 }
 .wall-cell.empty {
@@ -839,17 +839,12 @@ function makeWallCellDraggable(cell, deviceId) {
     var dev = devices[deviceId];
     if (!dev) return;
     var crop = dev.crop || { scale: 1, translateX: 0, translateY: 0 };
-    // 归一化 deltaY（Chrome/Firefox/Safari 可能返回不同量级的值）
+    // 归一化 deltaY
     var normalizedDelta = Math.abs(e.deltaY) > 1 ? e.deltaY / 120 : e.deltaY;
     // 方向判断：deltaY < 0 向上滚动（放大），> 0 向下滚动（缩小）
     var step = 0.05;
     var delta = normalizedDelta < 0 ? step : -step;
     var newScale = crop.scale + delta;
-    
-    // 如果当前是1倍（fit模式），第一次放大直接跳到1.1，后续再正常步进
-    if (crop.scale === 1 && delta > 0) {
-      newScale = 1.1;
-    }
     
     // 弹性边界
     if (newScale < 1) newScale = 1;
