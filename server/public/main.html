@@ -5671,6 +5671,10 @@ function updateMonitorPreviewImages() {
       img.src = blobUrl;
       // 恢复 transform
       img.style.transform = currentTransform;
+    } else {
+      // Blob 创建失败时直接用 base64
+      img.src = frame.image;
+      img.style.transform = currentTransform;
     }
   }
 }
@@ -5790,8 +5794,13 @@ function makeMonitorDraggable(wrapper, img, deviceId) {
 
     crop.translateX -= (mouseX - centerX) * (newScale / crop.scale - 1);
     crop.translateY -= (mouseY - centerY) * (newScale / crop.scale - 1);
-    crop.scale = newScale;
-
+crop.scale = newScale;
+    // 回到1倍时重置偏移到中心
+    if (newScale === 1) {
+      crop.translateX = 0;
+      crop.translateY = 0;
+    }
+    
     monitorWallState.crops[deviceId] = crop;
     img.style.transform = 'scale(' + crop.scale + ') translate(' + crop.translateX + 'px, ' + crop.translateY + 'px)';
 
