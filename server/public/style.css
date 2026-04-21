@@ -4016,3 +4016,10 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
     display: none;
   }
 }
+
+/* 窗口宽度小于1200px时隐藏鼠标提示 */
+@media (max-width: 1199px) {
+  .preview-mouse-hint {
+    display: none !important;
+  }
+}
