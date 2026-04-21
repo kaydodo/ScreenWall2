@@ -28,11 +28,18 @@ html, body {
   min-height: 0;
   cursor: grab;
 }
-.wall-cell img {
+/* 双层结构：外层 img-wrapper 用 cover 切掉多余，内层 img 用 contain 完整显示 */
+.wall-cell .img-wrapper {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  overflow: hidden;
+}
+.wall-cell .img-wrapper img {
   width: 100%;
   height: 100%;
   object-fit: contain;
   background: #000;
+  margin: auto;
 }
 .wall-cell.empty {
   display: flex;
@@ -297,7 +304,12 @@ const renderQueue = (function() {
       const img = document.getElementById('img_' + deviceId);
       if (!img) continue;
 
-      // 直接设置 URL（不再使用淡入切换）
+      // 设置 img 尺寸等于格子（scale 1 时视觉大小 = 格子）
+      // 最多支持 3 倍放大（3x 200% = 600% 实际尺寸，外层 cover 切掉多余部分）
+      img.style.width = '100%';
+      img.style.height = '100%';
+
+      // 直接设置 URL
       img.src = frame.url;
 
       // 更新时间戳
@@ -445,7 +457,7 @@ function initWall() {
       var dev = wallData.devices[i];
       var uuBtnHTML = (dev.online !== false && dev.uuDeviceId) ? '<button class="uu-float-btn" onclick="openUU(\'' + dev.uuDeviceId + '\')">🖱️ UU远程</button>' : '';
       cell.innerHTML =
-        '<img id="img_' + dev.id + '" src="" style="display:none;">' +
+        '<div class="img-wrapper"><img id="img_' + dev.id + '" src="" style="display:none;"></div>' +
         '<div class="wall-zoom-level" id="zoom_' + dev.id + '" style="opacity:0;">100%</div>' +
         '<div class="wall-timestamp" id="ts_' + dev.id + '">等待画面</div>' +
         '<div class="wall-info" id="info_' + dev.id + '">' +
@@ -570,17 +582,15 @@ function connectWebSocket() {
         renderQueue.queue(deviceId, pseudoMd5, blobUrl, timestamp);
         stats.framesRendered++;
 
-        // ── 应用裁剪（提前应用，避免 rAF 抖动）──────────
+        // ── 应用裁剪（放大时设置 transform）──────────
         var dev = devices[deviceId];
         var img = document.getElementById('img_' + deviceId);
         if (img && dev && dev.crop && dev.crop.scale && dev.crop.scale !== 1) {
           img.style.transform = 'scale(' + dev.crop.scale + ') translate(' + (dev.crop.translateX || 0) + 'px, ' + (dev.crop.translateY || 0) + 'px)';
           img.style.transformOrigin = 'center center';
-          img.style.objectFit = 'cover';
         } else if (img) {
           img.style.transform = '';
           img.style.transformOrigin = '';
-          img.style.objectFit = 'contain';
         }
 
         img.style.display = 'block';
@@ -851,23 +861,11 @@ function makeWallCellDraggable(cell, deviceId) {
     if (newScale > 3) newScale = 3;
     if (Math.abs(newScale - crop.scale) < 0.001) return;
 
-    // 首次放大时：从contain切换到cover，需要补偿视觉差异
-    var isFirstZoom = (crop.scale === 1 && newScale > 1);
-    if (isFirstZoom) {
-      // 切换到cover模式
-      img.style.objectFit = 'cover';
-      // 补偿：从contain到cover的视觉差，让新scale看起来与之前一致
-      // contain下scale=1是"fit"大小，cover下需要稍大的scale才能视觉一致
-      // 但为简化，直接从1.0跳到1.05（一步补偿到位）
-      newScale = 1.05;
-      delta = 0.05;
-    }
-
     // 以鼠标位置为中心缩放（计算偏移）
     var rect = cell.getBoundingClientRect();
     var mouseX = e.clientX - rect.left - rect.width / 2;
     var mouseY = e.clientY - rect.top - rect.height / 2;
-    var scaleDiff = newScale - (isFirstZoom ? 1 : crop.scale);
+    var scaleDiff = newScale - crop.scale;
 
     crop.scale = newScale;
     // 回到1倍时重置偏移到中心
@@ -875,7 +873,6 @@ function makeWallCellDraggable(cell, deviceId) {
       crop.translateX = 0;
       crop.translateY = 0;
       cell.style.cursor = '';
-      img.style.objectFit = 'contain'; // 恢复到contain
     } else {
       crop.translateX = (crop.translateX || 0) - mouseX * scaleDiff / newScale;
       crop.translateY = (crop.translateY || 0) - mouseY * scaleDiff / newScale;
@@ -883,7 +880,7 @@ function makeWallCellDraggable(cell, deviceId) {
     }
     dev.crop = crop;
 
-    // 应用 transform
+    // 应用 transform（全程用 contain，双层结构：外层cover切边，内层contain放大）
     img.style.transform = 'scale(' + crop.scale + ') translate(' + (crop.translateX || 0) + 'px, ' + (crop.translateY || 0) + 'px)';
     img.style.transformOrigin = 'center center';
 
