@@ -5693,6 +5693,46 @@ function makeMonitorDraggable(wrapper, img, deviceId) {
   document.addEventListener('mouseup', function() {
     isDragging = false;
   });
+
+  // 滚轮缩放：以鼠标位置为中心，步进0.05
+  var lastWheelTime = 0;
+  wrapper.addEventListener('wheel', function(e) {
+    e.preventDefault();
+    var now = Date.now();
+    if (now - lastWheelTime < 80) return; // 80ms节流
+    lastWheelTime = now;
+
+    var crop = monitorWallState.crops[deviceId] || { scale: 1, translateX: 0, translateY: 0 };
+    var delta = e.deltaY < 0 ? 0.05 : -0.05;
+    var newScale = Math.max(1, Math.min(3, crop.scale + delta));
+
+    if (newScale === crop.scale) return;
+
+    // 以鼠标位置为中心缩放
+    var rect = img.getBoundingClientRect();
+    var mouseX = e.clientX - rect.left;
+    var mouseY = e.clientY - rect.top;
+    var centerX = rect.width / 2;
+    var centerY = rect.height / 2;
+
+    crop.translateX -= (mouseX - centerX) * (newScale / crop.scale - 1);
+    crop.translateY -= (mouseY - centerY) * (newScale / crop.scale - 1);
+    crop.scale = newScale;
+
+    monitorWallState.crops[deviceId] = crop;
+    img.style.transform = 'scale(' + crop.scale + ') translate(' + crop.translateX + 'px, ' + crop.translateY + 'px)';
+
+    // 显示缩放比例
+    var el = document.getElementById('zoomLevel_' + deviceId);
+    if (el) {
+      if (monitorZoomTimers[deviceId]) clearTimeout(monitorZoomTimers[deviceId]);
+      el.textContent = Math.round(crop.scale * 100) + '%';
+      el.style.opacity = '1';
+      monitorZoomTimers[deviceId] = setTimeout(function() {
+        el.style.opacity = crop.scale === 1 ? '0' : '0.5';
+      }, 2000);
+    }
+  }, { passive: false });
 }
 
 function openMonitorWall() {
