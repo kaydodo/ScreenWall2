@@ -585,12 +585,9 @@ function connectWebSocket() {
         // ── 应用裁剪（放大时设置 transform）──────────
         var dev = devices[deviceId];
         var img = document.getElementById('img_' + deviceId);
-        if (img && dev && dev.crop && dev.crop.scale && dev.crop.scale !== 1) {
+        if (img) {
           img.style.transform = 'scale(' + dev.crop.scale + ') translate(' + (dev.crop.translateX || 0) + 'px, ' + (dev.crop.translateY || 0) + 'px)';
           img.style.transformOrigin = 'center center';
-        } else if (img) {
-          img.style.transform = '';
-          img.style.transformOrigin = '';
         }
 
         img.style.display = 'block';
