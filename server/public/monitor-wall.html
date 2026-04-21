@@ -874,9 +874,23 @@ function makeWallCellDraggable(cell, deviceId) {
     var newScale = crop.scale + delta;
     
     // 弹性边界
-    if (newScale < 1) newScale = 1;
+    if (newScale < 1) {
+      // scale=1时下滚：有偏移则重置居中，倍数不变
+      if (crop.scale === 1 && (crop.translateX !== 0 || crop.translateY !== 0)) {
+        crop.translateX = 0;
+        crop.translateY = 0;
+        dev.crop = crop;
+        img.style.transform = '';
+        img.style.transformOrigin = 'center center';
+        hideZoom();
+      }
+      return;
+    }
     if (newScale > 3) newScale = 3;
-    if (Math.abs(newScale - crop.scale) < 0.001) return;
+    if (Math.abs(newScale - crop.scale) < 0.001 && crop.scale === 1) {
+      // scale=1时无偏移，直接忽略小变化
+      return;
+    }
 
     // 以鼠标位置为中心缩放（计算偏移）
     var rect = cell.getBoundingClientRect();
@@ -885,11 +899,11 @@ function makeWallCellDraggable(cell, deviceId) {
     var scaleDiff = newScale - crop.scale;
 
     crop.scale = newScale;
-    // 回到1倍时重置偏移到中心
+    // scale=1时只重置偏移
     if (newScale === 1) {
       crop.translateX = 0;
       crop.translateY = 0;
-      cell.style.cursor = '';
+      cell.style.cursor = 'grab';  // 保持可拖拽
     } else {
       crop.translateX = (crop.translateX || 0) - mouseX * scaleDiff / newScale;
       crop.translateY = (crop.translateY || 0) - mouseY * scaleDiff / newScale;
