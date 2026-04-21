@@ -5701,7 +5701,7 @@ function makeMonitorDraggable(wrapper, img, deviceId) {
     img.style.transform = 'scale(' + crop.scale + ') translate(' + crop.translateX + 'px, ' + crop.translateY + 'px)';
   });
   
-  wrapper.addEventListener('mouseup', function(e) {
+  document.addEventListener('mouseup', function(e) {
     isDragging = false;
     startX = undefined;
     startY = undefined;
