@@ -842,6 +842,23 @@ function makeWallCellDraggable(cell, deviceId) {
   var _sX, _sY;
   var _initTranslateX = 0, _initTranslateY = 0;
   var _isDragging = false;
+  var _zoomTimer = null;
+
+  function hideZoom() {
+    var zoomEl = document.getElementById('zoom_' + deviceId);
+    if (zoomEl) zoomEl.style.opacity = '0';
+  }
+
+  function showZoom(scale) {
+    var zoomEl = document.getElementById('zoom_' + deviceId);
+    if (!zoomEl) return;
+    zoomEl.textContent = Math.round(scale * 100) + '%';
+    zoomEl.style.opacity = scale === 1 ? '0' : '1';
+    if (_zoomTimer) clearTimeout(_zoomTimer);
+    if (scale !== 1) {
+      _zoomTimer = setTimeout(hideZoom, 2000);
+    }
+  }
 
   // 滚轮放大/缩小
   cell.addEventListener('wheel', function(e) {
@@ -885,11 +902,7 @@ function makeWallCellDraggable(cell, deviceId) {
     img.style.transformOrigin = 'center center';
 
     // 更新缩放比例显示
-    var zoomEl = document.getElementById('zoom_' + deviceId);
-    if (zoomEl) {
-      zoomEl.textContent = Math.round(crop.scale * 100) + '%';
-      zoomEl.style.opacity = crop.scale === 1 ? '0' : '1';
-    }
+    showZoom(crop.scale);
   }, { passive: false });
 
   // 拖拽开始
