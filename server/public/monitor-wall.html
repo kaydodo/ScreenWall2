@@ -851,11 +851,23 @@ function makeWallCellDraggable(cell, deviceId) {
     if (newScale > 3) newScale = 3;
     if (Math.abs(newScale - crop.scale) < 0.001) return;
 
+    // 首次放大时：从contain切换到cover，需要补偿视觉差异
+    var isFirstZoom = (crop.scale === 1 && newScale > 1);
+    if (isFirstZoom) {
+      // 切换到cover模式
+      img.style.objectFit = 'cover';
+      // 补偿：从contain到cover的视觉差，让新scale看起来与之前一致
+      // contain下scale=1是"fit"大小，cover下需要稍大的scale才能视觉一致
+      // 但为简化，直接从1.0跳到1.05（一步补偿到位）
+      newScale = 1.05;
+      delta = 0.05;
+    }
+
     // 以鼠标位置为中心缩放（计算偏移）
     var rect = cell.getBoundingClientRect();
     var mouseX = e.clientX - rect.left - rect.width / 2;
     var mouseY = e.clientY - rect.top - rect.height / 2;
-    var scaleDiff = newScale - crop.scale;
+    var scaleDiff = newScale - (isFirstZoom ? 1 : crop.scale);
 
     crop.scale = newScale;
     // 回到1倍时重置偏移到中心
@@ -863,6 +875,7 @@ function makeWallCellDraggable(cell, deviceId) {
       crop.translateX = 0;
       crop.translateY = 0;
       cell.style.cursor = '';
+      img.style.objectFit = 'contain'; // 恢复到contain
     } else {
       crop.translateX = (crop.translateX || 0) - mouseX * scaleDiff / newScale;
       crop.translateY = (crop.translateY || 0) - mouseY * scaleDiff / newScale;
@@ -873,7 +886,6 @@ function makeWallCellDraggable(cell, deviceId) {
     // 应用 transform
     img.style.transform = 'scale(' + crop.scale + ') translate(' + (crop.translateX || 0) + 'px, ' + (crop.translateY || 0) + 'px)';
     img.style.transformOrigin = 'center center';
-    img.style.objectFit = 'cover';
 
     // 更新缩放比例显示
     var zoomEl = document.getElementById('zoom_' + deviceId);
