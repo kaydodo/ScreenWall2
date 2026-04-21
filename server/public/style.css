@@ -1290,7 +1290,7 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
   justify-content: center;
   padding: 16px;
   position: relative;
-  overflow: hidden;
+  overflow: visible;
   min-height: 0;
   /* 移除固定宽高比，让图片填满可用空间 */
   aspect-ratio: unset;
