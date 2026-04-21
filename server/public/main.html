@@ -905,6 +905,22 @@ const SESSION = sessionStorage.getItem('sw_session') || '';
   }
 })();
 
+// 鼠标提示文字响应式：>1400显示全文本，1100-1400显示短文本，<1100隐藏
+function updateMouseHint() {
+  var hint = document.getElementById('previewMouseHint');
+  if (!hint) return;
+  var w = window.innerWidth;
+  if (w >= 1400) {
+    hint.textContent = '📌 可使用鼠标左键点击屏幕/shift点击=右键/alt点击=下滚轮/alt+shift点击=上滚轮/shift点击键盘切换大写和字符';
+    hint.style.display = '';
+  } else if (w >= 1100) {
+    hint.textContent = '📌 可使用鼠标左键点击屏幕';
+    hint.style.display = '';
+  } else {
+    hint.style.display = 'none';
+  }
+}
+
 let isMobile = window.matchMedia && window.matchMedia('(max-width: 768px)').matches;
 let gridSize = isMobile ? 2 : 4;  // 移动端默认2列，桌面默认4列
 let devices = [];           // 所有设备列表
@@ -1849,9 +1865,11 @@ function renderGrid() {
     });
     window.addEventListener('resize', function() {
       updateViewport();
+      updateMouseHint();
     });
     // 初始上报
     setTimeout(updateViewport, 1000);
+    setTimeout(updateMouseHint, 100);
   }
 }
 
