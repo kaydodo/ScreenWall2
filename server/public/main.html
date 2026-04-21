@@ -5671,6 +5671,7 @@ function makeMonitorDraggable(wrapper, img, deviceId) {
   var movedX, movedY;
   
   var _sX, _sY, _moved;
+  var _initTranslateX, _initTranslateY;
   wrapper.onmousedown = function(e) {
     if (e.target.tagName === 'BUTTON') return;
     _sX = e.clientX;
@@ -5681,6 +5682,9 @@ function makeMonitorDraggable(wrapper, img, deviceId) {
     isDragging = false;
     startX = e.clientX;
     startY = e.clientY;
+    // 记录初始偏移，拖拽时在此基础上累加
+    _initTranslateX = crop.translateX;
+    _initTranslateY = crop.translateY;
     e.preventDefault();
   };
   
@@ -5694,9 +5698,9 @@ function makeMonitorDraggable(wrapper, img, deviceId) {
     }
     if (!isDragging) return;
     var crop = monitorWallState.crops[deviceId] || { scale: 1, translateX: 0, translateY: 0 };
-    // 按缩放倍数调整移动速度，倍数越大移动越慢（系数2倍放大效果）
-    crop.translateX = dx / (crop.scale * 1.5);
-    crop.translateY = dy / (crop.scale * 1.5);
+    // 在初始偏移基础上累加，按缩放系数调整
+    crop.translateX = _initTranslateX + dx / (crop.scale * 1.5);
+    crop.translateY = _initTranslateY + dy / (crop.scale * 1.5);
     monitorWallState.crops[deviceId] = crop;
     img.style.transform = 'scale(' + crop.scale + ') translate(' + crop.translateX + 'px, ' + crop.translateY + 'px)';
   });
