@@ -825,12 +825,14 @@ function makeWallCellDraggable(cell, deviceId) {
     // 归一化 deltaY（Chrome/Firefox/Safari 可能返回不同量级的值）
     var normalizedDelta = Math.abs(e.deltaY) > 1 ? e.deltaY / 120 : e.deltaY;
     // 方向判断：deltaY < 0 向上滚动（放大），> 0 向下滚动（缩小）
-    var delta = normalizedDelta < 0 ? 0.05 : -0.05;
+    // 接近1倍时（<1.1）使用更小步进，避免跳跃感
+    var step = crop.scale < 1.1 ? 0.02 : 0.05;
+    var delta = normalizedDelta < 0 ? step : -step;
     var newScale = crop.scale + delta;
-    // 限制范围：不能小于1
+    // 弹性边界：不能小于1
     if (newScale < 1) newScale = 1;
     if (newScale > 3) newScale = 3;
-    if (newScale === crop.scale) return; // 没有变化则跳过
+    if (Math.abs(newScale - crop.scale) < 0.001) return; // 没有变化则跳过
 
     // 以鼠标位置为中心缩放（计算偏移）
     var rect = cell.getBoundingClientRect();
