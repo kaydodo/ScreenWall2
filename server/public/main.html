@@ -5561,12 +5561,20 @@ function toggleMonitorDevice(cb) {
         return;
       }
       monitorWallState.selectedDevices.push(deviceId);
+      // 开启该设备的HQ高清流
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'startHQ', deviceId: deviceId }));
+      }
     }
   } else {
     if (idx >= 0) {
       monitorWallState.selectedDevices.splice(idx, 1);
       // 清除裁剪信息
       delete monitorWallState.crops[deviceId];
+      // 关闭该设备的HQ高清流
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'stopHQ', deviceId: deviceId }));
+      }
     }
   }
   updateMonitorPreview();
