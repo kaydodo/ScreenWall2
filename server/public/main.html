@@ -5609,11 +5609,6 @@ function updateMonitorPreview() {
           var wrapper = cell.querySelector('.monitor-preview-img-wrapper');
           var img = cell.querySelector('img');
           makeMonitorDraggable(wrapper, img, deviceId);
-          // 点击关闭（拖拽时不触发）
-          wrapper.addEventListener('click', function(e) {
-            if (wrapper._isDragging) return;
-            removeMonitorPreview(deviceId);
-          });
         } else {
           cell.innerHTML = '<div class="monitor-preview-empty">' + (isOffline ? '设备已离线' : '等待画面...') + '</div>';
         }
