@@ -2677,10 +2677,10 @@ wssBrowser.on('connection', (ws) => {
       // 追踪浏览器预览高清通道
       if (!browserPreviewHD.has(ws)) browserPreviewHD.set(ws, new Set());
       browserPreviewHD.get(ws).add(msg.deviceId);
-      serverLog(`[startHQ] 收到来自浏览器的 startHQ，deviceId=${msg.deviceId}`);
+      
       for (const client of wssClient.clients) {
         if (client._deviceId === msg.deviceId) {
-          serverLog(`[startHQ] 转发给设备 ${msg.deviceId}`);
+          
           client.send(JSON.stringify({ type: 'startHQ' }));
           break;
         }
@@ -3239,12 +3239,12 @@ httpServer.on('request', (req, res) => {
     if (cleanPath === '/api/test-starthq' && req.method === 'POST') {
       const deviceId = urlObj.searchParams.get('deviceId') || 'aeawtmgwtiau3yfl';
       const interval = parseInt(urlObj.searchParams.get('interval')) || 333;
-      serverLog(`[调试] 手动发送 startHQ 给设备 ${deviceId} (interval=${interval})`);
+      
       let sent = false;
       for (const client of wssClient.clients) {
         if (client._deviceId === deviceId) {
           client.send(JSON.stringify({ type: 'startHQ', interval }));
-          serverLog(`[调试] startHQ 已发送`);
+          
           sent = true;
           break;
         }
