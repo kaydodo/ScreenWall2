@@ -5598,7 +5598,7 @@ function updateMonitorPreview() {
         var offlineStyle = isOffline ? 'filter: grayscale(100%);opacity:0.5;' : '';
         
         if (device.screenshot) {
-          cell.innerHTML = '<div class="monitor-preview-img-wrapper' + offlineClass + '" data-device-id="' + deviceId + '" onmousedown="event.stopPropagation()" onclick="removeMonitorPreview(\'' + deviceId + '\')">' +
+          cell.innerHTML = '<div class="monitor-preview-img-wrapper' + offlineClass + '" data-device-id="' + deviceId + '">' +
             '<img src="' + device.screenshot + '" style="transform: scale(' + crop.scale + ') translate(' + crop.translateX + 'px, ' + crop.translateY + 'px);' + offlineStyle + '">' +
             '<div class="monitor-zoom-level" id="zoomLevel_' + deviceId + '">' + (crop.scale * 100).toFixed(0) + '%</div>' +
             '<div class="monitor-preview-name">' + device.deviceName + (isOffline ? ' (离线)' : '') + '</div>' +
@@ -5689,7 +5689,7 @@ function makeMonitorDraggable(wrapper, img, deviceId) {
     e.preventDefault();
   };
   
-  document.addEventListener('mousemove', function(e) {
+  wrapper.addEventListener('mousemove', function(e) {
     if (startX === undefined) return;
     var dx = e.clientX - startX;
     var dy = e.clientY - startY;
@@ -5705,7 +5705,7 @@ function makeMonitorDraggable(wrapper, img, deviceId) {
     img.style.transform = 'scale(' + crop.scale + ') translate(' + crop.translateX + 'px, ' + crop.translateY + 'px)';
   });
   
-  document.addEventListener('mouseup', function(e) {
+  wrapper.addEventListener('mouseup', function(e) {
     isDragging = false;
     startX = undefined;
     startY = undefined;
