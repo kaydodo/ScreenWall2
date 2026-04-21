@@ -1187,10 +1187,7 @@ function connectWS() {
           }
         }
         // 同步更新鼠标提示文字（电脑端+有键盘时显示）
-        const mouseHint = document.getElementById('previewMouseHint');
-        if (mouseHint) {
-          mouseHint.style.display = (previewDev && previewDev.supportsKeyClient && !isMobile) ? 'inline' : 'none';
-        }
+        updateMouseHint();
         // 更新预览弹窗远控按钮状态
         updatePreviewRemoteBtn();
       }
@@ -2828,8 +2825,7 @@ function openPreview(cellIndex) {
   const btn1080 = document.getElementById('preview1080Btn');
   if (btn1080) btn1080.classList.remove('active'); // 确保每次打开都是关闭状态
   // 重置鼠标提示（后续根据条件重新设置）
-  const mouseHint = document.getElementById('previewMouseHint');
-  if (mouseHint) mouseHint.style.display = 'none';
+  updateMouseHint();
   // 移动端键盘按钮：根据设备是否支持键盘显示/隐藏
   const kbbtnMobile = document.getElementById('previewKBbtnMobile');
   if (kbbtnMobile) {
@@ -2839,11 +2835,7 @@ function openPreview(cellIndex) {
       kbbtnMobile.style.display = 'none';
     }
   }
-  // 鼠标提示：电脑端+有键盘时显示（排除报警预览）
-  if (mouseHint) {
-    const isAlarmPreview = cell.deviceId && cell.deviceId.startsWith('__ALARM__');
-    mouseHint.style.display = (!isAlarmPreview && dev && dev.supportsKeyClient && !isMobile) ? 'inline' : 'none';
-  }
+  // 鼠标提示：统一通过 updateMouseHint 处理
   // 绑定预览图片点击事件（仅桌面端，移动端不支持鼠标点击）
   if (previewImg && !isMobile) {
     previewImg.onclick = handlePreviewImageClick;
@@ -2863,9 +2855,8 @@ function closePreview() {
   // 关闭时隐藏显示器切换按钮（移动端）
   const monitorBtnMobile = document.getElementById('previewMonitorBtnMobile');
   if (monitorBtnMobile) monitorBtnMobile.style.display = 'none';
-  // 关闭时隐藏鼠标提示
-  const mouseHint = document.getElementById('previewMouseHint');
-  if (mouseHint) mouseHint.style.display = 'none';
+  // 关闭时隐藏鼠标提示（统一通过 updateMouseHint 处理）
+  updateMouseHint();
   // 关闭时隐藏远控设备列表弹窗
   closeRemoteListModal();
   // 关闭时隐藏远控按钮
@@ -5207,9 +5198,8 @@ function openAlarmPreview(alarmId) {
   // 报警预览不显示 1080p 按钮
   const btn1080Container = document.getElementById('preview1080Container');
   if (btn1080Container) btn1080Container.style.display = 'none';
-  // 报警预览不显示鼠标提示
-  const mouseHint = document.getElementById('previewMouseHint');
-  if (mouseHint) mouseHint.style.display = 'none';
+  // 报警预览不显示鼠标提示（统一通过 updateMouseHint 处理，它会根据 deviceId 判断）
+  updateMouseHint();
   // 报警预览不显示远控按钮（默认隐藏，这里确保不显示）
   const remoteWrap = document.getElementById('previewRemoteWrap');
   if (remoteWrap) remoteWrap.style.display = 'none';
@@ -5407,7 +5397,7 @@ function updatePreviewKeyboardBtn() {
   const mouseHint = document.getElementById('previewMouseHint');
   if (kbbtn) kbbtn.style.display = (previewDev && previewDev.supportsKeyClient) ? 'inline-flex' : 'none';
   if (kbbtnMobile) kbbtnMobile.style.display = (previewDev && previewDev.supportsKeyClient) ? 'flex' : 'none';
-  if (mouseHint) mouseHint.style.display = (previewDev && previewDev.supportsKeyClient && !isMobile) ? 'inline' : 'none';
+  updateMouseHint();
 }
 
 // ========== 移动端侧栏收起 ==========
