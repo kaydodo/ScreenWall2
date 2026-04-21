@@ -690,6 +690,8 @@ if (typeof PerformanceObserver !== 'undefined') {
 function scheduleRender() {
   if (renderScheduled) return;
   renderScheduled = true;
+  // 先更新监控上墙预览的图片（在 pendingFrames 被清空之前）
+  updateMonitorPreviewImages();
   requestAnimationFrame(renderPendingFrames);
 }
 
@@ -738,6 +740,8 @@ function renderPendingFrames() {
       for (const [deviceId] of pendingFrames) {
         frameHealCount.delete(deviceId);
       }
+      // 在清空之前更新监控上墙预览
+      updateMonitorPreviewImages();
       pendingFrames.clear();
     } else {
       // 预览模式：只保留预览设备的帧，其他全部丢弃
@@ -5670,10 +5674,6 @@ function updateMonitorPreviewImages() {
       monitorBlobUrlCache.set(deviceId, blobUrl);
       img.src = blobUrl;
       // 恢复 transform
-      img.style.transform = currentTransform;
-    } else {
-      // Blob 创建失败时直接用 base64
-      img.src = frame.image;
       img.style.transform = currentTransform;
     }
   }
