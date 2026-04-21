@@ -899,17 +899,22 @@ function makeWallCellDraggable(cell, deviceId) {
     var scaleDiff = newScale - crop.scale;
 
     crop.scale = newScale;
-    // scale=1时只重置偏移
-    if (newScale === 1) {
+    // scale=1 时只在下滚（缩小）时重置居中，拖拽不触发
+    if (newScale === 1 && delta < 0) {
       crop.translateX = 0;
       crop.translateY = 0;
-      cell.style.cursor = 'grab';  // 保持可拖拽
-    } else {
+    } else if (newScale > 1) {
       crop.translateX = (crop.translateX || 0) - mouseX * scaleDiff / newScale;
       crop.translateY = (crop.translateY || 0) - mouseY * scaleDiff / newScale;
-      cell.style.cursor = 'grab';
     }
     dev.crop = crop;
+
+    // scale > 1 显示 grab 光标
+    if (newScale > 1) {
+      cell.style.cursor = 'grab';
+    } else {
+      cell.style.cursor = '';
+    }
 
     // 应用 transform（全程用 contain，双层结构：外层cover切边，内层contain放大）
     img.style.transform = 'scale(' + crop.scale + ') translate(' + (crop.translateX || 0) + 'px, ' + (crop.translateY || 0) + 'px)';
