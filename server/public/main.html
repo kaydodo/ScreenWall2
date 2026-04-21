@@ -914,6 +914,7 @@ let serverVersion = '';      // 服务端版本号
 let activeFilters = new Set();  // 当前激活的分组筛选，空=全显示
 let selectedCell = null;    // 当前选中待设置的格子
 let previewDeviceId = null;  // 当前预览设备
+let previewHQMode = false;   // 当前预览是否开启了HQ高清
 let alarmPreviewDeviceId = null;  // 报警预览绑定的真实设备ID
 let previewImageDeviceId = null;  // 当前查看的收藏截图设备ID
 let previewActive = false;   // 预览激活时暂停格子渲染
@@ -2741,6 +2742,12 @@ function openPreview(cellIndex) {
   previewActive = true;  // 暂停格子渲染
   pendingFrames.clear(); // 清空旧的格子帧缓冲
 
+  // 开启HQ高清流（不使用1080p，只用普通高清）
+  previewHQMode = true;
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'startHQ', deviceId: cell.deviceId }));
+  }
+
   // 初始化UU按钮（无论在线离线都要设置，否则刷新后按钮丢失功能）
   const uuId = cell.uuDeviceId || null;
   const uubtn = document.getElementById('previewUUbtn');
@@ -2854,6 +2861,12 @@ function closePreview() {
     ws.send(JSON.stringify({ type: 'hq1080Off' }));
   }
   preview1080Mode = false;
+  
+  // 关闭HQ高清流
+  if (previewHQMode && previewDeviceId && ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'stopHQ', deviceId: previewDeviceId }));
+  }
+  previewHQMode = false;
   // 解绑预览图片点击事件
   const previewImg = document.getElementById('previewImg');
   if (previewImg) previewImg.onclick = null;

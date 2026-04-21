@@ -2677,10 +2677,10 @@ wssBrowser.on('connection', (ws) => {
       // 追踪浏览器预览高清通道
       if (!browserPreviewHD.has(ws)) browserPreviewHD.set(ws, new Set());
       browserPreviewHD.get(ws).add(msg.deviceId);
-      // serverLog(`[startHQ] 收到来自浏览器的 startHQ，deviceId=${msg.deviceId}，browserPreviewHD大小=${browserPreviewHD.size}`);
+      serverLog(`[startHQ] 收到来自浏览器的 startHQ，deviceId=${msg.deviceId}`);
       for (const client of wssClient.clients) {
         if (client._deviceId === msg.deviceId) {
-          // serverLog(`[startHQ] 转发给设备 ${msg.deviceId}`);
+          serverLog(`[startHQ] 转发给设备 ${msg.deviceId}`);
           client.send(JSON.stringify({ type: 'startHQ' }));
           break;
         }

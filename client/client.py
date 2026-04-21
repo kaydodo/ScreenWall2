@@ -917,7 +917,7 @@ class ScreenCapturer:
             return m["left"], m["top"], m["width"], m["height"]
         return 0, 0, 1920, 1080
 
-    def capture(self, hq=False, lossless=False, hq_limit=720):
+    def capture(self, hq=False, lossless=False, hq_limit=720, hq_quality=30):
         # hq_limit: HQ 模式分辨率上限，默认 720p（普通预览），可设为 1080（高清预览）
         img_bytes = None
         use_dxgi = False
@@ -949,7 +949,7 @@ class ScreenCapturer:
                             pic.save(buf, format="WEBP", lossless=True)
                             img_bytes = buf.getvalue()
                         else:
-                            pic.save(buf, format="WEBP", quality=self.quality if not hq else 30, method=6)
+                            pic.save(buf, format="WEBP", quality=self.quality if not hq else hq_quality, method=6)
                             img_bytes = buf.getvalue()
                         if len(img_bytes) < 1000:
                             img_bytes = None
@@ -978,7 +978,7 @@ class ScreenCapturer:
                         pic.save(buf, format="WEBP", lossless=True)
                         img_bytes = buf.getvalue()
                     else:
-                        pic.save(buf, format="WEBP", quality=self.quality if not hq else 30, method=6)
+                        pic.save(buf, format="WEBP", quality=self.quality if not hq else hq_quality, method=6)
                         img_bytes = buf.getvalue()
                     if len(img_bytes) < 1000:
                         self._mss_ok = False
@@ -1002,7 +1002,7 @@ class ScreenCapturer:
                     pic.save(buf, format="WEBP", lossless=True)
                     img_bytes = buf.getvalue()
                 else:
-                    pic.save(buf, format="WEBP", quality=self.quality if not hq else 30, method=6)
+                    pic.save(buf, format="WEBP", quality=self.quality if not hq else hq_quality, method=6)
                     img_bytes = buf.getvalue()
             except Exception:
                 pass
@@ -1706,7 +1706,7 @@ class ScreenWallClient:
                 if self.hq_mode:
                     # HQ 模式：只截高清图（服务器负责压缩给格子）
                     # hq_1080=True 时使用 1080p 分辨率上限，否则默认 720p
-                    img_bytes = capt.capture(hq=True, hq_limit=1080 if self.hq_1080 else 720)
+                    img_bytes = capt.capture(hq=True, hq_limit=1080 if self.hq_1080 else 720, hq_quality=70)
                 else:
                     img_bytes = capt.capture(hq=False)
             finally:
