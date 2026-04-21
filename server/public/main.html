@@ -5786,6 +5786,14 @@ function makeMonitorDraggable(wrapper, img, deviceId) {
     isDragging = false;
     startX = undefined;
     startY = undefined;
+    // 鼠标松开且未移动超过3px = 点击
+    if (!_moved && _sX !== undefined) {
+      var dx = e.clientX - _sX;
+      var dy = e.clientY - _sY;
+      if (Math.abs(dx) < 4 && Math.abs(dy) < 4) {
+        removeMonitorPreview(deviceId);
+      }
+    }
   });
 
   // 滚轮缩放：以鼠标位置为中心，步进0.05

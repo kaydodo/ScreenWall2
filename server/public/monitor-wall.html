@@ -23,7 +23,7 @@ html, body {
 .wall-cell {
   position: relative;
   background: #1a1d27;
-  overflow: hidden;
+  overflow: visible;
   min-width: 0;
   min-height: 0;
 }
@@ -447,6 +447,16 @@ function initWall() {
     container.appendChild(cell);
   }
 
+  // 为所有格子添加滚轮放大和拖拽功能
+  for (var i = 0; i < wallData.layout; i++) {
+    var cell = document.getElementById('cell_' + i);
+    if (!cell) continue;
+    var devId = wallData.devices[i] ? wallData.devices[i].id : null;
+    if (devId) {
+      makeWallCellDraggable(cell, devId);
+    }
+  }
+
   // 开启统计面板（调试用）
   if (wallData.debug) {
     document.getElementById('statsPanel').style.display = 'block';
@@ -790,6 +800,85 @@ function formatDate(date) {
   var min = String(date.getMinutes()).padStart(2, '0');
   var s = String(date.getSeconds()).padStart(2, '0');
   return y + '-' + m + '-' + d + ' ' + h + ':' + min + ':' + s;
+}
+
+// ─────────────────────────────────────────
+// 滚轮放大 + 拖拽功能（与main.html预览一致）
+// ─────────────────────────────────────────
+var _wallDragState = {}; // deviceId -> { isDragging, startX, startY, initTranslateX, initTranslateY }
+
+function makeWallCellDraggable(cell, deviceId) {
+  var img = document.getElementById('img_' + deviceId);
+  if (!img) return;
+
+  var _sX, _sY;
+  var _initTranslateX = 0, _initTranslateY = 0;
+
+  // 滚轮放大/缩小
+  cell.addEventListener('wheel', function(e) {
+    e.preventDefault();
+    var dev = devices[deviceId];
+    if (!dev) return;
+    var crop = dev.crop || { scale: 1, translateX: 0, translateY: 0 };
+    var delta = e.deltaY > 0 ? -0.05 : 0.05;
+    var newScale = Math.max(1, Math.min(3, crop.scale + delta));
+
+    // 以鼠标位置为中心缩放（计算偏移）
+    var rect = cell.getBoundingClientRect();
+    var mouseX = e.clientX - rect.left - rect.width / 2;
+    var mouseY = e.clientY - rect.top - rect.height / 2;
+    var scaleDiff = newScale - crop.scale;
+
+    crop.scale = newScale;
+    // 回到1倍时重置偏移到中心
+    if (newScale === 1) {
+      crop.translateX = 0;
+      crop.translateY = 0;
+    } else {
+      crop.translateX = (crop.translateX || 0) - mouseX * scaleDiff / newScale;
+      crop.translateY = (crop.translateY || 0) - mouseY * scaleDiff / newScale;
+    }
+    dev.crop = crop;
+
+    // 应用 transform
+    img.style.transform = 'scale(' + crop.scale + ') translate(' + (crop.translateX || 0) + 'px, ' + (crop.translateY || 0) + 'px)';
+    img.style.transformOrigin = 'center center';
+    img.style.objectFit = 'cover';
+  }, { passive: false });
+
+  // 拖拽开始
+  cell.addEventListener('mousedown', function(e) {
+    if (e.target.tagName === 'BUTTON') return;
+    _sX = e.clientX;
+    _sY = e.clientY;
+    var dev = devices[deviceId];
+    if (!dev || !dev.crop || dev.crop.scale <= 1) return;
+    _initTranslateX = dev.crop.translateX || 0;
+    _initTranslateY = dev.crop.translateY || 0;
+    e.preventDefault();
+  });
+
+  // 拖拽移动
+  document.addEventListener('mousemove', function(e) {
+    if (_sX === undefined) return;
+    var dx = e.clientX - _sX;
+    var dy = e.clientY - _sY;
+    if (Math.abs(dx) < 3 && Math.abs(dy) < 3) return;
+
+    var dev = devices[deviceId];
+    if (!dev || !dev.crop) return;
+
+    // 按缩放系数调整移动速度
+    dev.crop.translateX = _initTranslateX + dx / (dev.crop.scale * 1.5);
+    dev.crop.translateY = _initTranslateY + dy / (dev.crop.scale * 1.5);
+    img.style.transform = 'scale(' + dev.crop.scale + ') translate(' + dev.crop.translateX + 'px, ' + dev.crop.translateY + 'px)';
+  });
+
+  // 拖拽释放
+  document.addEventListener('mouseup', function(e) {
+    _sX = undefined;
+    _sY = undefined;
+  });
 }
 
 // 初始化
