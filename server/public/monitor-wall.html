@@ -836,9 +836,11 @@ function makeWallCellDraggable(cell, deviceId) {
     if (newScale === 1) {
       crop.translateX = 0;
       crop.translateY = 0;
+      cell.style.cursor = '';
     } else {
       crop.translateX = (crop.translateX || 0) - mouseX * scaleDiff / newScale;
       crop.translateY = (crop.translateY || 0) - mouseY * scaleDiff / newScale;
+      cell.style.cursor = 'grab';
     }
     dev.crop = crop;
 
@@ -851,10 +853,10 @@ function makeWallCellDraggable(cell, deviceId) {
   // 拖拽开始
   cell.addEventListener('mousedown', function(e) {
     if (e.target.tagName === 'BUTTON') return;
-    _sX = e.clientX;
-    _sY = e.clientY;
     var dev = devices[deviceId];
     if (!dev || !dev.crop || dev.crop.scale <= 1) return;
+    _sX = e.clientX;
+    _sY = e.clientY;
     _initTranslateX = dev.crop.translateX || 0;
     _initTranslateY = dev.crop.translateY || 0;
     _isDragging = false;
