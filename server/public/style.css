@@ -3139,7 +3139,7 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
 .monitor-preview-cell {
   background: #1a1d27;
   position: relative;
-  overflow: hidden;
+  overflow: visible;
   min-height: 0;
 }
 
