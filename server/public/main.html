@@ -5598,7 +5598,7 @@ function updateMonitorPreview() {
         var offlineStyle = isOffline ? 'filter: grayscale(100%);opacity:0.5;' : '';
         
         if (device.screenshot) {
-          cell.innerHTML = '<div class="monitor-preview-img-wrapper' + offlineClass + '" data-device-id="' + deviceId + '" onmousedown="event.stopPropagation()" onclick="if(this._dragged)removeMonitorPreview(\'' + deviceId + '\');this._dragged=false">' +
+          cell.innerHTML = '<div class="monitor-preview-img-wrapper' + offlineClass + '" data-device-id="' + deviceId + '" onmousedown="event.stopPropagation()" onclick="removeMonitorPreview(\'' + deviceId + '\')">' +
             '<img src="' + device.screenshot + '" style="transform: scale(' + crop.scale + ') translate(' + crop.translateX + 'px, ' + crop.translateY + 'px);' + offlineStyle + '">' +
             '<div class="monitor-zoom-level" id="zoomLevel_' + deviceId + '">' + (crop.scale * 100).toFixed(0) + '%</div>' +
             '<div class="monitor-preview-name">' + device.deviceName + (isOffline ? ' (离线)' : '') + '</div>' +
@@ -5707,6 +5707,12 @@ function makeMonitorDraggable(wrapper, img, deviceId) {
     isDragging = false;
     startX = undefined;
     startY = undefined;
+    // 拖拽后禁用点击，稍后恢复
+    wrapper.style.pointerEvents = 'none';
+    setTimeout(function() {
+      wrapper.style.pointerEvents = '';
+      wrapper._dragged = false;
+    }, 50);
   });
 
   // 滚轮缩放：以鼠标位置为中心，步进0.05
