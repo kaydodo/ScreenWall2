@@ -5730,7 +5730,7 @@ function makeMonitorDraggable(wrapper, img, deviceId) {
       el.style.opacity = '1';
       monitorZoomTimers[deviceId] = setTimeout(function() {
         el.style.opacity = crop.scale === 1 ? '0' : '0.5';
-      }, 2000);
+      }, 800);
     }
   }, { passive: false });
 }
