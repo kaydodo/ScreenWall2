@@ -906,10 +906,19 @@ const SESSION = sessionStorage.getItem('sw_session') || '';
 })();
 
 // 鼠标提示文字响应式：>1400显示全文本，1100-1400显示短文本，<1100隐藏
+// 仅在 supportsKeyClient 且非移动端时显示
 function updateMouseHint() {
   var hint = document.getElementById('previewMouseHint');
   if (!hint) return;
   var w = window.innerWidth;
+  // 显示条件：非移动端 + 有键盘支持
+  var show = !isMobile && previewDeviceId && devices.some(function(d) {
+    return d.deviceId === previewDeviceId && d.supportsKeyClient;
+  });
+  if (!show) {
+    hint.style.display = 'none';
+    return;
+  }
   if (w >= 1400) {
     hint.textContent = '📌 可使用鼠标左键点击屏幕/shift点击=右键/alt点击=下滚轮/alt+shift点击=上滚轮/shift点击键盘切换大写和字符';
     hint.style.display = '';
@@ -1134,11 +1143,7 @@ function connectWS() {
       // 检测是否有设备支持键盘客户端功能
       keyClientExists = devices.some(function(d) { return d.supportsKeyClient === true; });
       // 同步更新鼠标提示文字（电脑端+有键盘时显示）
-      const mouseHint = document.getElementById('previewMouseHint');
-      if (mouseHint && previewDeviceId) {
-        const previewDev = devices.find(d => d.deviceId === previewDeviceId);
-        mouseHint.style.display = (previewDev && previewDev.supportsKeyClient && !isMobile) ? 'inline' : 'none';
-      }
+      updateMouseHint();
     }
 
     if (msg.type === 'deviceList') {
