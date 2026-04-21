@@ -5598,8 +5598,7 @@ function updateMonitorPreview() {
         var offlineStyle = isOffline ? 'filter: grayscale(100%);opacity:0.5;' : '';
         
         if (device.screenshot) {
-          cell.innerHTML = '<div class="monitor-preview-img-wrapper' + offlineClass + '" data-device-id="' + deviceId + '">' +
-            '<button class="monitor-preview-remove" onclick="removeMonitorPreview(\'' + deviceId + '\')" title="移除">×</button>' +
+          cell.innerHTML = '<div class="monitor-preview-img-wrapper' + offlineClass + '" data-device-id="' + deviceId + '" onclick="removeMonitorPreview(\'' + deviceId + '\')">' +
             '<img src="' + device.screenshot + '" style="transform: scale(' + crop.scale + ') translate(' + crop.translateX + 'px, ' + crop.translateY + 'px);' + offlineStyle + '">' +
             '<div class="monitor-preview-controls">' +
               '<button onclick="zoomMonitorPreview(\'' + deviceId + '\', 0.5)">+</button>' +
