@@ -5600,11 +5600,7 @@ function updateMonitorPreview() {
         if (device.screenshot) {
           cell.innerHTML = '<div class="monitor-preview-img-wrapper' + offlineClass + '" data-device-id="' + deviceId + '" onclick="removeMonitorPreview(\'' + deviceId + '\')">' +
             '<img src="' + device.screenshot + '" style="transform: scale(' + crop.scale + ') translate(' + crop.translateX + 'px, ' + crop.translateY + 'px);' + offlineStyle + '">' +
-            '<div class="monitor-preview-controls">' +
-              '<button onclick="zoomMonitorPreview(\'' + deviceId + '\', 0.5)">+</button>' +
-              '<span class="monitor-zoom-level">' + (crop.scale * 100).toFixed(0) + '%</span>' +
-              '<button onclick="zoomMonitorPreview(\'' + deviceId + '\', -0.5)">-</button>' +
-            '</div>' +
+            '<div class="monitor-zoom-level" id="zoomLevel_' + deviceId + '">' + (crop.scale * 100).toFixed(0) + '%</div>' +
             '<div class="monitor-preview-name">' + device.deviceName + (isOffline ? ' (离线)' : '') + '</div>' +
             offlineBadge +
             '</div>';
@@ -5644,6 +5640,29 @@ function zoomMonitorPreview(deviceId, delta) {
   crop.scale = Math.max(1, Math.min(4, crop.scale + delta));
   monitorWallState.crops[deviceId] = crop;
   updateMonitorPreview();
+  // 显示缩放比例，2秒后自动隐藏（如果已恢复到1倍则不显示）
+  showZoomLevel(deviceId);
+}
+
+var monitorZoomTimers = {};
+function showZoomLevel(deviceId) {
+  var el = document.getElementById('zoomLevel_' + deviceId);
+  if (!el) return;
+  // 清除之前的定时器
+  if (monitorZoomTimers[deviceId]) {
+    clearTimeout(monitorZoomTimers[deviceId]);
+  }
+  // 显示
+  el.style.opacity = '1';
+  // 2秒后隐藏（如果已恢复到1倍则不显示）
+  monitorZoomTimers[deviceId] = setTimeout(function() {
+    var crop = monitorWallState.crops[deviceId];
+    if (!crop || crop.scale === 1) {
+      el.style.opacity = '0';
+    } else {
+      el.style.opacity = '0.5'; // 保持半透明显示
+    }
+  }, 2000);
 }
 
 function makeMonitorDraggable(wrapper, img, deviceId) {

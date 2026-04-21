@@ -3241,10 +3241,17 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
 }
 
 .monitor-zoom-level {
-  font-size: 11px;
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(0,0,0,0.8);
   color: #fff;
-  min-width: 36px;
-  text-align: center;
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
 }
 
 .monitor-preview-name {
