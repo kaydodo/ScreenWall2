@@ -5768,7 +5768,6 @@ function makeMonitorDraggable(wrapper, img, deviceId) {
     _sY = e.clientY;
     _moved = false;
     var crop = monitorWallState.crops[deviceId] || { scale: 1, translateX: 0, translateY: 0 };
-    if (crop.scale <= 1) return;
     isDragging = false;
     startX = e.clientX;
     startY = e.clientY;

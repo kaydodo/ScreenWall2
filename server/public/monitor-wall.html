@@ -909,7 +909,7 @@ function makeWallCellDraggable(cell, deviceId) {
   cell.addEventListener('mousedown', function(e) {
     if (e.target.tagName === 'BUTTON') return;
     var dev = devices[deviceId];
-    if (!dev || !dev.crop || dev.crop.scale <= 1) return;
+    if (!dev || !dev.crop) return;
     _sX = e.clientX;
     _sY = e.clientY;
     _initTranslateX = dev.crop.translateX || 0;
