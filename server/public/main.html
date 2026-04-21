@@ -5598,7 +5598,7 @@ function updateMonitorPreview() {
         var offlineStyle = isOffline ? 'filter: grayscale(100%);opacity:0.5;' : '';
         
         if (device.screenshot) {
-          cell.innerHTML = '<div class="monitor-preview-img-wrapper' + offlineClass + '" data-device-id="' + deviceId + '" onclick="removeMonitorPreview(\'' + deviceId + '\')">' +
+          cell.innerHTML = '<div class="monitor-preview-img-wrapper' + offlineClass + '" data-device-id="' + deviceId + '" onmousedown="event.stopPropagation()" onclick="if(this._dragged)removeMonitorPreview(\'' + deviceId + '\');this._dragged=false">' +
             '<img src="' + device.screenshot + '" style="transform: scale(' + crop.scale + ') translate(' + crop.translateX + 'px, ' + crop.translateY + 'px);' + offlineStyle + '">' +
             '<div class="monitor-zoom-level" id="zoomLevel_' + deviceId + '">' + (crop.scale * 100).toFixed(0) + '%</div>' +
             '<div class="monitor-preview-name">' + device.deviceName + (isOffline ? ' (离线)' : '') + '</div>' +
@@ -5673,33 +5673,40 @@ function showZoomLevel(deviceId) {
 function makeMonitorDraggable(wrapper, img, deviceId) {
   var isDragging = false;
   var startX, startY;
-  var crop = monitorWallState.crops[deviceId] || { scale: 1, translateX: 0, translateY: 0 };
+  var movedX, movedY;
   
   wrapper.onmousedown = function(e) {
-    wrapper._isDragging = false;
     if (e.target.tagName === 'BUTTON') return;
     var crop = monitorWallState.crops[deviceId] || { scale: 1, translateX: 0, translateY: 0 };
     if (crop.scale <= 1) return; // 未放大时不可拖动
     
-    isDragging = true;
-    wrapper._isDragging = true;
-    startX = e.clientX - (crop.translateX || 0);
-    startY = e.clientY - (crop.translateY || 0);
+    wrapper._dragged = false;
+    isDragging = false;
+    startX = e.clientX;
+    startY = e.clientY;
     e.preventDefault();
   };
   
   document.addEventListener('mousemove', function(e) {
+    if (startX === undefined) return;
+    var dx = e.clientX - startX;
+    var dy = e.clientY - startY;
+    if (!isDragging && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
+      isDragging = true;
+      wrapper._dragged = true;
+    }
     if (!isDragging) return;
     var crop = monitorWallState.crops[deviceId] || { scale: 1, translateX: 0, translateY: 0 };
-    crop.translateX = e.clientX - startX;
-    crop.translateY = e.clientY - startY;
+    crop.translateX = dx;
+    crop.translateY = dy;
     monitorWallState.crops[deviceId] = crop;
     img.style.transform = 'scale(' + crop.scale + ') translate(' + crop.translateX + 'px, ' + crop.translateY + 'px)';
   });
   
   document.addEventListener('mouseup', function() {
     isDragging = false;
-    wrapper._isDragging = false;
+    startX = undefined;
+    startY = undefined;
   });
 
   // 滚轮缩放：以鼠标位置为中心，步进0.05
