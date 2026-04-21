@@ -26,6 +26,7 @@ html, body {
   overflow: hidden;
   min-width: 0;
   min-height: 0;
+  cursor: grab;
 }
 .wall-cell img {
   width: 100%;
@@ -813,6 +814,7 @@ function makeWallCellDraggable(cell, deviceId) {
 
   var _sX, _sY;
   var _initTranslateX = 0, _initTranslateY = 0;
+  var _isDragging = false;
 
   // 滚轮放大/缩小
   cell.addEventListener('wheel', function(e) {
@@ -855,6 +857,7 @@ function makeWallCellDraggable(cell, deviceId) {
     if (!dev || !dev.crop || dev.crop.scale <= 1) return;
     _initTranslateX = dev.crop.translateX || 0;
     _initTranslateY = dev.crop.translateY || 0;
+    _isDragging = false;
     e.preventDefault();
   });
 
@@ -863,7 +866,13 @@ function makeWallCellDraggable(cell, deviceId) {
     if (_sX === undefined) return;
     var dx = e.clientX - _sX;
     var dy = e.clientY - _sY;
-    if (Math.abs(dx) < 3 && Math.abs(dy) < 3) return;
+
+    // 开始拖拽
+    if (!_isDragging && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
+      _isDragging = true;
+      cell.style.cursor = 'grabbing';
+    }
+    if (!_isDragging) return;
 
     var dev = devices[deviceId];
     if (!dev || !dev.crop) return;
@@ -878,6 +887,8 @@ function makeWallCellDraggable(cell, deviceId) {
   document.addEventListener('mouseup', function(e) {
     _sX = undefined;
     _sY = undefined;
+    cell.style.cursor = '';
+    _isDragging = false;
   });
 }
 
