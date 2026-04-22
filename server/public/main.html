@@ -305,8 +305,9 @@
 </div>
 <div class="preview-overlay" id="previewOverlay">
   <div class="preview-titlebar" id="previewTitlebar">
-    <div style="display:flex;align-items:center;gap:30px;">
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
       <span id="previewDeviceName">实时预览</span>
+      <span id="previewMouseHint" style="display:none;color:#aaa;font-size:13px;">📌 可使用滚轮放大然后拖拽到合适位置（上墙画面同理）</span>
       <!-- 远控开关和列表按钮，紧跟标题 -->
       <div style="display:inline-flex;align-items:center;gap:4px;position:relative;z-index:10;" id="previewRemoteWrap">
         <div id="previewRemoteSlider" onclick="event.stopPropagation();togglePreviewRemote()" style="width:36px;height:18px;background:#555;border-radius:9px;position:relative;transition:background 0.2s;cursor:pointer;pointer-events:auto;">
@@ -318,7 +319,6 @@
     </div>
     <div class="preview-controls" style="padding-right:70px;">
       <div style="position:fixed;left:50%;transform:translateX(-50%);">
-        <span class="preview-mouse-hint" id="previewMouseHint" style="display:none;color:#aaa;font-size:13px;">📌 可使用鼠标左键点击屏幕/shift点击=右键/alt点击=下滚轮/alt+shift点击=上滚轮/shift点击键盘切换大写和字符</span>
         <button class="preview-kb-btn" id="previewMonitorBtn" title="切换显示器" onclick="cycleMonitor()" style="display:none;background:#2a2d3a;border:1px solid #444;color:#fff;border-radius:6px;padding:4px 10px;font-size:13px;cursor:pointer;">🖥️ 显示器 1</button>
         <button class="preview-kb-btn" id="previewKBbtn" title="键盘控制" onclick="togglePreviewKeyboard()">⌨️ 键盘</button>
       </div>
@@ -905,29 +905,12 @@ const SESSION = sessionStorage.getItem('sw_session') || '';
   }
 })();
 
-// 鼠标提示文字响应式：>1400显示全文本，1100-1400显示短文本，<1100隐藏
-// 仅在 supportsKeyClient 且非移动端时显示
+// 鼠标提示文字响应式：>=1200显示，<1200隐藏
 function updateMouseHint() {
   var hint = document.getElementById('previewMouseHint');
   if (!hint) return;
   var w = window.innerWidth;
-  // 显示条件：非移动端 + 有键盘支持
-  var show = !isMobile && previewDeviceId && devices.some(function(d) {
-    return d.deviceId === previewDeviceId && d.supportsKeyClient;
-  });
-  if (!show) {
-    hint.style.display = 'none';
-    return;
-  }
-  if (w < 1200) {
-    hint.style.display = 'none';
-  } else if (w < 1700) {
-    hint.textContent = '📌 可使用鼠标左键点击屏幕';
-    hint.style.display = '';
-  } else {
-    hint.textContent = '📌 可使用鼠标左键点击屏幕/shift点击=右键/alt点击=下滚轮/alt+shift点击=上滚轮/shift点击键盘切换大写和字符';
-    hint.style.display = '';
-  }
+  hint.style.display = w >= 1200 ? '' : 'none';
 }
 
 let isMobile = window.matchMedia && window.matchMedia('(max-width: 768px)').matches;
@@ -2855,8 +2838,9 @@ function closePreview() {
   // 关闭时隐藏显示器切换按钮（移动端）
   const monitorBtnMobile = document.getElementById('previewMonitorBtnMobile');
   if (monitorBtnMobile) monitorBtnMobile.style.display = 'none';
-  // 关闭时隐藏鼠标提示（统一通过 updateMouseHint 处理）
-  updateMouseHint();
+  // 关闭时隐藏鼠标提示
+  var _hint = document.getElementById('previewMouseHint');
+  if (_hint) _hint.style.display = 'none';
   // 关闭时隐藏远控设备列表弹窗
   closeRemoteListModal();
   // 关闭时隐藏远控按钮
