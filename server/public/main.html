@@ -158,11 +158,6 @@
 </div>
 
 <style>
-/* 监控上墙弹窗提示文字：小屏隐藏 */
-@media (max-width: 1199px) {
-  #monitorWallHint { display: none; }
-}
-
 /* 预览弹窗关闭按钮样式 */
 .preview-close-btn, .preview-image-close {
   color: #888;
@@ -402,9 +397,8 @@
 <div id="monitorOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:10000;align-items:center;justify-content:center;">
   <div id="monitorDialog" style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;width:80%;max-width:95vw;aspect-ratio:16/9.3;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,0.4);">
     <!-- 头部 -->
-    <div style="display:flex;align-items:center;padding:14px 20px;border-bottom:1px solid var(--border);background:var(--bg-page);border-radius:12px 12px 0 0;flex-shrink:0;">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--border);background:var(--bg-page);border-radius:12px 12px 0 0;flex-shrink:0;">
       <span style="font-size:17px;font-weight:600;color:var(--text);">📺 监控上墙</span>
-      <span id="monitorWallHint" style="font-size:13px;color:var(--text-secondary);margin-left:12px;flex:1;">📌 可使用滚轮放大然后拖拽到合适位置</span>
       <button class="dialog-close" onclick="closeMonitorDialog()">✕</button>
     </div>
     <!-- 主体 -->
