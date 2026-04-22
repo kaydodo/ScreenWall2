@@ -4026,8 +4026,8 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
   }
 }
 
-/* 窗口宽度小于1000px时隐藏鼠标提示（由JS统一控制） */
-@media (max-width: 999px) {
+/* 窗口宽度小于1200px时隐藏鼠标提示（由JS统一控制） */
+@media (max-width: 1199px) {
   .preview-mouse-hint {
     display: none !important;
   }
