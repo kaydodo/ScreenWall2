@@ -1988,13 +1988,13 @@ wssBrowser.on('connection', (ws) => {
       }
     }
 
+
     // ========== 1080p 预览模式切换 ==========
     // 浏览器请求开启 1080p 预览
     if (msg.type === 'hq1080On') {
-      // 从 previewClients 获取当前浏览器正在预览的设备
-      const previewInfo = previewClients.get(ws);
-      if (previewInfo && previewInfo.deviceId) {
-        const deviceId = previewInfo.deviceId;
+      // 优先使用消息中指定的deviceId（监控墙用），否则从previewClients获取
+      const deviceId = msg.deviceId || (previewClients.get(ws) && previewClients.get(ws).deviceId);
+      if (deviceId) {
         // 追踪该浏览器的 1080p 设备
         if (!browser1080p.has(ws)) browser1080p.set(ws, new Set());
         browser1080p.get(ws).add(deviceId);
@@ -2010,20 +2010,32 @@ wssBrowser.on('connection', (ws) => {
 
     // 浏览器请求关闭 1080p 预览
     if (msg.type === 'hq1080Off') {
-      // 从追踪 Map 中获取该浏览器开启 1080p 的所有设备
-      const my1080pDevices = browser1080p.get(ws);
-      if (my1080pDevices) {
-        for (const deviceId of my1080pDevices) {
-          // 转发给设备客户端
-          for (const client of wssClient.clients) {
-            if (client._deviceId === deviceId && client.readyState === 1) {
-              client.send(JSON.stringify({ type: 'hq1080Off' }));
-              break;
-            }
+      // 优先使用消息中指定的deviceId，否则从追踪Map中获取所有设备
+      if (msg.deviceId) {
+        // 关闭指定的单个设备
+        for (const client of wssClient.clients) {
+          if (client._deviceId === msg.deviceId && client.readyState === 1) {
+            client.send(JSON.stringify({ type: 'hq1080Off' }));
+            break;
           }
         }
-        // 清理追踪
-        browser1080p.delete(ws);
+        // 从追踪Map中移除
+        const my1080pDevices = browser1080p.get(ws);
+        if (my1080pDevices) my1080pDevices.delete(msg.deviceId);
+      } else {
+        // 关闭所有追踪的设备
+        const my1080pDevices = browser1080p.get(ws);
+        if (my1080pDevices) {
+          for (const deviceId of my1080pDevices) {
+            for (const client of wssClient.clients) {
+              if (client._deviceId === deviceId && client.readyState === 1) {
+                client.send(JSON.stringify({ type: 'hq1080Off' }));
+                break;
+              }
+            }
+          }
+          browser1080p.delete(ws);
+        }
       }
     }
 

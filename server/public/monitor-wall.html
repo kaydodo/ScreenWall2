@@ -28,6 +28,14 @@ html, body {
   min-height: 0;
   cursor: grab;
 }
+.wall-cell.fullscreen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 9999;
+}
 /* 双层结构：外层 img-wrapper 用 cover 切掉多余，内层 img 用 contain 完整显示 */
 .wall-cell .img-wrapper {
   position: absolute;
@@ -443,10 +451,12 @@ function enterWallFullscreen(cell, deviceId) {
 
   wallFullscreenDeviceId = deviceId;
 
-  // 切换到1格布局
+  // 切换到1格布局，填满整个视口
   wallData.layout = 1;
   container.style.gridTemplateColumns = '1fr';
   container.style.gridTemplateRows = '1fr';
+  container.style.gap = '0';
+  container.style.padding = '0';
 
   // 隐藏所有格子，只显示目标格子
   for (var i = 0; i < wallOriginalDeviceCount; i++) {
@@ -456,10 +466,11 @@ function enterWallFullscreen(cell, deviceId) {
     }
   }
   cell.classList.remove('hidden');
+  cell.classList.add('fullscreen');
 
   // 开启1080p
   if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'hq1080On' }));
+    ws.send(JSON.stringify({ type: 'hq1080On', deviceId: deviceId }));
   }
 }
 
@@ -475,18 +486,21 @@ function restoreWallLayout() {
   var cols = cfg ? cfg.cols : Math.sqrt(wallOriginalLayout);
   container.style.gridTemplateColumns = 'repeat(' + cols + ', 1fr)';
   container.style.gridTemplateRows = 'repeat(' + rows + ', 1fr)';
+  container.style.gap = '2px';
+  container.style.padding = '2px';
 
-  // 显示所有格子
+  // 显示所有格子并移除fullscreen类
   for (var i = 0; i < wallOriginalDeviceCount; i++) {
     var c = document.getElementById('cell_' + i);
     if (c) {
       c.classList.remove('hidden');
+      c.classList.remove('fullscreen');
     }
   }
 
   // 关闭1080p
   if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'hq1080Off' }));
+    ws.send(JSON.stringify({ type: 'hq1080Off', deviceId: wallFullscreenDeviceId }));
   }
 
   // 清除状态
