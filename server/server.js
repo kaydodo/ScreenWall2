@@ -161,7 +161,6 @@ const previewClients = new Map(); // ws -> { deviceId, interval }
 // 浏览器 1080p 预览模式追踪：browser ws -> Set<deviceId>（哪些设备正在该浏览器预览中启用1080p）
 const browser1080p = new Map(); // ws -> Set<deviceId>
 // 全局1080p追踪：deviceId -> 使用该设备的浏览器数量（只有所有浏览器都不用时才通知设备关闭）
-const global1080p = new Map(); // deviceId -> count
 // 每个浏览器独立管理已上墙设备，同一浏览器的不同窗口共享 localStorage 同步
 
 // ========== 渲染优化 ==========
