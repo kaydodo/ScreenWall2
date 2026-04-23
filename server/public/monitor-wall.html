@@ -424,6 +424,7 @@ var subscribedDevices = []; // 订阅的设备列表
 
 // ── 全屏状态 ────────────────────────────────────────────────
 var wallFullscreenDeviceId = null; // 当前全屏的设备ID
+var wallFullscreenReset = false; // 是否已点击过重置
 var wallOriginalLayout = null; // 原始布局数字
 var wallOriginalDeviceCount = 0; // 原始设备数量
 
@@ -432,8 +433,20 @@ function toggleWallCellFullscreen(cell, deviceId) {
   var container = document.getElementById('wallContainer');
 
   if (wallFullscreenDeviceId === deviceId) {
-    // 已经是全屏，点击恢复原始布局
-    restoreWallLayout();
+    if (wallFullscreenReset) {
+      // 第2次点击：恢复原始布局
+      restoreWallLayout();
+    } else {
+      // 第1次点击：缩放1倍 + 重置位置
+      wallFullscreenReset = true;
+      var img = document.getElementById('img_' + deviceId);
+      if (img) {
+        img.style.transform = 'scale(1) translate(0px, 0px)';
+      }
+      // 重置缩放显示
+      var zoomEl = document.getElementById('zoom_' + deviceId);
+      if (zoomEl) zoomEl.textContent = '100%';
+    }
   } else {
     // 切换到全屏
     enterWallFullscreen(cell, deviceId);
@@ -505,6 +518,7 @@ function restoreWallLayout() {
 
   // 清除状态
   wallFullscreenDeviceId = null;
+  wallFullscreenReset = false;
   wallOriginalLayout = null;
   wallOriginalDeviceCount = 0;
 }
