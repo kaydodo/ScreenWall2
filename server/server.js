@@ -3044,26 +3044,10 @@ wssBrowser.on('connection', (ws) => {
       }
     }
 
-    // 处理格子预览独立通道断开
-    if (previewInfo && globalHQ.has(previewInfo.deviceId)) {
-      const newCount = globalHQ.get(previewInfo.deviceId) - 1;
-      if (newCount <= 0) {
-        globalHQ.delete(previewInfo.deviceId);
-        // 检查墙上是否有人需要高清流
-        let needHQ = false;
-        for (const [wallWs, hdChannels] of wallHDChannels) {
-          if (hdChannels.has(previewInfo.deviceId)) { needHQ = true; break; }
-        }
-        if (!needHQ) {
-          for (const client of wssClient.clients) {
-            if (client._deviceId === previewInfo.deviceId) {
-              client.send(JSON.stringify({ type: 'stopHQ' }));
-              break;
-            }
-          }
-        }
-      } else {
-        globalHQ.set(previewInfo.deviceId, newCount);
+    // 处理格子预览独立通道断开（已由上方myPreviews统一处理，这里只清理wallHDChannels引用）
+    if (previewInfo) {
+      for (const [wallWs, hdChannels] of wallHDChannels) {
+        hdChannels.delete(previewInfo.deviceId);
       }
     }
 
