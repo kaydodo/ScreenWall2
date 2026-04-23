@@ -437,10 +437,18 @@ function updateStats() {
   stats.lastReport = now;
 }
 
+// 紧凑布局行列配置（完全平方数用 NxN，非完全平方数自定义行列）
+var compactLayouts = {
+  6: { rows: 2, cols: 3 },   // 3x2
+  12: { rows: 3, cols: 4 },  // 4x3
+  20: { rows: 4, cols: 5 }   // 5x4
+};
+
 function initWall() {
   var container = document.getElementById('wallContainer');
-  var cols = Math.sqrt(wallData.layout);
-  var rows = cols;
+  var cfg = compactLayouts[wallData.layout];
+  var rows = cfg ? cfg.rows : Math.sqrt(wallData.layout);
+  var cols = cfg ? cfg.cols : Math.sqrt(wallData.layout);
   container.style.gridTemplateColumns = 'repeat(' + cols + ', 1fr)';
   container.style.gridTemplateRows = 'repeat(' + rows + ', 1fr)';
 
