@@ -158,6 +158,8 @@ const browserPreviewHD = new Map(); // ws -> Set<deviceId>
 const previewClients = new Map(); // ws -> { deviceId, interval }
 // 浏览器 1080p 预览模式追踪：browser ws -> Set<deviceId>（哪些设备正在该浏览器预览中启用1080p）
 const browser1080p = new Map(); // ws -> Set<deviceId>
+// 全局1080p追踪：deviceId -> 使用该设备的浏览器数量（只有所有浏览器都不用时才通知设备关闭）
+const global1080p = new Map(); // deviceId -> count
 // 每个浏览器独立管理已上墙设备，同一浏览器的不同窗口共享 localStorage 同步
 
 // ========== 渲染优化 ==========
@@ -1998,6 +2000,8 @@ wssBrowser.on('connection', (ws) => {
         // 追踪该浏览器的 1080p 设备
         if (!browser1080p.has(ws)) browser1080p.set(ws, new Set());
         browser1080p.get(ws).add(deviceId);
+        // 更新全局追踪
+        global1080p.set(deviceId, (global1080p.get(deviceId) || 0) + 1);
         // 转发给设备客户端
         for (const client of wssClient.clients) {
           if (client._deviceId === deviceId && client.readyState === 1) {
@@ -2013,25 +2017,42 @@ wssBrowser.on('connection', (ws) => {
       const my1080pDevices = browser1080p.get(ws);
       // 优先使用消息中指定的deviceId，否则从追踪Map中获取所有设备
       if (msg.deviceId) {
-        // 从追踪Map中移除
+        // 从浏览器追踪Map中移除
         if (my1080pDevices) my1080pDevices.delete(msg.deviceId);
-        // 只有该浏览器没有任何设备在用1080p时才通知设备关闭
-        if (!my1080pDevices || my1080pDevices.size === 0) {
-          for (const client of wssClient.clients) {
-            if (client._deviceId === msg.deviceId && client.readyState === 1) {
-              client.send(JSON.stringify({ type: 'hq1080Off' }));
-              break;
+        // 从全局追踪中减1
+        if (global1080p.has(msg.deviceId)) {
+          const newCount = global1080p.get(msg.deviceId) - 1;
+          if (newCount <= 0) {
+            global1080p.delete(msg.deviceId);
+            // 所有浏览器都没有使用1080p，通知设备关闭
+            for (const client of wssClient.clients) {
+              if (client._deviceId === msg.deviceId && client.readyState === 1) {
+                client.send(JSON.stringify({ type: 'hq1080Off' }));
+                break;
+              }
             }
+          } else {
+            global1080p.set(msg.deviceId, newCount);
           }
         }
       } else {
         // 关闭所有追踪的设备
         if (my1080pDevices) {
           for (const deviceId of my1080pDevices) {
-            for (const client of wssClient.clients) {
-              if (client._deviceId === deviceId && client.readyState === 1) {
-                client.send(JSON.stringify({ type: 'hq1080Off' }));
-                break;
+            // 从全局追踪中减1
+            if (global1080p.has(deviceId)) {
+              const newCount = global1080p.get(deviceId) - 1;
+              if (newCount <= 0) {
+                global1080p.delete(deviceId);
+                // 所有浏览器都没有使用1080p，通知设备关闭
+                for (const client of wssClient.clients) {
+                  if (client._deviceId === deviceId && client.readyState === 1) {
+                    client.send(JSON.stringify({ type: 'hq1080Off' }));
+                    break;
+                  }
+                }
+              } else {
+                global1080p.set(deviceId, newCount);
               }
             }
           }
@@ -2971,13 +2992,22 @@ wssBrowser.on('connection', (ws) => {
     // ── 清理 1080p 预览模式 ──────────────────────
     const my1080pDevices = browser1080p.get(ws);
     browser1080p.delete(ws);
-    // 如果有 1080p 设备，通知对应客户端关闭
+    // 从全局追踪中移除，如果有其他浏览器还在用则不通知设备关闭
     if (my1080pDevices && my1080pDevices.size > 0) {
       for (const deviceId of my1080pDevices) {
-        for (const client of wssClient.clients) {
-          if (client._deviceId === deviceId && client.readyState === 1) {
-            client.send(JSON.stringify({ type: 'hq1080Off' }));
-            break;
+        if (global1080p.has(deviceId)) {
+          const newCount = global1080p.get(deviceId) - 1;
+          if (newCount <= 0) {
+            global1080p.delete(deviceId);
+            // 所有浏览器都没有使用1080p，通知设备关闭
+            for (const client of wssClient.clients) {
+              if (client._deviceId === deviceId && client.readyState === 1) {
+                client.send(JSON.stringify({ type: 'hq1080Off' }));
+                break;
+              }
+            }
+          } else {
+            global1080p.set(deviceId, newCount);
           }
         }
       }
