@@ -399,6 +399,7 @@
     <!-- 头部 -->
     <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--border);background:var(--bg-page);border-radius:12px 12px 0 0;flex-shrink:0;">
       <span style="font-size:17px;font-weight:600;color:var(--text);">📺 监控上墙</span>
+      <span style="font-size:12px;color:var(--text-muted);margin-left:12px;">可使用滚轮放大然后拖拽到合适位置（上墙画面同理）</span>
       <button class="dialog-close" onclick="closeMonitorDialog()">✕</button>
     </div>
     <!-- 主体 -->
@@ -424,7 +425,6 @@
           <button class="monitor-layout-btn" data-layout="16" onclick="selectMonitorLayout(16)" title="16格">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><rect x="1" y="1" width="4.5" height="4.5" rx="0.5"/><rect x="6.5" y="1" width="4.5" height="4.5" rx="0.5"/><rect x="12" y="1" width="4.5" height="4.5" rx="0.5"/><rect x="17.5" y="1" width="4.5" height="4.5" rx="0.5"/><rect x="1" y="6.5" width="4.5" height="4.5" rx="0.5"/><rect x="6.5" y="6.5" width="4.5" height="4.5" rx="0.5"/><rect x="12" y="6.5" width="4.5" height="4.5" rx="0.5"/><rect x="17.5" y="6.5" width="4.5" height="4.5" rx="0.5"/><rect x="1" y="12" width="4.5" height="4.5" rx="0.5"/><rect x="6.5" y="12" width="4.5" height="4.5" rx="0.5"/><rect x="12" y="12" width="4.5" height="4.5" rx="0.5"/><rect x="17.5" y="12" width="4.5" height="4.5" rx="0.5"/><rect x="1" y="17.5" width="4.5" height="4.5" rx="0.5"/><rect x="6.5" y="17.5" width="4.5" height="4.5" rx="0.5"/><rect x="12" y="17.5" width="4.5" height="4.5" rx="0.5"/><rect x="17.5" y="17.5" width="4.5" height="4.5" rx="0.5"/></svg>
           </button>
-          <span style="font-size:12px;color:var(--text-muted);">可使用滚轮放大然后拖拽到合适位置（上墙画面同理）</span>
           <span id="monitorSelectedCount" style="margin-left:auto;font-size:13px;color:var(--text-muted);">已选 0/4 格</span>
         </div>
         <!-- 预览区域 -->
