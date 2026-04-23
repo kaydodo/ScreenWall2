@@ -2010,21 +2010,22 @@ wssBrowser.on('connection', (ws) => {
 
     // 浏览器请求关闭 1080p 预览
     if (msg.type === 'hq1080Off') {
+      const my1080pDevices = browser1080p.get(ws);
       // 优先使用消息中指定的deviceId，否则从追踪Map中获取所有设备
       if (msg.deviceId) {
-        // 关闭指定的单个设备
-        for (const client of wssClient.clients) {
-          if (client._deviceId === msg.deviceId && client.readyState === 1) {
-            client.send(JSON.stringify({ type: 'hq1080Off' }));
-            break;
+        // 从追踪Map中移除
+        if (my1080pDevices) my1080pDevices.delete(msg.deviceId);
+        // 只有该浏览器没有任何设备在用1080p时才通知设备关闭
+        if (!my1080pDevices || my1080pDevices.size === 0) {
+          for (const client of wssClient.clients) {
+            if (client._deviceId === msg.deviceId && client.readyState === 1) {
+              client.send(JSON.stringify({ type: 'hq1080Off' }));
+              break;
+            }
           }
         }
-        // 从追踪Map中移除
-        const my1080pDevices = browser1080p.get(ws);
-        if (my1080pDevices) my1080pDevices.delete(msg.deviceId);
       } else {
         // 关闭所有追踪的设备
-        const my1080pDevices = browser1080p.get(ws);
         if (my1080pDevices) {
           for (const deviceId of my1080pDevices) {
             for (const client of wssClient.clients) {
