@@ -65,19 +65,21 @@ const {
   client: CLIENT_CFG
 } = config;
 
-// ========== 辅助函数：检查多用户订阅状态 ==========
+// ========== 全局追踪（高效计数器） ==========
+// 1080p追踪：deviceId → count
+const global1080p = new Map();
+
+// HQ高清流追踪：deviceId → count
+const globalHQ = new Map();
+
+// ========== 辅助函数（已被全局计数器替代，保留兼容） ==========
 function hasOtherPreview(deviceId, excludeWs) {
-  for (const [ws, previews] of browserPreviewHD) {
-    if (ws !== excludeWs && previews.has(deviceId)) return true;
-  }
-  return false;
+  // 使用全局计数器替代
+  return globalHQ.has(deviceId) && globalHQ.get(deviceId) > 0;
 }
 
 function hasOtherWallSubscription(deviceId, excludeWs) {
-  for (const [ws, devices] of hdRequests) {
-    if (ws !== excludeWs && devices.has(deviceId)) return true;
-  }
-  return false;
+  return hdRequests.has(deviceId) && hdRequests.get(deviceId).size > 0;
 }
 
 // ========== 图像压缩工具 ==========
@@ -2688,21 +2690,27 @@ wssBrowser.on('connection', (ws) => {
     if (msg.type === 'unsubscribePreview') {
       previewClients.delete(ws);
 
-      // 检查是否需要关闭高清流
+      // 检查是否需要关闭高清流：从globalHQ中减1
       const deviceId = msg.deviceId;
-      if (deviceId && !hasOtherPreview(deviceId, ws)) {
-        // 没有其他预览，检查墙上是否有人需要
-        let needHQ = false;
-        for (const [wallWs, hdChannels] of wallHDChannels) {
-          if (hdChannels.has(deviceId)) { needHQ = true; break; }
-        }
-        if (!needHQ) {
-          for (const client of wssClient.clients) {
-            if (client._deviceId === deviceId) {
-              client.send(JSON.stringify({ type: 'stopHQ' }));
-              break;
+      if (deviceId && globalHQ.has(deviceId)) {
+        const newCount = globalHQ.get(deviceId) - 1;
+        if (newCount <= 0) {
+          globalHQ.delete(deviceId);
+          // 没有其他浏览器需要，检查墙上是否有人需要
+          let needHQ = false;
+          for (const [wallWs, hdChannels] of wallHDChannels) {
+            if (hdChannels.has(deviceId)) { needHQ = true; break; }
+          }
+          if (!needHQ) {
+            for (const client of wssClient.clients) {
+              if (client._deviceId === deviceId) {
+                client.send(JSON.stringify({ type: 'stopHQ' }));
+                break;
+              }
             }
           }
+        } else {
+          globalHQ.set(deviceId, newCount);
         }
       }
     }
@@ -2711,10 +2719,12 @@ wssBrowser.on('connection', (ws) => {
       // 追踪浏览器预览高清通道
       if (!browserPreviewHD.has(ws)) browserPreviewHD.set(ws, new Set());
       browserPreviewHD.get(ws).add(msg.deviceId);
-      
+      // 全局计数器
+      globalHQ.set(msg.deviceId, (globalHQ.get(msg.deviceId) || 0) + 1);
+
       for (const client of wssClient.clients) {
         if (client._deviceId === msg.deviceId) {
-          
+
           client.send(JSON.stringify({ type: 'startHQ' }));
           break;
         }
@@ -2752,31 +2762,28 @@ wssBrowser.on('connection', (ws) => {
     }
     
     if (msg.type === 'stopHQ') {
-      // 清理浏览器预览高清通道追踪
+      // 从浏览器追踪Map中移除
       if (browserPreviewHD.has(ws)) {
         browserPreviewHD.get(ws).delete(msg.deviceId);
       }
-      
-      // 分支检查：是否需要真正关闭HD
-      // 1. 检查是否有其他用户还在预览
-      if (hasOtherPreview(msg.deviceId, ws)) {
-        checkCompressEnd(msg.deviceId);
-        return;
-      }
-      // 2. 检查是否有墙订阅（任意用户）
-      if (hdRequests.has(msg.deviceId) && hdRequests.get(msg.deviceId).size > 0) {
-        checkCompressEnd(msg.deviceId);
-        return;
-      }
-      // 3. 无其他订阅，真正关闭
-      // // [HD] 日志已注释
-      hdRequests.delete(msg.deviceId);
-      wallDevices.delete(msg.deviceId);
-      checkCompressEnd(msg.deviceId);
-      for (const client of wssClient.clients) {
-        if (client._deviceId === msg.deviceId) {
-          client.send(JSON.stringify({ type: 'stopHQ' }));
-          break;
+
+      // 从全局计数器中减1
+      if (globalHQ.has(msg.deviceId)) {
+        const newCount = globalHQ.get(msg.deviceId) - 1;
+        if (newCount <= 0) {
+          globalHQ.delete(msg.deviceId);
+          // 所有浏览器都没有使用HQ，通知设备关闭
+          hdRequests.delete(msg.deviceId);
+          wallDevices.delete(msg.deviceId);
+          checkCompressEnd(msg.deviceId);
+          for (const client of wssClient.clients) {
+            if (client._deviceId === msg.deviceId) {
+              client.send(JSON.stringify({ type: 'stopHQ' }));
+              break;
+            }
+          }
+        } else {
+          globalHQ.set(msg.deviceId, newCount);
         }
       }
     }
@@ -2914,16 +2921,16 @@ wssBrowser.on('connection', (ws) => {
           subscription.devices.delete(deviceId);
           // 只关闭本窗口的高清通道
           if (hdChannels) hdChannels.delete(deviceId);
-          // 从全局 ref count 移除
+          // 从hdRequests中移除本浏览器
           if (hdRequests.has(deviceId)) {
             hdRequests.get(deviceId).delete(ws);
-            if (hdRequests.get(deviceId).size === 0) {
-              // 墙上无人需要，检查是否有用户在预览
-              if (hasOtherPreview(deviceId, null)) {
-                hdRequests.delete(deviceId);
-                hdRequests.set(deviceId, new Set()); // 保留给 preview
-              } else {
-                // [HD] 日志已注释
+          }
+          // 如果hdRequests为空且globalHQ<=0，关闭设备高清流
+          if ((!hdRequests.has(deviceId) || hdRequests.get(deviceId).size === 0)) {
+            if (globalHQ.has(deviceId)) {
+              const newCount = globalHQ.get(deviceId) - 1;
+              if (newCount <= 0) {
+                globalHQ.delete(deviceId);
                 hdRequests.delete(deviceId);
                 wallDevices.delete(deviceId);
                 checkCompressEnd(deviceId);
@@ -2933,11 +2940,13 @@ wssBrowser.on('connection', (ws) => {
                     break;
                   }
                 }
+              } else {
+                globalHQ.set(deviceId, newCount);
               }
             }
           }
         }
-        
+
         // 返回该浏览器已上墙设备列表
         ws.send(JSON.stringify({ type: 'walledDevices', devices: Array.from(subscription.devices) }));
       }
@@ -3013,59 +3022,66 @@ wssBrowser.on('connection', (ws) => {
       }
     }
 
-    // 处理这个窗口的预览设备：检查其他用户是否还在预览
+    // 处理这个窗口的预览设备：从globalHQ中减1，只有<=0时才关闭
     for (const deviceId of myPreviews) {
-      if (hasOtherPreview(deviceId, ws)) {
-        // 其他用户还在预览，不关闭
-      } else if (hdRequests.has(deviceId) && hdRequests.get(deviceId).size > 0) {
-        // 有墙订阅，不关闭
-      } else {
-        // [HD] 日志已注释
-        hdRequests.delete(deviceId);
-        checkCompressEnd(deviceId);
-        for (const client of wssClient.clients) {
-          if (client._deviceId === deviceId) {
-            client.send(JSON.stringify({ type: 'stopHQ' }));
-            break;
+      if (globalHQ.has(deviceId)) {
+        const newCount = globalHQ.get(deviceId) - 1;
+        if (newCount <= 0) {
+          globalHQ.delete(deviceId);
+          // 所有浏览器都没有使用HQ，通知设备关闭
+          hdRequests.delete(deviceId);
+          wallDevices.delete(deviceId);
+          checkCompressEnd(deviceId);
+          for (const client of wssClient.clients) {
+            if (client._deviceId === deviceId) {
+              client.send(JSON.stringify({ type: 'stopHQ' }));
+              break;
+            }
           }
+        } else {
+          globalHQ.set(deviceId, newCount);
         }
       }
     }
 
     // 处理格子预览独立通道断开
-    if (previewInfo && !hasOtherPreview(previewInfo.deviceId, ws)) {
-      // 检查墙上是否有人需要高清流
-      let needHQ = false;
-      for (const [wallWs, hdChannels] of wallHDChannels) {
-        if (hdChannels.has(previewInfo.deviceId)) { needHQ = true; break; }
-      }
-      if (!needHQ) {
-        for (const client of wssClient.clients) {
-          if (client._deviceId === previewInfo.deviceId) {
-            client.send(JSON.stringify({ type: 'stopHQ' }));
-            break;
+    if (previewInfo && globalHQ.has(previewInfo.deviceId)) {
+      const newCount = globalHQ.get(previewInfo.deviceId) - 1;
+      if (newCount <= 0) {
+        globalHQ.delete(previewInfo.deviceId);
+        // 检查墙上是否有人需要高清流
+        let needHQ = false;
+        for (const [wallWs, hdChannels] of wallHDChannels) {
+          if (hdChannels.has(previewInfo.deviceId)) { needHQ = true; break; }
+        }
+        if (!needHQ) {
+          for (const client of wssClient.clients) {
+            if (client._deviceId === previewInfo.deviceId) {
+              client.send(JSON.stringify({ type: 'stopHQ' }));
+              break;
+            }
           }
         }
+      } else {
+        globalHQ.set(previewInfo.deviceId, newCount);
       }
     }
-    
+
     // 清理监控墙订阅（页面关闭）
     const subscription = wallClients.get(ws);
     const hdChannels = wallHDChannels.get(ws);
     if (subscription) {
       for (const deviceId of subscription.devices) {
-        // 只关闭本窗口的高清通道
-        if (hdChannels) hdChannels.delete(deviceId);
-        // 从全局 ref count 移除
+        // 从hdRequests中移除本浏览器
         if (hdRequests.has(deviceId)) {
           hdRequests.get(deviceId).delete(ws);
-          if (hdRequests.get(deviceId).size === 0) {
-            // 检查是否有其他用户在预览（已排除当前ws）
-            if (hasOtherPreview(deviceId, ws)) {
-              hdRequests.delete(deviceId);
-              hdRequests.set(deviceId, new Set()); // 保留给 preview
-            } else {
-              // [HD] 日志已注释
+        }
+        // 如果hdRequests为空且globalHQ<=0，关闭设备高清流
+        if ((!hdRequests.has(deviceId) || hdRequests.get(deviceId).size === 0)) {
+          if (globalHQ.has(deviceId)) {
+            const newCount = globalHQ.get(deviceId) - 1;
+            if (newCount <= 0) {
+              globalHQ.delete(deviceId);
               hdRequests.delete(deviceId);
               wallDevices.delete(deviceId);
               checkCompressEnd(deviceId);
@@ -3075,6 +3091,8 @@ wssBrowser.on('connection', (ws) => {
                   break;
                 }
               }
+            } else {
+              globalHQ.set(deviceId, newCount);
             }
           }
         }
