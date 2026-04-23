@@ -632,6 +632,11 @@ function initWall() {
       cell.addEventListener('click', function(e) {
         // 避免点击UU按钮时触发全屏切换
         if (e.target.tagName === 'BUTTON' || e.target.closest('button')) return;
+        // 拖拽后不触发点击事件
+        if (this._justDragged) {
+          this._justDragged = false;
+          return;
+        }
         toggleWallCellFullscreen(this, this.deviceId);
       });
     } else {
@@ -1122,6 +1127,10 @@ function makeWallCellDraggable(cell, deviceId) {
 
   // 拖拽释放
   document.addEventListener('mouseup', function(e) {
+    if (_isDragging) {
+      cell._justDragged = true;
+      setTimeout(function() { cell._justDragged = false; }, 50);
+    }
     _sX = undefined;
     _sY = undefined;
     cell.style.cursor = '';
