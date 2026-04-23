@@ -28,7 +28,7 @@ while ($true) {
 
     if (-not $portInUse) {
         "[$(Get-Date -Format 'yyyy/MM/dd HH:mm:ss')] SERVER DOWN, starting..." | Out-File $Log -Append
-        $proc = Start-Process -FilePath "node" -ArgumentList "server.js" -WorkingDirectory $ServerDir -PassThru -WindowStyle Normal
+        $proc = Start-Process -FilePath "node" -ArgumentList "server.js" -WorkingDirectory $ServerDir -PassThru -WindowStyle Minimized
         Start-Sleep 2
 
         $verify = Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue | Where-Object { $_.State -eq "Listen" }
