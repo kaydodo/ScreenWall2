@@ -163,6 +163,11 @@ html, body {
   pointer-events: none;
 }
 
+/* ── 全屏隐藏 ─────────────────────────── */
+.wall-cell.hidden {
+  display: none;
+}
+
 /* ── 性能统计面板 ─────────────────────────── */
 .stats-panel {
   position: fixed;
@@ -409,6 +414,87 @@ if (!wallData) {
 var ws = null;
 var subscribedDevices = []; // 订阅的设备列表
 
+// ── 全屏状态 ────────────────────────────────────────────────
+var wallFullscreenDeviceId = null; // 当前全屏的设备ID
+var wallOriginalLayout = null; // 原始布局数字
+var wallOriginalDeviceCount = 0; // 原始设备数量
+
+// 切换格子全屏/还原
+function toggleWallCellFullscreen(cell, deviceId) {
+  var container = document.getElementById('wallContainer');
+
+  if (wallFullscreenDeviceId === deviceId) {
+    // 已经是全屏，点击恢复原始布局
+    restoreWallLayout();
+  } else {
+    // 切换到全屏
+    enterWallFullscreen(cell, deviceId);
+  }
+}
+
+function enterWallFullscreen(cell, deviceId) {
+  var container = document.getElementById('wallContainer');
+
+  // 保存原始状态（只在首次进入时保存）
+  if (wallFullscreenDeviceId === null) {
+    wallOriginalLayout = wallData.layout;
+    wallOriginalDeviceCount = wallData.devices.length;
+  }
+
+  wallFullscreenDeviceId = deviceId;
+
+  // 切换到1格布局
+  wallData.layout = 1;
+  container.style.gridTemplateColumns = '1fr';
+  container.style.gridTemplateRows = '1fr';
+
+  // 隐藏所有格子，只显示目标格子
+  for (var i = 0; i < wallOriginalDeviceCount; i++) {
+    var c = document.getElementById('cell_' + i);
+    if (c) {
+      c.classList.add('hidden');
+    }
+  }
+  cell.classList.remove('hidden');
+
+  // 开启1080p
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'hq1080On' }));
+  }
+}
+
+function restoreWallLayout() {
+  var container = document.getElementById('wallContainer');
+
+  if (wallFullscreenDeviceId === null) return;
+
+  // 恢复原始布局
+  wallData.layout = wallOriginalLayout;
+  var cfg = compactLayouts[wallOriginalLayout];
+  var rows = cfg ? cfg.rows : Math.sqrt(wallOriginalLayout);
+  var cols = cfg ? cfg.cols : Math.sqrt(wallOriginalLayout);
+  container.style.gridTemplateColumns = 'repeat(' + cols + ', 1fr)';
+  container.style.gridTemplateRows = 'repeat(' + rows + ', 1fr)';
+
+  // 显示所有格子
+  for (var i = 0; i < wallOriginalDeviceCount; i++) {
+    var c = document.getElementById('cell_' + i);
+    if (c) {
+      c.classList.remove('hidden');
+    }
+  }
+
+  // 关闭1080p
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'hq1080Off' }));
+  }
+
+  // 清除状态
+  wallFullscreenDeviceId = null;
+  wallOriginalLayout = null;
+  wallOriginalDeviceCount = 0;
+}
+
 // ── 性能统计 ────────────────────────────────────────────────
 var stats = {
   framesReceived: 0,
@@ -478,6 +564,14 @@ function initWall() {
       if (dev.online === false) {
         cell.classList.add('offline');
       }
+
+      // 保存设备ID用于点击切换
+      cell.deviceId = dev.id;
+      cell.addEventListener('click', function(e) {
+        // 避免点击UU按钮时触发全屏切换
+        if (e.target.tagName === 'BUTTON' || e.target.closest('button')) return;
+        toggleWallCellFullscreen(this, this.deviceId);
+      });
     } else {
       cell.classList.add('empty');
     }
