@@ -849,21 +849,19 @@ function base64ToBlobUrl(base64) {
 }
 
 function revokeBlobUrl(cellIndex) {
-  const oldUrl = blobUrlCache.get(cellIndex);
-  if (oldUrl) {
-    const t0 = performance.now();
-    URL.revokeObjectURL(oldUrl);
-    const t1 = performance.now();
-    // if (t1 - t0 > 10) {
-    //   console.log(`[BLOB] revokeObjectURL 耗时 ${(t1-t0).toFixed(1)}ms`);
-    // }
-    blobUrlCache.delete(cellIndex);
-  }
+  // 不主动 revoke，让浏览器自然释放；只从缓存删除
+  blobUrlCache.delete(cellIndex);
 }
 
 function revokePreviewBlobUrl() {
   if (previewBlobUrlCache.url) {
-    URL.revokeObjectURL(previewBlobUrlCache.url);
+    // 从 PREVIEW_BLOB_CACHE 中删除对应条目（避免 getPreviewBlobUrl 返回已 revoke 的 URL）
+    for (const [key, url] of PREVIEW_BLOB_CACHE.entries()) {
+      if (url === previewBlobUrlCache.url) {
+        PREVIEW_BLOB_CACHE.delete(key);
+        break;
+      }
+    }
     previewBlobUrlCache.url = null;
   }
 }
@@ -2756,20 +2754,31 @@ function openPreview(cellIndex) {
   const cell = gridCells[cellIndex];
   if (!cell || !cell.deviceId) return;
 
-  // 记住设备ID（即使离线也要，刷新后恢复预览时需要）
-  previewDeviceId = cell.deviceId;
-  previewActive = true;  // 暂停格子渲染
-  // 不清空 pendingFrames，保持格子显示上一帧（静止画面时防止缺图）
+  // 1. 瞬间渲染缓存的低清帧（优先级最高）
+  const cachedFrame = pendingFrames.get(cell.deviceId);
+  const initialImg = (cachedFrame && cachedFrame.image) || cell.screenshot || 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+  const previewImg = document.getElementById('previewImg');
+  previewImg.src = initialImg;
+  previewImg.style.display = 'block';
+  previewImg.style.filter = '';
 
-  // 开启HQ高清流，自动升级到1080p
-  previewHQMode = true;
-  preview1080Mode = true;
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'startHQ', deviceId: cell.deviceId }));
-    ws.send(JSON.stringify({ type: 'hq1080On', deviceId: cell.deviceId }));
+  // 2. 显示弹窗遮罩
+  document.getElementById('previewOverlay').classList.add('active');
+
+  // 3. 记住设备ID
+  previewDeviceId = cell.deviceId;
+  previewActive = true;
+
+  // 4. 离线设备不允许打开预览
+  if (!cell.online) {
+    showToast('离线设备无法预览', 'warn');
+    return;
   }
 
-  // 初始化UU按钮（无论在线离线都要设置，否则刷新后按钮丢失功能）
+  const dev = devices.find(d => d.deviceId === cell.deviceId);
+  document.getElementById('previewDeviceName').textContent = (cell.deviceName || '未知') + ' - 实时预览' + ((dev && dev.monitorCount > 1) ? ' 🖥️' + (dev.monitorIndex || 1) : '');
+
+  // 5. 初始化UU按钮
   const uuId = cell.uuDeviceId || null;
   const uubtn = document.getElementById('previewUUbtn');
   if (uuId) {
@@ -2778,19 +2787,13 @@ function openPreview(cellIndex) {
     if (uubtn) { uubtn.style.display = 'inline-flex'; uubtn.disabled = true; uubtn.style.opacity = '0.35'; uubtn.style.cursor = 'not-allowed'; uubtn.style.pointerEvents = 'none'; }
   }
 
-  // 离线设备不允许打开预览
-  if (!cell.online) {
-    showToast('离线设备无法预览', 'warn');
-    return;
+  // 6. 开启HQ高清流
+  previewHQMode = true;
+  preview1080Mode = true;
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'startHQ', deviceId: cell.deviceId }));
+    ws.send(JSON.stringify({ type: 'hq1080On', deviceId: cell.deviceId }));
   }
-
-  const dev = devices.find(d => d.deviceId === cell.deviceId);
-
-  document.getElementById('previewDeviceName').textContent = (cell.deviceName || '未知') + ' - 实时预览' + ((dev && dev.monitorCount > 1) ? ' 🖥️' + (dev.monitorIndex || 1) : '');
-  document.getElementById('previewImg').src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
-  document.getElementById('previewImg').style.display = 'none';
-  document.getElementById('previewImg').style.filter = '';  // 清除可能残留的灰度滤镜
-  document.getElementById('previewOverlay').classList.add('active');
   // 显示浮动关闭按钮
   const floatingClose = document.getElementById('previewFloatingClose');
   if (floatingClose) floatingClose.style.display = 'block';
@@ -5705,11 +5708,8 @@ function updateMonitorPreviewImages() {
 }
 
 function revokeMonitorBlobUrl(deviceId) {
-  const old = monitorBlobUrlCache.get(deviceId);
-  if (old) {
-    URL.revokeObjectURL(old);
-    monitorBlobUrlCache.delete(deviceId);
-  }
+  // 不主动 revoke，让浏览器自然释放；只从缓存删除
+  monitorBlobUrlCache.delete(deviceId);
 }
 
 function zoomMonitorPreview(deviceId, delta) {

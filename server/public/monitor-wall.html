@@ -208,12 +208,9 @@ html, body {
 // ── 1. Blob URL 缓存系统 ─────────────────────────────────────
 // 避免重复创建 Blob，减少内存碎片和 GC 压力
 const blobCache = (function() {
-  const _cache = new Map();  // deviceId -> { url, md5, time }
-  const _blobUrls = new Map();  // md5 -> blobUrl (复用)
-  const TTL = 5000;  // 5秒缓存
+  const _cache = new Map();  // deviceId -> url
 
   function createBlobUrl(base64Data) {
-    // 提取 mime type 和 base64 内容
     const match = base64Data.match(/^data:([^;]+);base64,(.+)$/);
     if (!match) return null;
     const mimeType = match[1];
@@ -224,74 +221,20 @@ const blobCache = (function() {
     return URL.createObjectURL(new Blob([buf], { type: mimeType }));
   }
 
-  function get(deviceId, md5) {
-    const entry = _cache.get(deviceId);
-    if (!entry) return null;
-    if (Date.now() - entry.time > TTL) {
-      // 过期，清理
-      _cache.delete(deviceId);
-      // 如果没有其他设备使用这个 blob，也清理
-      let used = false;
-      for (const [did, e] of _cache) {
-        if (e.md5 === md5) { used = true; break; }
-      }
-      if (!used) {
-        const url = _blobUrls.get(md5);
-        if (url) { URL.revokeObjectURL(url); _blobUrls.delete(md5); }
-      }
-      return null;
-    }
-    return entry.url;
-  }
-
-  function set(deviceId, base64Data, md5) {
-    // 先清理该设备之前占用的 blobUrl（避免内存泄漏）
-    const oldEntry = _cache.get(deviceId);
-    if (oldEntry) {
-      // 检查是否有其他设备还在用这个 md5
-      let used = false;
-      for (const [did, e] of _cache) {
-        if (did !== deviceId && e.md5 === oldEntry.md5) { used = true; break; }
-      }
-      if (!used) {
-        const oldUrl = _blobUrls.get(oldEntry.md5);
-        if (oldUrl) { URL.revokeObjectURL(oldUrl); _blobUrls.delete(oldEntry.md5); }
-      }
-    }
-
-    // 复用已有的 blobUrl（同一 md5 多设备共享）
-    let blobUrl = _blobUrls.get(md5);
-    if (!blobUrl) {
-      blobUrl = createBlobUrl(base64Data);
-      if (!blobUrl) return null;
-      _blobUrls.set(md5, blobUrl);
-    }
-    _cache.set(deviceId, { url: blobUrl, md5, time: Date.now() });
+  // 始终为每帧创建新 blob URL，用 deviceId 直接做 key（不共享）
+  function set(deviceId, base64Data) {
+    const blobUrl = createBlobUrl(base64Data);
+    if (!blobUrl) return null;
+    _cache.set(deviceId, blobUrl);  // 不 revoke 旧 blob，让浏览器自然释放
     return blobUrl;
   }
 
-  function revoke(deviceId) {
-    const entry = _cache.get(deviceId);
-    if (!entry) return;
-    _cache.delete(deviceId);
-    // 检查是否还有其他设备使用这个 md5
-    let used = false;
-    for (const [did, e] of _cache) {
-      if (e.md5 === entry.md5) { used = true; break; }
-    }
-    if (!used) {
-      const url = _blobUrls.get(entry.md5);
-      if (url) { URL.revokeObjectURL(url); _blobUrls.delete(entry.md5); }
-    }
-  }
-
   function revokeAll() {
-    for (const url of _blobUrls.values()) URL.revokeObjectURL(url);
+    for (const url of _cache.values()) URL.revokeObjectURL(url);
     _cache.clear();
-    _blobUrls.clear();
   }
 
-  return { get, set, revoke, revokeAll, getCacheSize: () => _cache.size, getBlobSize: () => _blobUrls.size };
+  return { set, revokeAll };
 })();
 
 // ── 2. rAF 批量渲染队列 ─────────────────────────────────────
@@ -739,27 +682,31 @@ function connectWebSocket() {
         }
 
         // ── Blob URL 获取/创建 ─────────────────────────
-        // 用图片内容 hash（长度+尾50字符），静止画面命中缓存不反复 revoke
         var pseudoMd5 = screenshot.length + '_' + screenshot.slice(-50);
-        var blobUrl = blobCache.set(deviceId, screenshot, pseudoMd5);
-        if (!blobUrl) return;
+        var blobUrl = blobCache.set(deviceId, screenshot);
 
-        // ── 更新看门狗 ─────────────────────────────────
-        watchdog.touch(deviceId);
-
-        // ── rAF 队列渲染 ───────────────────────────────
-        renderQueue.queue(deviceId, pseudoMd5, blobUrl, timestamp);
-        stats.framesRendered++;
-
-        // ── 应用裁剪（放大时设置 transform）──────────
-        var dev = devices[deviceId];
+        // ── 直接同步更新 img（跳过 rAF 队列避免延迟）────────────
         var img = document.getElementById('img_' + deviceId);
         if (img) {
+          img.style.width = '100%';
+          img.style.height = '100%';
+          img.src = blobUrl;
+          img.style.display = 'block';
+          var dev = devices[deviceId];
           img.style.transform = 'scale(' + dev.crop.scale + ') translate(' + (dev.crop.translateX || 0) + 'px, ' + (dev.crop.translateY || 0) + 'px)';
           img.style.transformOrigin = 'center center';
         }
 
-        img.style.display = 'block';
+        // ── 更新时间戳 ───────────────────────────────────
+        var ts = document.getElementById('ts_' + deviceId);
+        if (ts) {
+          var d = new Date(timestamp);
+          ts.textContent = formatDate(d);
+        }
+
+        // ── 更新看门狗 ─────────────────────────────────
+        watchdog.touch(deviceId);
+        stats.framesRendered++;
       }
 
       if (data.type === 'wallStateUpdate') {
