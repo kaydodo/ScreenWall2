@@ -3570,19 +3570,41 @@ function handlePreviewImageClick(e) {
   // 如果图片还没加载，忽略
   if (imgRect.width === 0 || imgRect.height === 0) return;
 
-  // 点击位置相对于图片的位置
-  const clickX = e.clientX - imgRect.left;
-  const clickY = e.clientY - imgRect.top;
+  // 手动计算 letterbox 区域（兼容绝对定位+object-fit:contain 的新CSS）
+  // getBoundingClientRect() 对绝对定位元素返回的是元素盒（含黑边），不是可见图片区域
+  const cw = imgRect.width;   // img 元素宽度（=container宽度）
+  const ch = imgRect.height;  // img 元素高度（=container高度）
+  const imgAspect = 1280 / 720; // 远程屏幕原始比例 16:9
+
+  // 计算 letterbox 后实际可见的图片尺寸
+  let imgW, imgH, offsetX, offsetY;
+  if (cw / ch > imgAspect) {
+    // 垂直方向 letterbox（左右填满，上下有黑边）
+    imgH = ch;
+    imgW = ch * imgAspect;
+    offsetX = (cw - imgW) / 2;
+    offsetY = 0;
+  } else {
+    // 水平方向 letterbox（上下填满，左右有黑边）
+    imgW = cw;
+    imgH = cw / imgAspect;
+    offsetX = 0;
+    offsetY = (ch - imgH) / 2;
+  }
+
+  // 点击位置相对于实际可见图片区域
+  const clickX = e.clientX - imgRect.left - offsetX;
+  const clickY = e.clientY - imgRect.top - offsetY;
 
   // 检查是否在图片区域内
-  if (clickX < 0 || clickY < 0 || clickX > imgRect.width || clickY > imgRect.height) {
-    return; // 点击在空白区域
+  if (clickX < 0 || clickY < 0 || clickX > imgW || clickY > imgH) {
+    return; // 点击在黑边区域
   }
 
   // 映射到 1280×720 坐标系
   const naturalW = 1280, naturalH = 720;
-  const mappedX = Math.round((clickX / imgRect.width) * naturalW);
-  const mappedY = Math.round((clickY / imgRect.height) * naturalH);
+  const mappedX = Math.round((clickX / imgW) * naturalW);
+  const mappedY = Math.round((clickY / imgH) * naturalH);
 
   // 根据修饰键分发不同动作（Shift+Alt 最优先，防止组合键被单项覆盖）
   if (e.shiftKey && e.altKey) {
