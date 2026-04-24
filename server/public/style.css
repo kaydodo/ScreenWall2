@@ -3755,6 +3755,9 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
 #collectionBtn:hover {
   color: #f59e0b;
 }
+#collectionBtn .btn-text {
+  color: var(--text-primary);
+}
 
 /* 移动端收藏按钮 */
 @media (max-width: 768px) {
