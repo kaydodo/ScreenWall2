@@ -727,7 +727,7 @@ function renderPendingFrames() {
               if (stxt) stxt.textContent = '在线';
             }
           }
-          if (cell && cell.screenshot !== frame.image) {
+          if (cell) {
             cell.screenshot = frame.image;
             updateCellScreenshot(cell.index, frame.image);
             rendered = true;
@@ -763,8 +763,8 @@ function renderPendingFrames() {
       if (previewDeviceId === pendingPreviewFrame.deviceId) {
         const previewImg = document.getElementById('previewImg');
         const blobUrl = getPreviewBlobUrl(pendingPreviewFrame.image);
-        // 相同 URL 时跳过，避免 revoke 掉正在显示的图片导致闪烁
-        if (blobUrl && blobUrl !== previewBlobUrlCache.url) {
+        // 始终渲染，确保图片更新
+        if (blobUrl) {
           revokePreviewBlobUrl();
           previewBlobUrlCache.url = blobUrl;
           previewImg.src = blobUrl;
@@ -1576,8 +1576,8 @@ function connectWS() {
         previewImg.style.filter = '';
       }
       const blobUrl = getPreviewBlobUrl(msg.image);
-      // 相同 URL 时跳过，避免 revoke 掉正在显示的图片导致闪烁
-      if (blobUrl && blobUrl !== previewBlobUrlCache.url) {
+      // 始终渲染，确保图片更新
+      if (blobUrl) {
         revokePreviewBlobUrl();
         previewBlobUrlCache.url = blobUrl;
         previewImg.src = blobUrl;
