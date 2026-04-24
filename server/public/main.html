@@ -333,10 +333,7 @@
   </div>
   <div class="preview-area" id="previewArea">
     <img id="previewImg" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="实时预览" style="border-radius:0;box-shadow:none;border:none;" />
-    <div class="preview-loading" id="previewLoading">
-      <div class="spinner-lg"></div>
-      <span>等待画面...</span>
-    </div>
+
   </div>
   <!-- 移动端点击关闭提示 -->
   <div class="preview-mobile-close mobile-hide" id="previewMobileClose">
@@ -776,7 +773,6 @@ function renderPendingFrames() {
           previewBlobUrlCache.url = blobUrl;
           previewImg.src = blobUrl;
           previewImg.style.display = 'block';
-          document.getElementById('previewLoading').style.display = 'none';
           rendered = true;
         }
       }
@@ -1340,8 +1336,6 @@ function connectWS() {
             const mon = dev && dev.monitorCount > 1 ? ' 🖥️' + (dev.monitorIndex || 1) : '';
             previewNameEl.textContent = (dev && dev.deviceName ? dev.deviceName : '未知') + ' - 实时预览' + mon;
           }
-          // 隐藏loading
-          document.getElementById('previewLoading').style.display = 'none';
           // UU按钮变灰不可点
           if (uubtn) { uubtn.disabled = true; uubtn.style.opacity = '0.35'; uubtn.style.cursor = 'not-allowed'; uubtn.style.pointerEvents = 'none'; }
           // 不关闭预览，保持打开状态（水印+灰度表示离线）
@@ -1359,8 +1353,6 @@ function connectWS() {
             const mon = dev && dev.monitorCount > 1 ? ' 🖥️' + (dev.monitorIndex || 1) : '';
             previewNameEl.textContent = (dev && dev.deviceName ? dev.deviceName : '未知') + ' - 实时预览' + mon;
           }
-          // 重新显示loading等待新帧
-          document.getElementById('previewLoading').style.display = 'flex';
           // 重新申请高清流
           if (ws && ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ type: 'startHQ', deviceId: previewDeviceId }));
@@ -1565,7 +1557,6 @@ function connectWS() {
       if (watermark && watermark.style.display !== 'none') {
         watermark.style.display = 'none';
         previewImg.style.filter = '';
-        document.getElementById('previewLoading').style.display = 'flex';
       }
       const blobUrl = base64ToBlobUrl(msg.image);
       if (blobUrl) {
@@ -1573,7 +1564,6 @@ function connectWS() {
         previewBlobUrlCache.url = blobUrl;
         previewImg.src = blobUrl;
         previewImg.style.display = 'block';
-        document.getElementById('previewLoading').style.display = 'none';
       }
     }
 
@@ -2802,7 +2792,6 @@ function openPreview(cellIndex) {
   document.getElementById('previewImg').src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
   document.getElementById('previewImg').style.display = 'none';
   document.getElementById('previewImg').style.filter = '';  // 清除可能残留的灰度滤镜
-  document.getElementById('previewLoading').style.display = 'flex';
   document.getElementById('previewOverlay').classList.add('active');
   // 显示浮动关闭按钮
   const floatingClose = document.getElementById('previewFloatingClose');
@@ -5197,7 +5186,6 @@ function openAlarmPreview(alarmId) {
   previewImg.src = rec.screenshot;
   previewImg.style.display = 'block';
   previewImg.style.opacity = '1';  // 直接显示
-  document.getElementById('previewLoading').style.display = 'none';  // 隐藏 loading
   document.getElementById('previewOverlay').classList.add('active');
   // 显示浮动关闭按钮
   const floatingClose = document.getElementById('previewFloatingClose');
