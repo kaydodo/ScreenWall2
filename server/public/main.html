@@ -2862,27 +2862,20 @@ function closePreview() {
   }
   preview1080Mode = false;
   previewHQMode = false;
-  // 解绑预览图片点击事件
-  const previewImg = document.getElementById('previewImg');
-  if (previewImg) previewImg.onclick = null;
-
+  previewDeviceId = null;
+  alarmPreviewDeviceId = null;  // 清除报警预览绑定的设备ID
+  previewActive = false;  // 恢复格子渲染
 
   document.getElementById('previewOverlay').classList.remove('active');
   // 隐藏浮动关闭按钮
   const floatingClose = document.getElementById('previewFloatingClose');
   if (floatingClose) floatingClose.style.display = 'none';
   document.getElementById('previewOfflineWatermark').style.display = 'none';
-  // 取消订阅格子预览独立通道（服务端会自动检查是否需要关闭高清流）
-  if (previewDeviceId && ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'unsubscribePreview', deviceId: previewDeviceId }));
-  }
-  previewDeviceId = null;
-  alarmPreviewDeviceId = null;  // 清除报警预览绑定的设备ID
-  previewActive = false;  // 恢复格子渲染
+  // 解绑预览图片点击事件
+  const previewImg = document.getElementById('previewImg');
+  if (previewImg) previewImg.onclick = null;
   // 先移除图片显示，再设置src，避免浏览器尝试加载base64作为URL
-  previewImg.style.display = 'none';
-  previewImg.style.filter = '';  // 清除灰度滤镜
-  previewImg.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+  if (previewImg) { previewImg.style.display = 'none'; previewImg.style.filter = ''; previewImg.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'; }
 }
 
 // ─────────────────────────────────────────
