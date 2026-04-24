@@ -758,22 +758,7 @@ function renderPendingFrames() {
       for (const id of toDelete) pendingFrames.delete(id);
     }
 
-    // 渲染预览帧
-    if (pendingPreviewFrame.image && now - pendingPreviewFrame.timestamp < 1000) {
-      if (previewDeviceId === pendingPreviewFrame.deviceId) {
-        const previewImg = document.getElementById('previewImg');
-        const blobUrl = getPreviewBlobUrl(pendingPreviewFrame.image);
-        // 始终渲染，确保图片更新
-        if (blobUrl) {
-          revokePreviewBlobUrl();
-          previewBlobUrlCache.url = blobUrl;
-          previewImg.src = blobUrl;
-          previewImg.style.display = 'block';
-        }
-        rendered = true;
-      }
-    }
-    pendingPreviewFrame.image = null;
+    // 预览帧走独立通道（previewScreenshot消息），不在这里渲染
 
     // 更新刷新时间
     if (rendered) updateRefreshTime();
@@ -1550,12 +1535,7 @@ function connectWS() {
 //         console.log(`[WS] screenshot ${msg.deviceId} 接收耗时 ${(t2-t0).toFixed(1)}ms (set:${(t1-t0).toFixed(1)}ms, sched:${(t2-t1).toFixed(1)}ms)`);
       }
 
-      // 预览帧单独处理（优先用高清图）
-      if (previewDeviceId === msg.deviceId) {
-        pendingPreviewFrame.deviceId = msg.deviceId;
-        pendingPreviewFrame.image = msg.hqImage || msg.image;  // 优先显示高清图
-        pendingPreviewFrame.timestamp = Date.now();
-      }
+      // 预览帧走独立通道（previewScreenshot消息），不在这里处理
       // 消息频率监控
       if (!window._msgCount) window._msgCount = { count: 0, last: performance.now() };
       window._msgCount.count++;
