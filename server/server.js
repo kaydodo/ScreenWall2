@@ -1643,13 +1643,6 @@ wssClient.on('connection', (ws, req) => {
           // }
 
           const now = Date.now();
-          const frameMd5 = crypto.createHash('md5').update(rawBase64).digest('hex');
-          const cached = frameCache.get(msg.deviceId);
-          const now = Date.now();
-          const frameIsDuplicate = cached && cached.md5 === frameMd5 && (now - cached.time) < FRAME_CACHE_TTL;
-          if (!frameIsDuplicate) {
-            frameCache.set(msg.deviceId, { md5: frameMd5, time: now });
-          }
 
           // ── 格子预览独立通道（不受帧缓存去重影响）────────
           const previewMsg = JSON.stringify({
