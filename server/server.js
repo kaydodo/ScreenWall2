@@ -1632,8 +1632,17 @@ wssClient.on('connection', (ws, req) => {
           dev.hqScreenshot = msg.image; // 存储高清图
           dev.screenshot = msg.image;   // 也存为截图
 
-          // ── 帧缓存去重（仅用于格子小图优化）──────────────
-          const rawBase64 = msg.image.replace(/^data:image\/\w+;base64,/, '');
+          // ── 帧缓存（已禁用）────────────────────────────
+          // const rawBase64 = msg.image.replace(/^data:image\/\w+;base64,/, '');
+          // const frameMd5 = crypto.createHash('md5').update(rawBase64).digest('hex');
+          // const cached = frameCache.get(msg.deviceId);
+          // const now = Date.now();
+          // const frameIsDuplicate = cached && cached.md5 === frameMd5 && (now - cached.time) < FRAME_CACHE_TTL;
+          // if (!frameIsDuplicate) {
+          //   frameCache.set(msg.deviceId, { md5: frameMd5, time: now });
+          // }
+
+          const now = Date.now();
           const frameMd5 = crypto.createHash('md5').update(rawBase64).digest('hex');
           const cached = frameCache.get(msg.deviceId);
           const now = Date.now();
@@ -1657,45 +1666,39 @@ wssClient.on('connection', (ws, req) => {
             }
           }
 
-          // ── 格子小图（受帧缓存去重影响）──────────────────
-          if (!frameIsDuplicate) {
-            const hqMsg = JSON.stringify({ type: 'screenshot', deviceId: msg.deviceId, image: msg.image, hq: true, hqImage: msg.image });
+          // ── 格子小图（始终广播）──────────────────────────
+          const hqMsg = JSON.stringify({ type: 'screenshot', deviceId: msg.deviceId, image: msg.image, hq: true, hqImage: msg.image });
 
-            for (const browserWs of browserClients) {
-              if (browserWs.readyState === 1) {
-                // 监控墙窗口不需要 screenshot 消息（只接收 wallScreenshot）
-                if (wallClients.has(browserWs)) continue;
-                browserWs.send(hqMsg);
-              }
+          for (const browserWs of browserClients) {
+            if (browserWs.readyState === 1) {
+              // 监控墙窗口不需要 screenshot 消息（只接收 wallScreenshot）
+              if (wallClients.has(browserWs)) continue;
+              browserWs.send(hqMsg);
             }
+          }
 
-            // ── 监控墙独立通道 ─────────────────────────
-            for (const [wallWs, subscription] of wallClients) {
-              const hdChannels = wallHDChannels.get(wallWs);
-              if (subscription.devices.has(msg.deviceId) && hdChannels && hdChannels.has(msg.deviceId) && wallWs.readyState === 1) {
-                wallWs.send(JSON.stringify({ type: 'wallScreenshot', deviceId: msg.deviceId, screenshot: msg.image, timestamp: now }));
-              }
+          // ── 监控墙独立通道 ─────────────────────────
+          for (const [wallWs, subscription] of wallClients) {
+            const hdChannels = wallHDChannels.get(wallWs);
+            if (subscription.devices.has(msg.deviceId) && hdChannels && hdChannels.has(msg.deviceId) && wallWs.readyState === 1) {
+              wallWs.send(JSON.stringify({ type: 'wallScreenshot', deviceId: msg.deviceId, screenshot: msg.image, timestamp: now }));
             }
           }
         } else {
           // ===== 标准模式：直接转发原图 =====
 
-          // ── 帧缓存去重 ───────────────────────────────
-          const rawBase64 = msg.image.replace(/^data:image\/\w+;base64,/, '');
-          const frameMd5 = crypto.createHash('md5').update(rawBase64).digest('hex');
-          const cached = frameCache.get(msg.deviceId);
-          const now = Date.now();
-          const frameIsDuplicate = cached && cached.md5 === frameMd5 && (now - cached.time) < FRAME_CACHE_TTL;
-          if (!frameIsDuplicate) {
-            frameCache.set(msg.deviceId, { md5: frameMd5, time: now });
-            dev.screenshot = msg.image;
-            dev.hqScreenshot = null;
-            broadcastToBrowsers({ type: 'screenshot', deviceId: msg.deviceId, image: msg.image, hq: false, hqImage: null });
-          } else {
-            // 重复帧：只更新存储，不广播
-            dev.screenshot = msg.image;
-            dev.hqScreenshot = null;
-          }
+          // ── 帧缓存（已禁用）────────────────────────────
+          // const rawBase64 = msg.image.replace(/^data:image\/\w+;base64,/, '');
+          // const frameMd5 = crypto.createHash('md5').update(rawBase64).digest('hex');
+          // const cached = frameCache.get(msg.deviceId);
+          // const now = Date.now();
+          // const frameIsDuplicate = cached && cached.md5 === frameMd5 && (now - cached.time) < FRAME_CACHE_TTL;
+          // if (!frameIsDuplicate) {
+          //   frameCache.set(msg.deviceId, { md5: frameMd5, time: now });
+          dev.screenshot = msg.image;
+          dev.hqScreenshot = null;
+          broadcastToBrowsers({ type: 'screenshot', deviceId: msg.deviceId, image: msg.image, hq: false, hqImage: null });
+          // }
         }
       }
     }
