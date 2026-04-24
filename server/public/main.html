@@ -2791,7 +2791,7 @@ function openPreview(cellIndex) {
   // 记住设备ID（即使离线也要，刷新后恢复预览时需要）
   previewDeviceId = cell.deviceId;
   previewActive = true;  // 暂停格子渲染
-  pendingFrames.clear(); // 清空旧的格子帧缓冲
+  // 不清空 pendingFrames，保持格子显示上一帧（静止画面时防止缺图）
 
   // 开启HQ高清流，自动升级到1080p
   previewHQMode = true;
