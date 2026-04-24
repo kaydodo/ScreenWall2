@@ -3742,28 +3742,17 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
   }
 }
 
-/* 收藏按钮 - 星星图标黄色 */
-#collectionBtn {
-  color: #fbbf24;
-}
-
+/* 收藏按钮 - 星星图标黄色，文字同监控/清空按钮 */
 #collectionStar {
   font-size: 20px;
   line-height: 1;
+  color: #fbbf24;
 }
 
-#collectionBtn:hover {
-  color: #f59e0b;
-}
-#collectionBtn .btn-text {
-  color: var(--text-primary);
-}
-
-/* 移动端收藏按钮 */
+/* 移动端收藏按钮 - 只保留图标大小调整 */
 @media (max-width: 768px) {
-  .topbar-center #collectionBtn {
-    font-size: 22px;
-    padding: 6px 10px;
+  #collectionStar {
+    font-size: 18px;
   }
 }
 
