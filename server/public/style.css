@@ -1779,7 +1779,7 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
   }
 
   .preview-overlay.active .preview-area {
-    /* 填满整个屏幕，移除所有限制 */
+    /* 填满整个屏幕，flex居中，顶部16px留空 */
     position: absolute !important;
     top: 0 !important;
     right: 0 !important;
@@ -1789,20 +1789,22 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
     height: 100% !important;
     background: #000 !important;
     overflow: hidden !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding-top: 16px !important;
+    box-sizing: border-box !important;
   }
 
   .preview-overlay.active .preview-area img {
-    /* 旋转90度显示完整图片，宽100%，高自适应 */
-    position: absolute !important;
-    inset: 0 !important;
+    /* 全屏铺满 */
     width: 100% !important;
     height: auto !important;
     max-width: none !important;
     max-height: none !important;
     object-fit: contain !important;
     object-position: center center !important;
-    transform: rotate(90deg) scale(1.8) !important;
-    transform-origin: center center !important;
+    transform: none !important;
     border-radius: 0 !important;
     box-shadow: none !important;
     border: none !important;
