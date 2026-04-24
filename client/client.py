@@ -1778,6 +1778,8 @@ class ScreenWallClient:
 
                     elif msg_type == "hq1080Off":
                         self.hq_1080 = False
+                        # 降级到 720p 高质量，不停止 HQ 模式，让截图循环继续发送 HQ 帧
+                        # 下次截图时会自动用 hq_limit=720
 
                     elif msg_type == "requestCollectionScreenshot":
                         device_ids = data.get("deviceIds", [])

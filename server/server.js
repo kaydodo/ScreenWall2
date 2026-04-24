@@ -1995,13 +1995,13 @@ wssBrowser.on('connection', (ws) => {
     // ========== 1080p 预览模式切换 ==========
     // 浏览器请求开启 1080p 预览
     if (msg.type === 'hq1080On') {
-      // 优先使用消息中指定的deviceId（监控墙用），否则从previewClients获取
+      // 优先使用消息中指定的deviceId（格子预览用），否则从previewClients获取
       const deviceId = msg.deviceId || (previewClients.get(ws) && previewClients.get(ws).deviceId);
       if (deviceId) {
         // 追踪该浏览器的 1080p 设备
         if (!browser1080p.has(ws)) browser1080p.set(ws, new Set());
         browser1080p.get(ws).add(deviceId);
-        // 更新全局追踪
+        // 更新全局追踪（每开启一次加1，与globalHQ保持一致）
         global1080p.set(deviceId, (global1080p.get(deviceId) || 0) + 1);
         // 转发给设备客户端
         for (const client of wssClient.clients) {
