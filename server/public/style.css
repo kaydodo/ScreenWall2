@@ -1794,15 +1794,14 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
   .preview-overlay.active .preview-area img {
     /* 旋转90度显示完整图片，宽100%，高自适应 */
     position: absolute !important;
-    top: 50% !important;
-    left: 50% !important;
+    inset: 0 !important;
     width: 100% !important;
     height: auto !important;
     max-width: none !important;
     max-height: none !important;
     object-fit: contain !important;
     object-position: center center !important;
-    transform: translate(-50%, -50%) rotate(90deg) scale(1.8) !important;
+    transform: rotate(90deg) scale(1.8) !important;
     transform-origin: center center !important;
     border-radius: 0 !important;
     box-shadow: none !important;
@@ -3497,6 +3496,19 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
 }
 
 /* 键盘布局样式 */
+
+/* 移动端预览图片：旋转+放大后精确居中 */
+@media (max-width: 768px) {
+  .preview-overlay.active .preview-area img {
+    position: absolute !important;
+    top: 50% !important;
+    left: 50% !important;
+    width: 100% !important;
+    height: auto !important;
+    transform: translate(-50%, -50%) rotate(90deg) scale(1.8) !important;
+    transform-origin: center center !important;
+  }
+}
 .keyboard-key {
   background: #2d3748;
   color: #fff;
