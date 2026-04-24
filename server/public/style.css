@@ -2000,6 +2000,11 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
     font-size: 14px;
   }
 
+  /* 移动端隐藏版本号 */
+  #topbarVersion {
+    display: none;
+  }
+
   /* 手机端顶栏 - 全屏按钮移到左侧，靠近logo */
   .topbar-left {
     flex-shrink: 0;
