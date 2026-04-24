@@ -2147,13 +2147,12 @@ function updateCellScreenshot(index, imgData) {
   const t1 = performance.now();
   if (!img || !ns) return;
   if (imgData) {
-    // 先释放旧的 Blob URL
-    revokeBlobUrl(index);
-
-    // 方案 B：Web 端 Canvas 压缩
+    const oldUrl = blobUrlCache.get(index);
     compressImageForGrid(imgData).then(compressedUrl => {
-      const t2 = performance.now();
       if (compressedUrl) {
+        // 相同 URL 时跳过 set，避免 revoke 掉正在显示的图片导致闪烁
+        if (compressedUrl === oldUrl) return;
+        // 不在这里 revoke，旧 URL 由 COMPRESS_CACHE 统一管理 eviction
         blobUrlCache.set(index, compressedUrl);
         img.src = compressedUrl;
         img.style.display = 'block';
@@ -2186,18 +2185,26 @@ const COMPRESS_CACHE_MAX = 50;
 
 async function compressImageForGrid(base64Data) {
   if (!base64Data) return null;
-  
-  // 短图直接返回（小于 20KB 不压缩）
-  if (base64Data.length < 20000) {
-    return base64ToBlobUrl(base64Data);
-  }
-  
-  // 检查缓存（用长度+后50字符做简单hash）
+
+  // 检查缓存（用长度+后50字符做简单hash，短图也走缓存避免频繁revoke）
   const cacheKey = base64Data.length + '_' + base64Data.slice(-50);
   if (COMPRESS_CACHE.has(cacheKey)) {
     return COMPRESS_CACHE.get(cacheKey);
   }
-  
+
+  // 短图不压缩，但同样缓存 blob URL（防止静止画面重复revoke导致闪烁）
+  if (base64Data.length < 20000) {
+    const url = base64ToBlobUrl(base64Data);
+    if (COMPRESS_CACHE.size >= COMPRESS_CACHE_MAX) {
+      const firstKey = COMPRESS_CACHE.keys().next().value;
+      const oldUrl = COMPRESS_CACHE.get(firstKey);
+      if (oldUrl) URL.revokeObjectURL(oldUrl);
+      COMPRESS_CACHE.delete(firstKey);
+    }
+    COMPRESS_CACHE.set(cacheKey, url);
+    return url;
+  }
+
   return new Promise((resolve) => {
     const tempImg = new Image();
     tempImg.onload = () => {
