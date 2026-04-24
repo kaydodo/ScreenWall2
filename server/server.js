@@ -3004,10 +3004,6 @@ wssBrowser.on('connection', (ws) => {
 
   ws.on('close', () => {
     browserClients.delete(ws);
-    // 先记录这个窗口的预览设备（用于后续检查）
-    const myPreviews = browserPreviewHD.get(ws) ? new Set(browserPreviewHD.get(ws)) : new Set();
-    // 清理预览高清追踪
-    browserPreviewHD.delete(ws);
 
     // ── 清理格子预览独立通道订阅 ──────────────────────
     const previewInfo = previewClients.get(ws);
@@ -3016,18 +3012,23 @@ wssBrowser.on('connection', (ws) => {
     // ── 清理 1080p 预览模式 ──────────────────────
     const my1080pDevices = browser1080p.get(ws);
     browser1080p.delete(ws);
-    // 从全局追踪中移除，如果有其他浏览器还在用则不通知设备关闭
     if (my1080pDevices && my1080pDevices.size > 0) {
       for (const deviceId of my1080pDevices) {
         if (global1080p.has(deviceId)) {
           const newCount = global1080p.get(deviceId) - 1;
           if (newCount <= 0) {
             global1080p.delete(deviceId);
-            // 所有浏览器都没有使用1080p，通知设备关闭
-            for (const client of wssClient.clients) {
-              if (client._deviceId === deviceId && client.readyState === 1) {
-                client.send(JSON.stringify({ type: 'hq1080Off' }));
-                break;
+            // 发hq1080Off前检查墙上是否还有人在用该设备的1080p
+            let wallStillNeeds1080 = false;
+            for (const [wallWs, hdChannels] of wallHDChannels) {
+              if (hdChannels.has(deviceId)) { wallStillNeeds1080 = true; break; }
+            }
+            if (!wallStillNeeds1080) {
+              for (const client of wssClient.clients) {
+                if (client._deviceId === deviceId && client.readyState === 1) {
+                  client.send(JSON.stringify({ type: 'hq1080Off' }));
+                  break;
+                }
               }
             }
           } else {
@@ -3037,50 +3038,21 @@ wssBrowser.on('connection', (ws) => {
       }
     }
 
-    // 处理这个窗口的预览设备：从globalHQ中减1，只有<=0时才关闭
-    for (const deviceId of myPreviews) {
-      if (globalHQ.has(deviceId)) {
-        const newCount = globalHQ.get(deviceId) - 1;
-        if (newCount <= 0) {
-          globalHQ.delete(deviceId);
-          // 所有浏览器都没有使用HQ，通知设备关闭
-          hdRequests.delete(deviceId);
-          wallDevices.delete(deviceId);
-          checkCompressEnd(deviceId);
-          for (const client of wssClient.clients) {
-            if (client._deviceId === deviceId) {
-              client.send(JSON.stringify({ type: 'stopHQ' }));
-              break;
+    // ── 清理 startHQ 追踪（browserPreviewHD + wallHDChannels）─────────
+    const myPreviewHD = browserPreviewHD.get(ws);
+    browserPreviewHD.delete(ws);
+    if (myPreviewHD) {
+      for (const deviceId of myPreviewHD) {
+        if (globalHQ.has(deviceId)) {
+          const newCount = globalHQ.get(deviceId) - 1;
+          if (newCount <= 0) {
+            globalHQ.delete(deviceId);
+            // 发stopHQ前检查墙上是否还有人在用该设备的HQ
+            let wallStillNeedsHQ = false;
+            for (const [wallWs, hdChannels] of wallHDChannels) {
+              if (hdChannels.has(deviceId)) { wallStillNeedsHQ = true; break; }
             }
-          }
-        } else {
-          globalHQ.set(deviceId, newCount);
-        }
-      }
-    }
-
-    // 处理格子预览独立通道断开（已由上方myPreviews统一处理，这里只清理wallHDChannels引用）
-    if (previewInfo) {
-      for (const [wallWs, hdChannels] of wallHDChannels) {
-        hdChannels.delete(previewInfo.deviceId);
-      }
-    }
-
-    // 清理监控墙订阅（页面关闭）
-    const subscription = wallClients.get(ws);
-    const hdChannels = wallHDChannels.get(ws);
-    if (subscription) {
-      for (const deviceId of subscription.devices) {
-        // 从hdRequests中移除本浏览器
-        if (hdRequests.has(deviceId)) {
-          hdRequests.get(deviceId).delete(ws);
-        }
-        // 如果hdRequests为空且globalHQ<=0，关闭设备高清流
-        if ((!hdRequests.has(deviceId) || hdRequests.get(deviceId).size === 0)) {
-          if (globalHQ.has(deviceId)) {
-            const newCount = globalHQ.get(deviceId) - 1;
-            if (newCount <= 0) {
-              globalHQ.delete(deviceId);
+            if (!wallStillNeedsHQ) {
               hdRequests.delete(deviceId);
               wallDevices.delete(deviceId);
               checkCompressEnd(deviceId);
@@ -3090,23 +3062,56 @@ wssBrowser.on('connection', (ws) => {
                   break;
                 }
               }
-            } else {
-              globalHQ.set(deviceId, newCount);
             }
+          } else {
+            globalHQ.set(deviceId, newCount);
           }
         }
       }
-      wallClients.delete(ws);
-      wallHDChannels.delete(ws);
+    }
+
+    // ── 清理监控墙订阅（页面关闭）────────────────────
+    const subscription = wallClients.get(ws);
+    const hdChannels = wallHDChannels.get(ws);
+    wallClients.delete(ws);
+    wallHDChannels.delete(ws);
+    if (subscription) {
+      for (const deviceId of subscription.devices) {
+        if (globalHQ.has(deviceId)) {
+          const newCount = globalHQ.get(deviceId) - 1;
+          if (newCount <= 0) {
+            globalHQ.delete(deviceId);
+            hdRequests.delete(deviceId);
+            wallDevices.delete(deviceId);
+            checkCompressEnd(deviceId);
+            for (const client of wssClient.clients) {
+              if (client._deviceId === deviceId) {
+                client.send(JSON.stringify({ type: 'stopHQ' }));
+                break;
+              }
+            }
+          } else {
+            globalHQ.set(deviceId, newCount);
+          }
+        }
+        // 同步清理 wallHDChannels 引用（格子预览关闭时也走这里）
+        for (const [wWs, wHd] of wallHDChannels) {
+          wHd.delete(deviceId);
+        }
+      }
+    }
+
+    // 清理格子预览独立通道订阅中的 wallHDChannels 引用
+    if (previewInfo) {
+      const previewDeviceId = previewInfo.deviceId;
+      for (const [wallWs, hdChannels] of wallHDChannels) {
+        hdChannels.delete(previewDeviceId);
+      }
     }
   });
   ws.on('error', () => {
-    browserClients.delete(ws);
-    browserPreviewHD.delete(ws);
-    previewClients.delete(ws);
-    wallClients.delete(ws);
-    wallHDChannels.delete(ws);
-    browser1080p.delete(ws);
+    // error 时触发 close，close handler 已做完整清理
+    ws.close();
   });
 });
 
