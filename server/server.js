@@ -2787,14 +2787,20 @@ wssBrowser.on('connection', (ws) => {
         const newCount = globalHQ.get(msg.deviceId) - 1;
         if (newCount <= 0) {
           globalHQ.delete(msg.deviceId);
-          // 所有浏览器都没有使用HQ，通知设备关闭
-          hdRequests.delete(msg.deviceId);
-          wallDevices.delete(msg.deviceId);
-          checkCompressEnd(msg.deviceId);
-          for (const client of wssClient.clients) {
-            if (client._deviceId === msg.deviceId) {
-              client.send(JSON.stringify({ type: 'stopHQ' }));
-              break;
+          // 发stopHQ前检查墙上是否还有人在用该设备的HQ
+          let wallStillNeedsHQ = false;
+          for (const [wallWs, hdChannels] of wallHDChannels) {
+            if (hdChannels.has(msg.deviceId)) { wallStillNeedsHQ = true; break; }
+          }
+          if (!wallStillNeedsHQ) {
+            hdRequests.delete(msg.deviceId);
+            wallDevices.delete(msg.deviceId);
+            checkCompressEnd(msg.deviceId);
+            for (const client of wssClient.clients) {
+              if (client._deviceId === msg.deviceId) {
+                client.send(JSON.stringify({ type: 'stopHQ' }));
+                break;
+              }
             }
           }
         } else {
@@ -2940,12 +2946,17 @@ wssBrowser.on('connection', (ws) => {
           if (hdRequests.has(deviceId)) {
             hdRequests.get(deviceId).delete(ws);
           }
-          // 如果hdRequests为空且globalHQ<=0，关闭设备高清流
-          if ((!hdRequests.has(deviceId) || hdRequests.get(deviceId).size === 0)) {
-            if (globalHQ.has(deviceId)) {
-              const newCount = globalHQ.get(deviceId) - 1;
-              if (newCount <= 0) {
-                globalHQ.delete(deviceId);
+          // 递减globalHQ，检查是否需要真正停止设备高清流
+          if (globalHQ.has(deviceId)) {
+            const newCount = globalHQ.get(deviceId) - 1;
+            if (newCount <= 0) {
+              globalHQ.delete(deviceId);
+              // 发stopHQ前检查墙上是否还有其他人需要该设备的HQ
+              let wallStillNeedsHQ = false;
+              for (const [wWs, wHd] of wallHDChannels) {
+                if (wHd.has(deviceId)) { wallStillNeedsHQ = true; break; }
+              }
+              if (!wallStillNeedsHQ) {
                 hdRequests.delete(deviceId);
                 wallDevices.delete(deviceId);
                 checkCompressEnd(deviceId);
@@ -2955,9 +2966,9 @@ wssBrowser.on('connection', (ws) => {
                     break;
                   }
                 }
-              } else {
-                globalHQ.set(deviceId, newCount);
               }
+            } else {
+              globalHQ.set(deviceId, newCount);
             }
           }
         }
