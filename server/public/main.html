@@ -2764,7 +2764,7 @@ function openPreview(cellIndex) {
   preview1080Mode = true;
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'startHQ', deviceId: cell.deviceId }));
-    ws.send(JSON.stringify({ type: 'hq1080On' }));
+    ws.send(JSON.stringify({ type: 'hq1080On', deviceId: cell.deviceId }));
   }
 
   // 初始化UU按钮（无论在线离线都要设置，否则刷新后按钮丢失功能）
