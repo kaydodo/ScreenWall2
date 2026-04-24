@@ -2174,11 +2174,6 @@ function updateCellScreenshot(index, imgData) {
     const oldUrl = blobUrlCache.get(index);
     compressImageForGrid(imgData).then(compressedUrl => {
       if (compressedUrl) {
-        // 相同 URL 时跳过 DOM 操作，同时清理残留缓存条目
-        if (compressedUrl === oldUrl) {
-          blobUrlCache.delete(index);
-          return;
-        }
         // 不在这里 revoke，旧 URL 由 COMPRESS_CACHE 统一管理 eviction
         blobUrlCache.set(index, compressedUrl);
         img.src = compressedUrl;
