@@ -2664,15 +2664,7 @@ wssBrowser.on('connection', (ws) => {
         // 记录预览订阅
         previewClients.set(ws, { deviceId, interval: msg.interval || 333 });
 
-        // 通知设备开始高清流
-        for (const client of wssClient.clients) {
-          if (client._deviceId === deviceId) {
-            client.send(JSON.stringify({ type: 'startHQ', interval: msg.interval || 333 }));
-            break;
-          }
-        }
-
-        // 立即推送最新截图
+        // startHQ 已由 openPreview 发送（确保立即开启），此处只推送最新截图
         const dev = devices.get(deviceId);
         if (dev && dev.hqScreenshot) {
           ws.send(JSON.stringify({
@@ -2710,26 +2702,30 @@ wssBrowser.on('connection', (ws) => {
         }
       }
 
-      // 2. 检查是否需要关闭高清流：从globalHQ中减1
-      if (msg.deviceId && globalHQ.has(msg.deviceId)) {
-        const newCount = globalHQ.get(msg.deviceId) - 1;
-        if (newCount <= 0) {
-          globalHQ.delete(msg.deviceId);
-          // 没有其他浏览器需要，检查墙上是否有人需要
-          let needHQ = false;
-          for (const [wallWs, hdChannels] of wallHDChannels) {
-            if (hdChannels.has(msg.deviceId)) { needHQ = true; break; }
-          }
-          if (!needHQ) {
-            for (const client of wssClient.clients) {
-              if (client._deviceId === msg.deviceId) {
-                client.send(JSON.stringify({ type: 'stopHQ' }));
-                break;
+      // 2. 清理 startHQ 追踪（从 browserPreviewHD 和 globalHQ 中移除）
+      const myHD = browserPreviewHD.get(ws);
+      if (msg.deviceId) {
+        if (myHD) myHD.delete(msg.deviceId);
+        if (globalHQ.has(msg.deviceId)) {
+          const newCount = globalHQ.get(msg.deviceId) - 1;
+          if (newCount <= 0) {
+            globalHQ.delete(msg.deviceId);
+            // 没有其他浏览器需要，检查墙上是否有人需要
+            let needHQ = false;
+            for (const [wallWs, hdChannels] of wallHDChannels) {
+              if (hdChannels.has(msg.deviceId)) { needHQ = true; break; }
+            }
+            if (!needHQ) {
+              for (const client of wssClient.clients) {
+                if (client._deviceId === msg.deviceId) {
+                  client.send(JSON.stringify({ type: 'stopHQ' }));
+                  break;
+                }
               }
             }
+          } else {
+            globalHQ.set(msg.deviceId, newCount);
           }
-        } else {
-          globalHQ.set(msg.deviceId, newCount);
         }
       }
     }
