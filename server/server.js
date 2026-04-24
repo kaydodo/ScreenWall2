@@ -1,5 +1,14 @@
 // Set timezone to Shanghai (UTC+8) for all Date operations
 process.env.TZ = 'Asia/Shanghai';
+
+// 全局异常拦截（防止未知路径导致服务端崩溃）
+process.on('uncaughtException', (err) => {
+  serverError('[未捕获异常]', err.message, err.stack);
+});
+process.on('unhandledRejection', (reason) => {
+  serverError('[未处理Promise拒绝]', String(reason));
+});
+
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
