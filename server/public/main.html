@@ -322,12 +322,6 @@
         <button class="preview-kb-btn" id="previewMonitorBtn" title="切换显示器" onclick="cycleMonitor()" style="display:none;background:#2a2d3a;border:1px solid #444;color:#fff;border-radius:6px;padding:4px 10px;font-size:13px;cursor:pointer;">🖥️ 显示器 1</button>
         <button class="preview-kb-btn" id="previewKBbtn" title="键盘控制" onclick="togglePreviewKeyboard()">⌨️ 键盘</button>
       </div>
-      <div style="display:inline-flex;align-items:center;gap:4px;position:relative;z-index:100000;" id="preview1080Container">
-        <div class="toggle-switch" id="preview1080Btn" onclick="event.stopPropagation();togglePreview1080()">
-          <div class="toggle-slider"></div>
-        </div>
-        <span style="font-size:12px;color:#aaa;user-select:none;">1080p</span>
-      </div>
       <button class="preview-uu-btn" id="previewUUbtn" title="打开UU远程"> 🖱️ UU远程</button>
     </div>
   </div>
@@ -2765,10 +2759,12 @@ function openPreview(cellIndex) {
   previewActive = true;  // 暂停格子渲染
   pendingFrames.clear(); // 清空旧的格子帧缓冲
 
-  // 开启HQ高清流（不使用1080p，只用普通高清）
+  // 开启HQ高清流，自动升级到1080p
   previewHQMode = true;
+  preview1080Mode = true;
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'startHQ', deviceId: cell.deviceId }));
+    ws.send(JSON.stringify({ type: 'hq1080On' }));
   }
 
   // 初始化UU按钮（无论在线离线都要设置，否则刷新后按钮丢失功能）
@@ -2819,11 +2815,6 @@ function openPreview(cellIndex) {
     dev._monitorCount = dev.monitorCount || 1;
     updateMonitorBtn(dev.monitorIndex || 1);
   }
-  // 1080p 按钮：仅桌面端显示（移动端不显示），打开时初始化为关闭状态
-  const btn1080Container = document.getElementById('preview1080Container');
-  if (btn1080Container) btn1080Container.style.display = isMobile ? 'none' : 'inline-flex';
-  const btn1080 = document.getElementById('preview1080Btn');
-  if (btn1080) btn1080.classList.remove('active'); // 确保每次打开都是关闭状态
   // 重置鼠标提示（后续根据条件重新设置）
   updateMouseHint();
   // 移动端键盘按钮：根据设备是否支持键盘显示/隐藏
@@ -2862,14 +2853,6 @@ function closePreview() {
   // 关闭时隐藏远控按钮
   const remoteWrap = document.getElementById('previewRemoteWrap');
   if (remoteWrap) remoteWrap.style.display = 'none';
-  // 关闭时隐藏 1080p 按钮容器（状态不记录，下次打开时重置为关闭）
-  const btn1080Container = document.getElementById('preview1080Container');
-  if (btn1080Container) {
-    btn1080Container.style.display = 'none';
-    // 重置按钮状态（下次打开时初始化为关闭）
-    const btn1080 = document.getElementById('preview1080Btn');
-    if (btn1080) btn1080.classList.remove('active');
-  }
   // 关闭键盘弹窗（如果打开着）
   if (previewKeyboardOpen) closePreviewKeyboard();
   // 关闭 1080p 模式（如果开启着）
@@ -3290,24 +3273,7 @@ document.getElementById('remoteDeviceSelect')?.addEventListener('change', functi
   updateRemoteToggleState();
 });
 
-// ─────────────────────────────────────────
-// 1080p 预览模式切换
-// ─────────────────────────────────────────
-function togglePreview1080() {
-  if (!previewDeviceId || !ws || ws.readyState !== WebSocket.OPEN) return;
-  const btn = document.getElementById('preview1080Btn');
-  if (preview1080Mode) {
-    // 关闭 1080p
-    preview1080Mode = false;
-    ws.send(JSON.stringify({ type: 'hq1080Off' }));
-    if (btn) btn.classList.remove('active');
-  } else {
-    // 开启 1080p
-    preview1080Mode = true;
-    ws.send(JSON.stringify({ type: 'hq1080On' }));
-    if (btn) btn.classList.add('active');
-  }
-}
+
 
 function cycleMonitor() {
   if (!previewDeviceId || !ws || ws.readyState !== WebSocket.OPEN) return;
