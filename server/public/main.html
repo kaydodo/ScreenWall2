@@ -2855,16 +2855,12 @@ function closePreview() {
   if (remoteWrap) remoteWrap.style.display = 'none';
   // 关闭键盘弹窗（如果打开着）
   if (previewKeyboardOpen) closePreviewKeyboard();
-  // 关闭 1080p 模式（如果开启着）
-  if (preview1080Mode && ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'hq1080Off' }));
+
+  // 取消订阅，由服务端统一协调：仅当没有其他浏览器需要时才关闭1080p和HQ
+  if (previewDeviceId && ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'unsubscribePreview', deviceId: previewDeviceId }));
   }
   preview1080Mode = false;
-  
-  // 关闭HQ高清流
-  if (previewHQMode && previewDeviceId && ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'stopHQ', deviceId: previewDeviceId }));
-  }
   previewHQMode = false;
   // 解绑预览图片点击事件
   const previewImg = document.getElementById('previewImg');

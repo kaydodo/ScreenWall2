@@ -2689,27 +2689,47 @@ wssBrowser.on('connection', (ws) => {
     if (msg.type === 'unsubscribePreview') {
       previewClients.delete(ws);
 
-      // 检查是否需要关闭高清流：从globalHQ中减1
-      const deviceId = msg.deviceId;
-      if (deviceId && globalHQ.has(deviceId)) {
-        const newCount = globalHQ.get(deviceId) - 1;
+      // 1. 清理 1080p 追踪（从 browser1080p 和 global1080p 中移除）
+      const my1080p = browser1080p.get(ws);
+      if (msg.deviceId) {
+        if (my1080p) my1080p.delete(msg.deviceId);
+        if (global1080p.has(msg.deviceId)) {
+          const new1080Count = global1080p.get(msg.deviceId) - 1;
+          if (new1080Count <= 0) {
+            global1080p.delete(msg.deviceId);
+            // 所有浏览器都没有使用1080p，通知设备关闭
+            for (const client of wssClient.clients) {
+              if (client._deviceId === msg.deviceId && client.readyState === 1) {
+                client.send(JSON.stringify({ type: 'hq1080Off' }));
+                break;
+              }
+            }
+          } else {
+            global1080p.set(msg.deviceId, new1080Count);
+          }
+        }
+      }
+
+      // 2. 检查是否需要关闭高清流：从globalHQ中减1
+      if (msg.deviceId && globalHQ.has(msg.deviceId)) {
+        const newCount = globalHQ.get(msg.deviceId) - 1;
         if (newCount <= 0) {
-          globalHQ.delete(deviceId);
+          globalHQ.delete(msg.deviceId);
           // 没有其他浏览器需要，检查墙上是否有人需要
           let needHQ = false;
           for (const [wallWs, hdChannels] of wallHDChannels) {
-            if (hdChannels.has(deviceId)) { needHQ = true; break; }
+            if (hdChannels.has(msg.deviceId)) { needHQ = true; break; }
           }
           if (!needHQ) {
             for (const client of wssClient.clients) {
-              if (client._deviceId === deviceId) {
+              if (client._deviceId === msg.deviceId) {
                 client.send(JSON.stringify({ type: 'stopHQ' }));
                 break;
               }
             }
           }
         } else {
-          globalHQ.set(deviceId, newCount);
+          globalHQ.set(msg.deviceId, newCount);
         }
       }
     }
