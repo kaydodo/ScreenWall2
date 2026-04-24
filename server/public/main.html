@@ -1524,6 +1524,10 @@ function connectWS() {
       }
 
       // 存入帧缓冲，由 requestAnimationFrame 统一渲染
+      if (!msg.image || msg.image.length < 100) {
+        console.warn('[截图] 空帧跳过:', msg.deviceId, 'length:', msg.image?.length);
+        return;
+      }
       const frameData = { image: msg.image, hqImage: msg.hqImage || null, timestamp: Date.now() };
       pendingFrames.set(msg.deviceId, frameData);
       const t1 = performance.now();
@@ -2194,17 +2198,9 @@ async function compressImageForGrid(base64Data) {
     return COMPRESS_CACHE.get(cacheKey);
   }
 
-  // 短图不压缩，但同样缓存 blob URL（防止静止画面重复revoke导致闪烁）
+  // 短图不压缩，直接创建 blob URL，不缓存（避免占用 COMPRESS_CACHE）
   if (base64Data.length < 20000) {
-    const url = base64ToBlobUrl(base64Data);
-    if (COMPRESS_CACHE.size >= COMPRESS_CACHE_MAX) {
-      const firstKey = COMPRESS_CACHE.keys().next().value;
-      const oldUrl = COMPRESS_CACHE.get(firstKey);
-      if (oldUrl) URL.revokeObjectURL(oldUrl);
-      COMPRESS_CACHE.delete(firstKey);
-    }
-    COMPRESS_CACHE.set(cacheKey, url);
-    return url;
+    return base64ToBlobUrl(base64Data);
   }
 
   return new Promise((resolve) => {
@@ -2217,12 +2213,9 @@ async function compressImageForGrid(base64Data) {
         COMPRESS_CANVAS.toBlob((blob) => {
           if (blob) {
             const url = URL.createObjectURL(blob);
-            // 缓存管理
+            // 缓存管理（不 revoke，让 blob 自然释放）
             if (COMPRESS_CACHE.size > COMPRESS_CACHE_MAX) {
-              const firstKey = COMPRESS_CACHE.keys().next().value;
-              const oldUrl = COMPRESS_CACHE.get(firstKey);
-              if (oldUrl) URL.revokeObjectURL(oldUrl);
-              COMPRESS_CACHE.delete(firstKey);
+              COMPRESS_CACHE.delete(COMPRESS_CACHE.keys().next().value);
             }
             COMPRESS_CACHE.set(cacheKey, url);
             resolve(url);
