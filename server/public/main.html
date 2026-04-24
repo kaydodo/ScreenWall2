@@ -761,14 +761,15 @@ function renderPendingFrames() {
     if (pendingPreviewFrame.image && now - pendingPreviewFrame.timestamp < 1000) {
       if (previewDeviceId === pendingPreviewFrame.deviceId) {
         const previewImg = document.getElementById('previewImg');
-        revokePreviewBlobUrl();
-        const blobUrl = base64ToBlobUrl(pendingPreviewFrame.image);
-        if (blobUrl) {
+        const blobUrl = getPreviewBlobUrl(pendingPreviewFrame.image);
+        // 相同 URL 时跳过，避免 revoke 掉正在显示的图片导致闪烁
+        if (blobUrl && blobUrl !== previewBlobUrlCache.url) {
+          revokePreviewBlobUrl();
           previewBlobUrlCache.url = blobUrl;
           previewImg.src = blobUrl;
           previewImg.style.display = 'block';
-          rendered = true;
         }
+        rendered = true;
       }
     }
     pendingPreviewFrame.image = null;
@@ -791,6 +792,8 @@ function renderPendingFrames() {
 // ─────────────────────────────────────────
 const blobUrlCache = new Map(); // cellIndex -> blobUrl
 const previewBlobUrlCache = { url: null };
+const PREVIEW_BLOB_CACHE = new Map(); // base64Data -> blobUrl（预览弹窗缓存，避免静止画面重复revoke）
+const PREVIEW_BLOB_CACHE_MAX = 10;
 const monitorBlobUrlCache = new Map(); // deviceId -> blobUrl
 
 // 异步解码队列，避免阻塞主线程
@@ -877,6 +880,25 @@ function revokePreviewBlobUrl() {
     URL.revokeObjectURL(previewBlobUrlCache.url);
     previewBlobUrlCache.url = null;
   }
+}
+
+// 获取预览 blob URL（相同 base64 复用，静止画面不反复 revoke）
+function getPreviewBlobUrl(base64Data) {
+  if (!base64Data) return null;
+  const cacheKey = base64Data.length + '_' + base64Data.slice(-50);
+  if (PREVIEW_BLOB_CACHE.has(cacheKey)) {
+    return PREVIEW_BLOB_CACHE.get(cacheKey);
+  }
+  const url = base64ToBlobUrl(base64Data);
+  if (url) {
+    if (PREVIEW_BLOB_CACHE.size >= PREVIEW_BLOB_CACHE_MAX) {
+      const firstKey = PREVIEW_BLOB_CACHE.keys().next().value;
+      URL.revokeObjectURL(PREVIEW_BLOB_CACHE.get(firstKey));
+      PREVIEW_BLOB_CACHE.delete(firstKey);
+    }
+    PREVIEW_BLOB_CACHE.set(cacheKey, url);
+  }
+  return url;
 }
 
 // ─────────────────────────────────────────
@@ -1552,8 +1574,9 @@ function connectWS() {
         watermark.style.display = 'none';
         previewImg.style.filter = '';
       }
-      const blobUrl = base64ToBlobUrl(msg.image);
-      if (blobUrl) {
+      const blobUrl = getPreviewBlobUrl(msg.image);
+      // 相同 URL 时跳过，避免 revoke 掉正在显示的图片导致闪烁
+      if (blobUrl && blobUrl !== previewBlobUrlCache.url) {
         revokePreviewBlobUrl();
         previewBlobUrlCache.url = blobUrl;
         previewImg.src = blobUrl;
@@ -2150,8 +2173,11 @@ function updateCellScreenshot(index, imgData) {
     const oldUrl = blobUrlCache.get(index);
     compressImageForGrid(imgData).then(compressedUrl => {
       if (compressedUrl) {
-        // 相同 URL 时跳过 set，避免 revoke 掉正在显示的图片导致闪烁
-        if (compressedUrl === oldUrl) return;
+        // 相同 URL 时跳过 DOM 操作，同时清理残留缓存条目
+        if (compressedUrl === oldUrl) {
+          blobUrlCache.delete(index);
+          return;
+        }
         // 不在这里 revoke，旧 URL 由 COMPRESS_CACHE 统一管理 eviction
         blobUrlCache.set(index, compressedUrl);
         img.src = compressedUrl;
@@ -2181,7 +2207,7 @@ COMPRESS_CANVAS.width = 480;
 COMPRESS_CANVAS.height = 270;
 const COMPRESS_CTX = COMPRESS_CANVAS.getContext('2d', { alpha: false });
 const COMPRESS_CACHE = new Map(); // base64 hash -> blobUrl
-const COMPRESS_CACHE_MAX = 50;
+const COMPRESS_CACHE_MAX = 200;  // 格子16+预览弹窗1+监控墙16+监控弹窗4+余量
 
 async function compressImageForGrid(base64Data) {
   if (!base64Data) return null;

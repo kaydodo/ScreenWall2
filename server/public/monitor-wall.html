@@ -739,8 +739,8 @@ function connectWebSocket() {
         }
 
         // ── Blob URL 获取/创建 ─────────────────────────
-        // 使用时间戳作为伪 md5，确保每次都创建新 URL（不再复用）
-        var pseudoMd5 = 't' + timestamp;
+        // 用图片内容 hash（长度+尾50字符），静止画面命中缓存不反复 revoke
+        var pseudoMd5 = screenshot.length + '_' + screenshot.slice(-50);
         var blobUrl = blobCache.set(deviceId, screenshot, pseudoMd5);
         if (!blobUrl) return;
 
