@@ -2152,11 +2152,8 @@ function updateCellScreenshot(index, imgData) {
   const t1 = performance.now();
   if (!img || !ns) return;
   if (imgData) {
-    const oldUrl = blobUrlCache.get(index);
     compressImageForGrid(imgData).then(compressedUrl => {
       if (compressedUrl) {
-        // 不在这里 revoke，旧 URL 由 COMPRESS_CACHE 统一管理 eviction
-        blobUrlCache.set(index, compressedUrl);
         img.src = compressedUrl;
         img.style.display = 'block';
         ns.style.display = 'none';
@@ -2168,10 +2165,6 @@ function updateCellScreenshot(index, imgData) {
       }
       const t3 = performance.now();
       const total = t3 - t0;
-      // const byId = t1 - t0, blob = t2 - t1, dom = t3 - t2;
-      // if (total > 5) {
-      //   console.log(`[rAF] updateCell ${index} 总${total.toFixed(1)}ms (getEl:${byId.toFixed(1)}ms compress:${blob.toFixed(1)}ms dom:${dom.toFixed(1)}ms) base64长度=${imgData ? imgData.length : 0}`);
-      // }
     });
   }
 }
