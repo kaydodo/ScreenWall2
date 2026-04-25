@@ -205,39 +205,28 @@ html, body {
 // 性能优化模块
 // ═══════════════════════════════════════════════════════════════
 
-// ── 1. Blob URL 缓存系统 ─────────────────────────────────────
-// 避免重复创建 Blob，减少内存碎片和 GC 压力
-const blobCache = (function() {
-  const _cache = new Map();  // deviceId -> url
-
-  function createBlobUrl(base64Data) {
-    const match = base64Data.match(/^data:([^;]+);base64,(.+)$/);
-    if (!match) return null;
-    const mimeType = match[1];
-    const data = atob(match[2]);
-    const len = data.length;
-    const buf = new Uint8Array(len);
-    for (let i = 0; i < len; i++) buf[i] = data.charCodeAt(i);
-    return URL.createObjectURL(new Blob([buf], { type: mimeType }));
-  }
-
-  // 始终为每帧创建新 blob URL，用 deviceId 直接做 key（不共享）
-  function set(deviceId, base64Data) {
-    const old = _cache.get(deviceId);
-    const blobUrl = createBlobUrl(base64Data);
-    if (!blobUrl) return null;
-    _cache.set(deviceId, blobUrl);
-    if (old) setTimeout(() => URL.revokeObjectURL(old), 500);
-    return blobUrl;
-  }
-
-  function revokeAll() {
-    for (const url of _cache.values()) URL.revokeObjectURL(url);
-    _cache.clear();
-  }
-
-  return { set, revokeAll };
-})();
+// ── 1. Blob URL 缓存（与格子页面一致的简化模式）────────
+// 设备数 × 2 个 blob 上限，延迟 500ms 释放
+const _wallBlobCache = new Map();  // deviceId -> url
+function wallBlobSet(deviceId, base64Data) {
+  if (!base64Data) return null;
+  const old = _wallBlobCache.get(deviceId);
+  const match = base64Data.match(/^data:([^;]+);base64,(.+)$/);
+  if (!match) return null;
+  const mimeType = match[1];
+  const data = atob(match[2]);
+  const len = data.length;
+  const buf = new Uint8Array(len);
+  for (let i = 0; i < len; i++) buf[i] = data.charCodeAt(i);
+  const url = URL.createObjectURL(new Blob([buf], { type: mimeType }));
+  _wallBlobCache.set(deviceId, url);
+  if (old) setTimeout(() => URL.revokeObjectURL(old), 500);
+  return url;
+}
+function wallBlobRevokeAll() {
+  for (const url of _wallBlobCache.values()) URL.revokeObjectURL(url);
+  _wallBlobCache.clear();
+}
 
 // ── 2. rAF 批量渲染队列 ─────────────────────────────────────
 // 收集待渲染帧，下一 rAF 统一处理，避免高频 DOM 更新
@@ -523,8 +512,7 @@ function updateStats() {
     'FPS: ' + fps + '<br>' +
     'Recv: ' + stats.framesReceived + '<br>' +
     'Render: ' + stats.framesRendered + '<br>' +
-    'BlobCache: ' + blobCache.getBlobSize() + '<br>' +
-    'Pending: ' + renderQueue.getPendingCount() + '<br>' +
+    'BlobCache: ' + _wallBlobCache.size + '<br>' +
     'Reconnects: ' + stats.wsReconnects;
   stats.framesReceived = 0;
   stats.lastReport = now;
@@ -618,8 +606,7 @@ function initWall() {
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: 'unsubscribeWall', devices: subscribedDevices }));
     }
-    blobCache.revokeAll();
-    renderQueue.clear();
+    wallBlobRevokeAll();
     watchdog.stop();
     try {
       var stored = localStorage.getItem('walledDevices');
@@ -685,7 +672,7 @@ function connectWebSocket() {
 
         // ── Blob URL 获取/创建 ─────────────────────────
         var pseudoMd5 = screenshot.length + '_' + screenshot.slice(-50);
-        var blobUrl = blobCache.set(deviceId, screenshot);
+        var blobUrl = wallBlobSet(deviceId, screenshot);
 
         // ── 直接同步更新 img（跳过 rAF 队列避免延迟）────────────
         var img = document.getElementById('img_' + deviceId);
@@ -785,8 +772,6 @@ function handleWallStateUpdate(data) {
       if (dev) dev.name = data.deviceName;
       updateDeviceInfo(deviceId, data.deviceName, null);
     }
-    // 设备恢复时清理 blob 缓存
-    blobCache.revoke(deviceId);
   }
 
   if (eventType === 'deviceRenamed') {
@@ -818,8 +803,6 @@ function handleWallStateUpdate(data) {
       updateUUButtonVisibility(cell, false);
     }
     updateDeviceInfo(deviceId, '设备已删除', '已删除');
-    // 清理缓存
-    blobCache.revoke(deviceId);
   }
 
   if (eventType === 'gridChanged') {
