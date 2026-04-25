@@ -208,7 +208,7 @@ html, body {
 // ── 1. Blob URL 缓存（与格子页面一致的简化模式）────────
 // 设备数 × 2 个 blob 上限，延迟 500ms 释放
 const _wallBlobCache = new Map();  // deviceId -> url
-function wallBlobSet(deviceId, base64Data) {
+function wallBlobSet(deviceId, base64Data, imgEl) {
   if (!base64Data) return null;
   const old = _wallBlobCache.get(deviceId);
   const match = base64Data.match(/^data:([^;]+);base64,(.+)$/);
@@ -220,7 +220,10 @@ function wallBlobSet(deviceId, base64Data) {
   for (let i = 0; i < len; i++) buf[i] = data.charCodeAt(i);
   const url = URL.createObjectURL(new Blob([buf], { type: mimeType }));
   _wallBlobCache.set(deviceId, url);
-  if (old) setTimeout(() => URL.revokeObjectURL(old), 500);
+  // 新 blob 加载完成后才 revoke 旧 blob，避免网络慢时白图
+  if (imgEl) {
+    imgEl.onload = () => { if (old) URL.revokeObjectURL(old); imgEl.onload = null; };
+  }
   return url;
 }
 function wallBlobRevokeAll() {
@@ -670,12 +673,10 @@ function connectWebSocket() {
           frameHealCount.delete(deviceId);
         }
 
-        // ── Blob URL 获取/创建 ─────────────────────────
-        var pseudoMd5 = screenshot.length + '_' + screenshot.slice(-50);
-        var blobUrl = wallBlobSet(deviceId, screenshot);
-
         // ── 直接同步更新 img（跳过 rAF 队列避免延迟）────────────
         var img = document.getElementById('img_' + deviceId);
+        var blobUrl = wallBlobSet(deviceId, screenshot, img);
+        if (!blobUrl) return;
         if (img) {
           img.style.width = '100%';
           img.style.height = '100%';

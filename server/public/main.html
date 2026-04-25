@@ -848,20 +848,25 @@ function base64ToBlobUrl(base64) {
   }
 }
 
-function revokeBlobUrl(cellIndex) {
+function revokeBlobUrl(cellIndex, imgEl) {
   const old = blobUrlCache.get(cellIndex);
   blobUrlCache.delete(cellIndex);
-  if (old) setTimeout(() => URL.revokeObjectURL(old), 500);
+  // 新 blob 加载完成后才 revoke，避免网络慢时白图
+  if (old && imgEl) {
+    imgEl.onload = () => { URL.revokeObjectURL(old); imgEl.onload = null; };
+  }
 }
 
-function revokePreviewBlobUrl() {
+function revokePreviewBlobUrl(imgEl) {
   if (previewBlobUrlCache.url) {
     const old = previewBlobUrlCache.url;
     for (const [key, url] of PREVIEW_BLOB_CACHE.entries()) {
       if (url === old) { PREVIEW_BLOB_CACHE.delete(key); break; }
     }
     previewBlobUrlCache.url = null;
-    setTimeout(() => URL.revokeObjectURL(old), 500);
+    if (imgEl) {
+      imgEl.onload = () => { URL.revokeObjectURL(old); imgEl.onload = null; };
+    }
   }
 }
 
@@ -1559,7 +1564,7 @@ function connectWS() {
       const blobUrl = getPreviewBlobUrl(msg.image);
       // 始终渲染，确保图片更新
       if (blobUrl) {
-        revokePreviewBlobUrl();
+        revokePreviewBlobUrl(previewImg);
         previewBlobUrlCache.url = blobUrl;
         previewImg.src = blobUrl;
         previewImg.style.display = 'block';
@@ -2067,7 +2072,7 @@ function updateCellElement(index) {
 
       if (cell.screenshot) {
         // 有截图：显示灰度截图+离线标签（使用 Blob URL 避免 431）
-        revokeBlobUrl(index);
+        revokeBlobUrl(index, img);
         const blobUrl = base64ToBlobUrl(cell.screenshot);
         if (blobUrl) {
           blobUrlCache.set(index, blobUrl);
@@ -2094,7 +2099,7 @@ function updateCellElement(index) {
 
       if (cell.screenshot) {
         // 在线设备有截图：显示正常截图（使用 Blob URL 避免 431）
-        revokeBlobUrl(index);
+        revokeBlobUrl(index, img);
         const blobUrl = base64ToBlobUrl(cell.screenshot);
         if (blobUrl) {
           blobUrlCache.set(index, blobUrl);
@@ -5156,12 +5161,11 @@ function openAlarmPreview(alarmId) {
   
   // 复用预览浮层显示报警截图
   document.getElementById('previewDeviceName').textContent = (rec.deviceName || '未知') + ' - 报警截图';
-  revokePreviewBlobUrl();
-
   var previewImg = document.getElementById('previewImg');
   // 清除可能残留的状态
   previewImg.style.filter = '';  // 清除可能残留的灰度滤镜
   previewImg.onload = null;
+  revokePreviewBlobUrl(previewImg);
 
   // 直接设置 URL（URL 加载方式）
   previewImg.src = rec.screenshot;
@@ -5695,7 +5699,7 @@ function updateMonitorPreviewImages() {
     const currentTransform = img.style.transform || '';
     
     // 使用 Blob URL 避免 431
-    revokeMonitorBlobUrl(deviceId);
+    revokeMonitorBlobUrl(deviceId, img);
     const blobUrl = base64ToBlobUrl(imageToUse);
     if (blobUrl) {
       monitorBlobUrlCache.set(deviceId, blobUrl);
@@ -5706,11 +5710,13 @@ function updateMonitorPreviewImages() {
   }
 }
 
-function revokeMonitorBlobUrl(deviceId) {
+function revokeMonitorBlobUrl(deviceId, imgEl) {
   const old = monitorBlobUrlCache.get(deviceId);
   monitorBlobUrlCache.delete(deviceId);
-  if (old) setTimeout(() => URL.revokeObjectURL(old), 500);
-}
+  // 新 blob 加载完成后才 revoke，避免网络慢时白图
+  if (old && imgEl) {
+    imgEl.onload = () => { URL.revokeObjectURL(old); imgEl.onload = null; };
+  }
 }
 
 function zoomMonitorPreview(deviceId, delta) {
