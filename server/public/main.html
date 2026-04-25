@@ -848,25 +848,20 @@ function base64ToBlobUrl(base64) {
   }
 }
 
-function revokeBlobUrl(cellIndex, imgEl) {
+function revokeBlobUrl(cellIndex) {
   const old = blobUrlCache.get(cellIndex);
   blobUrlCache.delete(cellIndex);
-  // 新 blob 加载完成后才 revoke，避免网络慢时白图
-  if (old && imgEl) {
-    imgEl.onload = () => { URL.revokeObjectURL(old); imgEl.onload = null; };
-  }
+  if (old) setTimeout(() => URL.revokeObjectURL(old), 500);
 }
 
-function revokePreviewBlobUrl(imgEl) {
+function revokePreviewBlobUrl() {
   if (previewBlobUrlCache.url) {
     const old = previewBlobUrlCache.url;
     for (const [key, url] of PREVIEW_BLOB_CACHE.entries()) {
       if (url === old) { PREVIEW_BLOB_CACHE.delete(key); break; }
     }
     previewBlobUrlCache.url = null;
-    if (imgEl) {
-      imgEl.onload = () => { URL.revokeObjectURL(old); imgEl.onload = null; };
-    }
+    setTimeout(() => URL.revokeObjectURL(old), 500);
   }
 }
 
@@ -2072,7 +2067,7 @@ function updateCellElement(index) {
 
       if (cell.screenshot) {
         // 有截图：显示灰度截图+离线标签（使用 Blob URL 避免 431）
-        revokeBlobUrl(index, img);
+        revokeBlobUrl(index);
         const blobUrl = base64ToBlobUrl(cell.screenshot);
         if (blobUrl) {
           blobUrlCache.set(index, blobUrl);
@@ -2099,7 +2094,7 @@ function updateCellElement(index) {
 
       if (cell.screenshot) {
         // 在线设备有截图：显示正常截图（使用 Blob URL 避免 431）
-        revokeBlobUrl(index, img);
+        revokeBlobUrl(index);
         const blobUrl = base64ToBlobUrl(cell.screenshot);
         if (blobUrl) {
           blobUrlCache.set(index, blobUrl);
@@ -5699,7 +5694,7 @@ function updateMonitorPreviewImages() {
     const currentTransform = img.style.transform || '';
     
     // 使用 Blob URL 避免 431
-    revokeMonitorBlobUrl(deviceId, img);
+    revokeMonitorBlobUrl(deviceId);
     const blobUrl = base64ToBlobUrl(imageToUse);
     if (blobUrl) {
       monitorBlobUrlCache.set(deviceId, blobUrl);
@@ -5710,13 +5705,10 @@ function updateMonitorPreviewImages() {
   }
 }
 
-function revokeMonitorBlobUrl(deviceId, imgEl) {
+function revokeMonitorBlobUrl(deviceId) {
   const old = monitorBlobUrlCache.get(deviceId);
   monitorBlobUrlCache.delete(deviceId);
-  // 新 blob 加载完成后才 revoke，避免网络慢时白图
-  if (old && imgEl) {
-    imgEl.onload = () => { URL.revokeObjectURL(old); imgEl.onload = null; };
-  }
+  if (old) setTimeout(() => URL.revokeObjectURL(old), 500);
 }
 
 function zoomMonitorPreview(deviceId, delta) {
