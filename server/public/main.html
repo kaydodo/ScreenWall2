@@ -778,8 +778,6 @@ function renderPendingFrames() {
 // ─────────────────────────────────────────
 const blobUrlCache = new Map(); // cellIndex -> blobUrl
 const previewBlobUrlCache = { url: null };
-const PREVIEW_BLOB_CACHE = new Map(); // base64Data -> blobUrl（预览弹窗缓存，避免静止画面重复revoke）
-const PREVIEW_BLOB_CACHE_MAX = 10;
 const monitorBlobUrlCache = new Map(); // deviceId -> blobUrl
 
 // 异步解码队列，避免阻塞主线程
@@ -986,6 +984,7 @@ function setCell(cellIndex, deviceId) {
   // 如果设备已在其他格子，先移除（1对1限制）
   for (let i = 0; i < gridCells.length; i++) {
     if (gridCells[i] && gridCells[i].deviceId === deviceId && i !== cellIndex) {
+      revokeBlobUrl(i);  // 清理旧 blob URL
       gridCells[i] = { index: i, deviceId: null, deviceName: null, uuDeviceId: null, online: false, screenshot: null, frameCount: 0 };
       updateCellElement(i);
     }
@@ -2713,6 +2712,7 @@ function assignCell(cellIndex, deviceId) {
   // 1对1限制：如果设备已在其他格子，先移除
   for (let i = 0; i < gridCells.length; i++) {
     if (gridCells[i] && gridCells[i].deviceId === deviceId && i !== cellIndex) {
+      revokeBlobUrl(i);  // 清理旧 blob URL
       gridCells[i] = { index: i, deviceId: null, deviceName: null, uuDeviceId: null, online: false, screenshot: null };
       updateCellElement(i);  // 清除旧格子的颜色
     }
@@ -2721,7 +2721,7 @@ function assignCell(cellIndex, deviceId) {
   // 记住当前格子的旧设备（清除其颜色）
   const oldDeviceId = gridCells[cellIndex] && gridCells[cellIndex].deviceId;
   if (oldDeviceId && oldDeviceId !== deviceId) {
-    // 当前格子之前的设备颜色需要清除，会在 updateCellElement 中处理
+    revokeBlobUrl(cellIndex);  // 清理旧 blob URL
   }
 
   // 通知服务器（服务器会广播给所有浏览器）
@@ -4125,6 +4125,7 @@ document.getElementById('btnClear').onclick = () => {
   // 乐观更新：立即清空本地UI
   for (let i = 0; i < gridCells.length; i++) {
     if (gridCells[i] && gridCells[i].deviceId) {
+      revokeBlobUrl(i);  // 清理旧 blob URL
       gridCells[i] = { index: i, deviceId: null, deviceName: null, uuDeviceId: null, online: false, screenshot: null, frameCount: 0 };
       updateCellElement(i);
     }
@@ -4175,6 +4176,7 @@ function toggleFullscreen() {
 document.getElementById('dialogClose').onclick = closeDeviceDialog;
 document.getElementById('dialogClear').onclick = () => {
   if (selectedCell !== null) {
+    revokeBlobUrl(selectedCell);  // 清理旧 blob URL
     ws.send(JSON.stringify({ type: 'setCell', gridSize, cellIndex: selectedCell, deviceId: null }));
     gridCells[selectedCell] = { index: selectedCell, deviceId: null, deviceName: null, uuDeviceId: null, online: false, screenshot: null, frameCount: 0 };
     updateCellElement(selectedCell);
