@@ -1195,12 +1195,25 @@ function connectWS() {
           });
         }
       });
-      // 同步离线状态到格子
+      // 同步离线状态到格子，并清理已删除设备的 blob 缓存
       gridCells.forEach(c => {
         if (c.deviceId) {
           const dev = devices.find(d => d.deviceId === c.deviceId);
           if (dev) { c.online = dev.online; c.deviceName = dev.deviceName; }
-          else c.online = false;
+          else {
+            // 设备已从服务端删除，清理 blob 缓存
+            c.online = false;
+            const oldUrl = blobUrlCache.get(c.index);
+            blobUrlCache.delete(c.index);
+            if (oldUrl) {
+              const currentUrl = deviceBlobMap.get(c.deviceId);
+              if (currentUrl !== oldUrl) setTimeout(() => URL.revokeObjectURL(oldUrl), 500);
+            }
+            const devUrl = deviceBlobMap.get(c.deviceId);
+            if (devUrl) URL.revokeObjectURL(devUrl);
+            deviceBlobMap.delete(c.deviceId);
+            deviceBlobMap.delete(c.deviceId + '_ts');
+          }
         }
       });
       // 恢复离线设备的 screenshot 到 gridCells

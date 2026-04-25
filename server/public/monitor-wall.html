@@ -743,6 +743,10 @@ function handleWallStateUpdate(data) {
       if (badge) badge.textContent = '设备已离线';
       updateUUButtonVisibility(cell, false);
     }
+    // 清理设备 blob 缓存
+    var old = _wallBlobCache.get(deviceId);
+    _wallBlobCache.delete(deviceId);
+    if (old) setTimeout(() => URL.revokeObjectURL(old), 500);
   }
 
   if (eventType === 'deviceOnline') {
@@ -800,6 +804,10 @@ function handleWallStateUpdate(data) {
       if (badge) badge.textContent = '设备已删除';
       updateUUButtonVisibility(cell, false);
     }
+    // 清理设备 blob 缓存
+    var old = _wallBlobCache.get(deviceId);
+    _wallBlobCache.delete(deviceId);
+    if (old) setTimeout(() => URL.revokeObjectURL(old), 500);
     updateDeviceInfo(deviceId, '设备已删除', '已删除');
   }
 
