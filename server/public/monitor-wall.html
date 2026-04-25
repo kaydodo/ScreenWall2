@@ -743,10 +743,8 @@ function handleWallStateUpdate(data) {
       if (badge) badge.textContent = '设备已离线';
       updateUUButtonVisibility(cell, false);
     }
-    // 清理设备 blob 缓存
-    var old = _wallBlobCache.get(deviceId);
-    _wallBlobCache.delete(deviceId);
-    if (old) setTimeout(() => URL.revokeObjectURL(old), 500);
+    // 注意：不清空 _wallBlobCache，保留最后一张截图
+    // 新帧到达时会自动更新，revoke 会导致离线期间白屏
   }
 
   if (eventType === 'deviceOnline') {
@@ -755,8 +753,10 @@ function handleWallStateUpdate(data) {
     if (cell) {
       cell.classList.remove('offline');
       cell.classList.remove('deleted');
+      frameHealCount.delete(deviceId); // 设备上线，清除帧计数
       var badge = cell.querySelector('.offline-badge');
-      if (badge) badge.textContent = '设备已离线';
+      if (badge) badge.style.display = 'none';
+      updateUUButtonVisibility(cell, true);
       var uuBtn = cell.querySelector('.uu-float-btn');
       var dev = devices[deviceId];
       if (!uuBtn && dev && dev.uuDeviceId) {
