@@ -5689,6 +5689,7 @@ function updateMonitorPreviewImages() {
       // revoke 旧 blob（新 blob 已就绪才释放）
       const old = monitorBlobUrlCache.get(deviceId);
       monitorBlobUrlCache.set(deviceId, blobUrl);
+      img.src = '';  // 清除旧图片，释放浏览器解码缓存
       img.src = blobUrl;
       if (old) setTimeout(() => URL.revokeObjectURL(old), 500);
       // 恢复 transform
