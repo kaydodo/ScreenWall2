@@ -2165,13 +2165,11 @@ const COMPRESS_CANVAS = document.createElement('canvas');
 COMPRESS_CANVAS.width = 480;
 COMPRESS_CANVAS.height = 270;
 const COMPRESS_CTX = COMPRESS_CANVAS.getContext('2d', { alpha: false });
-const COMPRESS_CACHE = new Map(); // base64 hash -> blobUrl
+const COMPRESS_CACHE = new Map(); // base64 hash -> { url, ts }，合并存储避免内存泄漏
 const COMPRESS_CACHE_MAX = 200;  // 格子16+预览弹窗1+监控墙16+监控弹窗4+余量
 
 // 追踪每个设备的当前 blob URL（用于同步 revoke）
 const deviceBlobMap = new Map();
-// 追踪每个 blob URL 的创建时间（用于验证缓存有效性）
-const blobCreatedAt = new Map();
 
 async function compressImageForGrid(deviceId, base64Data) {
   if (!base64Data) return null;
@@ -2179,11 +2177,11 @@ async function compressImageForGrid(deviceId, base64Data) {
   // 检查缓存（用长度+后50字符做简单hash）
   const cacheKey = base64Data.length + '_' + base64Data.slice(-50);
   if (COMPRESS_CACHE.has(cacheKey)) {
-    const cachedUrl = COMPRESS_CACHE.get(cacheKey);
+    const cached = COMPRESS_CACHE.get(cacheKey);
     // 验证缓存的 URL 是否仍有效：检查该 URL 的创建时间是否与设备的当前 URL 匹配
     // 如果设备已经有新的 URL，说明旧缓存已失效（URL 已被 revoke）
-    if (blobCreatedAt.get(cachedUrl) === deviceBlobMap.get(deviceId + '_ts')) {
-      return cachedUrl;
+    if (cached.ts === deviceBlobMap.get(deviceId + '_ts')) {
+      return cached.url;
     }
     // 缓存已失效，删除并重新创建
     COMPRESS_CACHE.delete(cacheKey);
@@ -2198,7 +2196,6 @@ async function compressImageForGrid(deviceId, base64Data) {
       const ts = Date.now();
       deviceBlobMap.set(deviceId, url);
       deviceBlobMap.set(deviceId + '_ts', ts);
-      blobCreatedAt.set(url, ts);
     }
     return url;
   }
@@ -2217,13 +2214,11 @@ async function compressImageForGrid(deviceId, base64Data) {
             const ts = Date.now();
             deviceBlobMap.set(deviceId, url);
             deviceBlobMap.set(deviceId + '_ts', ts);
-            blobCreatedAt.set(url, ts);
-            // LRU 驱逐（不 revoke，blob 可能还被 COMPRESS_CACHE 引用）
+            // LRU 驱逐（不 revoke，blob 可能还被 img 引用）
             if (COMPRESS_CACHE.size > COMPRESS_CACHE_MAX) {
-              const evictKey = COMPRESS_CACHE.keys().next().value;
-              COMPRESS_CACHE.delete(evictKey);
+              COMPRESS_CACHE.delete(COMPRESS_CACHE.keys().next().value);
             }
-            COMPRESS_CACHE.set(cacheKey, url);
+            COMPRESS_CACHE.set(cacheKey, { url, ts });
             resolve(url);
           } else {
             resolve(base64ToBlobUrl(base64Data));
