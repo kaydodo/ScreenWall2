@@ -854,13 +854,13 @@ function revokeBlobUrl(cellIndex) {
   if (old) URL.revokeObjectURL(old);
 }
 
-// 获取预览 blob URL（不再缓存，每次创建新 blob，同步撤销旧 blob）
+// 获取预览 blob URL（不再缓存，每次创建新 blob，延迟撤销旧 blob 避免白图）
 function getPreviewBlobUrl(base64Data) {
   if (!base64Data) return null;
   const url = base64ToBlobUrl(base64Data);
   if (url) {
     if (previewBlobUrlCache.url) {
-      URL.revokeObjectURL(previewBlobUrlCache.url);
+      setTimeout(() => URL.revokeObjectURL(previewBlobUrlCache.url), 500);
     }
     previewBlobUrlCache.url = url;
   }
@@ -1550,8 +1550,6 @@ function connectWS() {
       const blobUrl = getPreviewBlobUrl(msg.image);
       // 始终渲染，确保图片更新
       if (blobUrl) {
-        revokePreviewBlobUrl(previewImg);
-        previewBlobUrlCache.url = blobUrl;
         previewImg.src = blobUrl;
         previewImg.style.display = 'block';
       }
