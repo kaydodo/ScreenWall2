@@ -870,7 +870,7 @@ function getPreviewBlobUrl(base64Data) {
 // 关闭预览时撤销
 function revokePreviewBlobUrl() {
   if (previewBlobUrlCache.url) {
-    URL.revokeObjectURL(previewBlobUrlCache.url);
+    setTimeout(() => URL.revokeObjectURL(previewBlobUrlCache.url), 500);
     previewBlobUrlCache.url = null;
   }
 }
