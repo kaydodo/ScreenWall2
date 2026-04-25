@@ -223,9 +223,11 @@ const blobCache = (function() {
 
   // 始终为每帧创建新 blob URL，用 deviceId 直接做 key（不共享）
   function set(deviceId, base64Data) {
+    const old = _cache.get(deviceId);
     const blobUrl = createBlobUrl(base64Data);
     if (!blobUrl) return null;
-    _cache.set(deviceId, blobUrl);  // 不 revoke 旧 blob，让浏览器自然释放
+    _cache.set(deviceId, blobUrl);
+    if (old) setTimeout(() => URL.revokeObjectURL(old), 500);
     return blobUrl;
   }
 

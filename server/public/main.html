@@ -849,20 +849,19 @@ function base64ToBlobUrl(base64) {
 }
 
 function revokeBlobUrl(cellIndex) {
-  // 不主动 revoke，让浏览器自然释放；只从缓存删除
+  const old = blobUrlCache.get(cellIndex);
   blobUrlCache.delete(cellIndex);
+  if (old) setTimeout(() => URL.revokeObjectURL(old), 500);
 }
 
 function revokePreviewBlobUrl() {
   if (previewBlobUrlCache.url) {
-    // 从 PREVIEW_BLOB_CACHE 中删除对应条目（避免 getPreviewBlobUrl 返回已 revoke 的 URL）
+    const old = previewBlobUrlCache.url;
     for (const [key, url] of PREVIEW_BLOB_CACHE.entries()) {
-      if (url === previewBlobUrlCache.url) {
-        PREVIEW_BLOB_CACHE.delete(key);
-        break;
-      }
+      if (url === old) { PREVIEW_BLOB_CACHE.delete(key); break; }
     }
     previewBlobUrlCache.url = null;
+    setTimeout(() => URL.revokeObjectURL(old), 500);
   }
 }
 
@@ -5708,8 +5707,10 @@ function updateMonitorPreviewImages() {
 }
 
 function revokeMonitorBlobUrl(deviceId) {
-  // 不主动 revoke，让浏览器自然释放；只从缓存删除
+  const old = monitorBlobUrlCache.get(deviceId);
   monitorBlobUrlCache.delete(deviceId);
+  if (old) setTimeout(() => URL.revokeObjectURL(old), 500);
+}
 }
 
 function zoomMonitorPreview(deviceId, delta) {
