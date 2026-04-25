@@ -740,7 +740,7 @@ function handleWallStateUpdate(data) {
       cell.classList.add('offline');
       cell.classList.remove('deleted');
       var badge = cell.querySelector('.offline-badge');
-      if (badge) badge.textContent = '设备已离线';
+      if (badge) { badge.textContent = '设备已离线'; badge.style.display = 'block'; }
       updateUUButtonVisibility(cell, false);
     }
     // 注意：不清空 _wallBlobCache，保留最后一张截图
