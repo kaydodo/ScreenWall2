@@ -851,37 +851,28 @@ function base64ToBlobUrl(base64) {
 function revokeBlobUrl(cellIndex) {
   const old = blobUrlCache.get(cellIndex);
   blobUrlCache.delete(cellIndex);
-  if (old) setTimeout(() => URL.revokeObjectURL(old), 500);
+  if (old) URL.revokeObjectURL(old);
 }
 
-function revokePreviewBlobUrl() {
-  if (previewBlobUrlCache.url) {
-    const old = previewBlobUrlCache.url;
-    for (const [key, url] of PREVIEW_BLOB_CACHE.entries()) {
-      if (url === old) { PREVIEW_BLOB_CACHE.delete(key); break; }
-    }
-    previewBlobUrlCache.url = null;
-    setTimeout(() => URL.revokeObjectURL(old), 500);
-  }
-}
-
-// 获取预览 blob URL（相同 base64 复用，静止画面不反复 revoke）
+// 获取预览 blob URL（不再缓存，每次创建新 blob，同步撤销旧 blob）
 function getPreviewBlobUrl(base64Data) {
   if (!base64Data) return null;
-  const cacheKey = base64Data.length + '_' + base64Data.slice(-50);
-  if (PREVIEW_BLOB_CACHE.has(cacheKey)) {
-    return PREVIEW_BLOB_CACHE.get(cacheKey);
-  }
   const url = base64ToBlobUrl(base64Data);
   if (url) {
-    if (PREVIEW_BLOB_CACHE.size >= PREVIEW_BLOB_CACHE_MAX) {
-      const firstKey = PREVIEW_BLOB_CACHE.keys().next().value;
-      URL.revokeObjectURL(PREVIEW_BLOB_CACHE.get(firstKey));
-      PREVIEW_BLOB_CACHE.delete(firstKey);
+    if (previewBlobUrlCache.url) {
+      URL.revokeObjectURL(previewBlobUrlCache.url);
     }
-    PREVIEW_BLOB_CACHE.set(cacheKey, url);
+    previewBlobUrlCache.url = url;
   }
   return url;
+}
+
+// 关闭预览时撤销
+function revokePreviewBlobUrl() {
+  if (previewBlobUrlCache.url) {
+    URL.revokeObjectURL(previewBlobUrlCache.url);
+    previewBlobUrlCache.url = null;
+  }
 }
 
 // ─────────────────────────────────────────
