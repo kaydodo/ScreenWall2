@@ -411,6 +411,14 @@ function enterWallFullscreen(cell, deviceId) {
 
   wallFullscreenDeviceId = deviceId;
 
+  // ① 记录变换前的格子尺寸（layout 尺寸，不受 CSS transform 影响）
+  var cellW = cell.offsetWidth;
+  var cellH = cell.offsetHeight;
+  var dev = devices[deviceId];
+  var oldTx = (dev && dev.crop) ? (dev.crop.translateX || 0) : 0;
+  var oldTy = (dev && dev.crop) ? (dev.crop.translateY || 0) : 0;
+  var scale  = (dev && dev.crop) ? (dev.crop.scale  || 1) : 1;
+
   // 切换到1格布局，填满整个视口
   wallData.layout = 1;
   container.style.gridTemplateColumns = '1fr';
@@ -421,23 +429,29 @@ function enterWallFullscreen(cell, deviceId) {
   // 隐藏所有格子，只显示目标格子
   for (var i = 0; i < wallOriginalDeviceCount; i++) {
     var c = document.getElementById('cell_' + i);
-    if (c) {
-      c.classList.add('hidden');
-    }
+    if (c) c.classList.add('hidden');
   }
   cell.classList.remove('hidden');
   cell.classList.add('fullscreen');
 
-  // 进入全屏时重置 translate（保留 scale，但位置居中）
-  // 因为格子从小尺寸变为全屏，原来的像素偏移不再对应同一区域
-  var devForFullscreen = devices[deviceId];
-  if (devForFullscreen && devForFullscreen.crop) {
-    devForFullscreen.crop.translateX = 0;
-    devForFullscreen.crop.translateY = 0;
-    var imgForFullscreen = document.getElementById('img_' + deviceId);
-    if (imgForFullscreen) {
-      imgForFullscreen.style.transform = 'scale(' + devForFullscreen.crop.scale + ') translate(0px, 0px)';
-      imgForFullscreen.style.transformOrigin = 'center center';
+  // ② 读取全屏后格子尺寸（offsetWidth 会强制触发重排，拿到最新值）
+  var fullW = cell.offsetWidth;
+  var fullH = cell.offsetHeight;
+
+  // ③ 等比例换算 translate：保持格子中心对应图片上同一个锚点
+  //   小格下中心锚点（img 坐标，以 img 中心为原点）= (-oldTx, -oldTy)
+  //   img 元素从 cellW×cellH 缩放到 fullW×fullH，锚点坐标等比例放大
+  //   新 translate = oldT * (fullSize / cellSize)
+  var newTx = (cellW > 0) ? oldTx * fullW / cellW : 0;
+  var newTy = (cellH > 0) ? oldTy * fullH / cellH : 0;
+
+  if (dev && dev.crop) {
+    dev.crop.translateX = newTx;
+    dev.crop.translateY = newTy;
+    var img = document.getElementById('img_' + deviceId);
+    if (img) {
+      img.style.transform = 'scale(' + scale + ') translate(' + newTx + 'px, ' + newTy + 'px)';
+      img.style.transformOrigin = 'center center';
     }
   }
 
