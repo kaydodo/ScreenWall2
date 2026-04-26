@@ -18,7 +18,7 @@ const Tesseract = require('tesseract.js');
 const { spawn } = require('child_process');
 
 // ========== 客户端版本号（每次发布新版本时手动递增）==========
-const CURRENT_VERSION = "1.2.9";
+const CURRENT_VERSION = "1.2.10";
 
 // ========== 日志模块 ==========
 const LOGS_DIR = path.join(__dirname, 'logs');
