@@ -206,8 +206,9 @@ html, body {
 // ═══════════════════════════════════════════════════════════════
 
 // ── 1. Blob URL 缓存（与格子页面一致的简化模式）────────
-// 设备数 × 2 个 blob 上限，延迟 500ms 释放
+// 每设备 1 个 blob URL，新帧到达时立即 revoke 旧 URL
 const _wallBlobCache = new Map();  // deviceId -> url
+const _pendingWallRevokes = new Map();  // url -> timeoutId（追踪待 revoke 的 timeout）
 function wallBlobSet(deviceId, base64Data) {
   if (!base64Data) return null;
   const old = _wallBlobCache.get(deviceId);
@@ -220,11 +221,20 @@ function wallBlobSet(deviceId, base64Data) {
   for (let i = 0; i < len; i++) buf[i] = data.charCodeAt(i);
   const url = URL.createObjectURL(new Blob([buf], { type: mimeType }));
   _wallBlobCache.set(deviceId, url);
-  if (old) setTimeout(() => URL.revokeObjectURL(old), 500);
+  // 新帧到达时立即 revoke 旧 URL（不再等 500ms）
+  if (old) {
+    URL.revokeObjectURL(old);
+    _pendingWallRevokes.delete(old);
+  }
   return url;
 }
 function wallBlobRevokeAll() {
-  for (const url of _wallBlobCache.values()) URL.revokeObjectURL(url);
+  // 关闭时立即 revoke 所有 blob，并清除待处理的 timeout
+  for (const url of _wallBlobCache.values()) {
+    URL.revokeObjectURL(url);
+    const tid = _pendingWallRevokes.get(url);
+    if (tid) { clearTimeout(tid); _pendingWallRevokes.delete(url); }
+  }
   _wallBlobCache.clear();
 }
 
@@ -831,10 +841,13 @@ function handleWallStateUpdate(data) {
       if (badge) badge.textContent = '设备已删除';
       updateUUButtonVisibility(cell, false);
     }
-    // 清理设备 blob 缓存
+    // 清理设备 blob 缓存（立即 revoke）
     var old = _wallBlobCache.get(deviceId);
     _wallBlobCache.delete(deviceId);
-    if (old) setTimeout(() => URL.revokeObjectURL(old), 500);
+    if (old) {
+      URL.revokeObjectURL(old);
+      _pendingWallRevokes.delete(old);
+    }
     updateDeviceInfo(deviceId, '设备已删除', '已删除');
   }
 
