@@ -1339,8 +1339,7 @@ function connectWS() {
         const uubtn = document.getElementById('previewUUbtn');
         const previewNameEl = document.getElementById('previewDeviceName');
         if (status === 'offline' || status === 'deleted') {
-          // 显示灰度图 + 水印
-          previewImg.style.filter = 'grayscale(100%)';
+          // 只显示水印，不变灰
           if (watermark) {
             watermark.textContent = status === 'deleted' ? '设备已删除' : '设备已离线';
             watermark.style.display = 'block';
@@ -2780,7 +2779,6 @@ function openPreview(cellIndex) {
     if (watermark) {
       watermark.style.display = 'block';
     }
-    document.getElementById('previewImg').style.filter = 'grayscale(100%)';
     if (uubtn) {
       uubtn.style.display = 'inline-flex';
       uubtn.disabled = true;
