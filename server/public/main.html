@@ -1851,6 +1851,21 @@ function renderGrid() {
     grid.appendChild(cell);
   }
   while (grid.children.length > total) {
+    // 缩容前清理 blob 缓存
+    const removeIndex = grid.children.length - 1;
+    const cellData = gridCells[removeIndex];
+    if (cellData && cellData.deviceId) {
+      const oldUrl = blobUrlCache.get(removeIndex);
+      blobUrlCache.delete(removeIndex);
+      const devUrl = deviceBlobMap.get(cellData.deviceId);
+      // 只有当格子 blob 和设备 blob 相同时才 revoke（避免误杀其他格子的引用）
+      if (oldUrl && devUrl === oldUrl) {
+        setTimeout(() => URL.revokeObjectURL(oldUrl), 500);
+      }
+      deviceBlobMap.delete(cellData.deviceId);
+      deviceBlobMap.delete(cellData.deviceId + '_ts');
+      frameHealCount.delete(cellData.deviceId);
+    }
     grid.removeChild(grid.lastChild);
   }
 
@@ -2093,16 +2108,17 @@ function updateCellElement(index) {
       document.getElementById(`uubtn_${index}`).style.display = 'flex';
 
       if (cell.screenshot) {
-        // 在线设备有截图：显示正常截图（使用 Blob URL 避免 431）
-        revokeBlobUrl(index);
-        const blobUrl = base64ToBlobUrl(cell.screenshot);
-        if (blobUrl) {
-          blobUrlCache.set(index, blobUrl);
-          img.src = blobUrl;
-          img.style.display = 'block';
-          img.classList.remove('grayscale');
-          ns.style.display = 'none';
-        }
+        // 在线设备有截图：显示正常截图
+        // 直接调用 compressImageForGrid 复用已有的缓存管理逻辑，避免创建未追踪的 blob URL
+        const deviceId = cell.deviceId;
+        compressImageForGrid(deviceId, cell.screenshot).then(compressedUrl => {
+          if (compressedUrl) {
+            img.src = compressedUrl;
+            img.style.display = 'block';
+            img.classList.remove('grayscale');
+            ns.style.display = 'none';
+          }
+        });
       } else {
         img.style.display = 'none';
         ns.style.display = 'flex';
@@ -2233,14 +2249,41 @@ async function compressImageForGrid(deviceId, base64Data) {
             COMPRESS_CACHE.set(cacheKey, { url, ts });
             resolve(url);
           } else {
-            resolve(base64ToBlobUrl(base64Data));
+            // toBlob 失败：走 base64ToBlobUrl，但仍需通过 deviceBlobMap 管理
+            const fallbackUrl = base64ToBlobUrl(base64Data);
+            if (fallbackUrl) {
+              const old = deviceBlobMap.get(deviceId);
+              if (old) URL.revokeObjectURL(old);
+              const ts = Date.now();
+              deviceBlobMap.set(deviceId, fallbackUrl);
+              deviceBlobMap.set(deviceId + '_ts', ts);
+            }
+            resolve(fallbackUrl);
           }
         }, 'image/webp', 0.3);
       } catch (e) {
-        resolve(base64ToBlobUrl(base64Data));
+        const fallbackUrl = base64ToBlobUrl(base64Data);
+        if (fallbackUrl) {
+          const old = deviceBlobMap.get(deviceId);
+          if (old) URL.revokeObjectURL(old);
+          const ts = Date.now();
+          deviceBlobMap.set(deviceId, fallbackUrl);
+          deviceBlobMap.set(deviceId + '_ts', ts);
+        }
+        resolve(fallbackUrl);
       }
     };
-    tempImg.onerror = () => resolve(base64ToBlobUrl(base64Data));
+    tempImg.onerror = () => {
+      const fallbackUrl = base64ToBlobUrl(base64Data);
+      if (fallbackUrl) {
+        const old = deviceBlobMap.get(deviceId);
+        if (old) URL.revokeObjectURL(old);
+        const ts = Date.now();
+        deviceBlobMap.set(deviceId, fallbackUrl);
+        deviceBlobMap.set(deviceId + '_ts', ts);
+      }
+      resolve(fallbackUrl);
+    };
     tempImg.src = base64Data.startsWith('data:') ? base64Data : 'data:image/webp;base64,' + base64Data;
   });
 }
