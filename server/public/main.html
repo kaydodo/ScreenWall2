@@ -2763,10 +2763,13 @@ function openPreview(cellIndex) {
   previewDeviceId = cell.deviceId;
   previewActive = true;
 
-  // 4. 离线设备特殊处理：显示水印，UU按钮变灰，但允许打开预览
+  // 4. 从 devices 获取最新在线状态（gridCells 可能未及时更新）
+  const dev = devices.find(d => d.deviceId === cell.deviceId);
+  const isOnline = dev ? dev.online : false;
+
   const watermark = document.getElementById('previewOfflineWatermark');
   const uubtn = document.getElementById('previewUUbtn');
-  if (!cell.online) {
+  if (!isOnline) {
     // 离线：显示水印，灰度图，UU按钮变灰
     if (watermark) {
       watermark.style.display = 'block';
@@ -2781,12 +2784,11 @@ function openPreview(cellIndex) {
     }
   }
 
-  const dev = devices.find(d => d.deviceId === cell.deviceId);
   document.getElementById('previewDeviceName').textContent = (cell.deviceName || '未知') + ' - 实时预览' + ((dev && dev.monitorCount > 1) ? ' 🖥️' + (dev.monitorIndex || 1) : '');
 
   // 5. 初始化UU按钮（只有在线设备才能点击UU）
   const uuId = cell.uuDeviceId || null;
-  if (uuId && cell.online) {
+  if (uuId && isOnline) {
     if (uubtn) { uubtn.style.display = 'inline-flex'; uubtn.disabled = false; uubtn.style.opacity = ''; uubtn.style.cursor = ''; uubtn.style.pointerEvents = ''; uubtn.onclick = () => { openUU(uuId); }; }
   } else {
     if (uubtn) { uubtn.style.display = 'inline-flex'; uubtn.disabled = true; uubtn.style.opacity = '0.35'; uubtn.style.cursor = 'not-allowed'; uubtn.style.pointerEvents = 'none'; }
