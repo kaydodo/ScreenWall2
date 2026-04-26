@@ -1868,12 +1868,16 @@ function renderGrid() {
     const removeIndex = grid.children.length - 1;
     const cellData = gridCells[removeIndex];
     if (cellData && cellData.deviceId) {
+      // 清理 blob URL 缓存
       const oldUrl = blobUrlCache.get(removeIndex);
       blobUrlCache.delete(removeIndex);
-      const devUrl = deviceBlobMap.get(cellData.deviceId);
-      // 只有当格子 blob 和设备 blob 相同时才 revoke（避免误杀其他格子的引用）
-      if (oldUrl && devUrl === oldUrl) {
+      if (oldUrl) {
         setTimeout(() => URL.revokeObjectURL(oldUrl), 500);
+      }
+      // 清理设备 blob URL（按 deviceId 索引）
+      const devUrl = deviceBlobMap.get(cellData.deviceId);
+      if (devUrl && devUrl !== oldUrl) {
+        URL.revokeObjectURL(devUrl);
       }
       deviceBlobMap.delete(cellData.deviceId);
       deviceBlobMap.delete(cellData.deviceId + '_ts');
@@ -2096,6 +2100,7 @@ function updateCellElement(index) {
 
       if (cell.screenshot) {
         // 有截图：显示灰度截图+离线标签（使用 Blob URL 避免 431）
+        revokeBlobUrl(index);  // 先清理旧的 blob URL
         const blobUrl = base64ToBlobUrl(cell.screenshot);
         if (blobUrl) {
           blobUrlCache.set(index, blobUrl);
@@ -2200,21 +2205,8 @@ function updateCellScreenshot(index, imgData) {
 // 追踪每个设备的当前 blob URL（用于同步 revoke）
 const deviceBlobMap = new Map();
 
-// 格子 Blob URL 缓存（防止同一帧被多次转换）
-const gridBlobUrlCache = new Map(); // base64 hash -> url
-
-// 格子 Blob URL 缓存上限（最多缓存 100 个设备的最新帧）
-const GRID_BLOB_CACHE_MAX = 100;
-
 function compressImageForGrid(deviceId, base64Data) {
   if (!base64Data) return null;
-
-  // 缓存检查：用 base64 长度 + 前20字符 + 后20字符做简单 hash
-  const cacheKey = base64Data.length + '_' + base64Data.slice(0, 20) + '_' + base64Data.slice(-20);
-  const cached = gridBlobUrlCache.get(cacheKey);
-  if (cached && cached === deviceBlobMap.get(deviceId)) {
-    return cached;  // 缓存命中，直接返回（不重复 revoke）
-  }
 
   // 同步创建 blob URL（客户端已压缩，无需再 decode/recompress）
   const url = base64ToBlobUrl(base64Data);
@@ -2226,18 +2218,8 @@ function compressImageForGrid(deviceId, base64Data) {
     URL.revokeObjectURL(old);
   }
 
-  // 更新缓存和设备映射
+  // 更新设备映射
   deviceBlobMap.set(deviceId, url);
-
-  // LRU 驱逐：缓存超过上限时清除最早的条目
-  if (gridBlobUrlCache.size > GRID_BLOB_CACHE_MAX) {
-    const firstKey = gridBlobUrlCache.keys().next().value;
-    const oldUrl = gridBlobUrlCache.get(firstKey);
-    gridBlobUrlCache.delete(firstKey);
-    // 注意：不 revoke oldUrl，因为可能还被某个设备引用
-  }
-
-  gridBlobUrlCache.set(cacheKey, url);
   return url;
 }
 
