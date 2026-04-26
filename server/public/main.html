@@ -1345,11 +1345,12 @@ function connectWS() {
             watermark.textContent = status === 'deleted' ? '设备已删除' : '设备已离线';
             watermark.style.display = 'block';
           }
-          // 更新标题
+          // 更新标题（优先使用广播中的设备名，其次从devices获取）
           if (previewNameEl) {
             const dev = devices.find(d => d.deviceId === deviceId);
+            const name = msg.deviceName || (dev && dev.deviceName) || '未知';
             const mon = dev && dev.monitorCount > 1 ? ' 🖥️' + (dev.monitorIndex || 1) : '';
-            previewNameEl.textContent = (dev && dev.deviceName ? dev.deviceName : '未知') + ' - 实时预览' + mon;
+            previewNameEl.textContent = name + ' - 实时预览' + mon;
           }
           // UU按钮变灰不可点
           if (uubtn) { uubtn.disabled = true; uubtn.style.opacity = '0.35'; uubtn.style.cursor = 'not-allowed'; uubtn.style.pointerEvents = 'none'; }
@@ -1398,11 +1399,13 @@ function connectWS() {
         const dev = devices.find(d => d.deviceId === alarmPreviewDeviceId);
         if (status === 'offline') {
           if (watermark) { watermark.textContent = '设备已离线'; watermark.style.display = 'block'; }
-          if (previewNameEl) previewNameEl.textContent = (dev && dev.deviceName ? dev.deviceName : '未知') + ' - 报警截图';
+          const alarmName = msg.deviceName || (dev && dev.deviceName) || '未知';
+          if (previewNameEl) previewNameEl.textContent = alarmName + ' - 报警截图';
           if (uubtn) { uubtn.disabled = true; uubtn.style.opacity = '0.35'; uubtn.style.cursor = 'not-allowed'; uubtn.style.pointerEvents = 'none'; }
         } else if (status === 'deleted') {
           if (watermark) { watermark.textContent = '设备已删除'; watermark.style.display = 'block'; }
-          if (previewNameEl) previewNameEl.textContent = (dev && dev.deviceName ? dev.deviceName : '未知') + ' - 报警截图';
+          const alarmName = msg.deviceName || (dev && dev.deviceName) || '未知';
+          if (previewNameEl) previewNameEl.textContent = alarmName + ' - 报警截图';
           if (uubtn) { uubtn.disabled = true; uubtn.style.opacity = '0.35'; uubtn.style.cursor = 'not-allowed'; uubtn.style.pointerEvents = 'none'; }
         } else if (status === 'online') {
           if (watermark) watermark.style.display = 'none';
@@ -2784,7 +2787,7 @@ function openPreview(cellIndex) {
     }
   }
 
-  document.getElementById('previewDeviceName').textContent = (cell.deviceName || '未知') + ' - 实时预览' + ((dev && dev.monitorCount > 1) ? ' 🖥️' + (dev.monitorIndex || 1) : '');
+  document.getElementById('previewDeviceName').textContent = (cell.deviceName || (dev && dev.deviceName) || '未知') + ' - 实时预览' + ((dev && dev.monitorCount > 1) ? ' 🖥️' + (dev.monitorIndex || 1) : '');
 
   // 5. 初始化UU按钮（只有在线设备才能点击UU）
   const uuId = cell.uuDeviceId || null;

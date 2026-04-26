@@ -2508,6 +2508,8 @@ wssBrowser.on('connection', (ws) => {
       // 删除单个离线设备
       const { deviceId } = msg;
       if (deviceId && devices.has(deviceId)) {
+        // 删除前保存设备名，用于广播
+        const deletedDeviceName = devices.get(deviceId).deviceName;
         devices.delete(deviceId);
         // 清理该设备的收藏状态
         cleanupDeviceFromFavorites(deviceId);
@@ -2547,7 +2549,7 @@ wssBrowser.on('connection', (ws) => {
         collectionsArr.sort((a, b) => b.timestamp - a.timestamp);
         broadcastToBrowsers({ type: 'collectionsUpdate', collections: collectionsArr });
         // 广播设备预览状态变更（让所有浏览器刷新预览大图）
-        broadcastToBrowsers({ type: 'devicePreviewStatus', deviceId, status: 'deleted' });
+        broadcastToBrowsers({ type: 'devicePreviewStatus', deviceId, status: 'deleted', deviceName: deletedDeviceName });
         notifyWallClients('deviceDeleted', { deviceId });
         // 标记该设备任务记录为 deviceDeleted
         let taskDelChanged = false;
