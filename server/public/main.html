@@ -2766,8 +2766,6 @@ function openPreview(cellIndex) {
   // 4. 离线设备特殊处理：显示水印，UU按钮变灰，但允许打开预览
   const watermark = document.getElementById('previewOfflineWatermark');
   const uubtn = document.getElementById('previewUUbtn');
-
-  const uubtn = document.getElementById('previewUUbtn');
   if (!cell.online) {
     // 离线：显示水印，灰度图，UU按钮变灰
     if (watermark) {
