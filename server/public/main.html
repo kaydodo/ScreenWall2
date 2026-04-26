@@ -323,6 +323,7 @@
         <button class="preview-kb-btn" id="previewKBbtn" title="键盘控制" onclick="togglePreviewKeyboard()">⌨️ 键盘</button>
       </div>
       <button class="preview-uu-btn" id="previewUUbtn" title="打开UU远程"> 🖱️ UU远程</button>
+      <button class="preview-uu-btn" id="previewUUDownloadBtn" title="下载UU远程" style="display:none;" onclick="downloadUU()"> 📥 UU下载</button>
     </div>
   </div>
   <div class="preview-area" id="previewArea">
@@ -627,6 +628,10 @@
 </div>
 
 <script>
+
+// ─────────────────────────────────────────
+// 页面初始化：加载配置
+loadServerConfig();
 
 // ─────────────────────────────────────────
 // 帧缓冲系统：只显示最新帧，丢弃过时帧
@@ -949,6 +954,32 @@ let selectedCell = null;    // 当前选中待设置的格子
 let previewDeviceId = null;  // 当前预览设备
 let previewHQMode = false;   // 当前预览是否开启了HQ高清
 let alarmPreviewDeviceId = null;  // 报警预览绑定的真实设备ID
+let serverConfig = {};  // 服务端配置（UU下载链接等）
+
+// 页面加载时读取服务端配置
+async function loadServerConfig() {
+  try {
+    const res = await fetch('/config.json');
+    if (res.ok) {
+      serverConfig = await res.json();
+      console.log('[配置] 已加载:', serverConfig);
+    }
+  } catch (err) {
+    console.error('[配置] 加载失败:', err);
+  }
+}
+
+// 下载UU远程
+function downloadUU() {
+  if (serverConfig.uuDownloadUrl) {
+    const a = document.createElement('a');
+    a.href = serverConfig.uuDownloadUrl;
+    a.download = serverConfig.uuDownloadUrl.split('/').pop();
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
+}
 let previewImageDeviceId = null;  // 当前查看的收藏截图设备ID
 let previewActive = false;   // 预览激活时暂停格子渲染
 let previewWS = null;       // 预览专用连接（请求高清）
@@ -2790,15 +2821,7 @@ function openPreview(cellIndex) {
 
   document.getElementById('previewDeviceName').textContent = (cell.deviceName || (dev && dev.deviceName) || '未知') + ' - 实时预览' + ((dev && dev.monitorCount > 1) ? ' 🖥️' + (dev.monitorIndex || 1) : '');
 
-  // 5. 初始化UU按钮（只有在线设备才能点击UU）
-  const uuId = cell.uuDeviceId || null;
-  if (uuId && isOnline) {
-    if (uubtn) { uubtn.style.display = 'inline-flex'; uubtn.disabled = false; uubtn.style.opacity = ''; uubtn.style.cursor = ''; uubtn.style.pointerEvents = ''; uubtn.onclick = () => { openUU(uuId); }; }
-  } else {
-    if (uubtn) { uubtn.style.display = 'inline-flex'; uubtn.disabled = true; uubtn.style.opacity = '0.35'; uubtn.style.cursor = 'not-allowed'; uubtn.style.pointerEvents = 'none'; }
-  }
-
-  // 6. 开启HQ高清流
+  // 5. 开启HQ高清流
   previewHQMode = true;
   preview1080Mode = true;
   if (ws && ws.readyState === WebSocket.OPEN) {
@@ -2812,12 +2835,20 @@ function openPreview(cellIndex) {
   var hint = document.getElementById('previewMobileClose');
   if (hint) { hint.classList.remove('fade-out'); setTimeout(function() { hint.classList.add('fade-out'); }, 2000); }
 
+  // UU按钮：设备在线且有uuDeviceId时显示UU远程，否则根据配置显示下载按钮
+  const uubtn = document.getElementById('previewUUbtn');
+  const uuDownloadBtn = document.getElementById('previewUUDownloadBtn');
   if (isOnline && dev && dev.uuDeviceId) {
-    const uubtn = document.getElementById('previewUUbtn');
     if (uubtn) { uubtn.style.display = 'inline-flex'; uubtn.disabled = false; uubtn.style.opacity = ''; uubtn.style.cursor = ''; uubtn.style.pointerEvents = ''; uubtn.onclick = () => { openUU(dev.uuDeviceId); }; }
+    if (uuDownloadBtn) uuDownloadBtn.style.display = 'none';
+  } else if (isOnline && serverConfig.uuDownloadUrl) {
+    // 设备在线但没有uuDeviceId，显示下载按钮
+    if (uubtn) { uubtn.style.display = 'none'; }
+    if (uuDownloadBtn) { uuDownloadBtn.style.display = 'inline-flex'; }
   } else {
-    const uubtn = document.getElementById('previewUUbtn');
+    // 设备离线，两个按钮都禁用
     if (uubtn) { uubtn.style.display = 'inline-flex'; uubtn.disabled = true; uubtn.style.opacity = '0.35'; uubtn.style.cursor = 'not-allowed'; uubtn.style.pointerEvents = 'none'; }
+    if (uuDownloadBtn) { uuDownloadBtn.style.display = 'inline-flex'; uuDownloadBtn.disabled = true; uuDownloadBtn.style.opacity = '0.35'; uuDownloadBtn.style.cursor = 'not-allowed'; uuDownloadBtn.style.pointerEvents = 'none'; }
   }
 
 
@@ -5205,34 +5236,50 @@ function openAlarmPreview(alarmId) {
   var phint = document.getElementById('previewMobileClose');
   if (phint) { phint.classList.remove('fade-out'); setTimeout(function() { phint.classList.add('fade-out'); }, 2000); }
 
-  // UU按钮：设备在线即显示，不判断uuDeviceId
+  // UU按钮和下载按钮：设备在线且有uuDeviceId时显示UU远程，否则根据配置显示下载按钮
   var uubtn = document.getElementById('previewUUbtn');
+  var uuDownloadBtn = document.getElementById('previewUUDownloadBtn');
   var isOnline = rec.online;
   if (!isOnline && rec.deviceId) {
     var dev = devices.find(function(d) { return d.deviceId === rec.deviceId; });
     isOnline = dev ? dev.online : false;
   }
-  if (uubtn) {
-    if (isOnline) {
-      // 从设备列表获取uuDeviceId
-      var uuId = null;
-      if (rec.deviceId) {
-        var dev = devices.find(function(d) { return d.deviceId === rec.deviceId; });
-        uuId = dev ? dev.uuDeviceId : null;
-      }
+  // 获取uuDeviceId
+  var uuId = null;
+  if (rec.deviceId) {
+    var dev = devices.find(function(d) { return d.deviceId === rec.deviceId; });
+    uuId = dev ? dev.uuDeviceId : null;
+  }
+  if (uubtn && uuDownloadBtn) {
+    if (isOnline && uuId) {
+      // 有uuDeviceId，显示UU远程按钮
       uubtn.style.display = 'inline-flex';
       uubtn.disabled = false;
       uubtn.style.opacity = '';
       uubtn.style.cursor = '';
       uubtn.style.pointerEvents = '';
-      uubtn.onclick = function() { if (uuId) openUU(uuId); };
+      uubtn.onclick = function() { openUU(uuId); };
+      uuDownloadBtn.style.display = 'none';
+    } else if (isOnline && serverConfig.uuDownloadUrl) {
+      // 没有uuDeviceId但有下载链接，显示下载按钮
+      uubtn.style.display = 'none';
+      uuDownloadBtn.style.display = 'inline-flex';
+      uuDownloadBtn.disabled = false;
+      uuDownloadBtn.style.opacity = '';
+      uuDownloadBtn.style.cursor = '';
+      uuDownloadBtn.style.pointerEvents = '';
     } else {
-      // 离线：变灰不可点
+      // 离线，两个按钮都禁用
       uubtn.style.display = 'inline-flex';
       uubtn.disabled = true;
       uubtn.style.opacity = '0.35';
       uubtn.style.cursor = 'not-allowed';
       uubtn.style.pointerEvents = 'none';
+      uuDownloadBtn.style.display = 'inline-flex';
+      uuDownloadBtn.disabled = true;
+      uuDownloadBtn.style.opacity = '0.35';
+      uuDownloadBtn.style.cursor = 'not-allowed';
+      uuDownloadBtn.style.pointerEvents = 'none';
     }
   }
 

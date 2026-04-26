@@ -20,6 +20,23 @@ const { spawn } = require('child_process');
 // ========== 客户端版本号（每次发布新版本时手动递增）==========
 const CURRENT_VERSION = "1.2.10";
 
+// ========== 公共配置文件（网页和客户端共享）==========
+let SERVER_CONFIG = {};
+function loadServerConfig() {
+  try {
+    const configPath = path.join(__dirname, 'public', 'config.json');
+    if (fs.existsSync(configPath)) {
+      SERVER_CONFIG = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      serverLog(`[配置] 已加载 config.json: UU版本=${SERVER_CONFIG.uuVersion}`);
+    } else {
+      serverLog('[配置] config.json 不存在，使用默认配置');
+    }
+  } catch (err) {
+    serverError('[配置] 加载 config.json 失败:', err.message);
+  }
+}
+loadServerConfig();
+
 // ========== 日志模块 ==========
 const LOGS_DIR = path.join(__dirname, 'logs');
 let _logFd = null;
@@ -1788,7 +1805,8 @@ wssClient.on('connection', (ws, req) => {
           type: 'heartbeat',
           latestVersion: CURRENT_VERSION,
           updateAvailable: needsUpdate,
-          version: dev.version || '0.0.0'
+          version: dev.version || '0.0.0',
+          serverConfig: SERVER_CONFIG  // 附带服务端配置
         }));
       }
     }
