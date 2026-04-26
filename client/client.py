@@ -1700,15 +1700,12 @@ class ScreenWallClient:
                 await asyncio.sleep(interval)
                 continue  # 跳过本次截图，进入下一轮
 
-            # 截图并发送（传入当前选中的显示器索引）
+            # 截图并发送（统一使用 HQ 模式截图，质量 30）
+            # HQ 模式：hq_1080=True 使用 1080p 分辨率上限，否则默认 720p
             capt = ScreenCapturer(cfg["quality"], cfg["resizeW"], cfg["resizeH"], monitor_index=_current_monitor_index)
             try:
-                if self.hq_mode:
-                    # HQ 模式：只截高清图（服务器负责压缩给格子）
-                    # hq_1080=True 时使用 1080p 分辨率上限，否则默认 720p
-                    img_bytes = capt.capture(hq=True, hq_limit=1080 if self.hq_1080 else 720, hq_quality=70)
-                else:
-                    img_bytes = capt.capture(hq=False)
+                # 统一用 HQ 模式截图，1080p 用 1080 限制，格子用 720 限制
+                img_bytes = capt.capture(hq=True, hq_limit=1080 if self.hq_1080 else 720, hq_quality=30)
             finally:
                 capt.close()
 

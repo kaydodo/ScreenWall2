@@ -2124,14 +2124,14 @@ function updateCellElement(index) {
         // 在线设备有截图：显示正常截图
         // 直接调用 compressImageForGrid 复用已有的缓存管理逻辑，避免创建未追踪的 blob URL
         const deviceId = cell.deviceId;
-        compressImageForGrid(deviceId, cell.screenshot).then(compressedUrl => {
-          if (compressedUrl) {
-            img.src = compressedUrl;
-            img.style.display = 'block';
-            img.classList.remove('grayscale');
-            ns.style.display = 'none';
-          }
-        });
+        // 同步调用，无需 .then()
+        const compressedUrl = compressImageForGrid(deviceId, cell.screenshot);
+        if (compressedUrl) {
+          img.src = compressedUrl;
+          img.style.display = 'block';
+          img.classList.remove('grayscale');
+          ns.style.display = 'none';
+        }
       } else {
         img.style.display = 'none';
         ns.style.display = 'flex';
@@ -2183,122 +2183,62 @@ function updateCellScreenshot(index, imgData) {
   const cell = gridCells[index];
   const deviceId = cell ? cell.deviceId : null;
   if (imgData) {
-    compressImageForGrid(deviceId, imgData).then(compressedUrl => {
-      if (compressedUrl) {
-        img.src = compressedUrl;
-        img.style.display = 'block';
-        ns.style.display = 'none';
-        // 如果设备离线，保持灰度
-        if (cell && !cell.online) {
-          img.classList.add('grayscale');
-        }
+    // 同步调用，无需 .then()
+    const compressedUrl = compressImageForGrid(deviceId, imgData);
+    if (compressedUrl) {
+      img.src = compressedUrl;
+      img.style.display = 'block';
+      ns.style.display = 'none';
+      // 如果设备离线，保持灰度
+      if (cell && !cell.online) {
+        img.classList.add('grayscale');
       }
-      const t3 = performance.now();
-      const total = t3 - t0;
-    });
+    }
   }
 }
-
-// ─────────────────────────────────────────
-// Canvas 压缩：将高清图压缩为格子显示用
-// ─────────────────────────────────────────
-const COMPRESS_CANVAS = document.createElement('canvas');
-COMPRESS_CANVAS.width = 480;
-COMPRESS_CANVAS.height = 270;
-const COMPRESS_CTX = COMPRESS_CANVAS.getContext('2d', { alpha: false });
-const COMPRESS_CACHE = new Map(); // base64 hash -> { url, ts }，合并存储避免内存泄漏
-const COMPRESS_CACHE_MAX = 200;  // 格子16+预览弹窗1+监控墙16+监控弹窗4+余量
 
 // 追踪每个设备的当前 blob URL（用于同步 revoke）
 const deviceBlobMap = new Map();
 
-async function compressImageForGrid(deviceId, base64Data) {
+// 格子 Blob URL 缓存（防止同一帧被多次转换）
+const blobUrlCache = new Map(); // base64 hash -> url
+
+// 格子 Blob URL 缓存上限（最多缓存 100 个设备的最新帧）
+const BLOB_URL_CACHE_MAX = 100;
+
+function compressImageForGrid(deviceId, base64Data) {
   if (!base64Data) return null;
 
-  // 检查缓存（用长度+后50字符做简单hash）
-  const cacheKey = base64Data.length + '_' + base64Data.slice(-50);
-  if (COMPRESS_CACHE.has(cacheKey)) {
-    const cached = COMPRESS_CACHE.get(cacheKey);
-    // 验证缓存的 URL 是否仍有效：检查该 URL 的创建时间是否与设备的当前 URL 匹配
-    // 如果设备已经有新的 URL，说明旧缓存已失效（URL 已被 revoke）
-    if (cached.ts === deviceBlobMap.get(deviceId + '_ts')) {
-      return cached.url;
-    }
-    // 缓存已失效，删除并重新创建
-    COMPRESS_CACHE.delete(cacheKey);
+  // 缓存检查：用 base64 长度 + 前20字符 + 后20字符做简单 hash
+  const cacheKey = base64Data.length + '_' + base64Data.slice(0, 20) + '_' + base64Data.slice(-20);
+  const cached = blobUrlCache.get(cacheKey);
+  if (cached && cached === deviceBlobMap.get(deviceId)) {
+    return cached;  // 缓存命中，直接返回（不重复 revoke）
   }
 
-  // 短图不压缩，直接创建 blob URL，不缓存
-  if (base64Data.length < 20000) {
-    const url = base64ToBlobUrl(base64Data);
-    if (url) {
-      const old = deviceBlobMap.get(deviceId);
-      if (old) URL.revokeObjectURL(old);
-      const ts = Date.now();
-      deviceBlobMap.set(deviceId, url);
-      deviceBlobMap.set(deviceId + '_ts', ts);
-    }
-    return url;
+  // 同步创建 blob URL（客户端已压缩，无需再 decode/recompress）
+  const url = base64ToBlobUrl(base64Data);
+  if (!url) return null;
+
+  // 同步 revoke 旧 URL
+  const old = deviceBlobMap.get(deviceId);
+  if (old && old !== url) {
+    URL.revokeObjectURL(old);
   }
 
-  return new Promise((resolve) => {
-    const tempImg = new Image();
-    tempImg.onload = () => {
-      try {
-        COMPRESS_CTX.drawImage(tempImg, 0, 0, 480, 270);
-        COMPRESS_CANVAS.toBlob((blob) => {
-          if (blob) {
-            const url = URL.createObjectURL(blob);
-            // 同步 revoke 旧 URL
-            const old = deviceBlobMap.get(deviceId);
-            if (old) URL.revokeObjectURL(old);
-            const ts = Date.now();
-            deviceBlobMap.set(deviceId, url);
-            deviceBlobMap.set(deviceId + '_ts', ts);
-            // LRU 驱逐（不 revoke，blob 可能还被 img 引用）
-            if (COMPRESS_CACHE.size > COMPRESS_CACHE_MAX) {
-              COMPRESS_CACHE.delete(COMPRESS_CACHE.keys().next().value);
-            }
-            COMPRESS_CACHE.set(cacheKey, { url, ts });
-            resolve(url);
-          } else {
-            // toBlob 失败：走 base64ToBlobUrl，但仍需通过 deviceBlobMap 管理
-            const fallbackUrl = base64ToBlobUrl(base64Data);
-            if (fallbackUrl) {
-              const old = deviceBlobMap.get(deviceId);
-              if (old) URL.revokeObjectURL(old);
-              const ts = Date.now();
-              deviceBlobMap.set(deviceId, fallbackUrl);
-              deviceBlobMap.set(deviceId + '_ts', ts);
-            }
-            resolve(fallbackUrl);
-          }
-        }, 'image/webp', 0.3);
-      } catch (e) {
-        const fallbackUrl = base64ToBlobUrl(base64Data);
-        if (fallbackUrl) {
-          const old = deviceBlobMap.get(deviceId);
-          if (old) URL.revokeObjectURL(old);
-          const ts = Date.now();
-          deviceBlobMap.set(deviceId, fallbackUrl);
-          deviceBlobMap.set(deviceId + '_ts', ts);
-        }
-        resolve(fallbackUrl);
-      }
-    };
-    tempImg.onerror = () => {
-      const fallbackUrl = base64ToBlobUrl(base64Data);
-      if (fallbackUrl) {
-        const old = deviceBlobMap.get(deviceId);
-        if (old) URL.revokeObjectURL(old);
-        const ts = Date.now();
-        deviceBlobMap.set(deviceId, fallbackUrl);
-        deviceBlobMap.set(deviceId + '_ts', ts);
-      }
-      resolve(fallbackUrl);
-    };
-    tempImg.src = base64Data.startsWith('data:') ? base64Data : 'data:image/webp;base64,' + base64Data;
-  });
+  // 更新缓存和设备映射
+  deviceBlobMap.set(deviceId, url);
+
+  // LRU 驱逐：缓存超过上限时清除最早的条目
+  if (blobUrlCache.size > BLOB_URL_CACHE_MAX) {
+    const firstKey = blobUrlCache.keys().next().value;
+    const oldUrl = blobUrlCache.get(firstKey);
+    blobUrlCache.delete(firstKey);
+    // 注意：不 revoke oldUrl，因为可能还被某个设备引用
+  }
+
+  blobUrlCache.set(cacheKey, url);
+  return url;
 }
 
 // 格子位置标签 A1, A2, ... B1, B2, ...
