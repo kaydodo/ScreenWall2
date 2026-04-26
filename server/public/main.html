@@ -2811,7 +2811,7 @@ function openPreview(cellIndex) {
   const watermark = document.getElementById('previewOfflineWatermark');
   const uubtn = document.getElementById('previewUUbtn');
   if (!isOnline) {
-    // 离线：显示水印，灰度图，UU按钮变灰
+    // 离线：显示水印，UU按钮变灰
     if (watermark) {
       watermark.style.display = 'block';
     }
@@ -2840,20 +2840,12 @@ function openPreview(cellIndex) {
   var hint = document.getElementById('previewMobileClose');
   if (hint) { hint.classList.remove('fade-out'); setTimeout(function() { hint.classList.add('fade-out'); }, 2000); }
 
-  // UU按钮：设备在线且有uuDeviceId时显示UU远程，否则根据配置显示下载按钮
-  const uubtn = document.getElementById('previewUUbtn');
-  const uuDownloadBtn = document.getElementById('previewUUDownloadBtn');
-  if (isOnline && dev && dev.uuDeviceId) {
-    if (uubtn) { uubtn.style.display = 'inline-flex'; uubtn.disabled = false; uubtn.style.opacity = ''; uubtn.style.cursor = ''; uubtn.style.pointerEvents = ''; uubtn.onclick = () => { openUU(dev.uuDeviceId); }; }
-    if (uuDownloadBtn) uuDownloadBtn.style.display = 'none';
-  } else if (isOnline && serverConfig.uuDownloadUrl) {
-    // 设备在线但没有uuDeviceId，显示下载按钮
-    if (uubtn) { uubtn.style.display = 'none'; }
-    if (uuDownloadBtn) { uuDownloadBtn.style.display = 'inline-flex'; }
+  // 初始化UU按钮（只有在线设备才能点击UU）
+  const uuId = cell.uuDeviceId || null;
+  if (uuId && isOnline) {
+    if (uubtn) { uubtn.style.display = 'inline-flex'; uubtn.disabled = false; uubtn.style.opacity = ''; uubtn.style.cursor = ''; uubtn.style.pointerEvents = ''; uubtn.onclick = () => { openUU(uuId); }; }
   } else {
-    // 设备离线，两个按钮都禁用
     if (uubtn) { uubtn.style.display = 'inline-flex'; uubtn.disabled = true; uubtn.style.opacity = '0.35'; uubtn.style.cursor = 'not-allowed'; uubtn.style.pointerEvents = 'none'; }
-    if (uuDownloadBtn) { uuDownloadBtn.style.display = 'inline-flex'; uuDownloadBtn.disabled = true; uuDownloadBtn.style.opacity = '0.35'; uuDownloadBtn.style.cursor = 'not-allowed'; uuDownloadBtn.style.pointerEvents = 'none'; }
   }
 
 
