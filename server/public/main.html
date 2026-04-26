@@ -2763,10 +2763,23 @@ function openPreview(cellIndex) {
   previewDeviceId = cell.deviceId;
   previewActive = true;
 
-  // 4. 离线设备不允许打开预览
+  // 4. 离线设备特殊处理：显示水印，UU按钮变灰，但允许打开预览
+  const watermark = document.getElementById('previewOfflineWatermark');
+  const uubtn = document.getElementById('previewUUbtn');
+
   if (!cell.online) {
-    showToast('离线设备无法预览', 'warn');
-    return;
+    // 离线：显示水印，灰度图，UU按钮变灰
+    if (watermark) {
+      watermark.style.display = 'block';
+    }
+    document.getElementById('previewImg').style.filter = 'grayscale(100%)';
+    if (uubtn) {
+      uubtn.style.display = 'inline-flex';
+      uubtn.disabled = true;
+      uubtn.style.opacity = '0.35';
+      uubtn.style.cursor = 'not-allowed';
+      uubtn.style.pointerEvents = 'none';
+    }
   }
 
   const dev = devices.find(d => d.deviceId === cell.deviceId);
