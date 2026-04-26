@@ -2201,17 +2201,17 @@ function updateCellScreenshot(index, imgData) {
 const deviceBlobMap = new Map();
 
 // 格子 Blob URL 缓存（防止同一帧被多次转换）
-const blobUrlCache = new Map(); // base64 hash -> url
+const gridBlobUrlCache = new Map(); // base64 hash -> url
 
 // 格子 Blob URL 缓存上限（最多缓存 100 个设备的最新帧）
-const BLOB_URL_CACHE_MAX = 100;
+const GRID_BLOB_CACHE_MAX = 100;
 
 function compressImageForGrid(deviceId, base64Data) {
   if (!base64Data) return null;
 
   // 缓存检查：用 base64 长度 + 前20字符 + 后20字符做简单 hash
   const cacheKey = base64Data.length + '_' + base64Data.slice(0, 20) + '_' + base64Data.slice(-20);
-  const cached = blobUrlCache.get(cacheKey);
+  const cached = gridBlobUrlCache.get(cacheKey);
   if (cached && cached === deviceBlobMap.get(deviceId)) {
     return cached;  // 缓存命中，直接返回（不重复 revoke）
   }
@@ -2230,14 +2230,14 @@ function compressImageForGrid(deviceId, base64Data) {
   deviceBlobMap.set(deviceId, url);
 
   // LRU 驱逐：缓存超过上限时清除最早的条目
-  if (blobUrlCache.size > BLOB_URL_CACHE_MAX) {
-    const firstKey = blobUrlCache.keys().next().value;
-    const oldUrl = blobUrlCache.get(firstKey);
-    blobUrlCache.delete(firstKey);
+  if (gridBlobUrlCache.size > GRID_BLOB_CACHE_MAX) {
+    const firstKey = gridBlobUrlCache.keys().next().value;
+    const oldUrl = gridBlobUrlCache.get(firstKey);
+    gridBlobUrlCache.delete(firstKey);
     // 注意：不 revoke oldUrl，因为可能还被某个设备引用
   }
 
-  blobUrlCache.set(cacheKey, url);
+  gridBlobUrlCache.set(cacheKey, url);
   return url;
 }
 
