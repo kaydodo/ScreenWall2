@@ -821,14 +821,10 @@ function handleWallStateUpdate(data) {
 }
 
 function findCellByDeviceId(deviceId) {
-  for (var i = 0; i < wallData.layout; i++) {
-    var cell = document.getElementById('cell_' + i);
-    if (cell) {
-      var img = document.getElementById('img_' + deviceId);
-      if (img && img.parentElement === cell) {
-        return cell;
-      }
-    }
+  var img = document.getElementById('img_' + deviceId);
+  if (img) {
+    var cell = img.closest('.wall-cell');
+    if (cell) return cell;
   }
   return null;
 }
