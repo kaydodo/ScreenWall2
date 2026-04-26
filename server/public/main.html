@@ -586,7 +586,7 @@
       <p style="margin:0;">3. 下载 <strong>uuycmgr_wrapper.bat</strong> 保存到 D 盘根目录下。</p>
     </div>
     <div style="display:flex;flex-direction:column;gap:10px;">
-      <a href="/UURemote_Setup_4.18.901.7375_0327234052_jf031.exe" download style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--bg-page);border:1px solid var(--border);border-radius:8px;text-decoration:none;color:var(--text);transition:all 0.2s;" onmouseover="this.style.borderColor='#e06c75';this.style.color='#e06c75'" onmouseout="this.style.borderColor='';this.style.color=''">
+      <a id="uuDownloadLink" href="/UURemote_Setup_4.18.901.7375_0327234052_jf031.exe" download style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--bg-page);border:1px solid var(--border);border-radius:8px;text-decoration:none;color:var(--text);transition:all 0.2s;" onmouseover="this.style.borderColor='#e06c75';this.style.color='#e06c75'" onmouseout="this.style.borderColor='';this.style.color=''">
         <span style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;background:#e06c75;border-radius:6px;font-size:11px;font-weight:700;color:#fff;line-height:1;flex-shrink:0;">UU</span>
         <div style="flex:1;">
           <div style="font-size:13px;font-weight:500;">UURemote_Setup_xxx.exe</div>
@@ -963,6 +963,11 @@ async function loadServerConfig() {
     if (res.ok) {
       serverConfig = await res.json();
       console.log('[配置] 已加载:', serverConfig);
+      // 更新UU下载链接
+      if (serverConfig.uuDownloadUrl) {
+        const dlLink = document.getElementById('uuDownloadLink');
+        if (dlLink) dlLink.href = serverConfig.uuDownloadUrl;
+      }
     }
   } catch (err) {
     console.error('[配置] 加载失败:', err);
@@ -5236,50 +5241,34 @@ function openAlarmPreview(alarmId) {
   var phint = document.getElementById('previewMobileClose');
   if (phint) { phint.classList.remove('fade-out'); setTimeout(function() { phint.classList.add('fade-out'); }, 2000); }
 
-  // UU按钮和下载按钮：设备在线且有uuDeviceId时显示UU远程，否则根据配置显示下载按钮
+  // UU按钮：设备在线即显示，不判断uuDeviceId
   var uubtn = document.getElementById('previewUUbtn');
-  var uuDownloadBtn = document.getElementById('previewUUDownloadBtn');
   var isOnline = rec.online;
   if (!isOnline && rec.deviceId) {
     var dev = devices.find(function(d) { return d.deviceId === rec.deviceId; });
     isOnline = dev ? dev.online : false;
   }
-  // 获取uuDeviceId
-  var uuId = null;
-  if (rec.deviceId) {
-    var dev = devices.find(function(d) { return d.deviceId === rec.deviceId; });
-    uuId = dev ? dev.uuDeviceId : null;
-  }
-  if (uubtn && uuDownloadBtn) {
-    if (isOnline && uuId) {
-      // 有uuDeviceId，显示UU远程按钮
+  if (uubtn) {
+    if (isOnline) {
+      // 从设备列表获取uuDeviceId
+      var uuId = null;
+      if (rec.deviceId) {
+        var dev = devices.find(function(d) { return d.deviceId === rec.deviceId; });
+        uuId = dev ? dev.uuDeviceId : null;
+      }
       uubtn.style.display = 'inline-flex';
       uubtn.disabled = false;
       uubtn.style.opacity = '';
       uubtn.style.cursor = '';
       uubtn.style.pointerEvents = '';
-      uubtn.onclick = function() { openUU(uuId); };
-      uuDownloadBtn.style.display = 'none';
-    } else if (isOnline && serverConfig.uuDownloadUrl) {
-      // 没有uuDeviceId但有下载链接，显示下载按钮
-      uubtn.style.display = 'none';
-      uuDownloadBtn.style.display = 'inline-flex';
-      uuDownloadBtn.disabled = false;
-      uuDownloadBtn.style.opacity = '';
-      uuDownloadBtn.style.cursor = '';
-      uuDownloadBtn.style.pointerEvents = '';
+      uubtn.onclick = function() { if (uuId) openUU(uuId); };
     } else {
-      // 离线，两个按钮都禁用
+      // 离线：变灰不可点
       uubtn.style.display = 'inline-flex';
       uubtn.disabled = true;
       uubtn.style.opacity = '0.35';
       uubtn.style.cursor = 'not-allowed';
       uubtn.style.pointerEvents = 'none';
-      uuDownloadBtn.style.display = 'inline-flex';
-      uuDownloadBtn.disabled = true;
-      uuDownloadBtn.style.opacity = '0.35';
-      uuDownloadBtn.style.cursor = 'not-allowed';
-      uuDownloadBtn.style.pointerEvents = 'none';
     }
   }
 
