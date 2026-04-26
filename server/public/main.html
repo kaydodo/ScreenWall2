@@ -2767,6 +2767,7 @@ function openPreview(cellIndex) {
   const watermark = document.getElementById('previewOfflineWatermark');
   const uubtn = document.getElementById('previewUUbtn');
 
+  const uubtn = document.getElementById('previewUUbtn');
   if (!cell.online) {
     // 离线：显示水印，灰度图，UU按钮变灰
     if (watermark) {
@@ -2787,7 +2788,6 @@ function openPreview(cellIndex) {
 
   // 5. 初始化UU按钮
   const uuId = cell.uuDeviceId || null;
-  const uubtn = document.getElementById('previewUUbtn');
   if (uuId) {
     if (uubtn) { uubtn.style.display = 'inline-flex'; uubtn.disabled = false; uubtn.style.opacity = ''; uubtn.style.cursor = ''; uubtn.style.pointerEvents = ''; uubtn.onclick = () => { openUU(uuId); }; }
   } else {
