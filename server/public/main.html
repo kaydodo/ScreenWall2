@@ -1571,7 +1571,10 @@ function connectWS() {
       const previewImg = document.getElementById('previewImg');
       const watermark = document.getElementById('previewOfflineWatermark');
       // 自愈：收到预览帧证明设备在线，若当前显示离线水印则自动隐藏
-      if (watermark && watermark.style.display !== 'none') {
+      // 但必须检查设备确实在线（不能仅凭收到截图就认为在线，可能收到旧帧）
+      const currentDev = devices.find(d => d.deviceId === previewDeviceId);
+      const isOnline = currentDev ? currentDev.online : false;
+      if (watermark && watermark.style.display !== 'none' && isOnline) {
         watermark.style.display = 'none';
         previewImg.style.filter = '';
       }
