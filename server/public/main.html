@@ -852,13 +852,22 @@ function revokeBlobUrl(cellIndex) {
   if (old) URL.revokeObjectURL(old);
 }
 
-// 获取预览 blob URL（不再缓存，每次创建新 blob，延迟撤销旧 blob 避免白图）
+// 追踪所有待撤销的预览 blob URL（key -> timeoutId），新帧到达时立即撤销旧 blob
+const _pendingPreviewRevokes = new Map();
+
+// 获取预览 blob URL
 function getPreviewBlobUrl(base64Data) {
   if (!base64Data) return null;
   const url = base64ToBlobUrl(base64Data);
   if (url) {
+    // 新帧到达时，立即撤销上一个 blob（不再等 500ms）
     if (previewBlobUrlCache.url) {
-      setTimeout(() => URL.revokeObjectURL(previewBlobUrlCache.url), 500);
+      // 如果上一个已登记待撤销，先取消它，再立即 revoke
+      if (_pendingPreviewRevokes.has(previewBlobUrlCache.url)) {
+        clearTimeout(_pendingPreviewRevokes.get(previewBlobUrlCache.url));
+        _pendingPreviewRevokes.delete(previewBlobUrlCache.url);
+      }
+      URL.revokeObjectURL(previewBlobUrlCache.url);
     }
     previewBlobUrlCache.url = url;
   }
@@ -868,7 +877,11 @@ function getPreviewBlobUrl(base64Data) {
 // 关闭预览时撤销
 function revokePreviewBlobUrl() {
   if (previewBlobUrlCache.url) {
-    setTimeout(() => URL.revokeObjectURL(previewBlobUrlCache.url), 500);
+    if (_pendingPreviewRevokes.has(previewBlobUrlCache.url)) {
+      clearTimeout(_pendingPreviewRevokes.get(previewBlobUrlCache.url));
+      _pendingPreviewRevokes.delete(previewBlobUrlCache.url);
+    }
+    URL.revokeObjectURL(previewBlobUrlCache.url);
     previewBlobUrlCache.url = null;
   }
 }
@@ -2929,6 +2942,7 @@ function closePreview() {
   previewDeviceId = null;
   alarmPreviewDeviceId = null;  // 清除报警预览绑定的设备ID
   previewActive = false;  // 恢复格子渲染
+  revokePreviewBlobUrl();  // 关闭时撤销预览 blob URL
 
   document.getElementById('previewOverlay').classList.remove('active');
   // 隐藏浮动关闭按钮
