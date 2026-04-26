@@ -428,6 +428,19 @@ function enterWallFullscreen(cell, deviceId) {
   cell.classList.remove('hidden');
   cell.classList.add('fullscreen');
 
+  // 进入全屏时重置 translate（保留 scale，但位置居中）
+  // 因为格子从小尺寸变为全屏，原来的像素偏移不再对应同一区域
+  var devForFullscreen = devices[deviceId];
+  if (devForFullscreen && devForFullscreen.crop) {
+    devForFullscreen.crop.translateX = 0;
+    devForFullscreen.crop.translateY = 0;
+    var imgForFullscreen = document.getElementById('img_' + deviceId);
+    if (imgForFullscreen) {
+      imgForFullscreen.style.transform = 'scale(' + devForFullscreen.crop.scale + ') translate(0px, 0px)';
+      imgForFullscreen.style.transformOrigin = 'center center';
+    }
+  }
+
   // 开启1080p
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'hq1080On', deviceId: deviceId }));
