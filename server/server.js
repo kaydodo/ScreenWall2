@@ -69,6 +69,28 @@ function loadServerConfig() {
 }
 loadServerConfig();
 
+// 热更新：监听 config.json 变化，无需重启自动重载
+const SERVER_CONFIG_PATH = path.join(__dirname, 'public', 'config.json');
+function reloadServerConfig() {
+  try {
+    if (fs.existsSync(SERVER_CONFIG_PATH)) {
+      const raw = JSON.parse(fs.readFileSync(SERVER_CONFIG_PATH, 'utf8'));
+      SERVER_CONFIG = raw;
+      if (SERVER_CONFIG.uuDownloadUrl && !SERVER_CONFIG.uuVersion) {
+        const fileName = SERVER_CONFIG.uuDownloadUrl.replace(/^\//, '');
+        const m = fileName.match(/(\d+\.\d+\.\d+\.\d+)/);
+        if (m) SERVER_CONFIG.uuVersion = m[1];
+      }
+      serverLog(`[配置] config.json 已重新加载: UU版本=${SERVER_CONFIG.uuVersion || '未知'}`);
+    }
+  } catch (err) {
+    serverError('[配置] 重载 config.json 失败:', err.message);
+  }
+}
+fs.watch(SERVER_CONFIG_PATH, { persistent: false }, (eventType) => {
+  if (eventType === 'change') reloadServerConfig();
+});
+
 function serverError(...args) {
     const ts = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
     const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
@@ -1434,7 +1456,7 @@ wssClient.on('connection', (ws, req) => {
 
       // deviceId 为空：不创建设备，只发安装指令，等UU装完重新上线
       if (!incomingDeviceId) {
-        serverLog(`[UU] 收到注册请求但 deviceId 为空，通知客户端安装UU`);
+        serverLog(`[UU升级] 设备 ${msg.deviceName} deviceId为空，通知客户端安装UU v${SERVER_CONFIG.uuVersion || '?'}`);
         ws.send(JSON.stringify({ type: 'registered', deviceId: '', installUU: true, uuDownloadUrl: SERVER_CONFIG.uuDownloadUrl || '' }));
         return;
       }
@@ -1764,6 +1786,7 @@ wssClient.on('connection', (ws, req) => {
           const devUUInstalled = dev.uuInstalled;
           if (!devUUInstalled || devUUVer !== cfgUUVer) {
             needsInstallUU = true;
+            serverLog(`[UU升级] 设备 ${dev.deviceName} UU未安装或版本不匹配(${devUUVer || '?'}→${cfgUUVer})，通知升级`);
           }
 
         }
