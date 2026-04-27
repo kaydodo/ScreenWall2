@@ -1233,6 +1233,7 @@ function getDeviceListPayload() {
       monitorOffsetX: d.monitorOffsetX || 0,
       monitorOffsetY: d.monitorOffsetY || 0,
       version: d.version || null,
+      uuVersion: d.uuVersion || null,
     }));
 }
 
