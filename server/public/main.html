@@ -3181,35 +3181,13 @@ openPreview = function(cell) {
 };
 
 // ── 远控设备列表弹窗 ────────────────────────
-// circled number prefix → Arabic numeral (U+2460..U+2473)
-const CIRCLED = '⓪①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳㉑㉒㉓㉔㉕㉖㉗㉘㉙㉚㉛㉜㉝㉞㉟㊱㊲㊳㊴㊵㊶㊷㊸㊹㊺㊻㊼㊽㊾㊿';
-const CIRCLED_OFFSET = 0x2460; // ⑩ = 0x2460 + 10 = 0x246A = 9322
-
-function extractCircled(str) {
-  const code = str.charCodeAt(0);
-  if (code >= 0x2460 && code <= 0x2473) return code - CIRCLED_OFFSET;
-  return null;
-}
-
-function naturalSort(strA, strB) {
-  const numA = extractCircled(strA);
-  const numB = extractCircled(strB);
-  if (numA !== null && numB !== null) {
-    if (numA !== numB) return numA - numB;
-    return strA.localeCompare(strB, undefined, { numeric: true, sensitivity: 'base' });
-  }
-  if (numA !== null) return -1;
-  if (numB !== null) return 1;
-  return strA.localeCompare(strB, undefined, { numeric: true, sensitivity: 'base' });
-}
-
 function openRemoteListModal() {
   const overlay = document.getElementById('remoteListOverlay');
   const content = document.getElementById('remoteListContent');
   const dialog = overlay.querySelector('.remote-list-dialog');
   
   // 获取所有在线设备，按自然排序
-  const onlineDevices = devices.filter(d => d.online).sort((a, b) => naturalSort(a.deviceName, b.deviceName));
+  const onlineDevices = devices.filter(d => d.online).sort((a, b) => naturalCompare(a.deviceName, b.deviceName));
   
   // 显示所有在线设备的状态（网格布局）
   let html = '';
@@ -3268,7 +3246,7 @@ function updateRemoteDeviceSelect() {
   select.innerHTML = '<option value="">选择设备</option>';
   
   // 只添加在线设备
-  const onlineDevices = devices.filter(d => d.online).sort((a, b) => naturalSort(a.deviceName, b.deviceName));
+  const onlineDevices = devices.filter(d => d.online).sort((a, b) => naturalCompare(a.deviceName, b.deviceName));
   onlineDevices.forEach(dev => {
     const opt = document.createElement('option');
     opt.value = dev.deviceId;
