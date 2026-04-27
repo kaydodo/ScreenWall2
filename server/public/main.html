@@ -1366,6 +1366,12 @@ function connectWS() {
         const uubtn = document.getElementById('previewUUbtn');
         const previewNameEl = document.getElementById('previewDeviceName');
         if (status === 'offline' || status === 'deleted') {
+          // 清理 blob 缓存
+          if (status === 'deleted') {
+            const cellIndex = typeof gridCells !== 'undefined' ? gridCells.findIndex(c => c && c.deviceId === deviceId) : -1;
+            if (cellIndex !== -1) revokeBlobUrl(cellIndex);
+            revokePreviewBlobUrl();
+          }
           // 只显示水印，不变灰
           if (watermark) {
             watermark.textContent = status === 'deleted' ? '设备已删除' : '设备已离线';
@@ -4934,10 +4940,15 @@ function deleteOfflineDevice(deviceId) {
         if (typeof gridCells !== 'undefined') {
           for (var i = 0; i < gridCells.length; i++) {
             if (gridCells[i] && gridCells[i].deviceId === deviceId) {
+              revokeBlobUrl(i);
               gridCells[i] = { index: i, deviceId: null, deviceName: null, uuDeviceId: null, online: false, screenshot: null };
               updateCellElement(i);
             }
           }
+        }
+        if (typeof monitorBlobUrlCache !== 'undefined') {
+          var oldMonitor = monitorBlobUrlCache.get(deviceId);
+          if (oldMonitor) { URL.revokeObjectURL(oldMonitor); monitorBlobUrlCache.delete(deviceId); }
         }
         // Broadcast to all browsers
         if (ws && ws.readyState === WebSocket.OPEN) {
@@ -4970,10 +4981,15 @@ function deleteAllOfflineDevices() {
           if (typeof gridCells !== 'undefined') {
             for (var i = 0; i < gridCells.length; i++) {
               if (gridCells[i] && gridCells[i].deviceId === d.deviceId) {
+                revokeBlobUrl(i);
                 gridCells[i] = { index: i, deviceId: null, deviceName: null, uuDeviceId: null, online: false, screenshot: null, frameCount: 0 };
                 updateCellElement(i);
               }
             }
+          }
+          if (typeof monitorBlobUrlCache !== 'undefined') {
+            var oldMonitor = monitorBlobUrlCache.get(d.deviceId);
+            if (oldMonitor) { URL.revokeObjectURL(oldMonitor); monitorBlobUrlCache.delete(d.deviceId); }
           }
           if (ws && ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ type: 'deleteDevice', deviceId: d.deviceId }));
