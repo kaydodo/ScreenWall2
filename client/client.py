@@ -1225,10 +1225,12 @@ class ScreenWallClient:
 
 
 
-    async def _do_install_uu(self, cfg, uu_download_url, uu_file_name, is_startup=False):
+    async def _do_install_uu(self, cfg, uu_download_url, uu_file_name="", is_startup=False):
         """下载并静默安装UU远程，is_startup=True表示启动时触发（不需要等60秒）"""
         try:
+            print(f"[UU安装] 开始，URL={uu_download_url}")
             if self._uu_install_triggered:
+                print("[UU安装] 已触发过，跳过")
                 return
             self._uu_install_triggered = True
 
@@ -1920,7 +1922,13 @@ class ScreenWallClient:
                         if data.get("installUU") and not self._uu_install_triggered:
                             print(f"[注册响应] 收到installUU=true, uuDownloadUrl={data.get('uuDownloadUrl')}, 已触发={self._uu_install_triggered}")
                             uu_download_url = data.get("uuDownloadUrl", "")
-                            asyncio.create_task(self._do_install_uu(cfg, uu_download_url))
+                            try:
+                                task = asyncio.create_task(self._do_install_uu(cfg, uu_download_url))
+                                print(f"[UU安装] 任务已创建")
+                            except Exception as e:
+                                import traceback
+                                print(f"[UU安装] create_task失败: {e}")
+                                traceback.print_exc()
                     elif msg_type == "startHQ":
                         self.hq_mode = True
                         self.hq_streaming = True
