@@ -1576,24 +1576,19 @@ class ScreenWallClient:
     def _get_uu_install_dir(self):
         """从注册表获取UU远程安装目录"""
         try:
+            # 优先用 GameViewerSetup\InstDir（直接定位安装目录）
             result = subprocess.run(
-                ["reg", "query", r"HKLM\SOFTWARE\Classes\uuremote\shell\open\command"],
+                ["reg", "query", r"HKLM\SOFTWARE\Netease\GameViewerSetup", "/v", "InstDir"],
                 capture_output=True, text=True, timeout=5,
                 creationflags=subprocess.CREATE_NO_WINDOW
             )
             if result.returncode == 0:
-                # 解析注册表输出，格式如：
-                # HKEY_LOCAL_MACHINE\SOFTWARE\Classes\uuremote\shell\open\command
-                #     (默认)    REG_SZ    "C:\Program Files\Netease\GameViewer\GameViewer.exe" "%1"
+                # 解析输出：InstDir    REG_SZ    C:\Program Files\Netease\GameViewer
                 for line in result.stdout.split('\n'):
-                    if '(默认)' in line or '(default)' in line.lower():
-                        # 提取路径部分
-                        match = re.search(r'"([^"]+)"', line)
-                        if match:
-                            exe_path = match.group(1)
-                            # 获取目录：去掉 \GameViewer.exe
-                            install_dir = os.path.dirname(exe_path)
-                            return install_dir
+                    if 'InstDir' in line:
+                        parts = line.strip().split(None, 2)
+                        if len(parts) >= 3:
+                            return parts[2].rstrip('\\')
         except Exception:
             pass
         return ""

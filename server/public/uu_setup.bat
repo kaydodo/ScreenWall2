@@ -3,29 +3,23 @@ chcp 65001 >nul
 setlocal enabledelayedexpansion
 
 echo ====================================
-echo  UU远程 协议 & 包装脚本一键配置
+echo  UU远程 协议 ^& 包装脚本一键配置
 echo ====================================
 echo.
 
 :: ── 1. 从注册表读取 UU 安装路径 ──────────────────────────────────────
-set "REG_KEY=HKEY_LOCAL_MACHINE\SOFTWARE\Classes\uuremote\shell\open\command"
-for /f "tokens=2*" %%A in ('reg query "%REG_KEY%" /ve 2^>nul') do (
-    set "REG_VAL=%%B"
+:: 用 GameViewerSetup\InstDir 直接定位安装目录
+for /f "tokens=2*" %%A in ('reg query "HKLM\SOFTWARE\Netease\GameViewerSetup" /v InstDir 2^>nul') do (
+    set "INSTALL_DIR=%%B"
 )
 
-if not defined REG_VAL (
-    echo [错误] 未在注册表找到 uuremote 协议键，请先安装 UU远程。
+if not defined INSTALL_DIR (
+    echo [错误] 未在注册表找到 GameViewerSetup\InstDir，请先安装 UU远程。
     echo.
     pause
     exit /b 1
 )
 
-:: 从注册表值中提取可执行文件路径（去掉引号和参数）
-:: 格式示例："C:\Program Files\Netease\GameViewer\GameViewer.exe" "%1"
-set "EXE_PATH=%REG_VAL:"=%"
-for %%F in ("%EXE_PATH: =?%") do set "INSTALL_DIR=%%~dpF"
-:: 还原空格
-set "INSTALL_DIR=%INSTALL_DIR:?= %"
 :: 去掉末尾反斜杠
 if "%INSTALL_DIR:~-1%"=="\" set "INSTALL_DIR=%INSTALL_DIR:~0,-1%"
 
