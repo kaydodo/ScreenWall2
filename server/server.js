@@ -3368,6 +3368,7 @@ httpServer.on('request', (req, res) => {
         }
       }
       persistGrid();
+      persistDevices();
       // 清理报警记录
       const beforeAlarmLen = alarmRecords.length;
       alarmRecords = alarmRecords.filter(r => r.deviceId !== deviceIdToDelete);
@@ -3562,6 +3563,7 @@ httpServer.on('request', (req, res) => {
         if (powerScenes[id]) delete powerScenes[id];
       }
       if (offlineIds.length > 0) {
+        persistDevices();
         persistGroups();
         persistGrid();
         persistAlarmRecords();
