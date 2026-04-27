@@ -666,6 +666,30 @@ function cleanupOldAlarmRecords() {
       break; // 每次只删一条，减少 splice 开销
     }
   }
+  // 清理独立保存的 1080P 截图（不在 alarmRecords 中的）
+  cleanupOrphaned1080pScreenshots();
+}
+
+// 清理不在 alarmRecords 中的独立 1080P 截图文件
+function cleanupOrphaned1080pScreenshots() {
+  try {
+    if (!fs.existsSync(ALARM_SCREENSHOTS_DIR)) return;
+    const validScreenshotIds = new Set(alarmRecords.map(r => r.screenshotId).filter(Boolean));
+    const files = fs.readdirSync(ALARM_SCREENSHOTS_DIR);
+    for (const file of files) {
+      // 只清理不在 alarmRecords 中的截图文件（这些是延迟到达的1080P截图）
+      if (!validScreenshotIds.has(file.replace('.png', ''))) {
+        try {
+          const filePath = path.join(ALARM_SCREENSHOTS_DIR, file);
+          const stat = fs.statSync(filePath);
+          // 超过 2 小时仍未被 alarmRecords 引用的文件，删除（说明匹配失败）
+          if (Date.now() - stat.mtimeMs > 2 * 60 * 60 * 1000) {
+            fs.unlinkSync(filePath);
+          }
+        } catch (e) {}
+      }
+    }
+  } catch (e) {}
 }
 
 // ========== 新报警系统辅助函数 ==========
@@ -1148,6 +1172,7 @@ async function processAlarmImage(deviceId, imageBuffer, deviceInfo) {
     matchedKeyword,
     region: { x1, y1, x2, y2 },
     regionSize: { w: reg.w, h: reg.h },
+    isFullScreenshot: false,  // 标记是否已收到1080P截图
   };
   
   alarmRecords.push(record);
@@ -1827,15 +1852,36 @@ wssClient.on('connection', (ws, req) => {
       const deviceId = msg.deviceId;
       const imageData = msg.image;
 
-      // 查找对应的报警记录
-      const matchedRecord = alarmRecords.find(r =>
-        r.deviceId === deviceId && Math.abs(r.timestamp - alarmTimestamp) < 5000
+      // 方法1：查找 30 秒窗口内的记录
+      let matchedRecord = alarmRecords.find(r =>
+        r.deviceId === deviceId && Math.abs(r.timestamp - alarmTimestamp) < 30000 && !r.isFullScreenshot
       );
 
       if (matchedRecord) {
         // 更新报警记录的截图
         const imgBuffer = Buffer.from(imageData.replace(/^data:image\/\w+;base64,/, ''), 'base64');
         fs.writeFileSync(matchedRecord.screenshotPath, imgBuffer);
+        matchedRecord.isFullScreenshot = true;
+        serverLog(`[报警] ${matchedRecord.deviceName} 1080P截图已保存`);
+      } else {
+        // 方法2：查找最近一个未完成1080P的记录
+        matchedRecord = alarmRecords.find(r =>
+          r.deviceId === deviceId && !r.isFullScreenshot
+        );
+        
+        if (matchedRecord) {
+          const imgBuffer = Buffer.from(imageData.replace(/^data:image\/\w+;base64,/, ''), 'base64');
+          fs.writeFileSync(matchedRecord.screenshotPath, imgBuffer);
+          matchedRecord.isFullScreenshot = true;
+          serverLog(`[报警] ${matchedRecord.deviceName} 1080P截图已保存（延迟到达）`);
+        } else {
+          // 没有匹配到记录，保存为独立文件
+          const screenshotId = crypto.randomUUID();
+          const screenshotPath = path.join(ALARM_SCREENSHOTS_DIR, `${screenshotId}.png`);
+          const imgBuffer = Buffer.from(imageData.replace(/^data:image\/\w+;base64,/, ''), 'base64');
+          fs.writeFileSync(screenshotPath, imgBuffer);
+          serverLog(`[报警] ${deviceId} 1080P截图保存失败（无匹配记录），独立保存为 ${screenshotId}.png`);
+        }
       }
     }
 
