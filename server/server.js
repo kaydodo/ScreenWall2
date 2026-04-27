@@ -18,7 +18,7 @@ const Tesseract = require('tesseract.js');
 const { spawn } = require('child_process');
 
 // ========== 客户端版本号（每次发布新版本时手动递增）==========
-const CURRENT_VERSION = "1.2.10";
+const CURRENT_VERSION = "1.3.0";
 
 // ========== 公共配置文件（网页和客户端共享）==========
 let SERVER_CONFIG = {};
