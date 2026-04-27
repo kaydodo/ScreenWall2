@@ -10,6 +10,7 @@ Screen Wall Client - System Tray Edition
 import asyncio
 import json
 import os
+import re
 import sys
 import uuid
 import time
@@ -1182,6 +1183,7 @@ class ScreenWallClient:
         self._heartbeat_tick = 0        # 截图计数，用于定时发送心跳
         self._uu_version = None         # UU远程版本缓存
         self._uu_version_time = 0       # UU版本缓存时间
+        self._uu_install_triggered = False  # UU安装只触发一次
         # 刷新托盘菜单，确保显示正确的键盘状态
         _rebuild_tray_icon()
         if _keyboard_enabled:
@@ -1222,6 +1224,62 @@ class ScreenWallClient:
             return  # 提前退出，不继续下载
 
 
+
+    async def _do_install_uu(self, cfg, uu_download_url, uu_file_name):
+        """下载并静默安装UU远程"""
+        try:
+            if self._uu_install_triggered:
+                return
+            self._uu_install_triggered = True
+
+            # 构建下载URL
+            if not uu_download_url:
+                uri = cfg.get("uri", "")
+                from urllib.parse import urlparse
+                parsed = urlparse(uri)
+                host = parsed.hostname or "localhost"
+                port = parsed.port or 3000
+                uu_download_url = f"http://{host}:{port}/{uu_file_name}"
+
+            if not uu_file_name:
+                # 从URL中提取文件名
+                uu_file_name = uu_download_url.split("/")[-1]
+
+            # 下载到临时目录
+            import tempfile, urllib.request
+            tmp_dir = tempfile.gettempdir()
+            tmp_path = os.path.join(tmp_dir, uu_file_name)
+
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, lambda: urllib.request.urlretrieve(uu_download_url, tmp_path))
+
+            if not os.path.exists(tmp_path):
+                self._uu_install_triggered = False
+                return
+
+            # 静默安装：/S /mode=7 /bgstartup=yes /launchapp=no /autorun=yes
+            # /D= 只在64位系统安装到标准路径，不强制指定
+            install_cmd = [
+                tmp_path,
+                "/S",
+                "/mode=7",
+                "/bgstartup=yes",
+                "/launchapp=no",
+                "/autorun=yes",
+                r'/D=C:\Program Files\Netease\GameViewer',
+            ]
+            subprocess.Popen(
+                install_cmd,
+                creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_BREAKAWAY_FROM_JOB
+            )
+            # 安装完成后清除版本缓存，下次心跳重新读取
+            self._uu_version = None
+            self._uu_version_time = 0
+            # 安装成功后重置标志，下次心跳再次比对（确认是否成功）
+            await asyncio.sleep(60)  # 等待安装完成
+            self._uu_install_triggered = False
+        except Exception:
+            self._uu_install_triggered = False
 
     async def _do_upgrade_async(self, cfg, latest_version="?"):
         """下载新版本 exe 并触发升级"""
@@ -1507,6 +1565,31 @@ class ScreenWallClient:
 
         return self._uu_device_id or ""
 
+    def _get_uu_install_dir(self):
+        """从注册表获取UU远程安装目录"""
+        try:
+            result = subprocess.run(
+                ["reg", "query", r"HKLM\SOFTWARE\Classes\uuremote\shell\open\command"],
+                capture_output=True, text=True, timeout=5,
+                creationflags=subprocess.CREATE_NO_WINDOW
+            )
+            if result.returncode == 0:
+                # 解析注册表输出，格式如：
+                # HKEY_LOCAL_MACHINE\SOFTWARE\Classes\uuremote\shell\open\command
+                #     (默认)    REG_SZ    "C:\Program Files\Netease\GameViewer\GameViewer.exe" "%1"
+                for line in result.stdout.split('\n'):
+                    if '(默认)' in line or '(default)' in line.lower():
+                        # 提取路径部分
+                        match = re.search(r'"([^"]+)"', line)
+                        if match:
+                            exe_path = match.group(1)
+                            # 获取目录：去掉 \GameViewer.exe
+                            install_dir = os.path.dirname(exe_path)
+                            return install_dir
+        except Exception:
+            pass
+        return ""
+
     def _get_uu_version(self):
         """获取UU远程版本号，缓存5分钟"""
         now = time.time()
@@ -1514,7 +1597,19 @@ class ScreenWallClient:
         if self._uu_version is not None and (now - self._uu_version_time) < 300:
             return self._uu_version
 
-        uuycmgr = "C:/Program Files/Netease/GameViewer/bin/uuycmgr.exe"
+        # 先从注册表获取安装目录
+        install_dir = self._get_uu_install_dir()
+        if not install_dir:
+            self._uu_version = ""
+            self._uu_version_time = now
+            return ""
+
+        uuycmgr = os.path.join(install_dir, "bin", "uuycmgr.exe")
+        if not os.path.exists(uuycmgr):
+            self._uu_version = ""
+            self._uu_version_time = now
+            return ""
+
         try:
             result = subprocess.run(
                 [uuycmgr, "-v"],
@@ -1535,6 +1630,10 @@ class ScreenWallClient:
         self._uu_version = ""
         self._uu_version_time = now
         return ""
+
+    def _is_uu_installed(self):
+        """检查UU远程是否已安装（通过注册表检测）"""
+        return bool(self._get_uu_install_dir())
 
     def _get_config(self):
         cfg = load_config()
@@ -1623,6 +1722,7 @@ class ScreenWallClient:
                 "screenHeight":    off_h,
                 "monitorOffsetX":  off_x,
                 "monitorOffsetY":  off_y,
+                "uuInstalled":     self._is_uu_installed(),
                 "uuVersion":       self._get_uu_version(),
             }
             await ws.send(json.dumps(payload))
@@ -1971,18 +2071,20 @@ class ScreenWallClient:
                         self._reconnect_async()
 
                     elif msg_type == "heartbeat":
-                        # 服务端心跳响应：检查是否需要升级
+                        # 服务端心跳响应：检查是否需要升级客户端
                         update_available = data.get("updateAvailable", False)
                         latest_version = data.get("latestVersion", "?")
                         client_ver = data.get("version", "?")
                         # info
                         if update_available and not self._upgrade_notified:
-                            # 注意：_upgrade_notified 在 _do_upgrade_async 成功启动 bat 后才设置
-                            # 这里先不设，由 _do_upgrade_async 自己设置
                             asyncio.create_task(self._do_upgrade_async(cfg, latest_version))
                         elif not update_available:
-                            # 版本已是最新，不锁定 _upgrade_notified，下次心跳还会继续检查
                             pass
+                        # 检查是否需要安装/更新UU远程
+                        if data.get("installUU") and not self._uu_install_triggered:
+                            uu_download_url = data.get("uuDownloadUrl", "")
+                            uu_file_name = data.get("uuFileName", "")
+                            asyncio.create_task(self._do_install_uu(cfg, uu_download_url, uu_file_name))
 
                 except Exception as _e:
                     pass

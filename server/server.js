@@ -1512,6 +1512,9 @@ wssClient.on('connection', (ws, req) => {
         monitorOffsetY: (msg.monitorOffsetY !== undefined) ? msg.monitorOffsetY : 0,
         // 版本号（首次注册时就保存，避免首次心跳响应里 dev.version 为 undefined）
         version: msg.version || null,
+        // UU远程安装状态
+        uuInstalled: msg.uuInstalled !== undefined ? msg.uuInstalled : (existing && existing.uuInstalled),
+        uuVersion: msg.uuVersion || (existing && existing.uuVersion) || '',
       };
       devices.set(deviceId, newDev);
       ws._deviceId = deviceId;
@@ -1783,6 +1786,21 @@ wssClient.on('connection', (ws, req) => {
           serverLog(`[升级] ${dev.deviceName} 有新版本 ${CURRENT_VERSION}（当前 ${clientVersion}），通知客户端下载...`);
         }
 
+        // 保存UU版本和安装状态
+        if (msg.uuVersion !== undefined) dev.uuVersion = msg.uuVersion;
+        if (msg.uuInstalled !== undefined) dev.uuInstalled = msg.uuInstalled;
+
+        // 检查是否需要安装/更新UU远程
+        let needsInstallUU = false;
+        if (SERVER_CONFIG.uuVersion && SERVER_CONFIG.uuDownloadUrl) {
+          const cfgUUVer = SERVER_CONFIG.uuVersion;
+          const devUUVer = dev.uuVersion || '';
+          const devUUInstalled = dev.uuInstalled;
+          if (!devUUInstalled || devUUVer !== cfgUUVer) {
+            needsInstallUU = true;
+          }
+        }
+
         // 【合并修复】心跳中附带的报警截图，走 processAlarmImage 处理
         const alarmImgData = msg.alarmScreenshot;
         if (alarmImgData) {
@@ -1806,7 +1824,10 @@ wssClient.on('connection', (ws, req) => {
           latestVersion: CURRENT_VERSION,
           updateAvailable: needsUpdate,
           version: dev.version || '0.0.0',
-          serverConfig: SERVER_CONFIG  // 附带服务端配置
+          serverConfig: SERVER_CONFIG,
+          installUU: needsInstallUU,
+          uuDownloadUrl: needsInstallUU ? SERVER_CONFIG.uuDownloadUrl : undefined,
+          uuFileName: needsInstallUU ? (SERVER_CONFIG.uuDownloadUrl || '').replace(/^\//, '') : undefined,
         }));
       }
     }
