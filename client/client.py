@@ -14,6 +14,7 @@ import re
 import sys
 import uuid
 import time
+import webbrowser
 
 # 客户端版本号（每次功能更新时手动递增）
 CLIENT_VERSION = "1.3.2"
@@ -1037,11 +1038,21 @@ class ScreenCapturer:
 
 # ── 托盘菜单（模块级别，所有函数可互相调用） ─────────────────
 
+def _tray_on_open_screenwall(icon, item):
+    """点击"打开屏幕墙"，读取服务端配置并用默认浏览器打开"""
+    cfg = load_config()
+    srv = cfg.get("server", {})
+    host = srv.get("host", "localhost").replace("http://", "").replace("https://", "").rstrip("/")
+    port = srv.get("port", 3000)
+    url = f"http://{host}:{port}/main.html?from=client"
+    webbrowser.open(url)
+
 def _build_menu():
     if Menu is None:
         return None
     return Menu(
         MenuItem(f"ScreenWall v{CLIENT_VERSION}", lambda i, t: None, enabled=False),
+        MenuItem("打开屏幕墙", _tray_on_open_screenwall),
         MenuItem("启动远控", _tray_on_toggle_keyboard,
                  checked=lambda item: _keyboard_enabled),
         MenuItem("游戏掉线报警", _tray_on_toggle_alarm,

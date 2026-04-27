@@ -4244,8 +4244,11 @@ document.addEventListener('keydown', (e) => {
 // ─────────────────────────────────────────
 // 启动
 // ─────────────────────────────────────────
-// 检查登录
-if (!SESSION) {
+// 检查登录（客户端打开时跳过验证）
+const fromClient = new URLSearchParams(location.search).get('from') === 'client';
+if (fromClient) {
+  connectWS();
+} else if (!SESSION) {
   window.location.href = '/index.html';
 } else {
   fetch(`/api/check?sessionId=${encodeURIComponent(SESSION)}`)
@@ -4253,11 +4256,6 @@ if (!SESSION) {
     .then(data => {
       if (!data.ok) { sessionStorage.clear(); window.location.href = '/index.html'; }
       else {
-        // 移动端默认收起侧边栏
-        if (isMobile) {
-          document.body.classList.add('sidebar-collapsed');
-          document.querySelector('.sidebar').classList.add('collapsed');
-        }
         connectWS();
       }
     })
