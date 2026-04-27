@@ -19,5 +19,15 @@
       "offline_test_011",
       "offline_test_016"
     ]
+  },
+  {
+    "id": "1777310882267",
+    "name": "5555",
+    "color": "#C5EBCD",
+    "deviceIds": [
+      "offline_test_014",
+      "offline_test_015",
+      "offline_test_017"
+    ]
   }
 ]

@@ -17,8 +17,7 @@ const sharp = require('sharp');
 const Tesseract = require('tesseract.js');
 const { spawn } = require('child_process');
 
-// ========== 客户端版本号（每次发布新版本时手动递增）==========
-const CURRENT_VERSION = "1.3.2";
+// 服务端版本从 config.json 的 serverVersion 字段读取，无需硬编码
 
 // ========== 日志模块 ==========
 const LOGS_DIR = path.join(__dirname, 'logs');
@@ -1768,10 +1767,10 @@ wssClient.on('connection', (ws, req) => {
         // 心跳响应：告诉客户端是否有新版本（只在有升级时打日志）
         const clientVersion = dev.version || '0.0.0';
         const [cMajor, cMinor, cPatch] = clientVersion.split('.').map(Number);
-        const [sMajor, sMinor, sPatch] = CURRENT_VERSION.split('.').map(Number);
+        const [sMajor, sMinor, sPatch] = (SERVER_CONFIG.serverVersion || '').split('.').map(Number);
         const needsUpdate = cMajor < sMajor || (cMajor === sMajor && cMinor < sMinor) || (cMajor === sMajor && cMinor === sMinor && cPatch < sPatch);
         if (needsUpdate) {
-          serverLog(`[升级] ${dev.deviceName} 有新版本 ${CURRENT_VERSION}（当前 ${clientVersion}），通知客户端下载...`);
+          serverLog(`[升级] ${dev.deviceName} 有新版本 ${SERVER_CONFIG.serverVersion || '未知'}（当前 ${clientVersion}），通知客户端下载...`);
         }
 
         // 保存UU版本和安装状态
@@ -1811,7 +1810,7 @@ wssClient.on('connection', (ws, req) => {
 
         ws.send(JSON.stringify({
           type: 'heartbeat',
-          latestVersion: CURRENT_VERSION,
+          latestVersion: SERVER_CONFIG.serverVersion || '未知',
           updateAvailable: needsUpdate,
           version: dev.version || '0.0.0',
           serverConfig: SERVER_CONFIG,
@@ -2106,7 +2105,7 @@ wssBrowser.on('connection', (ws) => {
       
       ws.send(JSON.stringify({
         type: 'state',
-        serverVersion: CURRENT_VERSION,
+        serverVersion: SERVER_CONFIG.serverVersion || '未知',
         gridSize: gridSizeSetting,
         cells: getGridPayload(gridSizeSetting),
         devices: getDeviceListPayload(),
@@ -3859,7 +3858,7 @@ setInterval(() => {
 const PORT = SERVER_CFG.port || 3000;
 const HOST = SERVER_CFG.host || '0.0.0.0';
 httpServer.listen(PORT, HOST, () => {
-  serverLog(`  🖥️  屏幕墙服务端 v${CURRENT_VERSION} 已启动`);
+  serverLog(`  🖥️  屏幕墙服务端 v${SERVER_CONFIG.serverVersion || '未知'} 已启动`);
   serverLog(`   本地访问:     http://localhost:${PORT}`);
   serverLog(`   WebSocket端口: ${PORT}\n`);
 });
