@@ -3834,7 +3834,7 @@ setInterval(() => {
 const PORT = SERVER_CFG.port || 3000;
 const HOST = SERVER_CFG.host || '0.0.0.0';
 httpServer.listen(PORT, HOST, () => {
-  serverLog(`\n🖥️  屏幕墙服务端 v${CURRENT_VERSION} 已启动`);
+  serverLog(`  🖥️  屏幕墙服务端 v${CURRENT_VERSION} 已启动`);
   serverLog(`   本地访问:     http://localhost:${PORT}`);
   serverLog(`   WebSocket端口: ${PORT}\n`);
 });
