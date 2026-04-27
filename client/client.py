@@ -1180,6 +1180,8 @@ class ScreenWallClient:
         self._upgrade_notified = False  # 升级通知只弹一次
         self._upgrade_triggered = False  # 升级任务只触发一次
         self._heartbeat_tick = 0        # 截图计数，用于定时发送心跳
+        self._uu_version = None         # UU远程版本缓存
+        self._uu_version_time = 0       # UU版本缓存时间
         # 刷新托盘菜单，确保显示正确的键盘状态
         _rebuild_tray_icon()
         if _keyboard_enabled:
@@ -1299,6 +1301,7 @@ class ScreenWallClient:
                 "screenHeight":       off_h,
                 "monitorOffsetX":     off_x,
                 "monitorOffsetY":     off_y,
+                "uuVersion":          self._get_uu_version(),
             }
             await ws.send(json.dumps(payload))
         except Exception:
@@ -1504,6 +1507,35 @@ class ScreenWallClient:
 
         return self._uu_device_id or ""
 
+    def _get_uu_version(self):
+        """获取UU远程版本号，缓存5分钟"""
+        now = time.time()
+        # 缓存5分钟
+        if self._uu_version is not None and (now - self._uu_version_time) < 300:
+            return self._uu_version
+
+        uuycmgr = "C:/Program Files/Netease/GameViewer/bin/uuycmgr.exe"
+        try:
+            result = subprocess.run(
+                [uuycmgr, "-v"],
+                capture_output=True, text=True, timeout=10,
+                creationflags=subprocess.CREATE_NO_WINDOW
+            )
+            if result.returncode == 0:
+                version = result.stdout.strip()
+                # 格式如 "uuycmgr 4.20.903.7641" 或 "4.20.903.7641"
+                if " " in version:
+                    version = version.split(" ")[-1]
+                self._uu_version = version
+                self._uu_version_time = now
+                return version
+        except Exception:
+            pass
+
+        self._uu_version = ""
+        self._uu_version_time = now
+        return ""
+
     def _get_config(self):
         cfg = load_config()
         dev = cfg.get("device", {})
@@ -1591,6 +1623,7 @@ class ScreenWallClient:
                 "screenHeight":    off_h,
                 "monitorOffsetX":  off_x,
                 "monitorOffsetY":  off_y,
+                "uuVersion":       self._get_uu_version(),
             }
             await ws.send(json.dumps(payload))
             self.registered = True
@@ -1630,6 +1663,7 @@ class ScreenWallClient:
                         "screenHeight":    off_h,
                         "monitorOffsetX":  off_x,
                         "monitorOffsetY":  off_y,
+                        "uuVersion":       self._get_uu_version(),
                     }
                     await ws.send(json.dumps(payload))
                 except Exception:
@@ -1658,6 +1692,7 @@ class ScreenWallClient:
                         "screenHeight":       off_h,
                         "monitorOffsetX":     off_x,
                         "monitorOffsetY":     off_y,
+                        "uuVersion":          self._get_uu_version(),
                     }
                     # 报警开启时：心跳包合并报警截图，二合一节省资源
                     # 固定截取屏幕中心 640×360 区域，用于报警检测
