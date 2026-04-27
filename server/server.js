@@ -20,29 +20,6 @@ const { spawn } = require('child_process');
 // ========== 客户端版本号（每次发布新版本时手动递增）==========
 const CURRENT_VERSION = "1.3.2";
 
-// ========== 公共配置文件（网页和客户端共享）==========
-let SERVER_CONFIG = {};
-function loadServerConfig() {
-  try {
-    const configPath = path.join(__dirname, 'public', 'config.json');
-    if (fs.existsSync(configPath)) {
-      SERVER_CONFIG = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-      // 从下载文件名中自动提取版本号，格式如 UURemote_Setup_4.20.903.7641_0421115832_jf031.exe
-      if (SERVER_CONFIG.uuDownloadUrl && !SERVER_CONFIG.uuVersion) {
-        const fileName = SERVER_CONFIG.uuDownloadUrl.replace(/^\//, '');
-        const m = fileName.match(/(\d+\.\d+\.\d+\.\d+)/);
-        if (m) SERVER_CONFIG.uuVersion = m[1];
-      }
-      serverLog(`[配置] 已加载 config.json: UU版本=${SERVER_CONFIG.uuVersion || '未知'}`);
-    } else {
-      serverLog('[配置] config.json 不存在，使用默认配置');
-    }
-  } catch (err) {
-    serverError('[配置] 加载 config.json 失败:', err.message);
-  }
-}
-loadServerConfig();
-
 // ========== 日志模块 ==========
 const LOGS_DIR = path.join(__dirname, 'logs');
 let _logFd = null;
@@ -68,6 +45,29 @@ function serverLog(...args) {
         fs.writeSync(_logFd, line);
     } catch(e) { process.stderr.write('[日志写入失败] ' + e.message + '\n'); }
 }
+
+// ========== 公共配置文件（网页和客户端共享）==========
+let SERVER_CONFIG = {};
+function loadServerConfig() {
+  try {
+    const configPath = path.join(__dirname, 'public', 'config.json');
+    if (fs.existsSync(configPath)) {
+      SERVER_CONFIG = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      // 从下载文件名中自动提取版本号，格式如 UURemote_Setup_4.20.903.7641_0421115832_jf031.exe
+      if (SERVER_CONFIG.uuDownloadUrl && !SERVER_CONFIG.uuVersion) {
+        const fileName = SERVER_CONFIG.uuDownloadUrl.replace(/^\//, '');
+        const m = fileName.match(/(\d+\.\d+\.\d+\.\d+)/);
+        if (m) SERVER_CONFIG.uuVersion = m[1];
+      }
+      serverLog(`[配置] 已加载 config.json: UU版本=${SERVER_CONFIG.uuVersion || '未知'}`);
+    } else {
+      serverLog('[配置] config.json 不存在，使用默认配置');
+    }
+  } catch (err) {
+    serverError('[配置] 加载 config.json 失败:', err.message);
+  }
+}
+loadServerConfig();
 
 function serverError(...args) {
     const ts = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
