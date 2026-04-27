@@ -1261,7 +1261,7 @@ class ScreenWallClient:
                 "/S",
                 "/mode=7",
                 "/bgstartup=yes",
-                "/launchapp=yes",
+                "/launchapp=no",
                 "/autorun=yes",
                 r'/D=C:\Program Files\Netease\GameViewer',
             ]
