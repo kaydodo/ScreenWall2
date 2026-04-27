@@ -1694,13 +1694,6 @@ class ScreenWallClient:
 
         device_name = dev.get("deviceName", "").strip()
 
-        # 如果 deviceId 为空，使用 MAC+计算机名 生成
-        if not device_id:
-            mac = uuid.getnode()
-            device_id = hashlib.md5(
-                f"{mac}{os.environ.get('COMPUTERNAME','')}".encode()
-            ).hexdigest()[:16]
-
         host = srv.get("host", "localhost").replace("http://", "").replace("https://", "")
         return {
             "uri":          f"ws://{host}:{srv.get('port', 3000)}/ws/client",
