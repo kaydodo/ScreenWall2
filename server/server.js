@@ -27,7 +27,13 @@ function loadServerConfig() {
     const configPath = path.join(__dirname, 'public', 'config.json');
     if (fs.existsSync(configPath)) {
       SERVER_CONFIG = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-      serverLog(`[配置] 已加载 config.json: UU版本=${SERVER_CONFIG.uuVersion}`);
+      // 从下载文件名中自动提取版本号，格式如 UURemote_Setup_4.20.903.7641_0421115832_jf031.exe
+      if (SERVER_CONFIG.uuDownloadUrl && !SERVER_CONFIG.uuVersion) {
+        const fileName = SERVER_CONFIG.uuDownloadUrl.replace(/^\//, '');
+        const m = fileName.match(/(\d+\.\d+\.\d+\.\d+)/);
+        if (m) SERVER_CONFIG.uuVersion = m[1];
+      }
+      serverLog(`[配置] 已加载 config.json: UU版本=${SERVER_CONFIG.uuVersion || '未知'}`);
     } else {
       serverLog('[配置] config.json 不存在，使用默认配置');
     }

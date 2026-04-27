@@ -1548,9 +1548,17 @@ class ScreenWallClient:
         # 更新时间戳，尝试获取
         self._uu_last_fetch_time = now
 
+        install_dir = self._get_uu_install_dir()
+        if not install_dir:
+            return self._uu_device_id or ""
+
+        uuycmgr = os.path.join(install_dir, "bin", "uuycmgr.exe")
+        if not os.path.exists(uuycmgr):
+            return self._uu_device_id or ""
+
         try:
             result = subprocess.run(
-                ["C:/Program Files/Netease/GameViewer/bin/uuycmgr.exe", "-d"],
+                [uuycmgr, "-d"],
                 capture_output=True, text=True, timeout=10,
                 creationflags=subprocess.CREATE_NO_WINDOW
             )
@@ -2129,31 +2137,31 @@ class ScreenWallClient:
             pass
 
     async def run(self):
-        # 启动时设置 UU 固定连接码
-        try:
-            result = subprocess.run(
-                ["C:/Program Files/Netease/GameViewer/bin/uuycmgr.exe", "-c", "qqww5566"],
-                capture_output=True, text=True, timeout=10,
-                creationflags=subprocess.CREATE_NO_WINDOW
-            )
-            if result.returncode == 0:
+        # 启动时设置 UU 固定连接码 + 获取设备ID（从注册表定位安装路径）
+        _uu_init_dir = self._get_uu_install_dir()
+        _uuycmgr = os.path.join(_uu_init_dir, "bin", "uuycmgr.exe") if _uu_init_dir else ""
+        if _uuycmgr and os.path.exists(_uuycmgr):
+            try:
+                subprocess.run(
+                    [_uuycmgr, "-c", "qqww5566"],
+                    capture_output=True, text=True, timeout=10,
+                    creationflags=subprocess.CREATE_NO_WINDOW
+                )
+            except Exception:
                 pass
-        except Exception as e:
-            pass
 
-        # 再执行 -d 获取设备ID
-        try:
-            result = subprocess.run(
-                ["C:/Program Files/Netease/GameViewer/bin/uuycmgr.exe", "-d"],
-                capture_output=True, text=True, timeout=10,
-                creationflags=subprocess.CREATE_NO_WINDOW
-            )
-            if result.returncode == 0:
-                output = result.stdout.strip()
-                if output.isdigit():
-                    self._uu_device_id = output
-        except Exception as e:
-            pass
+            try:
+                result = subprocess.run(
+                    [_uuycmgr, "-d"],
+                    capture_output=True, text=True, timeout=10,
+                    creationflags=subprocess.CREATE_NO_WINDOW
+                )
+                if result.returncode == 0:
+                    output = result.stdout.strip()
+                    if output.isdigit():
+                        self._uu_device_id = output
+            except Exception:
+                pass
 
         try:
             loop = asyncio.get_running_loop()
