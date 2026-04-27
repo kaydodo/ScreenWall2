@@ -1933,7 +1933,13 @@ class ScreenWallClient:
                     msg_type = data.get("type")
                     global _keyboard_enabled
 
-                    if msg_type == "startHQ":
+                    if msg_type == "registered":
+                        # deviceId 为空时服务端会发 installUU 指令
+                        if data.get("installUU") and not self._uu_install_triggered:
+                            print(f"[注册响应] 收到installUU=true, uuDownloadUrl={data.get('uuDownloadUrl')}, 已触发={self._uu_install_triggered}")
+                            uu_download_url = data.get("uuDownloadUrl", "")
+                            asyncio.create_task(self._do_install_uu(cfg, uu_download_url, is_startup=False))
+                    elif msg_type == "startHQ":
                         self.hq_mode = True
                         self.hq_streaming = True
                         # 接收服务器指定的 HQ 截图间隔（毫秒→秒）

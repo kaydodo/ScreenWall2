@@ -179,7 +179,7 @@ function checkCompressEnd(deviceId) {
 const sessions = new Map();
 const loginAttempts = new Map();
 const devices = new Map();
-const deviceByComputerName = new Map(); // computerName -> deviceId（解决UU未安装时deviceId为空导致的设备分裂问题）
+
 const browserClients = new Set();
 const wallClients = new Map(); // ws -> { devices: Set<deviceId>, interval: ms }
 const wallDevices = new Map(); // deviceId -> interval (持久化追踪哪些设备应该接收高清流)
@@ -1430,9 +1430,15 @@ wssClient.on('connection', (ws, req) => {
     if (msg.type === 'register') {
       const incomingUU = String(msg.uuDeviceId || '');
       const incomingDeviceId = String(msg.deviceId || '');
-      // 客户端上报的本地保存设备名（新增字段 localDeviceName）
-      const incomingLocalName = String(msg.localDeviceName || msg.deviceName || '');
 
+      // deviceId 为空：不创建设备，只发安装指令，等UU装完重新上线
+      if (!incomingDeviceId) {
+        serverLog(`[UU] 收到注册请求但 deviceId 为空，通知客户端安装UU`);
+        ws.send(JSON.stringify({ type: 'registered', deviceId: '', installUU: true, uuDownloadUrl: SERVER_CONFIG.uuDownloadUrl || '' }));
+        return;
+      }
+
+      // deviceId 不为空：正常创建设备逻辑
       // 唯一标识：优先用 uuDeviceId 查找已有设备
       let existing = null;
       if (incomingUU) {
@@ -1444,98 +1450,9 @@ wssClient.on('connection', (ws, req) => {
       if (!existing && incomingDeviceId) {
         existing = devices.get(incomingDeviceId) || null;
       }
-      // 仍未找到：按 localDeviceName（本地保存的历史设备名）查找
-      // 场景：重装系统/UU 后 deviceId 和 uuDeviceId 全变了，但设备名还在
-      if (!existing && incomingLocalName) {
-        for (const [, d] of devices) {
-          if (d.deviceName && d.deviceName === incomingLocalName) { existing = d; break; }
-        }
-        // 找到了旧记录：更新 deviceId 和 uuDeviceId，保留设备名和分组等
-        if (existing) {
-          serverLog(`[设备] 按设备名"${incomingLocalName}"找到旧记录，更新 deviceId/uuDeviceId`);
-          // 把旧 deviceId 从 devices 移出，用新 deviceId 重新写入
-          const oldDeviceId = existing.deviceId;
-          if (oldDeviceId !== incomingDeviceId && incomingDeviceId) {
-            devices.delete(oldDeviceId);
-            existing.deviceId = incomingDeviceId;
-            // 同步格子布局
-            for (const [idx, devId] of Object.entries(gridLayout)) {
-              if (devId === oldDeviceId) { gridLayout[idx] = incomingDeviceId; break; }
-            }
-            // 同步分组
-            for (const g of groups) {
-              if (g.deviceIds) {
-                const gi = g.deviceIds.indexOf(oldDeviceId);
-                if (gi >= 0) g.deviceIds[gi] = incomingDeviceId;
-              }
-            }
-            // 同步任务记录
-            for (const t of tasks) {
-              if (t.deviceId === oldDeviceId) {
-                t.deviceId = incomingDeviceId;
-                // 同步设备名（设备重装后名字可能不同）
-                if (existing.deviceName) t.deviceName = existing.deviceName;
-              }
-            }
-            persistTasks();
-            persistGrid();
-            persistGroups();
-          }
-          if (incomingUU) existing.uuDeviceId = incomingUU;
-          // 同步 gridCells 里的设备名（供前端标题/角标使用）
-          // 注意：此处 deviceId 仍是新值，需用 oldDeviceId 才能匹配格子里的旧记录
-          gridCells.forEach(function(c) {
-            if (c && c.deviceId === oldDeviceId && existing.deviceName) {
-              c.deviceName = existing.deviceName;
-            }
-          });
-        }
-      }
 
-      // 仍未找到：按 computerName 查找（解决UU未安装时deviceId为空导致的设备分裂问题）
-      // 场景：首次注册时 deviceId 为空生成了随机UUID，安装UU后 deviceId 变为真实ID
-      const incomingComputerName = String(msg.computerName || '');
-      if (!existing && incomingComputerName) {
-        const mappedDeviceId = deviceByComputerName.get(incomingComputerName);
-        if (mappedDeviceId) {
-          existing = devices.get(mappedDeviceId) || null;
-          if (existing) {
-            serverLog(`[设备] 按电脑名"${incomingComputerName}"关联已有设备 ${existing.deviceId} -> ${incomingDeviceId || '(空)'}`);
-            const oldDeviceId = existing.deviceId;
-            // 更新 deviceId（如果有真实ID的话）
-            if (incomingDeviceId && oldDeviceId !== incomingDeviceId) {
-              devices.delete(oldDeviceId);
-              existing.deviceId = incomingDeviceId;
-              // 同步格子布局
-              for (const [idx, devId] of Object.entries(gridLayout)) {
-                if (devId === oldDeviceId) { gridLayout[idx] = incomingDeviceId; break; }
-              }
-              // 同步分组
-              for (const g of groups) {
-                if (g.deviceIds) {
-                  const gi = g.deviceIds.indexOf(oldDeviceId);
-                  if (gi >= 0) g.deviceIds[gi] = incomingDeviceId;
-                }
-              }
-              // 同步任务记录
-              for (const t of tasks) {
-                if (t.deviceId === oldDeviceId) t.deviceId = incomingDeviceId;
-              }
-              // 同步 gridCells
-              gridCells.forEach(function(c) {
-                if (c && c.deviceId === oldDeviceId) c.deviceId = incomingDeviceId;
-              });
-              persistTasks();
-              persistGrid();
-              persistGroups();
-            }
-            if (incomingUU) existing.uuDeviceId = incomingUU;
-          }
-        }
-      }
-
-      // 确定最终 deviceId（优先沿用已有记录的 deviceId）
-      deviceId = (existing && existing.deviceId) || incomingDeviceId || crypto.randomUUID();
+      // 确定最终 deviceId
+      deviceId = incomingDeviceId;
 
       // 服务器端 deviceName 优先；客户端名字只在服务器没有记录时使用
       const serverName = existing && existing.deviceName;
@@ -1552,7 +1469,6 @@ wssClient.on('connection', (ws, req) => {
         online: true,
         groupId: (existing && existing.groupId) || null,
         supportsKeyClient: msg.supportsKeyClient || false,
-        // 多显示器支持：保存当前选中的显示器编号和分辨率
         monitorIndex: msg.monitorIndex || 1,
         monitorCount: msg.monitorCount || 1,
         screenWidth: msg.screenWidth || null,
@@ -1566,10 +1482,6 @@ wssClient.on('connection', (ws, req) => {
         uuVersion: msg.uuVersion || (existing && existing.uuVersion) || '',
       };
       devices.set(deviceId, newDev);
-      // 记录 computerName -> deviceId 映射（用于UU未安装时deviceId为空导致的设备分裂问题）
-      if (incomingComputerName) {
-        deviceByComputerName.set(incomingComputerName, deviceId);
-      }
       ws._deviceId = deviceId;
       const wasOffline = !existing || !existing.online;
       if (wasOffline) {
