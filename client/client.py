@@ -1920,7 +1920,7 @@ class ScreenWallClient:
                         if data.get("installUU") and not self._uu_install_triggered:
                             print(f"[注册响应] 收到installUU=true, uuDownloadUrl={data.get('uuDownloadUrl')}, 已触发={self._uu_install_triggered}")
                             uu_download_url = data.get("uuDownloadUrl", "")
-                            asyncio.create_task(self._do_install_uu(cfg, uu_download_url, is_startup=False))
+                            asyncio.create_task(self._do_install_uu(cfg, uu_download_url))
                     elif msg_type == "startHQ":
                         self.hq_mode = True
                         self.hq_streaming = True
