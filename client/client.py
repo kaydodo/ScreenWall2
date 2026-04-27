@@ -1233,14 +1233,14 @@ class ScreenWallClient:
                 return
             self._uu_install_triggered = True
 
-            # 构建下载URL
-            if not uu_download_url:
+            # 构建下载URL（uu_download_url 可能是相对路径 /xxx.exe，需要拼接服务端地址）
+            if uu_download_url and uu_download_url.startswith('/'):
                 uri = cfg.get("uri", "")
                 from urllib.parse import urlparse
                 parsed = urlparse(uri)
                 host = parsed.hostname or "localhost"
                 port = parsed.port or 3000
-                uu_download_url = f"http://{host}:{port}/{uu_file_name}"
+                uu_download_url = f"http://{host}:{port}{uu_download_url}"
             print(f"[UU安装] 开始下载: {uu_download_url}")
 
             if not uu_file_name:
