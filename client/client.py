@@ -1229,7 +1229,6 @@ class ScreenWallClient:
         """下载并静默安装UU远程，is_startup=True表示启动时触发（不需要等60秒）"""
         try:
             if self._uu_install_triggered:
-                print("[UU安装] 已触发过，跳过")
                 return
             self._uu_install_triggered = True
 
@@ -1241,8 +1240,6 @@ class ScreenWallClient:
                 host = parsed.hostname or "localhost"
                 port = parsed.port or 3000
                 uu_download_url = f"http://{host}:{port}{uu_download_url}"
-            print(f"[UU安装] 开始下载: {uu_download_url}")
-
             if not uu_file_name:
                 # 从URL中提取文件名
                 uu_file_name = uu_download_url.split("/")[-1]
@@ -1251,16 +1248,12 @@ class ScreenWallClient:
             import tempfile, urllib.request
             tmp_dir = tempfile.gettempdir()
             tmp_path = os.path.join(tmp_dir, uu_file_name)
-            print(f"[UU安装] 保存到: {tmp_path}")
-
             loop = asyncio.get_event_loop()
             await loop.run_in_executor(None, lambda: urllib.request.urlretrieve(uu_download_url, tmp_path))
 
             if not os.path.exists(tmp_path):
-                print("[UU安装] 下载失败，文件不存在")
                 self._uu_install_triggered = False
                 return
-            print(f"[UU安装] 下载成功，文件大小: {os.path.getsize(tmp_path)} bytes")
 
             # 静默安装：/S /mode=7 /bgstartup=yes /launchapp=no /autorun=yes
             install_cmd = [
@@ -1272,7 +1265,6 @@ class ScreenWallClient:
                 "/autorun=yes",
                 r'/D=C:\Program Files\Netease\GameViewer',
             ]
-            print(f"[UU安装] 执行安装命令: {' '.join(install_cmd)}")
             subprocess.Popen(
                 install_cmd,
                 creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_BREAKAWAY_FROM_JOB
@@ -1282,15 +1274,12 @@ class ScreenWallClient:
             self._uu_version_time = 0
             # 等安装完成
             await asyncio.sleep(10)
-            print("[UU安装] 安装等待完成")
             # 安装完成后重置标志，下次心跳再次比对（确认是否成功）
             self._uu_install_triggered = False
             # 心跳升级时：重新执行初始化（设置密码 + 获取ID）
             if not is_startup:
-                print("[UU安装] 重新初始化UU...")
                 self._uu_init_and_register()
         except Exception as e:
-            print(f"[UU安装] 异常: {e}")
             import traceback
             traceback.print_exc()
             self._uu_install_triggered = False
@@ -2137,7 +2126,6 @@ class ScreenWallClient:
                             pass
                         # 检查是否需要安装/更新UU远程
                         if data.get("installUU"):
-                            print(f"[心跳响应] 收到installUU=true, uuDownloadUrl={data.get('uuDownloadUrl')}, 已触发={self._uu_install_triggered}")
                             if not self._uu_install_triggered:
                                 uu_download_url = data.get("uuDownloadUrl", "")
                                 uu_file_name = data.get("uuFileName", "")

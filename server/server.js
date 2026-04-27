@@ -1765,7 +1765,7 @@ wssClient.on('connection', (ws, req) => {
           if (!devUUInstalled || devUUVer !== cfgUUVer) {
             needsInstallUU = true;
           }
-          serverLog(`[UU] ${dev.deviceName}: 安装=${devUUInstalled}, 客户端版本=${devUUVer}, 配置版本=${cfgUUVer}, 需要安装=${needsInstallUU}`);
+
         }
 
         // 【合并修复】心跳中附带的报警截图，走 processAlarmImage 处理
