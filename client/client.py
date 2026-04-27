@@ -1714,14 +1714,15 @@ class ScreenWallClient:
 
         host = srv.get("host", "localhost").replace("http://", "").replace("https://", "")
         return {
-            "uri":        f"ws://{host}:{srv.get('port', 3000)}/ws/client",
-            "deviceId":   device_id,
-            "deviceName": device_name or os.environ.get("COMPUTERNAME", "UnknownPC"),
-            "uuDeviceId": uu_device_id,
-            "interval":   0.333,   # 3fps 写死
-            "quality":    30,      # 写死
-            "resizeW":    480,     # 写死
-            "resizeH":    270,     # 写死
+            "uri":          f"ws://{host}:{srv.get('port', 3000)}/ws/client",
+            "deviceId":     device_id,
+            "deviceName":   device_name or os.environ.get("COMPUTERNAME", "UnknownPC"),
+            "computerName": os.environ.get("COMPUTERNAME", ""),
+            "uuDeviceId":   uu_device_id,
+            "interval":     0.333,   # 3fps 写死
+            "quality":      30,      # 写死
+            "resizeW":      480,     # 写死
+            "resizeH":      270,     # 写死
         }
 
     def _cfg_hash(self, cfg):

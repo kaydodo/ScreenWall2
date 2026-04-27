@@ -179,6 +179,7 @@ function checkCompressEnd(deviceId) {
 const sessions = new Map();
 const loginAttempts = new Map();
 const devices = new Map();
+const deviceByComputerName = new Map(); // computerName -> deviceId（解决UU未安装时deviceId为空导致的设备分裂问题）
 const browserClients = new Set();
 const wallClients = new Map(); // ws -> { devices: Set<deviceId>, interval: ms }
 const wallDevices = new Map(); // deviceId -> interval (持久化追踪哪些设备应该接收高清流)
@@ -1491,6 +1492,48 @@ wssClient.on('connection', (ws, req) => {
         }
       }
 
+      // 仍未找到：按 computerName 查找（解决UU未安装时deviceId为空导致的设备分裂问题）
+      // 场景：首次注册时 deviceId 为空生成了随机UUID，安装UU后 deviceId 变为真实ID
+      const incomingComputerName = String(msg.computerName || '');
+      if (!existing && incomingComputerName) {
+        const mappedDeviceId = deviceByComputerName.get(incomingComputerName);
+        if (mappedDeviceId) {
+          existing = devices.get(mappedDeviceId) || null;
+          if (existing) {
+            serverLog(`[设备] 按电脑名"${incomingComputerName}"关联已有设备 ${existing.deviceId} -> ${incomingDeviceId || '(空)'}`);
+            const oldDeviceId = existing.deviceId;
+            // 更新 deviceId（如果有真实ID的话）
+            if (incomingDeviceId && oldDeviceId !== incomingDeviceId) {
+              devices.delete(oldDeviceId);
+              existing.deviceId = incomingDeviceId;
+              // 同步格子布局
+              for (const [idx, devId] of Object.entries(gridLayout)) {
+                if (devId === oldDeviceId) { gridLayout[idx] = incomingDeviceId; break; }
+              }
+              // 同步分组
+              for (const g of groups) {
+                if (g.deviceIds) {
+                  const gi = g.deviceIds.indexOf(oldDeviceId);
+                  if (gi >= 0) g.deviceIds[gi] = incomingDeviceId;
+                }
+              }
+              // 同步任务记录
+              for (const t of tasks) {
+                if (t.deviceId === oldDeviceId) t.deviceId = incomingDeviceId;
+              }
+              // 同步 gridCells
+              gridCells.forEach(function(c) {
+                if (c && c.deviceId === oldDeviceId) c.deviceId = incomingDeviceId;
+              });
+              persistTasks();
+              persistGrid();
+              persistGroups();
+            }
+            if (incomingUU) existing.uuDeviceId = incomingUU;
+          }
+        }
+      }
+
       // 确定最终 deviceId（优先沿用已有记录的 deviceId）
       deviceId = (existing && existing.deviceId) || incomingDeviceId || crypto.randomUUID();
 
@@ -1523,6 +1566,10 @@ wssClient.on('connection', (ws, req) => {
         uuVersion: msg.uuVersion || (existing && existing.uuVersion) || '',
       };
       devices.set(deviceId, newDev);
+      // 记录 computerName -> deviceId 映射（用于UU未安装时deviceId为空导致的设备分裂问题）
+      if (incomingComputerName) {
+        deviceByComputerName.set(incomingComputerName, deviceId);
+      }
       ws._deviceId = deviceId;
       const wasOffline = !existing || !existing.online;
       if (wasOffline) {
