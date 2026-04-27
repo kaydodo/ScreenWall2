@@ -689,8 +689,6 @@ if (typeof PerformanceObserver !== 'undefined') {
 function scheduleRender() {
   if (renderScheduled) return;
   renderScheduled = true;
-  // 先更新监控上墙预览的图片（在 pendingFrames 被清空之前）
-  updateMonitorPreviewImages();
   requestAnimationFrame(renderPendingFrames);
 }
 
@@ -758,11 +756,6 @@ function renderPendingFrames() {
 
     // 更新刷新时间
     if (rendered) updateRefreshTime();
-
-    // 渲染监控上墙预览的 Blob URL（基于格子实时帧）
-    if (typeof updateMonitorPreviewImages === 'function') {
-      updateMonitorPreviewImages();
-    }
   } catch (err) {
 //     console.error('[ScreenWall] 渲染异常，已恢复:', err.message);
     renderScheduled = false; // 确保渲染循环不被卡死
@@ -4944,6 +4937,11 @@ function deleteOfflineDevice(deviceId) {
           var oldMonitor = monitorBlobUrlCache.get(deviceId);
           if (oldMonitor) { URL.revokeObjectURL(oldMonitor); monitorBlobUrlCache.delete(deviceId); }
         }
+        // 同时清理新的预览缓存
+        if (typeof monitorPreviewBlobCache !== 'undefined') {
+          var cached = monitorPreviewBlobCache.get(deviceId);
+          if (cached) { URL.revokeObjectURL(cached.blobUrl); monitorPreviewBlobCache.delete(deviceId); }
+        }
         // Broadcast to all browsers
         if (ws && ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({ type: 'deleteDevice', deviceId: deviceId }));
@@ -4984,6 +4982,10 @@ function deleteAllOfflineDevices() {
           if (typeof monitorBlobUrlCache !== 'undefined') {
             var oldMonitor = monitorBlobUrlCache.get(d.deviceId);
             if (oldMonitor) { URL.revokeObjectURL(oldMonitor); monitorBlobUrlCache.delete(d.deviceId); }
+          }
+          if (typeof monitorPreviewBlobCache !== 'undefined') {
+            var cached = monitorPreviewBlobCache.get(d.deviceId);
+            if (cached) { URL.revokeObjectURL(cached.blobUrl); monitorPreviewBlobCache.delete(d.deviceId); }
           }
           if (ws && ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ type: 'deleteDevice', deviceId: d.deviceId }));
@@ -5538,6 +5540,13 @@ function closeMonitorDialog() {
   monitorWallState.selectedDevices = [];
   monitorWallState.crops = {};
   monitorWallState.layout = 4;
+  // 清理所有 blob URL 缓存
+  if (typeof monitorPreviewBlobCache !== 'undefined') {
+    for (const [deviceId, cached] of monitorPreviewBlobCache) {
+      URL.revokeObjectURL(cached.blobUrl);
+    }
+    monitorPreviewBlobCache.clear();
+  }
   // 清空预览区域
   document.getElementById('monitorPreviewGrid').innerHTML = '';
 }
@@ -5716,6 +5725,9 @@ function removeMonitorPreview(deviceId) {
 }
 
 // 实时更新监控预览格的图片（从格子帧缓存读取）
+// 监控预览 blob URL 缓存：deviceId -> { blobUrl, base64 }
+const monitorPreviewBlobCache = new Map();
+
 function updateMonitorPreviewImages() {
   if (!monitorWallState.selectedDevices || monitorWallState.selectedDevices.length === 0) return;
   
@@ -5731,35 +5743,41 @@ function updateMonitorPreviewImages() {
     const img = wrapper.querySelector('img');
     if (!img) continue;
     
-    // 如果图片已相同则跳过
-    if (img._lastSrc === imageToUse) continue;
-    img._lastSrc = imageToUse;
-    
-    // 静止画面：相同数据不处理，避免 revoke 后跳过导致白图
-    if (img._lastSrc === imageToUse) continue;
-    img._lastSrc = imageToUse;
+    // 检查缓存：如果 base64 数据相同，复用已有的 blob URL
+    const cached = monitorPreviewBlobCache.get(deviceId);
+    if (cached && cached.base64 === imageToUse) {
+      // 数据相同，跳过（不创建新 blob，不更新 src）
+      continue;
+    }
 
     // 保存当前 transform（缩放/拖拽偏移）
     const currentTransform = img.style.transform || '';
 
-    // 使用 Blob URL 避免 431
+    // 清理旧的 blob URL
+    if (cached) {
+      URL.revokeObjectURL(cached.blobUrl);
+    }
+
+    // 创建新的 blob URL
     const blobUrl = base64ToBlobUrl(imageToUse);
     if (blobUrl) {
-      // revoke 旧 blob（新 blob 已就绪才释放）
-      const old = monitorBlobUrlCache.get(deviceId);
-      monitorBlobUrlCache.set(deviceId, blobUrl);
+      monitorPreviewBlobCache.set(deviceId, { blobUrl, base64: imageToUse });
       img.src = blobUrl;
-      if (old) setTimeout(() => URL.revokeObjectURL(old), 500);
-      // 恢复 transform
       img.style.transform = currentTransform;
     }
   }
 }
 
 function revokeMonitorBlobUrl(deviceId) {
+  // 清理旧的 monitorBlobUrlCache
   const old = monitorBlobUrlCache.get(deviceId);
   monitorBlobUrlCache.delete(deviceId);
-  if (old) setTimeout(() => URL.revokeObjectURL(old), 500);
+  if (old) URL.revokeObjectURL(old);
+  
+  // 清理新的 monitorPreviewBlobCache
+  const cached = monitorPreviewBlobCache.get(deviceId);
+  monitorPreviewBlobCache.delete(deviceId);
+  if (cached) URL.revokeObjectURL(cached.blobUrl);
 }
 
 function zoomMonitorPreview(deviceId, delta) {
