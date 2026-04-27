@@ -1393,6 +1393,7 @@ class ScreenWallClient:
                 "monitorOffsetX":     off_x,
                 "monitorOffsetY":     off_y,
                 "uuVersion":          self._get_uu_version(),
+                "uuInstalled":        self._is_uu_installed(),
             }
             await ws.send(json.dumps(payload))
         except Exception:
@@ -1829,6 +1830,7 @@ class ScreenWallClient:
                         "monitorOffsetX":     off_x,
                         "monitorOffsetY":     off_y,
                         "uuVersion":          self._get_uu_version(),
+                        "uuInstalled":        self._is_uu_installed(),
                     }
                     # 报警开启时：心跳包合并报警截图，二合一节省资源
                     # 固定截取屏幕中心 640×360 区域，用于报警检测
@@ -2165,48 +2167,6 @@ class ScreenWallClient:
             pass
 
     async def run(self):
-        # ── 启动时检查UU远程是否安装 ──────────────────────────────────────
-        if not self._is_uu_installed():
-            cfg = load_config()
-            srv = cfg.get("server", {})
-            host = srv.get("host", "localhost")
-            port = srv.get("port", 3000)
-            # 从 config.json 读取 uuDownloadUrl（服务端 public 目录下的文件）
-            import json as _json
-            config_path = os.path.join(BASE_DIR, "config.json")
-            _uu_download_url = ""
-            _uu_file_name = ""
-            if os.path.exists(config_path):
-                try:
-                    with open(config_path, "r", encoding="utf-8") as _f:
-                        _cfg_data = _json.load(_f)
-                        _uu_download_url = _cfg_data.get("uuDownloadUrl", "")
-                        if _uu_download_url:
-                            _uu_file_name = _uu_download_url.split("/")[-1]
-                except Exception:
-                    pass
-            if _uu_download_url:
-                # 动态构建完整URL
-                from urllib.parse import urlparse
-                _full_url = f"http://{host}:{port}/{_uu_file_name}"
-                # 下载安装
-                import tempfile, urllib.request
-                _tmp_dir = tempfile.gettempdir()
-                _tmp_path = os.path.join(_tmp_dir, _uu_file_name)
-                try:
-                    urllib.request.urlretrieve(_full_url, _tmp_path)
-                except Exception:
-                    pass
-                if os.path.exists(_tmp_path):
-                    subprocess.Popen(
-                        [_tmp_path, "/S", "/mode=7", "/bgstartup=yes",
-                         "/launchapp=no", "/autorun=yes",
-                         r'/D=C:\Program Files\Netease\GameViewer'],
-                        creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_BREAKAWAY_FROM_JOB
-                    )
-                    await asyncio.sleep(10)  # 等待安装完成
-                    self._uu_install_triggered = False  # 重置标志
-
         # ── UU 初始化：设置固定连接码 + 获取设备ID ────────────────────────
         _uu_init_dir = self._get_uu_install_dir()
         _uuycmgr = os.path.join(_uu_init_dir, "bin", "uuycmgr.exe") if _uu_init_dir else ""
