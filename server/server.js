@@ -80,7 +80,7 @@ function reloadServerConfig() {
         const m = fileName.match(/(\d+\.\d+\.\d+\.\d+)/);
         if (m) SERVER_CONFIG.uuVersion = m[1];
       }
-      serverLog(`[配置] config.json 已重新加载: UU版本=${SERVER_CONFIG.uuVersion || '未知'}`);
+      serverLog(`[配置] config.json 已重新加载: 屏幕墙版本=${SERVER_CONFIG.serverVersion || '未知'} | UU版本=${SERVER_CONFIG.uuVersion || '未知'}`);
     }
   } catch (err) {
     serverError('[配置] 重载 config.json 失败:', err.message);
