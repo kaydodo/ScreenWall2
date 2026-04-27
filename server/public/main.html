@@ -3202,7 +3202,7 @@ function openRemoteListModal() {
     const textColor = isEnabled ? '#22c55e' : '#888';
     const ver = dev.version || '';
     const uuVer = dev.uuVersion || '';
-    html += `<div style="display:flex;justify-content:space-between;align-items:center;background:${bgColor};border:1px solid ${borderColor};border-radius:6px;padding:8px 14px;font-size:12px;color:${textColor};white-space:nowrap;gap:8px;"><span>${dev.deviceName}</span><span style="opacity:0.6;font-size:11px;">${ver ? 'v' + ver : ''}${uuVer ? '&nbsp;&nbsp;v' + uuVer : ''}</span></div>`;
+    html += `<div style="display:flex;justify-content:space-between;align-items:center;background:${bgColor};border:1px solid ${borderColor};border-radius:6px;padding:10px 16px;font-size:14px;color:${textColor};white-space:nowrap;gap:12px;"><span>${dev.deviceName}</span><span style="opacity:0.7;">${ver ? 'v' + ver : ''}${uuVer ? '&nbsp;&nbsp;v' + uuVer : ''}</span></div>`;
   });
   content.innerHTML = html;
   
@@ -6265,7 +6265,7 @@ function renderAllTaskBadges() {
 <!-- ========== 远控设备列表弹窗 ========== -->
 <div class="remote-list-overlay" id="remoteListOverlay" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999;background:transparent;" onclick="closeRemoteListModal()">
   <div class="remote-list-dialog" id="remoteListDialog" style="position:absolute;background:#2a2d3a;border:1px solid #444;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.3);pointer-events:auto;max-width:80vw;" onclick="event.stopPropagation()">
-    <div id="remoteListContent" style="display:flex;flex-wrap:wrap;gap:8px;padding:12px;"></div>
+    <div id="remoteListContent" style="display:flex;flex-wrap:wrap;gap:8px;padding:12px;font-size:14px;"></div>
   </div>
 </div>
 </body>
