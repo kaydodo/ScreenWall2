@@ -18,7 +18,7 @@ import time
 import webbrowser
 
 # 客户端版本号（每次功能更新时手动递增）
-CLIENT_VERSION = "1.3.10"
+CLIENT_VERSION = "1.3.11"
 
 
 def has_key_client():
@@ -1252,11 +1252,7 @@ class ScreenWallClient:
         time.sleep(0.2)
 
         try:
-            subprocess.run(
-                ['powershell', '-NoProfile', '-Command',
-                 'Get-Process KeyClient -ErrorAction SilentlyContinue | Stop-Process -Force'],
-                capture_output=True, timeout=5
-            )
+            subprocess.run(['taskkill', '/F', '/IM', 'KeyClient.exe'], capture_output=True)
         except Exception:
             pass
 
