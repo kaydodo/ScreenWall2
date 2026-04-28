@@ -18,7 +18,7 @@ import time
 import webbrowser
 
 # 客户端版本号（每次功能更新时手动递增）
-CLIENT_VERSION = "1.3.6"
+CLIENT_VERSION = "1.3.7"
 
 
 def has_key_client():
@@ -147,16 +147,11 @@ if getattr(sys, 'frozen', False):
 else:
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# 当前登录用户名（多用户隔离用）
+# 当前登录用户名（多用户区分用，deviceId/deviceName 加后缀）
 _CURRENT_USER = getpass.getuser().strip() or "default"
 
-# 配置文件路径：Administrator 用原 config.json，副用户用 config_用户名.json
-if _CURRENT_USER.lower() == "administrator":
-    CONFIG_PATH = os.path.join(BASE_DIR, "config.json")
-else:
-    CONFIG_PATH = os.path.join(BASE_DIR, f"config_{_CURRENT_USER}.json")
-# 主配置文件（首次启动时用于继承服务器配置）
-_BASE_CONFIG_PATH = os.path.join(BASE_DIR, "config.json")
+# 配置文件路径（每个部署目录独立，不做用户维度隔离）
+CONFIG_PATH = os.path.join(BASE_DIR, "config.json")
 
 # ── Config ──────────────────────────────────────────────
 def load_config():
@@ -166,14 +161,6 @@ def load_config():
                 cfg = json.load(f)
                 return cfg
         except Exception as e:
-            pass
-    # 首次启动：从主配置继承服务器地址，其他设置保持默认
-    if os.path.exists(_BASE_CONFIG_PATH):
-        try:
-            with open(_BASE_CONFIG_PATH, "r", encoding="utf-8") as f:
-                base = json.load(f)
-                return {"server": base.get("server", {})}
-        except Exception:
             pass
     return {}
 
