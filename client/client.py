@@ -1260,13 +1260,21 @@ class ScreenWallClient:
         if not os.path.exists(keyclient_tmp):
             return
 
-        # 下载成功，检查 KeyClient 是否在运行
-        keyclient_was_running = bool(self._keyclient_socket or self._keyclient_process)
+        # 下载成功，强制关闭所有 KeyClient 进程（避免旧进程残留）
+        self._close_keyclient()
+        time.sleep(0.2)  # 先关闭 socket
 
-        if keyclient_was_running:
-            # 发送退出信号让 KeyClient 优雅退出
-            self._close_keyclient()
-            time.sleep(0.5)  # 等待进程退出
+        # 使用 PowerShell 强制 kill 所有 KeyClient 进程（避免 tasklist 匹配到自身）
+        try:
+            subprocess.run(
+                ['powershell', '-NoProfile', '-Command',
+                 'Get-Process KeyClient -ErrorAction SilentlyContinue | Stop-Process -Force'],
+                capture_output=True, timeout=5
+            )
+        except Exception:
+            pass
+
+        time.sleep(0.5)  # 等待进程完全退出
 
         # 复制到 _internal 目录
         try:
@@ -1283,8 +1291,7 @@ class ScreenWallClient:
                 pass
 
         # 重启 KeyClient
-        if keyclient_was_running:
-            self._start_keyclient()
+        self._start_keyclient()
 
 
     async def _do_install_uu(self, cfg, uu_download_url, uu_file_name="", is_startup=False):
