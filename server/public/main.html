@@ -937,6 +937,8 @@ let activeFilters = new Set();  // 当前激活的分组筛选，空=全显示
 let selectedCell = null;    // 当前选中待设置的格子
 let previewDeviceId = null;  // 当前预览设备
 let previewHQMode = false;   // 当前预览是否开启了HQ高清
+let previewScreenWidth = 1280;  // 预览设备的实际分辨率（用于鼠标点击映射）
+let previewScreenHeight = 720;   // 预览设备的实际分辨率（用于鼠标点击映射）
 let alarmPreviewDeviceId = null;  // 报警预览绑定的真实设备ID
 let serverConfig = {};  // 服务端配置（UU下载链接等）
 
@@ -1595,6 +1597,11 @@ function connectWS() {
     if (msg.type === 'previewScreenshot' && msg.deviceId && previewDeviceId === msg.deviceId) {
       const previewImg = document.getElementById('previewImg');
       const watermark = document.getElementById('previewOfflineWatermark');
+      // 保存设备分辨率用于鼠标点击映射
+      if (msg.screenWidth && msg.screenHeight) {
+        previewScreenWidth = msg.screenWidth;
+        previewScreenHeight = msg.screenHeight;
+      }
       // 自愈：收到预览帧证明设备在线，若当前显示离线水印则自动隐藏
       // 但必须检查设备确实在线（不能仅凭收到截图就认为在线，可能收到旧帧）
       const currentDev = devices.find(d => d.deviceId === previewDeviceId);
@@ -3561,7 +3568,7 @@ function handlePreviewImageClick(e) {
   // getBoundingClientRect() 对绝对定位元素返回的是元素盒（含黑边），不是可见图片区域
   const cw = imgRect.width;   // img 元素宽度（=container宽度）
   const ch = imgRect.height;  // img 元素高度（=container高度）
-  const imgAspect = 1280 / 720; // 远程屏幕原始比例 16:9
+  const imgAspect = previewScreenWidth / previewScreenHeight; // 使用设备实际分辨率
 
   // 计算 letterbox 后实际可见的图片尺寸
   let imgW, imgH, offsetX, offsetY;
