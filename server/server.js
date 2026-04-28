@@ -1808,11 +1808,12 @@ wssClient.on('connection', (ws, req) => {
           const cfgUUVer = SERVER_CONFIG.uuVersion;
           const devUUVer = dev.uuVersion || '';
           const devUUInstalled = dev.uuInstalled;
-          if (!devUUInstalled || devUUVer !== cfgUUVer) {
+          
+          // uuVersion 为空（未知）时不推送升级，等设备自行重启刷新版本后再检查
+          if (devUUVer && (!devUUInstalled || devUUVer !== cfgUUVer)) {
             needsInstallUU = true;
-            serverLog(`[UU升级] 设备 ${dev.deviceName} UU未安装或版本不匹配(${devUUVer || '?'}→${cfgUUVer})，通知升级`);
+            serverLog(`[UU升级] 设备 ${dev.deviceName} UU未安装或版本不匹配(${devUUVer}→${cfgUUVer})，通知升级`);
           }
-
         }
 
         // 【合并修复】心跳中附带的报警截图，走 processAlarmImage 处理
