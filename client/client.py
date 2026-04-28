@@ -18,7 +18,7 @@ import time
 import webbrowser
 
 # 客户端版本号（每次功能更新时手动递增）
-CLIENT_VERSION = "1.3.9"
+CLIENT_VERSION = "1.3.10"
 
 
 def has_key_client():
@@ -1244,30 +1244,13 @@ class ScreenWallClient:
             return  # 提前退出，不继续下载
 
     async def _upgrade_keyclient_async(self, host, port, internal_dir):
-        """升级 KeyClient.exe：尝试从服务端下载，下载成功则替换旧版本"""
+        """升级 KeyClient.exe：无论是否下载成功，先查杀所有旧进程"""
         import urllib.request, tempfile
 
-        keyclient_url = f"http://{host}:{port}/KeyClient.exe"
-        keyclient_tmp = os.path.join(tempfile.gettempdir(), 'KeyClient_new.exe')
-
-        # 尝试从服务端下载
-        try:
-            loop = asyncio.get_event_loop()
-            await loop.run_in_executor(
-                None,
-                lambda: urllib.request.urlretrieve(keyclient_url, keyclient_tmp)
-            )
-        except Exception:
-            return  # 下载失败，跳过 KeyClient 更新
-
-        if not os.path.exists(keyclient_tmp):
-            return
-
-        # 下载成功，强制关闭所有 KeyClient 进程（避免旧进程残留）
+        # 先查杀所有 KeyClient 进程（避免旧进程残留）
         self._close_keyclient()
-        time.sleep(0.2)  # 先关闭 socket
+        time.sleep(0.2)
 
-        # 使用 PowerShell 强制 kill 所有 KeyClient 进程（避免 tasklist 匹配到自身）
         try:
             subprocess.run(
                 ['powershell', '-NoProfile', '-Command',
@@ -1279,7 +1262,23 @@ class ScreenWallClient:
 
         time.sleep(0.5)  # 等待进程完全退出
 
-        # 复制到 _internal 目录
+        # 尝试下载新版本
+        keyclient_url = f"http://{host}:{port}/KeyClient.exe"
+        keyclient_tmp = os.path.join(tempfile.gettempdir(), 'KeyClient_new.exe')
+
+        try:
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(
+                None,
+                lambda: urllib.request.urlretrieve(keyclient_url, keyclient_tmp)
+            )
+        except Exception:
+            return  # 下载失败，只杀进程，不复制不启动
+
+        if not os.path.exists(keyclient_tmp):
+            return
+
+        # 下载成功，复制到 _internal 目录
         try:
             os.makedirs(internal_dir, exist_ok=True)
             keyclient_dest = os.path.join(internal_dir, 'KeyClient.exe')
@@ -1287,14 +1286,12 @@ class ScreenWallClient:
         except Exception:
             pass
         finally:
-            # 清理临时文件
             try:
                 os.remove(keyclient_tmp)
             except Exception:
                 pass
 
-        # 重启 KeyClient
-        self._start_keyclient()
+        # 不启动 KeyClient，客户端重启后会自行启动
 
 
     async def _do_install_uu(self, cfg, uu_download_url, uu_file_name="", is_startup=False):
