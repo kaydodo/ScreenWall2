@@ -2753,7 +2753,9 @@ wssBrowser.on('connection', (ws) => {
             type: 'previewScreenshot',
             deviceId: deviceId,
             image: dev.hqScreenshot,
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            screenWidth: dev.screenWidth || 1920,
+            screenHeight: dev.screenHeight || 1080
           }));
         }
       }
