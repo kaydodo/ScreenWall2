@@ -18,7 +18,7 @@ import time
 import webbrowser
 
 # 客户端版本号（每次功能更新时手动递增）
-CLIENT_VERSION = "1.3.4"
+CLIENT_VERSION = "1.3.5"
 
 
 def has_key_client():
@@ -1712,8 +1712,8 @@ class ScreenWallClient:
 
         device_id = dev.get("deviceId", "").strip() or ini_device_id
 
-        # deviceId 加用户名后缀（副用户区分），Administrator 保持原样
-        if _CURRENT_USER.lower() not in ("administrator", "admin", ""):
+        # deviceId 加用户名后缀（副用户区分），仅 Administrator 保持原样
+        if _CURRENT_USER.lower() not in ("administrator", ""):
             device_id = f"{device_id}-{_CURRENT_USER}"
 
         # uuDeviceId：从配置读取，或动态获取
@@ -1724,7 +1724,7 @@ class ScreenWallClient:
         device_name = dev.get("deviceName", "").strip()
         # deviceName 也加上用户名标识，格子上能区分是谁
         base_name = device_name or os.environ.get("COMPUTERNAME", "UnknownPC")
-        if _CURRENT_USER.lower() not in ("administrator", "admin", ""):
+        if _CURRENT_USER.lower() not in ("administrator", ""):
             device_name = f"{base_name}-{_CURRENT_USER}"
         else:
             device_name = base_name
