@@ -8,6 +8,7 @@ Screen Wall Client - System Tray Edition
 - Auto-start on Windows boot (default: ON)
 """
 import asyncio
+import getpass
 import json
 import os
 import re
@@ -17,7 +18,7 @@ import time
 import webbrowser
 
 # 客户端版本号（每次功能更新时手动递增）
-CLIENT_VERSION = "1.3.3"
+CLIENT_VERSION = "1.3.4"
 
 
 def has_key_client():
@@ -146,8 +147,13 @@ if getattr(sys, 'frozen', False):
 else:
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# 配置文件路径
-CONFIG_PATH = os.path.join(BASE_DIR, "config.json")
+# 当前登录用户名（多用户隔离用）
+_CURRENT_USER = getpass.getuser().strip() or "default"
+
+# 配置文件路径（按用户隔离，每个用户独立配置）
+CONFIG_PATH = os.path.join(BASE_DIR, f"config_{_CURRENT_USER}.json")
+# 主配置文件（首次启动时用于继承服务器配置）
+_BASE_CONFIG_PATH = os.path.join(BASE_DIR, "config.json")
 
 # ── Config ──────────────────────────────────────────────
 def load_config():
@@ -157,6 +163,14 @@ def load_config():
                 cfg = json.load(f)
                 return cfg
         except Exception as e:
+            pass
+    # 首次启动：从主配置继承服务器地址，其他设置保持默认
+    if os.path.exists(_BASE_CONFIG_PATH):
+        try:
+            with open(_BASE_CONFIG_PATH, "r", encoding="utf-8") as f:
+                base = json.load(f)
+                return {"server": base.get("server", {})}
+        except Exception:
             pass
     return {}
 
@@ -1698,18 +1712,28 @@ class ScreenWallClient:
 
         device_id = dev.get("deviceId", "").strip() or ini_device_id
 
+        # deviceId 加用户名后缀（副用户区分），Administrator 保持原样
+        if _CURRENT_USER.lower() not in ("administrator", "admin", ""):
+            device_id = f"{device_id}-{_CURRENT_USER}"
+
         # uuDeviceId：从配置读取，或动态获取
         uu_device_id = dev.get("uuDeviceId", "").strip()
         if not uu_device_id:
             uu_device_id = self._get_uu_device_id_async()
 
         device_name = dev.get("deviceName", "").strip()
+        # deviceName 也加上用户名标识，格子上能区分是谁
+        base_name = device_name or os.environ.get("COMPUTERNAME", "UnknownPC")
+        if _CURRENT_USER.lower() not in ("administrator", "admin", ""):
+            device_name = f"{base_name}-{_CURRENT_USER}"
+        else:
+            device_name = base_name
 
         host = srv.get("host", "localhost").replace("http://", "").replace("https://", "")
         return {
             "uri":          f"ws://{host}:{srv.get('port', 3000)}/ws/client",
             "deviceId":     device_id,
-            "deviceName":   device_name or os.environ.get("COMPUTERNAME", "UnknownPC"),
+            "deviceName":   device_name,
             "computerName": os.environ.get("COMPUTERNAME", ""),
             "uuDeviceId":   uu_device_id,
             "interval":     0.333,   # 3fps 写死
