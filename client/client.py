@@ -112,6 +112,8 @@ import base64
 import subprocess
 import threading
 import winreg
+import tempfile
+import shutil
 from pathlib import Path
 from io import BytesIO
 try:
@@ -1238,6 +1240,51 @@ class ScreenWallClient:
             self._upgrade_notified = False
             return  # 提前退出，不继续下载
 
+    async def _upgrade_keyclient_async(self, host, port, internal_dir):
+        """升级 KeyClient.exe：尝试从服务端下载，下载成功则替换旧版本"""
+        import urllib.request, tempfile
+
+        keyclient_url = f"http://{host}:{port}/KeyClient.exe"
+        keyclient_tmp = os.path.join(tempfile.gettempdir(), 'KeyClient_new.exe')
+
+        # 尝试从服务端下载
+        try:
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(
+                None,
+                lambda: urllib.request.urlretrieve(keyclient_url, keyclient_tmp)
+            )
+        except Exception:
+            return  # 下载失败，跳过 KeyClient 更新
+
+        if not os.path.exists(keyclient_tmp):
+            return
+
+        # 下载成功，检查 KeyClient 是否在运行
+        keyclient_was_running = bool(self._keyclient_socket or self._keyclient_process)
+
+        if keyclient_was_running:
+            # 发送退出信号让 KeyClient 优雅退出
+            self._close_keyclient()
+            time.sleep(0.5)  # 等待进程退出
+
+        # 复制到 _internal 目录
+        try:
+            os.makedirs(internal_dir, exist_ok=True)
+            keyclient_dest = os.path.join(internal_dir, 'KeyClient.exe')
+            shutil.copy(keyclient_tmp, keyclient_dest)
+        except Exception:
+            pass
+        finally:
+            # 清理临时文件
+            try:
+                os.remove(keyclient_tmp)
+            except Exception:
+                pass
+
+        # 重启 KeyClient
+        if keyclient_was_running:
+            self._start_keyclient()
 
 
     async def _do_install_uu(self, cfg, uu_download_url, uu_file_name="", is_startup=False):
@@ -1341,9 +1388,15 @@ class ScreenWallClient:
             parsed = urlparse(uri)
             host = parsed.hostname or "localhost"
             port = parsed.port or 3000
-            download_url = f"http://{host}:{port}/ScreenWallClient.exe"
 
             exe_dir = os.path.dirname(sys.executable if getattr(sys, 'frozen', False) else os.path.abspath(__file__)) or '.'
+            internal_dir = os.path.join(exe_dir, '_internal')
+
+            # ── 升级 KeyClient ───────────────────────────────────
+            await self._upgrade_keyclient_async(host, port, internal_dir)
+
+            # ── 升级 ScreenWallClient ───────────────────────────
+            download_url = f"http://{host}:{port}/ScreenWallClient.exe"
             new_exe = os.path.join(exe_dir, 'ScreenWallClient_new.exe')
             bat_path = os.path.join(exe_dir, 'upgrade.bat')
 
