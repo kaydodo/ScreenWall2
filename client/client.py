@@ -18,7 +18,7 @@ import time
 import webbrowser
 
 # 客户端版本号（每次功能更新时手动递增）
-CLIENT_VERSION = "1.3.5"
+CLIENT_VERSION = "1.3.6"
 
 
 def has_key_client():
@@ -150,8 +150,11 @@ else:
 # 当前登录用户名（多用户隔离用）
 _CURRENT_USER = getpass.getuser().strip() or "default"
 
-# 配置文件路径（按用户隔离，每个用户独立配置）
-CONFIG_PATH = os.path.join(BASE_DIR, f"config_{_CURRENT_USER}.json")
+# 配置文件路径：Administrator 用原 config.json，副用户用 config_用户名.json
+if _CURRENT_USER.lower() == "administrator":
+    CONFIG_PATH = os.path.join(BASE_DIR, "config.json")
+else:
+    CONFIG_PATH = os.path.join(BASE_DIR, f"config_{_CURRENT_USER}.json")
 # 主配置文件（首次启动时用于继承服务器配置）
 _BASE_CONFIG_PATH = os.path.join(BASE_DIR, "config.json")
 
