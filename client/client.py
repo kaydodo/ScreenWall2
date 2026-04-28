@@ -18,7 +18,7 @@ import time
 import webbrowser
 
 # 客户端版本号（每次功能更新时手动递增）
-CLIENT_VERSION = "1.3.7"
+CLIENT_VERSION = "1.3.9"
 
 
 def has_key_client():
@@ -154,6 +154,9 @@ _CURRENT_USER = getpass.getuser().strip() or "default"
 
 # 配置文件路径（每个部署目录独立，不做用户维度隔离）
 CONFIG_PATH = os.path.join(BASE_DIR, "config.json")
+
+# KeyClient 端口（按部署目录派生，避免多用户串连）
+_KEYCLIENT_PORT = 19876 + (int(hashlib.md5(BASE_DIR.encode()).hexdigest()[:4], 16) % 1000)
 
 # ── Config ──────────────────────────────────────────────
 def load_config():
@@ -1562,11 +1565,11 @@ class ScreenWallClient:
         if self._keyclient_socket or self._keyclient_process:
             return
 
-        # 尝试连接已有的 KeyClient
+        # 尝试连接已有的 KeyClient（使用派生端口）
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.settimeout(1)
-            sock.connect(('127.0.0.1', 19876))
+            sock.connect(('127.0.0.1', _KEYCLIENT_PORT))
             sock.settimeout(None)
             self._keyclient_socket = sock
             return
@@ -1577,14 +1580,17 @@ class ScreenWallClient:
         try:
             keyclient_exe = os.path.join(BASE_DIR, "_internal", "KeyClient.exe")
             if os.path.exists(keyclient_exe):
-                proc = subprocess.Popen([keyclient_exe], creationflags=subprocess.CREATE_NO_WINDOW)
+                proc = subprocess.Popen(
+                    [keyclient_exe, "--port", str(_KEYCLIENT_PORT)],
+                    creationflags=subprocess.CREATE_NO_WINDOW
+                )
                 self._keyclient_process = proc
                 time.sleep(0.5)
                 # 再次尝试连接
                 try:
                     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                     sock.settimeout(3)
-                    sock.connect(('127.0.0.1', 19876))
+                    sock.connect(('127.0.0.1', _KEYCLIENT_PORT))
                     sock.settimeout(None)
                     self._keyclient_socket = sock
                 except Exception:
