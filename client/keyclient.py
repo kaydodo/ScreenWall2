@@ -11,6 +11,15 @@ import threading
 import time
 import signal
 
+# Base dir (PyInstaller 打包后 sys.executable 指向 exe)
+if getattr(sys, 'frozen', False):
+    BASE_DIR = os.path.dirname(sys.argv[0]) or os.path.dirname(sys.executable)
+else:
+    BASE_DIR = os.path.dirname(sys.argv[0]) or '.'
+
+# 端口隔离：根据部署目录 hash 生成独立端口
+_KEYCLIENT_PORT = 19876 + hash(BASE_DIR) % 1000
+
 # 全局退出标记
 _running = True
 
@@ -278,7 +287,7 @@ def mouse_scroll(delta):
 
 
 # 通信端口
-KEYCLIENT_PORT = 19876
+KEYCLIENT_PORT = _KEYCLIENT_PORT
 
 
 def handle_client(conn, addr):

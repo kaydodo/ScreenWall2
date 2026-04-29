@@ -18,7 +18,7 @@ import time
 import webbrowser
 
 # 客户端版本号（每次功能更新时手动递增）
-CLIENT_VERSION = "1.3.15"
+CLIENT_VERSION = "1.3.16"
 
 
 def has_key_client():
@@ -155,8 +155,8 @@ _CURRENT_USER = getpass.getuser().strip() or "default"
 # 配置文件路径（每个部署目录独立，不做用户维度隔离）
 CONFIG_PATH = os.path.join(BASE_DIR, "config.json")
 
-# KeyClient 端口（固定端口，所有客户端共用）
-_KEYCLIENT_PORT = 19876
+# KeyClient 端口（根据部署目录 hash 生成独立端口，多用户隔离）
+_KEYCLIENT_PORT = 19876 + hash(BASE_DIR) % 1000
 
 # ── Config ──────────────────────────────────────────────
 def load_config():
