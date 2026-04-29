@@ -2031,12 +2031,9 @@ wssBrowser.on('connection', (ws) => {
       if (!mDevId) return;
       const dev = devices.get(mDevId);
       if (!dev || !dev.online) return;
-      // 换算到客户端实际分辨率，再加显示器偏移量（虚拟桌面坐标）
-      let actualX = x, actualY = y;
-      if (dev.screenWidth && dev.screenHeight) {
-        actualX = Math.round((x / 1280) * dev.screenWidth) + (dev.monitorOffsetX || 0);
-        actualY = Math.round((y / 720) * dev.screenHeight) + (dev.monitorOffsetY || 0);
-      }
+      // 浏览器发送的是实际分辨率坐标系坐标，直接加显示器偏移量即为虚拟桌面坐标
+      const actualX = x + (dev.monitorOffsetX || 0);
+      const actualY = y + (dev.monitorOffsetY || 0);
       // 转发给客户端（已经是虚拟桌面坐标）
       for (const client of wssClient.clients) {
         if (client._deviceId === mDevId && client.readyState === 1) {
@@ -2052,11 +2049,8 @@ wssBrowser.on('connection', (ws) => {
       if (!mDevId) return;
       const dev = devices.get(mDevId);
       if (!dev || !dev.online) return;
-      let actualX = x, actualY = y;
-      if (dev.screenWidth && dev.screenHeight) {
-        actualX = Math.round((x / 1280) * dev.screenWidth) + (dev.monitorOffsetX || 0);
-        actualY = Math.round((y / 720) * dev.screenHeight) + (dev.monitorOffsetY || 0);
-      }
+      const actualX = x + (dev.monitorOffsetX || 0);
+      const actualY = y + (dev.monitorOffsetY || 0);
       for (const client of wssClient.clients) {
         if (client._deviceId === mDevId && client.readyState === 1) {
           client.send(JSON.stringify({ type: 'mouseRight', x: actualX, y: actualY }));
