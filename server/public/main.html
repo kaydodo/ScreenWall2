@@ -1295,11 +1295,11 @@ function connectWS() {
             const oldUrl = blobUrlCache.get(c.index);
             blobUrlCache.delete(c.index);
             if (oldUrl) {
-              const currentUrl = deviceBlobMap.get(c.deviceId);
-              if (currentUrl !== oldUrl) setTimeout(() => URL.revokeObjectURL(oldUrl), 500);
+              const cached = deviceBlobMap.get(c.deviceId);
+              if (!cached || cached.blobUrl !== oldUrl) setTimeout(() => URL.revokeObjectURL(oldUrl), 500);
             }
-            const devUrl = deviceBlobMap.get(c.deviceId);
-            if (devUrl) URL.revokeObjectURL(devUrl);
+            const cached = deviceBlobMap.get(c.deviceId);
+            if (cached && cached.blobUrl) URL.revokeObjectURL(cached.blobUrl);
             deviceBlobMap.delete(c.deviceId);
             deviceBlobMap.delete(c.deviceId + '_ts');
           }
@@ -1967,9 +1967,9 @@ function renderGrid() {
         setTimeout(() => URL.revokeObjectURL(oldUrl), 500);
       }
       // 清理设备 blob URL（按 deviceId 索引）
-      const devUrl = deviceBlobMap.get(cellData.deviceId);
-      if (devUrl && devUrl !== oldUrl) {
-        URL.revokeObjectURL(devUrl);
+      const cached = deviceBlobMap.get(cellData.deviceId);
+      if (cached && cached.blobUrl && cached.blobUrl !== oldUrl) {
+        URL.revokeObjectURL(cached.blobUrl);
       }
       deviceBlobMap.delete(cellData.deviceId);
       deviceBlobMap.delete(cellData.deviceId + '_ts');
@@ -2295,23 +2295,38 @@ function updateCellScreenshot(index, imgData) {
 }
 
 // 追踪每个设备的当前 blob URL（用于同步 revoke）
-const deviceBlobMap = new Map();
+const deviceBlobMap = new Map(); // deviceId -> { blobUrl, base64 }
+const DEVICE_BLOB_CACHE_MAX = 150; // 最多缓存150个设备（防止 Map 无限增长）
 
 function compressImageForGrid(deviceId, base64Data) {
   if (!base64Data) return null;
+
+  // 去重：如果 base64 没变，直接返回缓存的 URL，避免重复解码
+  const cached = deviceBlobMap.get(deviceId);
+  if (cached && cached.base64 === base64Data) {
+    return cached.blobUrl;
+  }
 
   // 同步创建 blob URL（客户端已压缩，无需再 decode/recompress）
   const url = base64ToBlobUrl(base64Data);
   if (!url) return null;
 
   // 同步 revoke 旧 URL
-  const old = deviceBlobMap.get(deviceId);
-  if (old && old !== url) {
-    URL.revokeObjectURL(old);
+  if (cached && cached.blobUrl) {
+    URL.revokeObjectURL(cached.blobUrl);
   }
 
   // 更新设备映射
-  deviceBlobMap.set(deviceId, url);
+  deviceBlobMap.set(deviceId, { blobUrl: url, base64: base64Data });
+
+  // 防止 Map 无限增长：超过上限时清理最旧的条目（按插入顺序）
+  if (deviceBlobMap.size > DEVICE_BLOB_CACHE_MAX) {
+    const firstKey = deviceBlobMap.keys().next().value;
+    const old = deviceBlobMap.get(firstKey);
+    if (old && old.blobUrl) URL.revokeObjectURL(old.blobUrl);
+    deviceBlobMap.delete(firstKey);
+  }
+
   return url;
 }
 
