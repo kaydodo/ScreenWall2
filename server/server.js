@@ -1486,15 +1486,9 @@ wssClient.on('connection', (ws, req) => {
       }
 
       // deviceId 不为空：正常创建设备逻辑
-      // 唯一标识：优先用 uuDeviceId 查找已有设备
+      // 唯一标识：只用 deviceId 查找已有设备（避免 uuDeviceId 相同导致设备混淆）
       let existing = null;
-      if (incomingUU) {
-        for (const [, d] of devices) {
-          if (d.uuDeviceId === incomingUU) { existing = d; break; }
-        }
-      }
-      // 没找到则用 deviceId 查找
-      if (!existing && incomingDeviceId) {
+      if (incomingDeviceId) {
         existing = devices.get(incomingDeviceId) || null;
       }
 
