@@ -3139,6 +3139,7 @@ wssBrowser.on('connection', (ws) => {
 
   ws.on('close', () => {
     browserClients.delete(ws);
+    browserViewport.delete(ws); // 清理视口追踪，防止浏览器关闭后残留
 
     // ── 清理格子预览独立通道订阅 ──────────────────────
     const previewInfo = previewClients.get(ws);
@@ -3940,6 +3941,7 @@ setInterval(() => {
   for (const [id, dev] of devices) {
     if (dev.online && now - dev.lastSeen > TIMEOUT_MS) {
       dev.online = false;
+      lastPushTime.delete(id); // 清理推送时间追踪
       changed = true;
       // ws.on('close' 会在 disconnection 时打印离线日志，timeout 只在真正超时场景下才打印
       serverLog(`[!] 超时离线: ${dev.deviceName}`);

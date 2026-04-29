@@ -5477,6 +5477,25 @@ var monitorWallState = {
   layout: 4,
   crops: {}  // deviceId -> { scale, translateX, translateY }
 };
+
+// 全局拖拽状态（所有 makeMonitorDraggable 共享一个 document mouseup，避免每次重建 DOM 时累积监听器）
+var _monitorDragGlobal = { startX: undefined, sX: undefined, moved: false, initTx: 0, initTy: 0, deviceId: null, img: null };
+if (!document._monitorMouseUpBound) {
+  document._monitorMouseUpBound = true;
+  document.addEventListener('mouseup', function(e) {
+    var g = _monitorDragGlobal;
+    if (g.startX === undefined) return;
+    g.startX = undefined;
+    // 未拖动 = 点击 → 移除预览
+    if (!g.moved && g.sX !== undefined) {
+      var dx = e.clientX - g.sX;
+      var dy = e.clientY - g.sY;
+      if (Math.abs(dx) < 4 && Math.abs(dy) < 4 && g.deviceId) {
+        removeMonitorPreview(g.deviceId);
+      }
+    }
+  });
+}
 var walledDevices = new Set(); // 已上墙的设备ID（同一浏览器共享）
 
 // 从 localStorage 加载已上墙设备
@@ -5823,48 +5842,29 @@ function makeMonitorDraggable(wrapper, img, deviceId) {
   var _initTranslateX, _initTranslateY;
   wrapper.onmousedown = function(e) {
     if (e.target.tagName === 'BUTTON') return;
-    _sX = e.clientX;
-    _sY = e.clientY;
-    _moved = false;
+    var g = _monitorDragGlobal;
+    g.sX = e.clientX; g.sY = e.clientY; g.moved = false;
+    g.startX = e.clientX; g.startY = e.clientY;
     var crop = monitorWallState.crops[deviceId] || { scale: 1, translateX: 0, translateY: 0 };
-    isDragging = false;
-    startX = e.clientX;
-    startY = e.clientY;
-    // 记录初始偏移，拖拽时在此基础上累加
-    _initTranslateX = crop.translateX;
-    _initTranslateY = crop.translateY;
+    g.initTx = crop.translateX; g.initTy = crop.translateY;
+    g.deviceId = deviceId; g.img = img;
     e.preventDefault();
   };
   
   wrapper.addEventListener('mousemove', function(e) {
-    if (startX === undefined) return;
-    var dx = e.clientX - startX;
-    var dy = e.clientY - startY;
-    if (!isDragging && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
-      isDragging = true;
-      _moved = true;
+    var g = _monitorDragGlobal;
+    if (g.startX === undefined || g.deviceId !== deviceId) return;
+    var dx = e.clientX - g.startX;
+    var dy = e.clientY - g.startY;
+    if (!g.moved && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
+      g.moved = true;
     }
-    if (!isDragging) return;
+    if (!g.moved) return;
     var crop = monitorWallState.crops[deviceId] || { scale: 1, translateX: 0, translateY: 0 };
-    // 在初始偏移基础上累加，按缩放系数调整
-    crop.translateX = _initTranslateX + dx / (crop.scale * 1.5);
-    crop.translateY = _initTranslateY + dy / (crop.scale * 1.5);
+    crop.translateX = g.initTx + dx / (crop.scale * 1.5);
+    crop.translateY = g.initTy + dy / (crop.scale * 1.5);
     monitorWallState.crops[deviceId] = crop;
     img.style.transform = 'scale(' + crop.scale + ') translate(' + crop.translateX + 'px, ' + crop.translateY + 'px)';
-  });
-  
-  document.addEventListener('mouseup', function(e) {
-    isDragging = false;
-    startX = undefined;
-    startY = undefined;
-    // 鼠标松开且未移动超过3px = 点击
-    if (!_moved && _sX !== undefined) {
-      var dx = e.clientX - _sX;
-      var dy = e.clientY - _sY;
-      if (Math.abs(dx) < 4 && Math.abs(dy) < 4) {
-        removeMonitorPreview(deviceId);
-      }
-    }
   });
 
   // 滚轮缩放：以鼠标位置为中心，步进0.05
