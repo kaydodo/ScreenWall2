@@ -673,18 +673,20 @@ setInterval(() => {
 }, 100);
 
 // 使用 PerformanceObserver 监控长任务（>50ms）
-if (typeof PerformanceObserver !== 'undefined') {
-  try {
-    const longTaskObserver = new PerformanceObserver((list) => {
-      for (const entry of list.getEntries()) {
-//         console.warn(`[LONG TASK] 耗时 ${entry.duration.toFixed(0)}ms`, entry);
-      }
-    });
-    longTaskObserver.observe({ entryTypes: ['longtask'] });
-  } catch (e) {
-//     console.log('[LONG TASK] PerformanceObserver 不支持');
-  }
-}
+// 注意：以下代码已被禁用，因为 PerformanceObserver 会持续创建 PerformanceEventTiming 条目导致内存泄露
+// if (typeof PerformanceObserver !== 'undefined') {
+//   try {
+//     const longTaskObserver = new PerformanceObserver((list) => {
+//       for (const entry of list.getEntries()) {
+// //         console.warn(`[LONG TASK] 耗时 ${entry.duration.toFixed(0)}ms`, entry);
+//       }
+//     });
+//     longTaskObserver.observe({ entryTypes: ['longtask'] });
+//   } catch (e) {
+// //     console.log('[LONG TASK] PerformanceObserver 不支持');
+//   }
+// }
+
 
 function scheduleRender() {
   if (renderScheduled) return;
