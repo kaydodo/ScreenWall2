@@ -2022,11 +2022,14 @@ class ScreenWallClient:
                         finally:
                             capt.close()
                         if img_bytes:
+                            off_x, off_y, off_w, off_h = _get_current_monitor_offset()
                             await ws.send(json.dumps({
                                 "type":     "screenshot",
                                 "deviceId": cfg["deviceId"],
                                 "image":    "data:image/webp;base64," + base64.b64encode(img_bytes).decode("ascii"),
                                 "hq":       True,
+                                "screenWidth": off_w,
+                                "screenHeight": off_h,
                             }))
                         # 关闭 HQ 模式
                         self.hq_mode = False
@@ -2053,11 +2056,14 @@ class ScreenWallClient:
                             finally:
                                 capt.close()
                             if img_bytes:
+                                off_x, off_y, off_w, off_h = _get_current_monitor_offset()
                                 await ws.send(json.dumps({
                                     "type": "screenshot",
                                     "deviceId": cfg["deviceId"],
                                     "image": "data:image/webp;base64," + base64.b64encode(img_bytes).decode("ascii"),
                                     "hq": True,
+                                    "screenWidth": off_w,
+                                    "screenHeight": off_h,
                                     "collectionTimestamp": timestamp,
                                 }))
 
@@ -2144,11 +2150,14 @@ class ScreenWallClient:
                                 full_img = capt.capture(hq=True, hq_limit=1080)
                                 if full_img:
                                     alarm_full_b64 = "data:image/webp;base64," + base64.b64encode(full_img).decode("ascii")
+                                    off_x, off_y, off_w, off_h = _get_current_monitor_offset()
                                     await ws.send(json.dumps({
                                         "type": "alarmFullScreenshot",
                                         "deviceId": cfg["deviceId"],
                                         "alarmTimestamp": data.get("alarmTimestamp", 0),
-                                        "image": alarm_full_b64
+                                        "image": alarm_full_b64,
+                                        "screenWidth": off_w,
+                                        "screenHeight": off_h,
                                     }))
                             finally:
                                 capt.close()

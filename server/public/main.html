@@ -3595,10 +3595,9 @@ function handlePreviewImageClick(e) {
     return; // 点击在黑边区域
   }
 
-  // 映射到 1280×720 坐标系
-  const naturalW = 1280, naturalH = 720;
-  const mappedX = Math.round((clickX / imgW) * naturalW);
-  const mappedY = Math.round((clickY / imgH) * naturalH);
+  // 映射到设备实际分辨率坐标系（实时同步分辨率变化）
+  const mappedX = Math.round((clickX / imgW) * previewScreenWidth);
+  const mappedY = Math.round((clickY / imgH) * previewScreenHeight);
 
   // 根据修饰键分发不同动作（Shift+Alt 最优先，防止组合键被单项覆盖）
   if (e.shiftKey && e.altKey) {

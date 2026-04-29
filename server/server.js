@@ -1847,6 +1847,13 @@ wssClient.on('connection', (ws, req) => {
       const deviceId = msg.deviceId;
       const imageData = msg.image;
 
+      // 实时同步分辨率
+      const dev = devices.get(deviceId);
+      if (dev && msg.screenWidth && msg.screenHeight) {
+        dev.screenWidth = msg.screenWidth;
+        dev.screenHeight = msg.screenHeight;
+      }
+
       // 方法1：查找 30 秒窗口内的记录
       let matchedRecord = alarmRecords.find(r =>
         r.deviceId === deviceId && Math.abs(r.timestamp - alarmTimestamp) < 30000 && !r.isFullScreenshot
