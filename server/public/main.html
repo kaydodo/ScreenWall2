@@ -659,35 +659,6 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 
-// ─────────────────────────────────────────
-// 主线程心跳监控：检测同步阻塞
-// ─────────────────────────────────────────
-let _taskName = 'idle';
-let _lastBeat = performance.now();
-setInterval(() => {
-  const now = performance.now();
-  if (now - _lastBeat > 200) {
-//     console.warn(`[FROZEN] 卡死${(now-_lastBeat).toFixed(0)}ms task="${_taskName}" pending=${pendingFrames.size} sched=${renderScheduled}`);
-  }
-  _lastBeat = now;
-}, 100);
-
-// 使用 PerformanceObserver 监控长任务（>50ms）
-// 注意：以下代码已被禁用，因为 PerformanceObserver 会持续创建 PerformanceEventTiming 条目导致内存泄露
-// if (typeof PerformanceObserver !== 'undefined') {
-//   try {
-//     const longTaskObserver = new PerformanceObserver((list) => {
-//       for (const entry of list.getEntries()) {
-// //         console.warn(`[LONG TASK] 耗时 ${entry.duration.toFixed(0)}ms`, entry);
-//       }
-//     });
-//     longTaskObserver.observe({ entryTypes: ['longtask'] });
-//   } catch (e) {
-// //     console.log('[LONG TASK] PerformanceObserver 不支持');
-//   }
-// }
-
-
 function scheduleRender() {
   if (renderScheduled) return;
   renderScheduled = true;
@@ -763,53 +734,6 @@ function renderPendingFrames() {
     renderScheduled = false; // 确保渲染循环不被卡死
   }
 }
-
-// ─────────────────────────────────────────
-// 内存泄露诊断：追踪 blob URL 创建/释放数量
-// ─────────────────────────────────────────
-const _blobStats = {
-  created: 0,
-  revoked: 0,
-  _lastReport: Date.now(),
-  _reportInterval: 30000 // 30秒报告一次
-};
-
-// 包装 URL.createObjectURL / revokeObjectURL 以追踪所有调用
-(function wrapBlobURL() {
-  const _origCreate = URL.createObjectURL;
-  URL.createObjectURL = function(blob) {
-    _blobStats.created++;
-    return _origCreate.call(URL, blob);
-  };
-  const _origRevoke = URL.revokeObjectURL;
-  URL.revokeObjectURL = function(url) {
-    if (url) _blobStats.revoked++;
-    return _origRevoke.call(URL, url);
-  };
-})();
-
-// 定期报告
-setInterval(() => {
-  const now = Date.now();
-  const elapsed = Math.round((now - _blobStats._lastReport) / 1000);
-  _blobStats._lastReport = now;
-  
-  // 估算各 Map 内存
-  let pendingKB = 0;
-  pendingFrames.forEach(f => {
-    if (f.image) pendingKB += f.image.length * 0.75 / 1024;
-    if (f.hqImage) pendingKB += f.hqImage.length * 0.75 / 1024;
-  });
-  
-  const memInfo = performance.memory ? 
-    `heap=${Math.round(performance.memory.usedJSHeapSize / 1024 / 1024)}MB` : 
-    'heap=N/A';
-  
-  const diff = _blobStats.created - _blobStats.revoked;
-  const status = diff > 0 ? `⚠️ LEAK diff=${diff}` : `✅ OK`;
-  
-  console.log(`[MEM @ ${elapsed}s] ${memInfo} | pending=${pendingFrames.size}(~${pendingKB.toFixed(0)}KB) | blobCache=${blobUrlCache.size} deviceBlob=${deviceBlobMap.size} | created=${_blobStats.created} revoked=${_blobStats.revoked} | ${status}`);
-}, _blobStats._reportInterval);
 
 // ─────────────────────────────────────────
 // Base64 转 Blob URL（避免 431 错误）
