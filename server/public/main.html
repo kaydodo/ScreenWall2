@@ -763,6 +763,53 @@ function renderPendingFrames() {
 }
 
 // ─────────────────────────────────────────
+// 内存泄露诊断：追踪 blob URL 创建/释放数量
+// ─────────────────────────────────────────
+const _blobStats = {
+  created: 0,
+  revoked: 0,
+  _lastReport: Date.now(),
+  _reportInterval: 30000 // 30秒报告一次
+};
+
+// 包装 URL.createObjectURL / revokeObjectURL 以追踪所有调用
+(function wrapBlobURL() {
+  const _origCreate = URL.createObjectURL;
+  URL.createObjectURL = function(blob) {
+    _blobStats.created++;
+    return _origCreate.call(URL, blob);
+  };
+  const _origRevoke = URL.revokeObjectURL;
+  URL.revokeObjectURL = function(url) {
+    if (url) _blobStats.revoked++;
+    return _origRevoke.call(URL, url);
+  };
+})();
+
+// 定期报告
+setInterval(() => {
+  const now = Date.now();
+  const elapsed = Math.round((now - _blobStats._lastReport) / 1000);
+  _blobStats._lastReport = now;
+  
+  // 估算各 Map 内存
+  let pendingKB = 0;
+  pendingFrames.forEach(f => {
+    if (f.image) pendingKB += f.image.length * 0.75 / 1024;
+    if (f.hqImage) pendingKB += f.hqImage.length * 0.75 / 1024;
+  });
+  
+  const memInfo = performance.memory ? 
+    `heap=${Math.round(performance.memory.usedJSHeapSize / 1024 / 1024)}MB` : 
+    'heap=N/A';
+  
+  const diff = _blobStats.created - _blobStats.revoked;
+  const status = diff > 0 ? `⚠️ LEAK diff=${diff}` : `✅ OK`;
+  
+  console.log(`[MEM @ ${elapsed}s] ${memInfo} | pending=${pendingFrames.size}(~${pendingKB.toFixed(0)}KB) | blobCache=${blobUrlCache.size} deviceBlob=${deviceBlobMap.size} | created=${_blobStats.created} revoked=${_blobStats.revoked} | ${status}`);
+}, _blobStats._reportInterval);
+
+// ─────────────────────────────────────────
 // Base64 转 Blob URL（避免 431 错误）
 // ─────────────────────────────────────────
 const blobUrlCache = new Map(); // cellIndex -> blobUrl
