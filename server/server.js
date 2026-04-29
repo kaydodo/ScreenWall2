@@ -67,6 +67,7 @@ function loadServerConfig() {
   }
 }
 loadServerConfig();
+_lastServerVersion = SERVER_CONFIG.serverVersion || null;
 
 // 热更新：监听 config.json 变化，无需重启自动重载
 const SERVER_CONFIG_PATH = path.join(__dirname, 'public', 'config.json');
@@ -81,6 +82,12 @@ function reloadServerConfig() {
         if (m) SERVER_CONFIG.uuVersion = m[1];
       }
       serverLog(`[配置] config.json 已重新加载: 屏幕墙版本=${SERVER_CONFIG.serverVersion || '未知'} | UU版本=${SERVER_CONFIG.uuVersion || '未知'}`);
+
+      // serverVersion 变化时广播给浏览器更新版本显示
+      if (SERVER_CONFIG.serverVersion && SERVER_CONFIG.serverVersion !== _lastServerVersion) {
+        _lastServerVersion = SERVER_CONFIG.serverVersion;
+        broadcastToBrowsers({ type: 'serverVersionUpdate', serverVersion: SERVER_CONFIG.serverVersion });
+      }
     }
   } catch (err) {
     serverError('[配置] 重载 config.json 失败:', err.message);

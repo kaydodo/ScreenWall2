@@ -1098,6 +1098,13 @@ function connectWS() {
         var vEl = document.getElementById('topbarVersion');
         if (vEl) vEl.textContent = 'v' + msg.serverVersion;
       }
+
+    // 动态更新服务端版本号（config.json 变化时触发）
+    if (msg.type === 'serverVersionUpdate' && msg.serverVersion) {
+      serverVersion = msg.serverVersion;
+      var vEl = document.getElementById('topbarVersion');
+      if (vEl) vEl.textContent = 'v' + msg.serverVersion;
+    }
       devices = msg.devices || [];
       if (msg.groups) {
         groups = msg.groups;
