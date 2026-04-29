@@ -3872,7 +3872,7 @@ httpServer.on('request', (req, res) => {
       return;
     }
     const filePath = path.join(ALARM_SCREENSHOTS_DIR, fileName);
-    serveFile(filePath, res);
+    serveFile(filePath, res, req);
     return;
   }
 
@@ -3919,8 +3919,8 @@ function serveFile(filePath, res, req) {
     if (isStaticAsset) {
       headers['Cache-Control'] = 'public, max-age=2592000, immutable';
     }
-    // 检查客户端是否支持 gzip
-    const acceptEncoding = (req.headers['accept-encoding'] || '').toLowerCase();
+    // 检查客户端是否支持 gzip（报警截图请求可能不传 req）
+    const acceptEncoding = (req && req.headers ? (req.headers['accept-encoding'] || '') : '').toLowerCase();
     if (acceptEncoding.includes('gzip') && ['.css', '.js', '.html', '.json'].includes(ext)) {
       const gzip = zlib.createGzip();
       res.writeHead(200, { ...headers, 'Content-Encoding': 'gzip', 'Vary': 'Accept-Encoding' });

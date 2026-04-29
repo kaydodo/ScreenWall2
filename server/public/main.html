@@ -7,7 +7,7 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🖥️</text></svg>">
 <link rel="stylesheet" href="/style.css?v=20260430a">
 </head>
-<body>
+<body class="sidebar-collapsed">
 
 <!-- ========== 顶部工具栏 ========== -->
 <header class="topbar">
@@ -85,7 +85,7 @@
 <main class="main-body" id="mainBody">
 
   <!-- 侧边设备列表 -->
-  <aside class="sidebar" id="sidebar">
+  <aside class="sidebar collapsed" id="sidebar">
     <div class="sidebar-header">
       <div style="display:flex;align-items:center;gap:8px;">
         <span class="sidebar-title">设备列表</span>
@@ -5211,6 +5211,9 @@ function openAlarmPreview(alarmId) {
   previewImg.src = rec.screenshot;
   previewImg.style.display = 'block';
   previewImg.style.opacity = '1';  // 直接显示
+  // 暂停实时截图更新：同时检查 previewDeviceId 和 alarmPreviewDeviceId
+  previewDeviceId = '__ALARM__' + alarmId;
+  previewActive = false;
   document.getElementById('previewOverlay').classList.add('active');
   // 显示浮动关闭按钮
   const floatingClose = document.getElementById('previewFloatingClose');
@@ -6278,5 +6281,6 @@ function renderAllTaskBadges() {
     <div id="remoteListContent" style="display:flex;flex-wrap:wrap;gap:8px;padding:12px;font-size:14px;"></div>
   </div>
 </div>
+<script>if(window.matchMedia('(min-width:769px)').matches){document.body.classList.remove('sidebar-collapsed');var sb=document.getElementById('sidebar');if(sb)sb.classList.remove('collapsed');}</script>
 </body>
 </html>
