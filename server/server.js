@@ -13,6 +13,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const zlib = require('zlib');
 const sharp = require('sharp');
 const Tesseract = require('tesseract.js');
 const { spawn } = require('child_process');
@@ -1455,10 +1456,12 @@ function findDeviceCell(deviceId) {
 }
 
 // ========== WebSocket 服务器 ==========
+// permessage-deflate：自动压缩 WebSocket 消息（base64 截图流量可减少 30-40%）
 const { WebSocketServer } = require('ws');
+const wsDeflateOptions = { perMessageDeflate: { threshold: 1024 } };
 
 const wssClient = new WebSocketServer({ noServer: true });
-const wssBrowser = new WebSocketServer({ noServer: true });
+const wssBrowser = new WebSocketServer({ noServer: true, ...wsDeflateOptions });
 
 // Python 客户端连接
 wssClient.on('connection', (ws, req) => {
@@ -3874,15 +3877,15 @@ httpServer.on('request', (req, res) => {
 
   if (cleanPath === '' || cleanPath === '/index.html' || cleanPath === '/main.html') {
     const filePath = path.join(__dirname, 'public', cleanPath === '' ? 'index.html' : cleanPath.slice(1));
-    serveFile(filePath, res);
+    serveFile(filePath, res, req);
     return;
   }
 
   const staticPath = path.join(__dirname, 'public', cleanPath.slice(1));
-  serveFile(staticPath, res);
+  serveFile(staticPath, res, req);
 });
 
-function serveFile(filePath, res) {
+function serveFile(filePath, res, req) {
   fs.readFile(filePath, (err, data) => {
     if (err) {
       if (err.code === 'ENOENT') {
@@ -3905,17 +3908,25 @@ function serveFile(filePath, res) {
       '.webp': 'image/webp',
       '.svg': 'image/svg+xml',
     };
-    // 静态资源缓存1小时，减少外网重复下载
     const isStaticAsset = ['.css', '.js', '.ico', '.png', '.jpg', '.webp', '.svg'].includes(ext);
     const headers = {
       'Content-Type': mimeTypes[ext] || 'application/octet-stream',
       'X-Content-Type-Options': 'nosniff',
       'X-Frame-Options': 'DENY',
     };
-    // 开发模式：禁用静态文件缓存
-    // if (isStaticAsset) {
-    //   headers['Cache-Control'] = 'public, max-age=3600';
-    // }
+    // 有版本 hash 的静态资源长期缓存（1个月）
+    if (isStaticAsset) {
+      headers['Cache-Control'] = 'public, max-age=2592000, immutable';
+    }
+    // 检查客户端是否支持 gzip
+    const acceptEncoding = (req.headers['accept-encoding'] || '').toLowerCase();
+    if (acceptEncoding.includes('gzip') && ['.css', '.js', '.html', '.json'].includes(ext)) {
+      const gzip = zlib.createGzip();
+      res.writeHead(200, { ...headers, 'Content-Encoding': 'gzip', 'Vary': 'Accept-Encoding' });
+      gzip.pipe(res);
+      gzip.end(data);
+      return;
+    }
     res.writeHead(200, headers);
     res.end(data);
   });
