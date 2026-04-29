@@ -2026,15 +2026,34 @@ wssBrowser.on('connection', (ws) => {
     }
 
     if (msg.type === 'mouseClick') {
-      // 鼠标点击：{ deviceId, x, y }（x,y 是 1280x720 坐标系，换算到虚拟桌面坐标）
-      const { deviceId: mDevId, x, y } = msg;
+      // 鼠标点击：{ deviceId, x, y, previewWidth, previewHeight }
+      // x,y 是浏览器预览画面坐标，previewWidth/Height 是预览时的分辨率（可能已过时）
+      // 服务端用自己最新的 dev.screenWidth/screenHeight（心跳频繁更新）校正坐标
+      const { deviceId: mDevId, x, y, previewWidth, previewHeight } = msg;
       if (!mDevId) return;
       const dev = devices.get(mDevId);
       if (!dev || !dev.online) return;
-      // 浏览器发送的是实际分辨率坐标系坐标，直接加显示器偏移量即为虚拟桌面坐标
-      const actualX = x + (dev.monitorOffsetX || 0);
-      const actualY = y + (dev.monitorOffsetY || 0);
-      // 转发给客户端（已经是虚拟桌面坐标）
+
+      let actualX, actualY;
+      const devW = dev.screenWidth || 1920;
+      const devH = dev.screenHeight || 1080;
+
+      // 如果预览分辨率与服务端分辨率一致（正常情况），直接用坐标
+      if (previewWidth === devW && previewHeight === devH) {
+        actualX = x;
+        actualY = y;
+      } else {
+        // 分辨率可能已变化，用比例重新映射到服务端当前分辨率
+        const pw = previewWidth || devW;
+        const ph = previewHeight || devH;
+        actualX = Math.round((x / pw) * devW);
+        actualY = Math.round((y / ph) * devH);
+      }
+
+      // 加显示器偏移量得到虚拟桌面坐标
+      actualX += dev.monitorOffsetX || 0;
+      actualY += dev.monitorOffsetY || 0;
+
       for (const client of wssClient.clients) {
         if (client._deviceId === mDevId && client.readyState === 1) {
           client.send(JSON.stringify({ type: 'mouseClick', x: actualX, y: actualY }));
@@ -2045,12 +2064,28 @@ wssBrowser.on('connection', (ws) => {
 
     // Shift+点击 → 右键
     if (msg.type === 'mouseRight') {
-      const { deviceId: mDevId, x, y } = msg;
+      const { deviceId: mDevId, x, y, previewWidth, previewHeight } = msg;
       if (!mDevId) return;
       const dev = devices.get(mDevId);
       if (!dev || !dev.online) return;
-      const actualX = x + (dev.monitorOffsetX || 0);
-      const actualY = y + (dev.monitorOffsetY || 0);
+
+      let actualX, actualY;
+      const devW = dev.screenWidth || 1920;
+      const devH = dev.screenHeight || 1080;
+
+      if (previewWidth === devW && previewHeight === devH) {
+        actualX = x;
+        actualY = y;
+      } else {
+        const pw = previewWidth || devW;
+        const ph = previewHeight || devH;
+        actualX = Math.round((x / pw) * devW);
+        actualY = Math.round((y / ph) * devH);
+      }
+
+      actualX += dev.monitorOffsetX || 0;
+      actualY += dev.monitorOffsetY || 0;
+
       for (const client of wssClient.clients) {
         if (client._deviceId === mDevId && client.readyState === 1) {
           client.send(JSON.stringify({ type: 'mouseRight', x: actualX, y: actualY }));

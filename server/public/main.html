@@ -3531,7 +3531,7 @@ function sendPreviewMouse(type, x, y, extra) {
   const previewDev = devices.find(d => d.deviceId === previewDeviceId);
   if (!previewDev || !previewDev.supportsKeyClient) return;
   if (ws && ws.readyState === WebSocket.OPEN) {
-    const payload = { type, deviceId, x, y };
+    const payload = { type, deviceId, x, y, previewWidth: previewScreenWidth, previewHeight: previewScreenHeight };
     if (extra) Object.assign(payload, extra);
     ws.send(JSON.stringify(payload));
   }
