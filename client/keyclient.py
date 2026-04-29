@@ -338,12 +338,12 @@ def handle_client(conn, addr):
         conn.close()
 
 
-def start_server():
+def start_server(port=KEYCLIENT_PORT):
     """启动TCP服务器"""
     global _running
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    sock.bind(('127.0.0.1', KEYCLIENT_PORT))
+    sock.bind(('127.0.0.1', port))
     sock.listen(5)
     sock.settimeout(1.0)  # 每秒检查一次退出标记
 
@@ -361,5 +361,9 @@ def start_server():
 
 
 if __name__ == '__main__':
-    print(f"KeyClient started on port {KEYCLIENT_PORT}")
-    start_server()
+    # 支持命令行参数指定端口
+    _port = KEYCLIENT_PORT  # 默认端口
+    if len(sys.argv) > 2 and sys.argv[1] == '--port':
+        _port = int(sys.argv[2])
+    print(f"KeyClient started on port {_port}")
+    start_server(_port)
