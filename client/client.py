@@ -155,8 +155,8 @@ _CURRENT_USER = getpass.getuser().strip() or "default"
 # 配置文件路径（每个部署目录独立，不做用户维度隔离）
 CONFIG_PATH = os.path.join(BASE_DIR, "config.json")
 
-# KeyClient 端口（按部署目录派生，避免多用户串连）
-_KEYCLIENT_PORT = 19876 + (int(hashlib.md5(BASE_DIR.encode()).hexdigest()[:4], 16) % 1000)
+# KeyClient 端口（固定端口，所有客户端共用）
+_KEYCLIENT_PORT = 19876
 
 # ── Config ──────────────────────────────────────────────
 def load_config():
@@ -1558,11 +1558,11 @@ class ScreenWallClient:
         if self._keyclient_socket or self._keyclient_process:
             return
 
-        # 尝试连接已有的 KeyClient（使用派生端口）
+        # 尝试连接已有的 KeyClient（固定端口）
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.settimeout(1)
-            sock.connect(('127.0.0.1', _KEYCLIENT_PORT))
+            sock.connect(('127.0.0.1', 19876))
             sock.settimeout(None)
             self._keyclient_socket = sock
             return
@@ -1574,7 +1574,7 @@ class ScreenWallClient:
             keyclient_exe = os.path.join(BASE_DIR, "_internal", "KeyClient.exe")
             if os.path.exists(keyclient_exe):
                 proc = subprocess.Popen(
-                    [keyclient_exe, "--port", str(_KEYCLIENT_PORT)],
+                    [keyclient_exe],
                     creationflags=subprocess.CREATE_NO_WINDOW
                 )
                 self._keyclient_process = proc
@@ -1583,7 +1583,7 @@ class ScreenWallClient:
                 try:
                     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                     sock.settimeout(3)
-                    sock.connect(('127.0.0.1', _KEYCLIENT_PORT))
+                    sock.connect(('127.0.0.1', 19876))
                     sock.settimeout(None)
                     self._keyclient_socket = sock
                 except Exception:
