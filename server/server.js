@@ -156,6 +156,111 @@ function hasOtherWallSubscription(deviceId, excludeWs) {
   return hdRequests.has(deviceId) && hdRequests.get(deviceId).size > 0;
 }
 
+// ========== MJPEG 流服务 ==========
+// 帧缓冲区：deviceId -> { jpeg: Buffer, timestamp: number }
+// 新帧到达时覆盖旧帧（不积压），发送时读取当前帧
+const deviceFrames = new Map();
+const MJPEG_FRAME_RATE = 10; // 帧率（fps）
+const MJPEG_BOUNDARY = 'frame'; // multipart boundary
+
+/**
+ * 解码 base64 图片并转换为 JPEG Buffer
+ */
+async function decodeImageToJpeg(base64Data) {
+  if (!base64Data) return null;
+  try {
+    // 去掉 data:image/xxx;base64, 前缀
+    const base64Str = base64Data.replace(/^data:image\/\w+;base64,/, '');
+    const buffer = Buffer.from(base64Str, 'base64');
+    // 如果是 WebP 格式，转换为 JPEG
+    if (base64Data.startsWith('data:image/webp')) {
+      return await sharp(buffer).jpeg({ quality: 80 }).toBuffer();
+    }
+    // 其他格式直接返回（已经是 JPEG）
+    return buffer;
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * 更新设备帧缓冲区
+ * @param {string} deviceId - 设备ID
+ * @param {Buffer} jpegBuffer - JPEG 帧数据
+ */
+function updateDeviceFrame(deviceId, jpegBuffer) {
+  deviceFrames.set(deviceId, {
+    jpeg: jpegBuffer,
+    timestamp: Date.now()
+  });
+}
+
+/**
+ * 生成 MJPEG 流响应（multipart/x-mixed-replace）
+ */
+function createMjpegStream(deviceId, req, res) {
+  // 设置 MJPEG 流响应头
+  res.writeHead(200, {
+    'Content-Type': `multipart/x-mixed-replace; boundary=--${MJPEG_BOUNDARY}`,
+    'Cache-Control': 'no-cache, no-store, must-revalidate',
+    'Pragma': 'no-cache',
+    'Expires': '0',
+    'Connection': 'keep-alive',
+    'X-Accel-Buffering': 'no' // 禁用 Nginx/代理缓冲
+  });
+
+  let active = true;
+  let frameIndex = 0;
+
+  // 定期发送帧
+  const interval = setInterval(() => {
+    if (!active) return;
+
+    const frame = deviceFrames.get(deviceId);
+    if (!frame || !frame.jpeg) {
+      // 没有帧数据，发送空白帧（1x1 黑色 JPEG）
+      if (active) {
+        const emptyFrame = Buffer.from(
+          '--' + MJPEG_BOUNDARY + '\r\n' +
+          'Content-Type: image/jpeg\r\n' +
+          'Content-Length: 0\r\n\r\n'
+        );
+        res.write(emptyFrame);
+      }
+      return;
+    }
+
+    try {
+      // 构造 JPEG 帧
+      const header = Buffer.from(
+        '--' + MJPEG_BOUNDARY + '\r\n' +
+        'Content-Type: image/jpeg\r\n' +
+        'Content-Length: ' + frame.jpeg.length + '\r\n\r\n'
+      );
+      res.write(header);
+      res.write(frame.jpeg);
+      res.write('\r\n');
+      frameIndex++;
+    } catch (e) {
+      // 连接已关闭
+      active = false;
+      clearInterval(interval);
+    }
+  }, 1000 / MJPEG_FRAME_RATE);
+
+  // 清理函数
+  const cleanup = () => {
+    active = false;
+    clearInterval(interval);
+  };
+
+  // 客户端断开时清理
+  req.on('close', cleanup);
+  req.on('error', cleanup);
+
+  return cleanup;
+}
+
 // ========== 图像压缩工具 ==========
 // 压缩缓存：deviceId -> compressed base64（同一设备短时间内复用）
 const compressCache = new Map();
@@ -1680,6 +1785,13 @@ wssClient.on('connection', (ws, req) => {
           // ===== 高清模式（方案D）：单码流高清 + 直接发原图给格子（无服务器压缩）=====
           dev.hqScreenshot = msg.image; // 存储高清图
           dev.screenshot = msg.image;   // 也存为截图
+
+          // ── 更新 MJPEG 帧缓冲区（异步解码，不阻塞）────────
+          decodeImageToJpeg(msg.image).then(jpegBuffer => {
+            if (jpegBuffer) {
+              updateDeviceFrame(msg.deviceId, jpegBuffer);
+            }
+          });
 
           // ── 帧缓存（已禁用）────────────────────────────
           // const rawBase64 = msg.image.replace(/^data:image\/\w+;base64,/, '');
@@ -3911,6 +4023,20 @@ httpServer.on('request', (req, res) => {
     }
     const filePath = path.join(ALARM_SCREENSHOTS_DIR, fileName);
     serveFile(filePath, res, req);
+    return;
+  }
+
+  // MJPEG 流端点：/mjpeg/:deviceId
+  if (cleanPath.startsWith('/mjpeg/')) {
+    const deviceId = cleanPath.slice('/mjpeg/'.length);
+    // 安全检查：只允许有效的设备ID
+    if (!deviceId || deviceId.includes('..') || deviceId.includes('/') || deviceId.includes('\\')) {
+      res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end('Invalid deviceId');
+      return;
+    }
+    // 启动 MJPEG 流
+    createMjpegStream(deviceId, req, res);
     return;
   }
 

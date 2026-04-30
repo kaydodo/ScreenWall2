@@ -327,7 +327,7 @@
   </div>
   <div class="preview-area" id="previewArea">
     <div class="preview-img-wrapper" id="previewImgWrapper">
-      <img id="previewImg" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="实时预览" style="border-radius:0;box-shadow:none;border:none;" />
+      <video id="previewImg" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="实时预览" style="border-radius:0;box-shadow:none;border:none;" muted playsinline></video>
     </div>
   </div>
   <!-- 移动端点击关闭提示 -->
@@ -1589,12 +1589,9 @@ function connectWS() {
         watermark.style.display = 'none';
         previewImg.style.filter = '';
       }
-      const blobUrl = getPreviewBlobUrl(msg.image);
-      // 始终渲染，确保图片更新
-      if (blobUrl) {
-        previewImg.src = blobUrl;
-        previewImg.style.display = 'block';
-      }
+      // 使用 MJPEG 流代替 blob URL
+      previewImg.src = `/mjpeg/${previewDeviceId}`;
+      previewImg.style.display = 'block';
     }
 
     // 批量截图消息处理
@@ -1968,7 +1965,7 @@ function createCellElement(index) {
         <span class="no-sig-icon">📺</span>
         <span class="no-sig-text">等待接入</span>
       </div>
-      <img class="cell-img" id="img_${index}" alt="设备画面" style="display:none" />
+      <video class="cell-img" id="img_${index}" alt="设备画面" style="display:none" muted playsinline></video>
       <button class="cell-star-btn" id="star_${index}" title="收藏截图">★</button>
       <button class="cell-task-btn" id="taskBtn_${index}" title="发布任务" onclick="openTaskDialog(${index}, event)">
         <span style="font-size:12px;position:relative;top:1px;" id="taskBtnInner_${index}">📋<span class="task-badge" id="taskBadge_${index}" style="display:none;"></span></span>
@@ -2204,17 +2201,14 @@ function updateCellScreenshot(index, imgData) {
   if (!img || !ns) return;
   const cell = gridCells[index];
   const deviceId = cell ? cell.deviceId : null;
-  if (imgData) {
-    // 同步调用，无需 .then()
-    const compressedUrl = compressImageForGrid(deviceId, imgData);
-    if (compressedUrl) {
-      img.src = compressedUrl;
-      img.style.display = 'block';
-      ns.style.display = 'none';
-      // 如果设备离线，保持灰度
-      if (cell && !cell.online) {
-        img.classList.add('grayscale');
-      }
+  if (imgData && deviceId) {
+    // 使用 MJPEG 流代替静态图片
+    img.src = `/mjpeg/${deviceId}`;
+    img.style.display = 'block';
+    ns.style.display = 'none';
+    // 如果设备离线，保持灰度
+    if (cell && !cell.online) {
+      img.classList.add('grayscale');
     }
   }
 }
@@ -5710,7 +5704,7 @@ function updateMonitorPreview() {
         
         if (device.screenshot) {
           cell.innerHTML = '<div class="monitor-preview-img-wrapper' + offlineClass + '" data-device-id="' + deviceId + '">' +
-            '<img alt="监控画面: ' + (device.deviceName || '设备') + '" src="' + device.screenshot + '" style="transform: scale(' + crop.scale + ') translate(' + crop.translateX + 'px, ' + crop.translateY + 'px);' + offlineStyle + '">' +
+            '<video alt="监控画面: ' + (device.deviceName || '设备') + '" src="/mjpeg/' + deviceId + '" style="transform: scale(' + crop.scale + ') translate(' + crop.translateX + 'px, ' + crop.translateY + 'px);' + offlineStyle + '" muted playsinline></video>' +
             '<div class="monitor-zoom-level" id="zoomLevel_' + deviceId + '">' + (crop.scale * 100).toFixed(0) + '%</div>' +
             '<div class="monitor-preview-name">' + device.deviceName + (isOffline ? ' (离线)' : '') + '</div>' +
             offlineBadge +
@@ -5718,8 +5712,8 @@ function updateMonitorPreview() {
           
           // 拖动功能
           var wrapper = cell.querySelector('.monitor-preview-img-wrapper');
-          var img = cell.querySelector('img');
-          makeMonitorDraggable(wrapper, img, deviceId);
+          var video = cell.querySelector('video');
+          makeMonitorDraggable(wrapper, video, deviceId);
         } else {
           cell.innerHTML = '<div class="monitor-preview-empty">' + (isOffline ? '设备已离线' : '等待画面...') + '</div>';
         }
