@@ -3076,23 +3076,18 @@ wssBrowser.on('connection', (ws) => {
         newDevices.add(deviceId);
         newHDChannels.add(deviceId); // 每个设备只开启一次高清通道
         wallDevices.set(deviceId, interval); // 持久化追踪，设备重连后自动恢复
-        
-        // 如果这个设备的高清通道尚未开启，则开启
-        if (!existingHD.has(deviceId)) {
-          // 遍历设备客户端，找到对应设备并发送 startHQ
-          for (const client of wssClient.clients) {
-            if (client._deviceId === deviceId) {
-              client.send(JSON.stringify({ type: 'startHQ', interval }));
-              // 记录全局高清请求（ref count）
-              if (!hdRequests.has(deviceId)) hdRequests.set(deviceId, new Set());
-              hdRequests.get(deviceId).add(ws);
-              break;
-            }
+
+        // 每次订阅都尝试发送 startHQ（幂等，设备客户端会处理重复）
+        // 记录高清请求引用（用于 unsubscribe 时计数）
+        if (!hdRequests.has(deviceId)) hdRequests.set(deviceId, new Set());
+        hdRequests.get(deviceId).add(ws);
+
+        // 遍历设备客户端，找到对应设备并发送 startHQ
+        for (const client of wssClient.clients) {
+          if (client._deviceId === deviceId) {
+            client.send(JSON.stringify({ type: 'startHQ', interval }));
+            break;
           }
-        } else {
-          // 已开启的高清通道，只需记录 ref
-          if (!hdRequests.has(deviceId)) hdRequests.set(deviceId, new Set());
-          hdRequests.get(deviceId).add(ws);
         }
       }
       

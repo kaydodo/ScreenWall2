@@ -297,6 +297,8 @@ function startWallMjpeg(deviceId) {
 // 获取配置数据
 var wallData = null;
 var devices = {}; // deviceId -> { id, name, groupName, position, online, crop, groupId }
+var wallLastFrameTime = {}; // deviceId -> 最后收到 wallScreenshot 的时间戳
+var wallRetryTimer = null; // 重试定时器
 var groups = [];  // 分组列表
 try {
   var stored = sessionStorage.getItem('monitorWallData');
@@ -657,6 +659,9 @@ function connectWebSocket() {
         var screenshot = data.screenshot;
         var timestamp = data.timestamp || Date.now();
 
+        // 记录最后收到帧的时间（用于重试机制）
+        wallLastFrameTime[deviceId] = Date.now();
+
         // 保存当前帧（用于离线帧缓存）
         var dev = devices[deviceId];
         if (dev) {
@@ -717,7 +722,26 @@ function connectWebSocket() {
       }
 
       if (data.type === 'walledDevices') {
-        // console.log('[Wall] Subscribed devices:', data.devices);
+        // 启动重试机制：3秒后检查是否收到截图，没收到就重新申请高清
+        if (wallRetryTimer) clearTimeout(wallRetryTimer);
+        var subscribedDevices = data.devices || [];
+        wallRetryTimer = setTimeout(function() {
+          var now = Date.now();
+          var needRetry = [];
+          subscribedDevices.forEach(function(deviceId) {
+            if (!wallLastFrameTime[deviceId] || (now - wallLastFrameTime[deviceId]) > 3000) {
+              needRetry.push(deviceId);
+            }
+          });
+          if (needRetry.length > 0) {
+            // console.log('[Wall] 重试申请高清:', needRetry);
+            ws.send(JSON.stringify({
+              type: 'subscribeWall',
+              devices: needRetry,
+              interval: 333
+            }));
+          }
+        }, 3000);
       }
     } catch(err) {
       // console.error('Parse error:', err);
