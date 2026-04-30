@@ -2137,7 +2137,13 @@ function updateCellElement(index) {
     const cellEl = document.querySelector(`.wall-cell[data-index="${index}"]`);
     if (isOffline) {
       if (cellEl) cellEl.classList.add('offline-cell');
-      // 离线设备：始终显示灰色背景+中央"设备已离线"文字
+      // 离线瞬间：保存最后一帧（只在首次离线时保存，后续保持不变）
+      if (!cell._offlineScreenshot && cell.screenshot) {
+        cell._offlineScreenshot = cell.screenshot;
+      }
+      // 标记下次上线时需要从当前截图更新离线帧缓存
+      cell._offlineNeedsSave = true;
+      // 始终显示灰色背景+中央"设备已离线"文字
       stxt.textContent = '离线';
       dot.className = 'status-dot offline';
       stxt.className = 'status-text offline';
@@ -2153,10 +2159,12 @@ function updateCellElement(index) {
         img.parentElement.appendChild(offlineLabel);
       }
 
-      if (cell.screenshot) {
+      // 使用离线瞬间保存的帧（_offlineScreenshot），fallback 到当前截图
+      const offlineFrame = cell._offlineScreenshot || cell.screenshot;
+      if (offlineFrame) {
         // 有截图：显示灰度截图+离线标签（使用 Blob URL 避免 431）
         revokeBlobUrl(index);  // 先清理旧的 blob URL
-        const blobUrl = base64ToBlobUrl(cell.screenshot);
+        const blobUrl = base64ToBlobUrl(offlineFrame);
         if (blobUrl) {
           blobUrlCache.set(index, blobUrl);
           img.src = blobUrl;
@@ -2179,6 +2187,13 @@ function updateCellElement(index) {
       dot.className = 'status-dot online';
       stxt.className = 'status-text online';
       document.getElementById(`uubtn_${index}`).style.display = 'flex';
+
+      // 设备从离线恢复在线时，缓存离线瞬间的最后一帧
+      // 后续新帧会持续更新 cell.screenshot，但 _offlineScreenshot 保持不变
+      if (cell._offlineNeedsSave && cell.screenshot) {
+        cell._offlineScreenshot = cell.screenshot;
+        cell._offlineNeedsSave = false;
+      }
 
       // 主动启动 MJPEG 低清流（如果尚未启动）
       const expectedSrc = `/mjpeg/${cell.deviceId}`;
@@ -2829,7 +2844,6 @@ function openPreview(cellIndex) {
   const isOnline = dev ? dev.online : false;
 
   // 5. 主动启动 MJPEG 流（仅在线设备），避免等待 previewScreenshot 消息
-  const previewImg = document.getElementById('previewImg');
   if (isOnline) {
     const expectedSrc = `/mjpeg/${previewDeviceId}`;
     const currentSrc = previewImg.src || '';
