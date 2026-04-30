@@ -5755,37 +5755,72 @@ function selectMonitorLayout(layout) {
 function updateMonitorPreview() {
   var container = document.getElementById('monitorPreviewGrid');
   if (!container) return;
-  
+
   // 更新选中计数
   var countEl = document.getElementById('monitorSelectedCount');
   if (countEl) {
     countEl.textContent = '已选 ' + monitorWallState.selectedDevices.length + '/' + monitorWallState.layout + ' 格';
   }
-  
+
   // 设置网格布局（完全平方数 NxN，紧凑布局用自定义行列）
   var cfg = compactLayouts[monitorWallState.layout];
   var rows = cfg ? cfg.rows : Math.sqrt(monitorWallState.layout);
   var cols = cfg ? cfg.cols : Math.sqrt(monitorWallState.layout);
   container.style.gridTemplateColumns = 'repeat(' + cols + ', 1fr)';
   container.style.gridTemplateRows = 'repeat(' + rows + ', 1fr)';
-  
-  // 清空并重建格子
-  container.innerHTML = '';
-  for (var i = 0; i < monitorWallState.layout; i++) {
-    var cell = document.createElement('div');
-    cell.className = 'monitor-preview-cell';
-    
-    if (i < monitorWallState.selectedDevices.length) {
-      var deviceId = monitorWallState.selectedDevices[i];
+
+  // ── 增量更新：只更新变化的格子，不销毁已有的 ─────────────────
+  var existingCells = container.querySelectorAll('.monitor-preview-cell');
+  var totalCells = monitorWallState.layout;
+
+  for (var i = 0; i < totalCells; i++) {
+    var cell = existingCells[i];
+    var hasDevice = i < monitorWallState.selectedDevices.length;
+    var deviceId = hasDevice ? monitorWallState.selectedDevices[i] : null;
+
+    if (!cell) {
+      // 新增格子
+      cell = document.createElement('div');
+      cell.className = 'monitor-preview-cell';
+      container.appendChild(cell);
+    } else if (!hasDevice && cell.querySelector('.monitor-preview-img-wrapper')) {
+      // 从有设备变成无设备：清空
+      cell.innerHTML = '<div class="monitor-preview-empty"></div>';
+      continue;
+    }
+
+    if (hasDevice) {
       var device = devices.find(function(d) { return d.deviceId === deviceId; });
       var crop = monitorWallState.crops[deviceId] || { scale: 1, translateX: 0, translateY: 0 };
-      
+
+      // 检查是否已经是这个设备（避免重复渲染）
+      var existingWrapper = cell.querySelector('.monitor-preview-img-wrapper');
+      var existingDeviceId = existingWrapper ? existingWrapper.dataset.deviceId : null;
+      if (existingDeviceId === deviceId && device) {
+        // 同一设备：只更新 crop 和离线状态，不重建 DOM
+        var img = cell.querySelector('img');
+        if (img) {
+          img.style.transform = 'scale(' + crop.scale + ') translate(' + crop.translateX + 'px, ' + crop.translateY + 'px)';
+          if (device.online) {
+            img.style.filter = '';
+            img.style.opacity = '';
+            cell.querySelector('.monitor-preview-img-wrapper').classList.remove('offline');
+          } else {
+            img.style.filter = 'grayscale(100%)';
+            img.style.opacity = '0.5';
+            cell.querySelector('.monitor-preview-img-wrapper').classList.add('offline');
+          }
+        }
+        continue;
+      }
+
+      // 设备变了或首次创建：重建内容
       if (device) {
         var isOffline = !device.online;
         var offlineClass = isOffline ? ' offline' : '';
         var offlineBadge = isOffline ? '<div class="monitor-offline-badge">设备已离线</div>' : '';
         var offlineStyle = isOffline ? 'filter: grayscale(100%);opacity:0.5;' : '';
-        
+
         if (device.screenshot) {
           cell.innerHTML = '<div class="monitor-preview-img-wrapper' + offlineClass + '" data-device-id="' + deviceId + '">' +
             '<img alt="监控画面: ' + (device.deviceName || '设备') + '" src="/mjpeg/' + deviceId + '" style="transform: scale(' + crop.scale + ') translate(' + crop.translateX + 'px, ' + crop.translateY + 'px);' + offlineStyle + '">' +
@@ -5793,7 +5828,7 @@ function updateMonitorPreview() {
             '<div class="monitor-preview-name">' + device.deviceName + (isOffline ? ' (离线)' : '') + '</div>' +
             offlineBadge +
             '</div>';
-          
+
           // 拖动功能
           var wrapper = cell.querySelector('.monitor-preview-img-wrapper');
           var img = cell.querySelector('img');
@@ -5804,10 +5839,15 @@ function updateMonitorPreview() {
       } else {
         cell.innerHTML = '<div class="monitor-preview-empty">设备不存在</div>';
       }
-    } else {
+    } else if (cell.querySelector('.monitor-preview-img-wrapper')) {
+      // 无设备：清空
       cell.innerHTML = '<div class="monitor-preview-empty"></div>';
     }
-    container.appendChild(cell);
+  }
+
+  // 删除多余的格子
+  while (container.children.length > totalCells) {
+    container.removeChild(container.lastChild);
   }
 }
 

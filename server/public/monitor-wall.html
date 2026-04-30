@@ -278,17 +278,7 @@ const watchdog = (function() {
   return { start, touch, stop };
 })();
 
-// ── 辅助函数：为指定设备启动 MJPEG 流 ────────────────────────
-function startWallMjpeg(deviceId) {
-  var img = document.getElementById('img_' + deviceId);
-  if (!img) return;
-  var expectedSrc = '/mjpeg/' + deviceId;
-  if (img.src && img.src.includes(expectedSrc)) return;
-  img.style.width = '100%';
-  img.style.height = '100%';
-  img.src = expectedSrc;
-  img.style.display = 'block';
-}
+
 
 // ═══════════════════════════════════════════════════════════════
 // 主程序
@@ -631,12 +621,7 @@ function connectWebSocket() {
       devices: wallData.devices.map(function(d) { return d.id; }),
       interval: 333
     }));
-    // 立即启动所有在线设备的 MJPEG 流（wallScreenshot 消息处理有兜底，不会重复设置）
-    wallData.devices.forEach(function(dev) {
-      if (dev.online !== false) {
-        startWallMjpeg(dev.id);
-      }
-    });
+    // 不再需要启动 MJPEG 流，wallScreenshot 消息会直接更新图片
   };
 
   ws.onclose = function() {
@@ -831,8 +816,7 @@ function handleWallStateUpdate(data) {
     if (devOnline) {
       devOnline._offlineScreenshot = null;
     }
-    // 设备上线时主动启动 MJPEG 流
-    startWallMjpeg(deviceId);
+    // 上线后 wallScreenshot 消息会自动更新图片，无需额外操作
     if (data.deviceName) {
       var devName = devices[deviceId];
       if (devName) devName.name = data.deviceName;
