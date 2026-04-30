@@ -2245,7 +2245,7 @@ function buildSidebarItem(dev) {
           <input type="text" name="deviceRename" aria-label="设备名称" class="si-name-input" value="${escHtml(dev.deviceName)}" data-device-id="${dev.deviceId}" data-original="${escHtml(dev.deviceName)}" onclick="event.stopPropagation()" onkeydown="if(event.key==='Enter'){renameDeviceInline(this);}else if(event.key==='Escape'){this.value=this.dataset.original;this.blur();}" style="max-width:85px;" title="${escHtml(dev.deviceName)}" />
           <button class="btn btn-xs" onclick="event.stopPropagation();renameDeviceInline(this.previousElementSibling)" style="margin-left:1px;">更名</button>
           <span class="si-pos" style="margin-left:2px;">格:${posLabel}</span>
-          <button class="${powerBtnClass}" onclick="event.stopPropagation();executePowerScene('${dev.deviceId}')" title="${hasPowerScene ? '执行开关机场景' : '未配置场景'}" style="margin-left:7px;">
+          <button class="${powerBtnClass}" onclick="event.stopPropagation();executePowerScene('${dev.deviceId}')" title="${hasPowerScene ? '执行开关机场景' : '未配置场景'}" style="margin-left:3px;">
             <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-top:0px;"><path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.77.04"/></svg>
           </button>
         </div>
