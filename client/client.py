@@ -1906,10 +1906,10 @@ class ScreenWallClient:
                 cfg = new_cfg
                 self._last_cfg_hash = self._cfg_hash(cfg)
 
-            # 心跳计数：每 90 帧（约 30 秒 @ 3fps）主动发一次心跳
+            # 心跳计数：每 150 帧（约 30 秒 @ 5fps）主动发一次心跳
             # 心跳用于接收服务端的升级通知，不依赖截图失败才触发
             self._heartbeat_tick += 1
-            heartbeat_interval = 90  # 可配置，每 N 帧发一次心跳（约30秒 @ 3fps）
+            heartbeat_interval = 150  # 可配置，每 N 帧发一次心跳（约30秒 @ 5fps）
             if self._heartbeat_tick >= heartbeat_interval:
                 self._heartbeat_tick = 0
                 try:
