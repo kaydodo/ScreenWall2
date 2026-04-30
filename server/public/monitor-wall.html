@@ -585,7 +585,7 @@ function initWall() {
       var dev = wallData.devices[i];
       var uuBtnHTML = (dev.online !== false && dev.uuDeviceId) ? '<button class="uu-float-btn" onclick="openUU(\'' + dev.uuDeviceId + '\')">🖱️ UU远程</button>' : '';
       cell.innerHTML =
-        '<div class="img-wrapper"><img id="img_' + dev.id + '" alt="监控画面: ' + dev.name + '" src="" class="wall-img-hidden"></div>' +
+        '<div class="img-wrapper"><img id="img_' + dev.id + '" alt="监控画面: ' + dev.name + '" src="" class="wall-img-hidden" onerror="this.dataset.errored='true'"></div>' +
         '<div class="wall-zoom-level" id="zoom_' + dev.id + '">100%</div>' +
         '<div class="wall-timestamp" id="ts_' + dev.id + '">等待画面</div>' +
         '<div class="wall-info" id="info_' + dev.id + '">' +
@@ -640,18 +640,6 @@ function initWall() {
   // 启动看门狗
   watchdog.start();
 
-  // 主动启动 MJPEG 流（在线设备）
-  wallData.devices.forEach(function(dev) {
-    if (dev.online === false) return;
-    var img = document.getElementById('img_' + dev.id);
-    if (img) {
-      img.style.width = '100%';
-      img.style.height = '100%';
-      img.src = '/mjpeg/' + dev.id;
-      img.style.display = 'block';
-    }
-  });
-
   // 页面关闭时清理
   window.addEventListener('beforeunload', function() {
     if (ws && ws.readyState === WebSocket.OPEN) {
@@ -682,6 +670,19 @@ function connectWebSocket() {
       devices: wallData.devices.map(function(d) { return d.id; }),
       interval: 333
     }));
+    // 延迟启动 MJPEG 流（等服务端处理完 subscribeWall）
+    setTimeout(function() {
+      wallData.devices.forEach(function(dev) {
+        if (dev.online === false) return;
+        var img = document.getElementById('img_' + dev.id);
+        if (img) {
+          img.style.width = '100%';
+          img.style.height = '100%';
+          img.src = '/mjpeg/' + dev.id;
+          img.style.display = 'block';
+        }
+      });
+    }, 1000);
   };
 
   ws.onclose = function() {
@@ -725,7 +726,10 @@ function connectWebSocket() {
         var img = document.getElementById('img_' + deviceId);
         if (img) {
           var expectedSrc = '/mjpeg/' + deviceId;
-          if (!img.src || !img.src.includes(expectedSrc)) {
+          var needsStart = (!img.src || !img.src.includes(expectedSrc));
+          // 流出错了，重试
+          if (img.dataset.errored === 'true') { img.dataset.errored = 'false'; needsStart = true; }
+          if (needsStart) {
             img.style.width = '100%';
             img.style.height = '100%';
             img.src = expectedSrc;
@@ -821,14 +825,6 @@ function handleWallStateUpdate(data) {
         cell.appendChild(newBtn);
       } else if (uuBtn) {
         uuBtn.classList.remove('hidden');
-      }
-      // 主动启动 MJPEG 流
-      var img = document.getElementById('img_' + deviceId);
-      if (img) {
-        img.style.width = '100%';
-        img.style.height = '100%';
-        img.src = '/mjpeg/' + deviceId;
-        img.style.display = 'block';
       }
     }
     if (data.deviceName) {

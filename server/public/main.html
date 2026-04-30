@@ -1589,8 +1589,10 @@ function connectWS() {
         watermark.style.display = 'none';
         previewImg.style.filter = '';
       }
-      // 使用 MJPEG 流
-      previewImg.src = `/mjpeg/${previewDeviceId}`;
+      // 在线设备才使用 MJPEG 流；离线设备不设置，避免白屏
+      if (isOnline) {
+        previewImg.src = `/mjpeg/${previewDeviceId}`;
+      }
       previewImg.style.display = 'block';
     }
 
@@ -2844,10 +2846,10 @@ function openPreview(cellIndex) {
 
   document.getElementById('previewDeviceName').textContent = (cell.deviceName || (dev && dev.deviceName) || '未知') + ' - 实时预览' + ((dev && dev.monitorCount > 1) ? ' 🖥️' + (dev.monitorIndex || 1) : '');
 
-  // 5. 开启HQ高清流
+  // 5. 开启HQ高清流（仅在线设备）
   previewHQMode = true;
   preview1080Mode = true;
-  if (ws && ws.readyState === WebSocket.OPEN) {
+  if (isOnline && ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'startHQ', deviceId: cell.deviceId }));
     ws.send(JSON.stringify({ type: 'hq1080On', deviceId: cell.deviceId }));
   }
