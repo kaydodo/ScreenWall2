@@ -4002,3 +4002,30 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
     display: none !important;
   }
 }
+
+/* ========== monitor-wall 页面样式 ========== */
+
+/* 统计面板默认隐藏 */
+#statsPanel {
+  display: none;
+}
+
+/* 监控格子图片默认隐藏（等待加载） */
+.wall-img-hidden {
+  display: none;
+}
+
+/* 缩放级别指示器默认透明 */
+.wall-zoom-level {
+  opacity: 0;
+}
+
+/* 错误提示居中显示 */
+.error-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #fff;
+  font-size: 18px;
+}

@@ -198,7 +198,7 @@ html, body {
 <body>
 
 <div class="wall-container" id="wallContainer"></div>
-<div class="stats-panel" id="statsPanel" style="display:none;"></div>
+<div class="stats-panel" id="statsPanel"></div>
 
 <script>
 'use strict';
@@ -361,7 +361,7 @@ try {
 } catch(e) {}
 
 if (!wallData) {
-  document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#fff;font-size:18px;">未找到配置数据，请从主页面重新操作</div>';
+  document.body.innerHTML = '<div class="error-center">未找到配置数据，请从主页面重新操作</div>';
 }
 
 // WebSocket 连接
@@ -585,8 +585,8 @@ function initWall() {
       var dev = wallData.devices[i];
       var uuBtnHTML = (dev.online !== false && dev.uuDeviceId) ? '<button class="uu-float-btn" onclick="openUU(\'' + dev.uuDeviceId + '\')">🖱️ UU远程</button>' : '';
       cell.innerHTML =
-        '<div class="img-wrapper"><img id="img_' + dev.id + '" alt="监控画面: ' + dev.name + '" src="" style="display:none;"></div>' +
-        '<div class="wall-zoom-level" id="zoom_' + dev.id + '" style="opacity:0;">100%</div>' +
+        '<div class="img-wrapper"><img id="img_' + dev.id + '" alt="监控画面: ' + dev.name + '" src="" class="wall-img-hidden"></div>' +
+        '<div class="wall-zoom-level" id="zoom_' + dev.id + '">100%</div>' +
         '<div class="wall-timestamp" id="ts_' + dev.id + '">等待画面</div>' +
         '<div class="wall-info" id="info_' + dev.id + '">' +
           '<div class="name">' + dev.name + '</div>' +
