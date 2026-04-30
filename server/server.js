@@ -20,6 +20,19 @@ const { spawn } = require('child_process');
 
 // 服务端版本从 config.json 的 serverVersion 字段读取，无需硬编码
 
+// ========== 静态资源缓存版本（基于内容 hash）==========
+const STATIC_ASSETS = ['style.css'];
+const assetHashes = {};
+try {
+  for (const asset of STATIC_ASSETS) {
+    const assetPath = path.join(__dirname, 'public', asset);
+    if (fs.existsSync(assetPath)) {
+      const content = fs.readFileSync(assetPath);
+      assetHashes[asset] = crypto.createHash('md5').update(content).digest('hex').slice(0, 8);
+    }
+  }
+} catch(e) {}
+
 // ========== 日志模块 ==========
 const LOGS_DIR = path.join(__dirname, 'logs');
 let _logFd = null;
@@ -3937,6 +3950,18 @@ function serveFile(filePath, res, req) {
     };
     const isStaticAsset = ['.css', '.js', '.ico', '.png', '.jpg', '.webp', '.svg'].includes(ext);
     const isHtml = ext === '.html';
+    let content = data;
+
+    // HTML 页面：替换资源引用为 hash 版本
+    if (isHtml) {
+      let html = data.toString('utf8');
+      for (const [asset, hash] of Object.entries(assetHashes)) {
+        // 替换 /style.css?v=xxx 为 /style.css?hash=xxx
+        html = html.replace(new RegExp(`/${asset}\\?[^"']*`, 'g'), `/${asset}?hash=${hash}`);
+      }
+      content = Buffer.from(html, 'utf8');
+    }
+
     const headers = {
       'Content-Type': mimeTypes[ext] || 'application/octet-stream; charset=utf-8',
       'X-Content-Type-Options': 'nosniff',
@@ -3954,11 +3979,11 @@ function serveFile(filePath, res, req) {
       const gzip = zlib.createGzip();
       res.writeHead(200, { ...headers, 'Content-Encoding': 'gzip', 'Vary': 'Accept-Encoding' });
       gzip.pipe(res);
-      gzip.end(data);
+      gzip.end(content);
       return;
     }
     res.writeHead(200, headers);
-    res.end(data);
+    res.end(content);
   });
 }
 
