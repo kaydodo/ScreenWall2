@@ -390,9 +390,12 @@ function enterWallFullscreen(cell, deviceId) {
     if (badge) { badge.textContent = '设备已离线'; badge.style.display = 'block'; }
     // 显示静态图
     var img = document.getElementById('img_' + deviceId);
-    if (img && dev && dev.screenshot) {
-      img.src = dev.screenshot;
-      img.style.display = 'block';
+    if (img) {
+      var screenshot = dev && (dev.screenshot || dev._offlineScreenshot);
+      if (screenshot) {
+        img.src = screenshot;
+        img.style.display = 'block';
+      }
     }
   } else {
     // 在线设备：先 startHQ（720p），再 hq1080On（1080p）
@@ -447,9 +450,10 @@ function restoreWallLayout() {
     }
   }
 
-  // 关闭1080p
-  if (ws && ws.readyState === WebSocket.OPEN) {
+  // 先关闭1080p，再关闭HQ（与服务端逻辑保持一致）
+  if (ws && ws.readyState === WebSocket.OPEN && wallFullscreenDeviceId) {
     ws.send(JSON.stringify({ type: 'hq1080Off', deviceId: wallFullscreenDeviceId }));
+    ws.send(JSON.stringify({ type: 'stopHQ', deviceId: wallFullscreenDeviceId }));
   }
 
   // 清除状态
@@ -493,6 +497,11 @@ var compactLayouts = {
   20: { rows: 4, cols: 5 }   // 5x4
 };
 
+// 格子位置标签（三位数格式：001, 002, ...）
+function getPositionLabel(index) {
+  return String(index + 1).padStart(3, '0');
+}
+
 function initWall() {
   var container = document.getElementById('wallContainer');
   var cfg = compactLayouts[wallData.layout];
@@ -519,7 +528,7 @@ function initWall() {
         '<div class="wall-timestamp" id="ts_' + dev.id + '">等待画面</div>' +
         '<div class="wall-info" id="info_' + dev.id + '">' +
           '<div class="name">' + dev.name + '</div>' +
-          '<div class="detail">' + (dev.groupName || '未分组') + ' / 格' + dev.position + '</div>' +
+          '<div class="detail">' + (dev.groupName || '未分组') + ' / 格' + getPositionLabel(dev.position - 1) + '</div>' +
         '</div>' +
         '<div class="offline-badge">设备已离线</div>' +
         uuBtnHTML;
@@ -575,9 +584,10 @@ function initWall() {
     if (!img) return;
 
     if (dev.online === false) {
-      // 离线设备：显示静态图
-      if (dev.screenshot) {
-        img.src = dev.screenshot;
+      // 离线设备：显示静态图（从devices对象获取，该对象会保存截图）
+      var devObj = devices[dev.id];
+      if (devObj && devObj.screenshot) {
+        img.src = devObj.screenshot;
       }
       img.style.display = 'block';
     } else {
@@ -741,8 +751,11 @@ function handleWallStateUpdate(data) {
       var badge = cell.querySelector('.offline-badge');
       if (badge) { badge.textContent = '设备已离线'; badge.style.display = 'block'; }
       updateUUButtonVisibility(cell, false);
-      // 发送 stopHQ 停止720p推送
+      // 先关闭1080p（如果正在全屏），再关闭HQ
       if (ws && ws.readyState === WebSocket.OPEN) {
+        if (wallFullscreenDeviceId === deviceId) {
+          ws.send(JSON.stringify({ type: 'hq1080Off', deviceId: deviceId }));
+        }
         ws.send(JSON.stringify({ type: 'stopHQ', deviceId: deviceId }));
       }
       // 离线显示静态图

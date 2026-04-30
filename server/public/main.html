@@ -1718,8 +1718,8 @@ function connectWS() {
 // ─────────────────────────────────────────
 // 渲染网格
 // ─────────────────────────────────────────
-// 固定100格子，布局由 CSS 控制
-const TOTAL_CELLS = 100;
+// 固定200格子，布局由 CSS 控制
+const TOTAL_CELLS = 200;
 let renderPending = false;
 
 function updateStarButtons() {
@@ -2816,6 +2816,11 @@ function closePreview() {
   // 关闭键盘弹窗（如果打开着）
   if (previewKeyboardOpen) closePreviewKeyboard();
 
+  // 先关闭1080p，再关闭HQ（与服务端逻辑保持一致）
+  if (previewDeviceId && ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'hq1080Off', deviceId: previewDeviceId }));
+    ws.send(JSON.stringify({ type: 'stopHQ', deviceId: previewDeviceId }));
+  }
   // 取消订阅，由服务端统一协调：仅当没有其他浏览器需要时才关闭1080p和HQ
   if (previewDeviceId && ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'unsubscribePreview', deviceId: previewDeviceId }));
