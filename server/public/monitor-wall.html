@@ -240,58 +240,6 @@ function wallBlobRevokeAll() {
   _wallBlobCache.clear();
 }
 
-// ── 2. rAF 批量渲染队列 ─────────────────────────────────────
-// 收集待渲染帧，下一 rAF 统一处理，避免高频 DOM 更新
-const renderQueue = (function() {
-  const _pending = new Map();  // deviceId -> { md5, url, timestamp }
-  let _rafId = null;
-  let _lastFlush = 0;
-
-  function queue(deviceId, md5, url, timestamp) {
-    _pending.set(deviceId, { md5, url, timestamp });
-    if (!_rafId) {
-      _rafId = requestAnimationFrame(flush);
-    }
-  }
-
-  function flush() {
-    _rafId = null;
-    const now = performance.now();
-    if (_pending.size === 0) return;
-
-    for (const [deviceId, frame] of _pending) {
-      const img = document.getElementById('img_' + deviceId);
-      if (!img) continue;
-
-      // 设置 img 尺寸等于格子（scale 1 时视觉大小 = 格子）
-      // 最多支持 3 倍放大（3x 200% = 600% 实际尺寸，外层 cover 切掉多余部分）
-      img.style.width = '100%';
-      img.style.height = '100%';
-
-      // 直接设置 URL
-      img.src = frame.url;
-
-      // 更新时间戳
-      const ts = document.getElementById('ts_' + deviceId);
-      if (ts) {
-        const d = new Date(frame.timestamp);
-        ts.textContent = formatDate(d);
-      }
-    }
-
-    _pending.clear();
-    _lastFlush = now;
-  }
-
-  function clear() {
-    _pending.clear();
-    if (_rafId) { cancelAnimationFrame(_rafId); _rafId = null; }
-  }
-
-  function getPendingCount() { return _pending.size; }
-
-  return { queue, flush, clear, getPendingCount, getLastFlush: () => _lastFlush };
-})();
 
 // ── 5. 看门狗（增强版）───────────────────────────────────────
 const watchdog = (function() {
