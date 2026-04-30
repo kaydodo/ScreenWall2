@@ -1727,18 +1727,18 @@ wssClient.on('connection', (ws, req) => {
         // 注：移除 667ms 延迟检查，因为客户端时间戳与服务端不同步会导致误判
         // 帧缓存去重（MD5）已经能保证不重复渲染相同内容
 
+        // ── 更新 MJPEG 帧缓冲区（所有截图都更新，低清/高清都需要）────────
+        decodeImageToJpeg(msg.image).then(jpegBuffer => {
+          if (jpegBuffer) {
+            updateDeviceFrame(msg.deviceId, jpegBuffer);
+          }
+        });
+
         if (msg.hq) {
-          
+
           // ===== 高清模式（方案D）：单码流高清 + 直接发原图给格子（无服务器压缩）=====
           dev.hqScreenshot = msg.image; // 存储高清图
           dev.screenshot = msg.image;   // 也存为截图
-
-          // ── 更新 MJPEG 帧缓冲区（异步解码，不阻塞）────────
-          decodeImageToJpeg(msg.image).then(jpegBuffer => {
-            if (jpegBuffer) {
-              updateDeviceFrame(msg.deviceId, jpegBuffer);
-            }
-          });
 
           const now = Date.now();
 
@@ -3191,6 +3191,10 @@ wssBrowser.on('connection', (ws) => {
   ws.on('close', () => {
     browserClients.delete(ws);
     browserViewport.delete(ws); // 清理视口追踪，防止浏览器关闭后残留
+
+    // ── 清理监控墙订阅（防止 close 后残留导致 wallStillNeedsHQ 误判）──
+    wallClients.delete(ws);
+    wallHDChannels.delete(ws);
 
     // ── 清理格子预览独立通道订阅 ──────────────────────
     const previewInfo = previewClients.get(ws);

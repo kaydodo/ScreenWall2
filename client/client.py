@@ -929,7 +929,7 @@ class ScreenCapturer:
             return m["left"], m["top"], m["width"], m["height"]
         return 0, 0, 1920, 1080
 
-    def capture(self, hq=False, lossless=False, hq_limit=720, hq_quality=40, is_static=False):
+    def capture(self, hq=False, lossless=False, hq_limit=720, hq_quality=55, is_static=False):
         # hq_limit: HQ 模式分辨率上限，默认 720p（普通预览），可设为 1080（高清预览）
         # is_static: 是否为静态截图（收藏/报警），静态用 WebP 质量 30，实时流用 JPG
         # 实时流：480x270 用 JPG 质量 30，720P/1080P 用 JPG 质量 40
@@ -1984,7 +1984,7 @@ class ScreenWallClient:
                 hq_limit = 720  # 不影响 hq=False 的情况
             capt = ScreenCapturer(cfg["quality"], cfg["resizeW"], cfg["resizeH"], monitor_index=_current_monitor_index)
             try:
-                img_bytes = capt.capture(hq=hq, hq_limit=hq_limit, hq_quality=40)
+                img_bytes = capt.capture(hq=hq, hq_limit=hq_limit, hq_quality=55)
             finally:
                 capt.close()
 
@@ -2044,7 +2044,7 @@ class ScreenWallClient:
                     elif msg_type == "stopHQ":
                         capt = ScreenCapturer(cfg["quality"], cfg["resizeW"], cfg["resizeH"], monitor_index=_current_monitor_index)
                         try:
-                            img_bytes = capt.capture(hq=True, hq_quality=40, is_static=True)
+                            img_bytes = capt.capture(hq=True, hq_quality=55, is_static=True)
                         finally:
                             capt.close()
                         if img_bytes:
