@@ -3281,16 +3281,6 @@ httpServer.on('upgrade', (req, socket, head) => {
 });
 
 httpServer.on('request', (req, res) => {
-  // 安全头 middleware：拦截所有 writeHead，自动注入安全头
-  const securityHeaders = {
-    'X-Content-Type-Options': 'nosniff',
-    'Content-Security-Policy': "frame-ancestors 'none'",
-  };
-  const _origWriteHead = res.writeHead.bind(res);
-  res.writeHead = function(statusCode, headers) {
-    return Reflect.apply(_origWriteHead, this, [statusCode, headers ? { ...headers, ...securityHeaders } : securityHeaders]);
-  };
-
   // 安全解析 URL，防止 host 头为空或无效导致崩溃
   let pathname = '/';
   let urlObj = null;
@@ -3304,6 +3294,25 @@ httpServer.on('request', (req, res) => {
     // 创建默认 urlObj 避免后续引用错误
     try { urlObj = new URL(req.url, 'http://localhost'); } catch(e2) { urlObj = { searchParams: { get: () => null } }; }
   }
+
+  // 安全头 middleware：拦截所有 writeHead，自动注入安全头
+  // 静态文件（CSS/JS/图片）不需要 CSP，只对 HTML/API 添加
+  const middlewarePath = pathname.replace(/\/$/, '');
+  const staticExts = ['.css', '.js', '.ico', '.png', '.jpg', '.webp', '.svg', '.woff2', '.woff', '.ttf', '.map'];
+  const ext = path.extname(middlewarePath).toLowerCase();
+  const isStaticFile = staticExts.includes(ext);
+  const securityHeaders = {
+    'X-Content-Type-Options': 'nosniff',
+  };
+  // HTML 页面需要 CSP 防止被嵌入 iframe
+  if (!isStaticFile) {
+    securityHeaders['Content-Security-Policy'] = "frame-ancestors 'none'";
+  }
+  const _origWriteHead = res.writeHead.bind(res);
+  res.writeHead = function(statusCode, headers) {
+    return Reflect.apply(_origWriteHead, this, [statusCode, headers ? { ...headers, ...securityHeaders } : securityHeaders]);
+  };
+
   const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
 
   // 拒绝过长的 URL（可能是 base64 数据被错误地当作 URL 请求）
@@ -3919,6 +3928,7 @@ function serveFile(filePath, res, req) {
       '.html': 'text/html; charset=utf-8',
       '.css': 'text/css; charset=utf-8',
       '.js': 'application/javascript; charset=utf-8',
+      '.json': 'application/json; charset=utf-8',
       '.ico': 'image/x-icon',
       '.png': 'image/png',
       '.jpg': 'image/jpeg',
