@@ -3252,13 +3252,7 @@ wssBrowser.on('connection', (ws) => {
 });
 
 // ========== HTTP 服务器 ==========
-// 默认安全响应头（可被路由层覆盖）
-const httpServer = http.createServer({
-  setHeaders(res) {
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('X-Frame-Options', 'DENY');
-  }
-});
+const httpServer = http.createServer();
 
 httpServer.on('upgrade', (req, socket, head) => {
   // 安全解析 URL，防止 host 头为空或无效导致崩溃
@@ -3287,6 +3281,19 @@ httpServer.on('upgrade', (req, socket, head) => {
 });
 
 httpServer.on('request', (req, res) => {
+  // 安全头 middleware：拦截所有 writeHead，自动注入安全头
+  const securityHeaders = {
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+  };
+  const _origWriteHead = res.writeHead.bind(res);
+  res.writeHead = function(statusCode, headers) {
+    if (headers && typeof headers === 'object') {
+      return _origWriteHead(statusCode, { ...headers, ...securityHeaders });
+    }
+    return _origWriteHead(statusCode, securityHeaders);
+  };
+
   // 安全解析 URL，防止 host 头为空或无效导致崩溃
   let pathname = '/';
   let urlObj = null;
