@@ -640,6 +640,18 @@ function initWall() {
   // 启动看门狗
   watchdog.start();
 
+  // 主动启动 MJPEG 流（在线设备）
+  wallData.devices.forEach(function(dev) {
+    if (dev.online === false) return;
+    var img = document.getElementById('img_' + dev.id);
+    if (img) {
+      img.style.width = '100%';
+      img.style.height = '100%';
+      img.src = '/mjpeg/' + dev.id;
+      img.style.display = 'block';
+    }
+  });
+
   // 页面关闭时清理
   window.addEventListener('beforeunload', function() {
     if (ws && ws.readyState === WebSocket.OPEN) {
@@ -709,16 +721,21 @@ function connectWebSocket() {
           frameHealCount.delete(deviceId);
         }
 
-        // ── 使用 MJPEG 流 ───────────────────────────────────
+        // ── MJPEG 流：只在首次或未正确设置时启动 ─────────────────
         var img = document.getElementById('img_' + deviceId);
         if (img) {
-          img.style.width = '100%';
-          img.style.height = '100%';
-          img.src = '/mjpeg/' + deviceId;
-          img.style.display = 'block';
+          var expectedSrc = '/mjpeg/' + deviceId;
+          if (!img.src || !img.src.includes(expectedSrc)) {
+            img.style.width = '100%';
+            img.style.height = '100%';
+            img.src = expectedSrc;
+            img.style.display = 'block';
+          }
           var dev = devices[deviceId];
-          img.style.transform = 'scale(' + dev.crop.scale + ') translate(' + (dev.crop.translateX || 0) + 'px, ' + (dev.crop.translateY || 0) + 'px)';
-          img.style.transformOrigin = 'center center';
+          if (dev) {
+            img.style.transform = 'scale(' + dev.crop.scale + ') translate(' + (dev.crop.translateX || 0) + 'px, ' + (dev.crop.translateY || 0) + 'px)';
+            img.style.transformOrigin = 'center center';
+          }
         }
 
         // ── 更新时间戳 ───────────────────────────────────
@@ -804,6 +821,14 @@ function handleWallStateUpdate(data) {
         cell.appendChild(newBtn);
       } else if (uuBtn) {
         uuBtn.classList.remove('hidden');
+      }
+      // 主动启动 MJPEG 流
+      var img = document.getElementById('img_' + deviceId);
+      if (img) {
+        img.style.width = '100%';
+        img.style.height = '100%';
+        img.src = '/mjpeg/' + deviceId;
+        img.style.display = 'block';
       }
     }
     if (data.deviceName) {
