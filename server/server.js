@@ -3324,6 +3324,8 @@ httpServer.on('request', (req, res) => {
         'Content-Type': 'application/octet-stream',
         'Content-Disposition': `attachment; filename="${exeName}"`,
         'Content-Length': fs.statSync(exePath).size,
+        'X-Content-Type-Options': 'nosniff',
+        'Cache-Control': 'no-cache',
       });
       fs.createReadStream(exePath).pipe(res);
     } else {
@@ -3334,7 +3336,11 @@ httpServer.on('request', (req, res) => {
   }
 
   if (cleanPath.startsWith('/api/')) {
-    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.writeHead(200, {
+      'Content-Type': 'application/json; charset=utf-8',
+      'X-Content-Type-Options': 'nosniff',
+      'Cache-Control': 'no-store',
+    });
 
     if (cleanPath === '/api/login' && req.method === 'POST') {
       let body = '';
@@ -3910,6 +3916,7 @@ function serveFile(filePath, res, req) {
       '.svg': 'image/svg+xml',
     };
     const isStaticAsset = ['.css', '.js', '.ico', '.png', '.jpg', '.webp', '.svg'].includes(ext);
+    const isHtml = ext === '.html';
     const headers = {
       'Content-Type': mimeTypes[ext] || 'application/octet-stream',
       'X-Content-Type-Options': 'nosniff',
@@ -3918,6 +3925,9 @@ function serveFile(filePath, res, req) {
     // 有版本 hash 的静态资源长期缓存（1个月）
     if (isStaticAsset) {
       headers['Cache-Control'] = 'public, max-age=2592000, immutable';
+    } else if (isHtml) {
+      // HTML 页面不缓存，每次验证
+      headers['Cache-Control'] = 'no-cache';
     }
     // 检查客户端是否支持 gzip（报警截图请求可能不传 req）
     const acceptEncoding = (req && req.headers ? (req.headers['accept-encoding'] || '') : '').toLowerCase();
