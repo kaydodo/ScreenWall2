@@ -3288,10 +3288,7 @@ httpServer.on('request', (req, res) => {
   };
   const _origWriteHead = res.writeHead.bind(res);
   res.writeHead = function(statusCode, headers) {
-    if (headers && typeof headers === 'object') {
-      return _origWriteHead(statusCode, { ...headers, ...securityHeaders });
-    }
-    return _origWriteHead(statusCode, securityHeaders);
+    return Reflect.apply(_origWriteHead, this, [statusCode, headers ? { ...headers, ...securityHeaders } : securityHeaders]);
   };
 
   // 安全解析 URL，防止 host 头为空或无效导致崩溃
@@ -3334,7 +3331,7 @@ httpServer.on('request', (req, res) => {
     const exePath = path.join(__dirname, 'public', 'api', 'update', exeName);
     if (fs.existsSync(exePath)) {
       res.writeHead(200, {
-        'Content-Type': 'application/octet-stream',
+        'Content-Type': 'application/octet-stream; charset=utf-8',
         'Content-Disposition': `attachment; filename="${exeName}"`,
         'Content-Length': fs.statSync(exePath).size,
         'X-Content-Type-Options': 'nosniff',
