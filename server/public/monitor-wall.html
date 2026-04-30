@@ -269,7 +269,8 @@ try {
         position: d.position,
         online: d.online !== undefined ? d.online : true,
         crop: d.crop,
-        groupId: null
+        groupId: null,
+        screenshot: d.screenshot || null  // 保存截图用于离线显示
       };
     });
   }
@@ -584,10 +585,9 @@ function initWall() {
     if (!img) return;
 
     if (dev.online === false) {
-      // 离线设备：显示静态图（从devices对象获取，该对象会保存截图）
-      var devObj = devices[dev.id];
-      if (devObj && devObj.screenshot) {
-        img.src = devObj.screenshot;
+      // 离线设备：显示静态图
+      if (dev.screenshot) {
+        img.src = dev.screenshot;
       }
       img.style.display = 'block';
     } else {

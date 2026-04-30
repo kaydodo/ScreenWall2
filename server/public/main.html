@@ -5647,11 +5647,12 @@ function updateMonitorPreview() {
         var isOffline = !device.online;
         var offlineClass = isOffline ? ' offline' : '';
         var offlineBadge = isOffline ? '<div class="monitor-offline-badge">设备已离线</div>' : '';
+        var imgSrc = isOffline ? (device.screenshot || '') : ('/mjpeg/' + deviceId);
         var offlineStyle = isOffline ? 'filter: grayscale(100%);opacity:0.5;' : '';
 
-        if (device.screenshot) {
+        if (imgSrc || !isOffline) {
           cell.innerHTML = '<div class="monitor-preview-img-wrapper' + offlineClass + '" data-device-id="' + deviceId + '">' +
-            '<img alt="监控画面: ' + (device.deviceName || '设备') + '" src="/mjpeg/' + deviceId + '" style="transform: scale(' + crop.scale + ') translate(' + crop.translateX + 'px, ' + crop.translateY + 'px);' + offlineStyle + '">' +
+            '<img alt="监控画面: ' + (device.deviceName || '设备') + '" src="' + imgSrc + '" style="transform: scale(' + crop.scale + ') translate(' + crop.translateX + 'px, ' + crop.translateY + 'px);' + offlineStyle + '">' +
             '<div class="monitor-zoom-level" id="zoomLevel_' + deviceId + '">' + (crop.scale * 100).toFixed(0) + '%</div>' +
             '<div class="monitor-preview-name">' + device.deviceName + (isOffline ? ' (离线)' : '') + '</div>' +
             offlineBadge +
@@ -5660,6 +5661,10 @@ function updateMonitorPreview() {
           // 拖动功能
           var wrapper = cell.querySelector('.monitor-preview-img-wrapper');
           var img = cell.querySelector('img');
+          if (isOffline && img && device.screenshot) {
+            img.src = device.screenshot;
+            img.style.display = 'block';
+          }
           makeMonitorDraggable(wrapper, img, deviceId);
         } else {
           cell.innerHTML = '<div class="monitor-preview-empty">' + (isOffline ? '设备已离线' : '等待画面...') + '</div>';
@@ -5846,6 +5851,18 @@ function openMonitorWall() {
       var crop = monitorWallState.crops[deviceId] || { scale: 1, translateX: 0, translateY: 0 };
       var groupObj = device ? groups.find(function(g) { return g.id === device.groupId; }) : null;
       var groupName = groupObj ? groupObj.name : '未分组';
+      // 获取截图（用于离线显示）
+      var screenshot = '';
+      if (device) {
+        // 优先从设备对象获取，其次从 gridCells 获取
+        screenshot = device.screenshot || '';
+        if (!screenshot) {
+          var cell = gridCells.find(function(c) { return c && c.deviceId === deviceId; });
+          if (cell && cell.screenshot) {
+            screenshot = cell.screenshot;
+          }
+        }
+      }
       return {
         id: deviceId,
         name: device ? device.deviceName : deviceId,
@@ -5853,7 +5870,8 @@ function openMonitorWall() {
         groupName: groupName,
         position: idx + 1,
         crop: crop,
-        online: device ? device.online : false  // 传递在线状态
+        online: device ? device.online : false, // 传递在线状态
+        screenshot: screenshot // 传递截图用于离线显示
       };
     }),
     timestamp: Date.now()
