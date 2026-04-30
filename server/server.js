@@ -1779,6 +1779,23 @@ wssClient.on('connection', (ws, req) => {
           // ===== 标准模式：直接转发原图 =====
           dev.screenshot = msg.image;
           dev.hqScreenshot = null;
+
+          // 低清帧也推送给监控墙（修复黑屏问题）
+          // 用时间戳做简单控制：200ms 内只推一次，避免消息洪水
+          const now = Date.now();
+          if (!dev._lastWallPush || now - dev._lastWallPush > 200) {
+            dev._lastWallPush = now;
+            for (const [wallWs, subscription] of wallClients) {
+              if (subscription.devices.has(msg.deviceId) && wallWs.readyState === 1) {
+                wallWs.send(JSON.stringify({
+                  type: 'wallScreenshot',
+                  deviceId: msg.deviceId,
+                  screenshot: msg.image,
+                  timestamp: now
+                }));
+              }
+            }
+          }
         }
       }
     }
