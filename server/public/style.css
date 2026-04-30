@@ -1762,8 +1762,8 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
     color: var(--text-muted);
     font-size: 18px;
     font-family: sans-serif;
-    user-select: none;
     -webkit-user-select: none;
+    user-select: none;
     z-index: 500 !important;
   }
 
@@ -3559,8 +3559,8 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
   justify-content: center;
   cursor: pointer;
   font-size: 12px;
-  user-select: none;
   -webkit-user-select: none;
+  user-select: none;
 }
 
 .keyboard-key:hover {

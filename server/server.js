@@ -3284,7 +3284,7 @@ httpServer.on('request', (req, res) => {
   // 安全头 middleware：拦截所有 writeHead，自动注入安全头
   const securityHeaders = {
     'X-Content-Type-Options': 'nosniff',
-    'X-Frame-Options': 'DENY',
+    'Content-Security-Policy': "frame-ancestors 'none'",
   };
   const _origWriteHead = res.writeHead.bind(res);
   res.writeHead = function(statusCode, headers) {
@@ -3349,7 +3349,7 @@ httpServer.on('request', (req, res) => {
     res.writeHead(200, {
       'Content-Type': 'application/json; charset=utf-8',
       'X-Content-Type-Options': 'nosniff',
-      'Cache-Control': 'no-store',
+      'Cache-Control': 'no-cache',
     });
 
     if (cleanPath === '/api/login' && req.method === 'POST') {
@@ -3475,7 +3475,7 @@ httpServer.on('request', (req, res) => {
     if (devDeleteMatch && req.method === 'DELETE') {
       const deviceIdToDelete = devDeleteMatch[1];
       if (!devices.has(deviceIdToDelete)) {
-        res.writeHead(404);
+        res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8' });
         res.end(JSON.stringify({ ok: false, msg: '设备不存在' }));
         return;
       }
@@ -3522,7 +3522,7 @@ httpServer.on('request', (req, res) => {
       const deviceId = uuDeviceMatch[1];
       const dev = devices.get(deviceId);
       if (!dev) {
-        res.writeHead(404);
+        res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8' });
         res.end(JSON.stringify({ ok: false, msg: '设备不存在' }));
         return;
       }
@@ -3545,7 +3545,7 @@ httpServer.on('request', (req, res) => {
         const data = JSON.parse(body || '{}');
         const { deviceId, deviceName, groupId, cellIndex } = data;
         if (!deviceId) {
-          res.writeHead(400);
+          res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
           res.end(JSON.stringify({ ok: false, msg: '缺少 deviceId' }));
           return;
         }
@@ -3746,7 +3746,7 @@ httpServer.on('request', (req, res) => {
     if (cleanPath === '/api/mijia/status' && req.method === 'GET') {
       callMijiaBridge(['status'], (err, result) => {
         if (err) {
-          res.writeHead(500);
+          res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
           res.end(JSON.stringify({ success: false, error: err.message }));
         } else {
           res.end(JSON.stringify(result));
@@ -3761,7 +3761,7 @@ httpServer.on('request', (req, res) => {
       callMijiaBridge(['login'], (err, result) => {
         if (err) {
           serverError('[米家] 登录失败:', err.message);
-          res.writeHead(500);
+          res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
           res.end(JSON.stringify({ success: false, error: err.message }));
         } else {
           serverLog('[米家] 登录成功');
@@ -3775,7 +3775,7 @@ httpServer.on('request', (req, res) => {
     if (cleanPath === '/api/mijia/homes' && req.method === 'GET') {
       callMijiaBridge(['homes'], (err, result) => {
         if (err) {
-          res.writeHead(500);
+          res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
           res.end(JSON.stringify({ success: false, error: err.message }));
         } else {
           res.end(JSON.stringify(result));
@@ -3790,7 +3790,7 @@ httpServer.on('request', (req, res) => {
       const args = homeId ? ['devices', homeId] : ['devices'];
       callMijiaBridge(args, (err, result) => {
         if (err) {
-          res.writeHead(500);
+          res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
           res.end(JSON.stringify({ success: false, error: err.message }));
         } else {
           res.end(JSON.stringify(result));
@@ -3799,13 +3799,14 @@ httpServer.on('request', (req, res) => {
       return;
     }
 
-    // GET /api/mijia/scenes?home_id=xxx - 获取场景列表
+    // GET /api/mijia/scenes
+    if (cleanPath === '/api/mijia/scenes') {?home_id=xxx - 获取场景列表
     if (cleanPath === '/api/mijia/scenes' && req.method === 'GET') {
       const homeId = urlObj.searchParams.get('home_id');
       const args = homeId ? ['scenes', homeId] : ['scenes'];
       callMijiaBridge(args, (err, result) => {
         if (err) {
-          res.writeHead(500);
+          res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
           res.end(JSON.stringify({ success: false, error: err.message }));
         } else {
           res.end(JSON.stringify(result));
@@ -3822,7 +3823,7 @@ httpServer.on('request', (req, res) => {
         try {
           const { scene_id, home_id } = JSON.parse(body);
           if (!scene_id || !home_id) {
-            res.writeHead(400);
+            res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
             res.end(JSON.stringify({ success: false, error: '缺少 scene_id 或 home_id' }));
             return;
           }
@@ -3830,7 +3831,7 @@ httpServer.on('request', (req, res) => {
           callMijiaBridge(['run_scene', scene_id, home_id], (err, result) => {
             if (err) {
               serverError('[米家] 执行场景失败:', err.message);
-              res.writeHead(500);
+              res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
               res.end(JSON.stringify({ success: false, error: err.message }));
             } else {
               serverLog('[米家] 执行场景成功');
@@ -3838,7 +3839,7 @@ httpServer.on('request', (req, res) => {
             }
           });
         } catch (e) {
-          res.writeHead(400);
+          res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
           res.end(JSON.stringify({ success: false, error: '请求格式错误' }));
         }
       });
@@ -3853,27 +3854,27 @@ httpServer.on('request', (req, res) => {
         try {
           const { did, siid, piid, value } = JSON.parse(body);
           if (!did || siid === undefined || piid === undefined || value === undefined) {
-            res.writeHead(400);
+            res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
             res.end(JSON.stringify({ success: false, error: '缺少参数' }));
             return;
           }
           callMijiaBridge(['set_prop', did, String(siid), String(piid), String(value)], (err, result) => {
             if (err) {
-              res.writeHead(500);
+              res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
               res.end(JSON.stringify({ success: false, error: err.message }));
             } else {
               res.end(JSON.stringify(result));
             }
           });
         } catch (e) {
-          res.writeHead(400);
+          res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
           res.end(JSON.stringify({ success: false, error: '请求格式错误' }));
         }
       });
       return;
     }
 
-    res.writeHead(404);
+    res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify({ error: 'not found' }));
     return;
   }
@@ -3883,7 +3884,7 @@ httpServer.on('request', (req, res) => {
     const fileName = cleanPath.slice('/alarm-screenshots/'.length);
     // 安全检查：只允许文件名，不允许路径遍历
     if (!fileName || fileName.includes('..') || fileName.includes('/') || fileName.includes('\\')) {
-      res.writeHead(400);
+      res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' });
       res.end('Invalid filename');
       return;
     }
@@ -3909,7 +3910,7 @@ function serveFile(filePath, res, req) {
         res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
         res.end('404 Not Found');
       } else {
-        res.writeHead(500);
+        res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
         res.end('Server Error');
       }
       return;
@@ -3928,9 +3929,8 @@ function serveFile(filePath, res, req) {
     const isStaticAsset = ['.css', '.js', '.ico', '.png', '.jpg', '.webp', '.svg'].includes(ext);
     const isHtml = ext === '.html';
     const headers = {
-      'Content-Type': mimeTypes[ext] || 'application/octet-stream',
+      'Content-Type': mimeTypes[ext] || 'application/octet-stream; charset=utf-8',
       'X-Content-Type-Options': 'nosniff',
-      'X-Frame-Options': 'DENY',
     };
     // 有版本 hash 的静态资源长期缓存（1个月）
     if (isStaticAsset) {
