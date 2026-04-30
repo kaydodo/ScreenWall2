@@ -2367,7 +2367,7 @@ function renderCollectionDialog() {
     
     for (const item of sortedItems) {
       const statusText = item.deleted ? '已删除' : (item.online ? '在线' : '离线');
-      const cellLabel = item.cellIndex >= 0 ? ` 格:${String(item.cellIndex + 1).padStart(2,'0')}` : '';
+      const cellLabel = item.cellIndex >= 0 ? ` 格:${getPositionLabel(item.cellIndex)}` : '';
       const groupLabel = item.groupName ? `(${item.groupName})` : '';
       const displayName = item.deviceName + groupLabel + cellLabel;
       // "已删除"标记仅在设备被真正删除时显示（不在格子上但设备仍存在的不再标记已删除）
@@ -4458,18 +4458,18 @@ function getGroupCellInfo(groupId) {
     if (gridCells[i] && gridCells[i].deviceId) {
       var dev = devices.find(function(d) { return d.deviceId === gridCells[i].deviceId; });
       if (dev && dev.groupId === groupId) {
-        cells.push(i + 1);
+        cells.push(getPositionLabel(i));
       }
     }
   }
-  return cells.length > 0 ? '格' + cells.join(',') : '';
+  return cells.length > 0 ? '格' + cells.join(', ') : '';
 }
 
 function getDeviceCellInfo(deviceId) {
   if (typeof gridCells === 'undefined') return '';
   for (var i = 0; i < gridCells.length; i++) {
     if (gridCells[i] && gridCells[i].deviceId === deviceId) {
-      return '格' + (i + 1);
+      return '格' + getPositionLabel(i);
     }
   }
   return '';
@@ -5059,7 +5059,7 @@ function renderAlarmPanel(scrollToBottom) {
       cellIdx = gridCells.findIndex(function(c) { return c && c.deviceId === rec.deviceId; });
     }
     if (cellIdx >= 0) {
-      cellStr = ' 格:' + String(cellIdx + 1).padStart(2, '0');
+      cellStr = ' 格:' + getPositionLabel(cellIdx);
     }
     var dev = devices.find(function(d) { return d.deviceId === rec.deviceId; });
     if (dev && dev.groupId) {
@@ -5490,7 +5490,7 @@ function refreshMonitorDeviceList() {
     // 查找设备所在的格子
     for (var idx = 0; idx < gridCells.length; idx++) {
       if (gridCells[idx] && gridCells[idx].deviceId === d.deviceId) {
-        cellInfo = '格' + (idx + 1);
+        cellInfo = '格' + getPositionLabel(idx);
         break;
       }
     }
