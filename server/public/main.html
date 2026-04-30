@@ -327,7 +327,7 @@
   </div>
   <div class="preview-area" id="previewArea">
     <div class="preview-img-wrapper" id="previewImgWrapper">
-      <video id="previewImg" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="实时预览" style="border-radius:0;box-shadow:none;border:none;" muted playsinline></video>
+      <img id="previewImg" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="实时预览" style="border-radius:0;box-shadow:none;border:none;" />
     </div>
   </div>
   <!-- 移动端点击关闭提示 -->
@@ -1589,7 +1589,7 @@ function connectWS() {
         watermark.style.display = 'none';
         previewImg.style.filter = '';
       }
-      // 使用 MJPEG 流代替 blob URL
+      // 使用 MJPEG 流
       previewImg.src = `/mjpeg/${previewDeviceId}`;
       previewImg.style.display = 'block';
     }
@@ -1965,7 +1965,7 @@ function createCellElement(index) {
         <span class="no-sig-icon">📺</span>
         <span class="no-sig-text">等待接入</span>
       </div>
-      <video class="cell-img" id="img_${index}" alt="设备画面" style="display:none" muted playsinline></video>
+      <img class="cell-img" id="img_${index}" alt="设备画面" style="display:none" />
       <button class="cell-star-btn" id="star_${index}" title="收藏截图">★</button>
       <button class="cell-task-btn" id="taskBtn_${index}" title="发布任务" onclick="openTaskDialog(${index}, event)">
         <span style="font-size:12px;position:relative;top:1px;" id="taskBtnInner_${index}">📋<span class="task-badge" id="taskBadge_${index}" style="display:none;"></span></span>
@@ -5704,7 +5704,7 @@ function updateMonitorPreview() {
         
         if (device.screenshot) {
           cell.innerHTML = '<div class="monitor-preview-img-wrapper' + offlineClass + '" data-device-id="' + deviceId + '">' +
-            '<video alt="监控画面: ' + (device.deviceName || '设备') + '" src="/mjpeg/' + deviceId + '" style="transform: scale(' + crop.scale + ') translate(' + crop.translateX + 'px, ' + crop.translateY + 'px);' + offlineStyle + '" muted playsinline></video>' +
+            '<img alt="监控画面: ' + (device.deviceName || '设备') + '" src="/mjpeg/' + deviceId + '" style="transform: scale(' + crop.scale + ') translate(' + crop.translateX + 'px, ' + crop.translateY + 'px);' + offlineStyle + '">' +
             '<div class="monitor-zoom-level" id="zoomLevel_' + deviceId + '">' + (crop.scale * 100).toFixed(0) + '%</div>' +
             '<div class="monitor-preview-name">' + device.deviceName + (isOffline ? ' (离线)' : '') + '</div>' +
             offlineBadge +
@@ -5712,8 +5712,8 @@ function updateMonitorPreview() {
           
           // 拖动功能
           var wrapper = cell.querySelector('.monitor-preview-img-wrapper');
-          var video = cell.querySelector('video');
-          makeMonitorDraggable(wrapper, video, deviceId);
+          var img = cell.querySelector('img');
+          makeMonitorDraggable(wrapper, img, deviceId);
         } else {
           cell.innerHTML = '<div class="monitor-preview-empty">' + (isOffline ? '设备已离线' : '等待画面...') + '</div>';
         }
