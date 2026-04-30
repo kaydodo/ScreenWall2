@@ -1231,14 +1231,19 @@ function connectWS() {
           if (status === 'deleted') {
             const cellIndex = typeof gridCells !== 'undefined' ? gridCells.findIndex(c => c && c.deviceId === deviceId) : -1;
           }
-          // 只显示水印，不变灰
+          // 离线或删除：显示水印+离线图
           if (watermark) {
             watermark.textContent = status === 'deleted' ? '设备已删除' : '设备已离线';
             watermark.style.display = 'block';
           }
+          // 设置离线图
+          const dev = devices.find(d => d.deviceId === deviceId);
+          const offlineFrame = dev && (dev._offlineScreenshot || dev.screenshot);
+          if (offlineFrame) {
+            previewImg.src = offlineFrame;
+          }
           // 更新标题（优先使用广播中的设备名，其次从devices获取）
           if (previewNameEl) {
-            const dev = devices.find(d => d.deviceId === deviceId);
             const name = msg.deviceName || (dev && dev.deviceName) || '未知';
             const mon = dev && dev.monitorCount > 1 ? ' 🖥️' + (dev.monitorIndex || 1) : '';
             previewNameEl.textContent = name + ' - 实时预览' + mon;
