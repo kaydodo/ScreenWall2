@@ -3799,8 +3799,7 @@ httpServer.on('request', (req, res) => {
       return;
     }
 
-    // GET /api/mijia/scenes
-    if (cleanPath === '/api/mijia/scenes') {?home_id=xxx - 获取场景列表
+    // GET /api/mijia/scenes?home_id=xxx - 获取场景列表
     if (cleanPath === '/api/mijia/scenes' && req.method === 'GET') {
       const homeId = urlObj.searchParams.get('home_id');
       const args = homeId ? ['scenes', homeId] : ['scenes'];
