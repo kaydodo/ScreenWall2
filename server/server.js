@@ -2970,7 +2970,6 @@ wssBrowser.on('connection', (ws) => {
           if (!wallStillNeedsHQ) {
             hdRequests.delete(msg.deviceId);
             wallDevices.delete(msg.deviceId);
-            checkCompressEnd(msg.deviceId);
             for (const client of wssClient.clients) {
               if (client._deviceId === msg.deviceId) {
                 client.send(JSON.stringify({ type: 'stopHQ' }));
@@ -3134,7 +3133,6 @@ wssBrowser.on('connection', (ws) => {
               if (!wallStillNeedsHQ) {
                 hdRequests.delete(deviceId);
                 wallDevices.delete(deviceId);
-                checkCompressEnd(deviceId);
                 for (const client of wssClient.clients) {
                   if (client._deviceId === deviceId) {
                     client.send(JSON.stringify({ type: 'stopHQ' }));
@@ -3246,7 +3244,6 @@ wssBrowser.on('connection', (ws) => {
             if (!wallStillNeedsHQ) {
               hdRequests.delete(deviceId);
               wallDevices.delete(deviceId);
-              checkCompressEnd(deviceId);
               for (const client of wssClient.clients) {
                 if (client._deviceId === deviceId) {
                   client.send(JSON.stringify({ type: 'stopHQ' }));
@@ -3274,7 +3271,6 @@ wssBrowser.on('connection', (ws) => {
             globalHQ.delete(deviceId);
             hdRequests.delete(deviceId);
             wallDevices.delete(deviceId);
-            checkCompressEnd(deviceId);
             for (const client of wssClient.clients) {
               if (client._deviceId === deviceId) {
                 client.send(JSON.stringify({ type: 'stopHQ' }));
