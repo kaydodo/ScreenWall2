@@ -240,7 +240,60 @@ function wallBlobRevokeAll() {
   _wallBlobCache.clear();
 }
 
-// ═══════════════════════════════════════════════════════════════
+// ── 2. rAF 批量渲染队列 ─────────────────────────────────────
+// 收集待渲染帧，下一 rAF 统一处理，避免高频 DOM 更新
+const renderQueue = (function() {
+  const _pending = new Map();  // deviceId -> { md5, url, timestamp }
+  let _rafId = null;
+  let _lastFlush = 0;
+
+  function queue(deviceId, md5, url, timestamp) {
+    _pending.set(deviceId, { md5, url, timestamp });
+    if (!_rafId) {
+      _rafId = requestAnimationFrame(flush);
+    }
+  }
+
+  function flush() {
+    _rafId = null;
+    const now = performance.now();
+    if (_pending.size === 0) return;
+
+    for (const [deviceId, frame] of _pending) {
+      const img = document.getElementById('img_' + deviceId);
+      if (!img) continue;
+
+      // 设置 img 尺寸等于格子（scale 1 时视觉大小 = 格子）
+      // 最多支持 3 倍放大（3x 200% = 600% 实际尺寸，外层 cover 切掉多余部分）
+      img.style.width = '100%';
+      img.style.height = '100%';
+
+      // 直接设置 URL
+      img.src = frame.url;
+
+      // 更新时间戳
+      const ts = document.getElementById('ts_' + deviceId);
+      if (ts) {
+        const d = new Date(frame.timestamp);
+        ts.textContent = formatDate(d);
+      }
+    }
+
+    _pending.clear();
+    _lastFlush = now;
+  }
+
+  function clear() {
+    _pending.clear();
+    if (_rafId) { cancelAnimationFrame(_rafId); _rafId = null; }
+  }
+
+  function getPendingCount() { return _pending.size; }
+
+  return { queue, flush, clear, getPendingCount, getLastFlush: () => _lastFlush };
+})();
+
+// ── 5. 看门狗（增强版）───────────────────────────────────────
 const watchdog = (function() {
   let _interval = null;
   let _lastUpdate = {};
@@ -278,8 +331,6 @@ const watchdog = (function() {
   return { start, touch, stop };
 })();
 
-
-
 // ═══════════════════════════════════════════════════════════════
 // 主程序
 // ═══════════════════════════════════════════════════════════════
@@ -287,8 +338,6 @@ const watchdog = (function() {
 // 获取配置数据
 var wallData = null;
 var devices = {}; // deviceId -> { id, name, groupName, position, online, crop, groupId }
-var wallLastFrameTime = {}; // deviceId -> 最后收到 wallScreenshot 的时间戳
-var wallRetryTimer = null; // 重试定时器
 var groups = [];  // 分组列表
 try {
   var stored = sessionStorage.getItem('monitorWallData');
@@ -536,7 +585,7 @@ function initWall() {
       var dev = wallData.devices[i];
       var uuBtnHTML = (dev.online !== false && dev.uuDeviceId) ? '<button class="uu-float-btn" onclick="openUU(\'' + dev.uuDeviceId + '\')">🖱️ UU远程</button>' : '';
       cell.innerHTML =
-        '<div class="img-wrapper"><img id="img_' + dev.id + '" alt="监控画面: ' + dev.name + '" src="" class="wall-img-hidden" onerror="this.dataset.errored='true'"></div>' +
+        '<div class="img-wrapper"><img id="img_' + dev.id + '" alt="监控画面: ' + dev.name + '" src="" class="wall-img-hidden"></div>' +
         '<div class="wall-zoom-level" id="zoom_' + dev.id + '">100%</div>' +
         '<div class="wall-timestamp" id="ts_' + dev.id + '">等待画面</div>' +
         '<div class="wall-info" id="info_' + dev.id + '">' +
@@ -591,6 +640,18 @@ function initWall() {
   // 启动看门狗
   watchdog.start();
 
+  // 主动启动 MJPEG 流（在线设备）
+  wallData.devices.forEach(function(dev) {
+    if (dev.online === false) return;
+    var img = document.getElementById('img_' + dev.id);
+    if (img) {
+      img.style.width = '100%';
+      img.style.height = '100%';
+      img.src = '/mjpeg/' + dev.id;
+      img.style.display = 'block';
+    }
+  });
+
   // 页面关闭时清理
   window.addEventListener('beforeunload', function() {
     if (ws && ws.readyState === WebSocket.OPEN) {
@@ -621,7 +682,6 @@ function connectWebSocket() {
       devices: wallData.devices.map(function(d) { return d.id; }),
       interval: 333
     }));
-    // 不再需要启动 MJPEG 流，wallScreenshot 消息会直接更新图片
   };
 
   ws.onclose = function() {
@@ -644,15 +704,6 @@ function connectWebSocket() {
         var screenshot = data.screenshot;
         var timestamp = data.timestamp || Date.now();
 
-        // 记录最后收到帧的时间（用于重试机制）
-        wallLastFrameTime[deviceId] = Date.now();
-
-        // 保存当前帧（用于离线帧缓存）
-        var dev = devices[deviceId];
-        if (dev) {
-          dev.lastFrame = screenshot;
-        }
-
         // 自愈：累加帧计数，只有连续收到多帧才恢复在线状态
         var cell = findCellByDeviceId(deviceId);
         if (cell && cell.classList.contains('offline')) {
@@ -674,10 +725,7 @@ function connectWebSocket() {
         var img = document.getElementById('img_' + deviceId);
         if (img) {
           var expectedSrc = '/mjpeg/' + deviceId;
-          var needsStart = (!img.src || !img.src.includes(expectedSrc));
-          // 流出错了，重试
-          if (img.dataset.errored === 'true') { img.dataset.errored = 'false'; needsStart = true; }
-          if (needsStart) {
+          if (!img.src || !img.src.includes(expectedSrc)) {
             img.style.width = '100%';
             img.style.height = '100%';
             img.src = expectedSrc;
@@ -707,26 +755,7 @@ function connectWebSocket() {
       }
 
       if (data.type === 'walledDevices') {
-        // 启动重试机制：3秒后检查是否收到截图，没收到就重新申请高清
-        if (wallRetryTimer) clearTimeout(wallRetryTimer);
-        var subscribedDevices = data.devices || [];
-        wallRetryTimer = setTimeout(function() {
-          var now = Date.now();
-          var needRetry = [];
-          subscribedDevices.forEach(function(deviceId) {
-            if (!wallLastFrameTime[deviceId] || (now - wallLastFrameTime[deviceId]) > 3000) {
-              needRetry.push(deviceId);
-            }
-          });
-          if (needRetry.length > 0) {
-            // console.log('[Wall] 重试申请高清:', needRetry);
-            ws.send(JSON.stringify({
-              type: 'subscribeWall',
-              devices: needRetry,
-              interval: 333
-            }));
-          }
-        }, 3000);
+        // console.log('[Wall] Subscribed devices:', data.devices);
       }
     } catch(err) {
       // console.error('Parse error:', err);
@@ -768,23 +797,6 @@ function handleWallStateUpdate(data) {
       if (badge) { badge.textContent = '设备已离线'; badge.style.display = 'block'; }
       updateUUButtonVisibility(cell, false);
     }
-    // 保存离线帧（离线瞬间的最后一帧）
-    var dev = devices[deviceId];
-    if (dev && dev.lastFrame) {
-      dev._offlineScreenshot = dev.lastFrame;
-    }
-    // 停止 MJPEG 流，显示离线帧
-    var img = document.getElementById('img_' + deviceId);
-    if (img) {
-      img.src = ''; // 停止 MJPEG 流
-      if (dev && dev._offlineScreenshot) {
-        var blobUrl = wallBlobSet(deviceId, dev._offlineScreenshot);
-        if (blobUrl) {
-          img.src = blobUrl;
-          img.style.display = 'block';
-        }
-      }
-    }
     // 注意：不清空 _wallBlobCache，保留最后一张截图
     // 新帧到达时会自动更新，revoke 会导致离线期间白屏
   }
@@ -810,16 +822,18 @@ function handleWallStateUpdate(data) {
       } else if (uuBtn) {
         uuBtn.classList.remove('hidden');
       }
+      // 主动启动 MJPEG 流
+      var img = document.getElementById('img_' + deviceId);
+      if (img) {
+        img.style.width = '100%';
+        img.style.height = '100%';
+        img.src = '/mjpeg/' + deviceId;
+        img.style.display = 'block';
+      }
     }
-    // 清除离线帧缓存，上线后使用实时流
-    var devOnline = devices[deviceId];
-    if (devOnline) {
-      devOnline._offlineScreenshot = null;
-    }
-    // 上线后 wallScreenshot 消息会自动更新图片，无需额外操作
     if (data.deviceName) {
-      var devName = devices[deviceId];
-      if (devName) devName.name = data.deviceName;
+      var dev = devices[deviceId];
+      if (dev) dev.name = data.deviceName;
       updateDeviceInfo(deviceId, data.deviceName, null);
     }
   }
