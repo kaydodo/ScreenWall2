@@ -583,7 +583,7 @@ function initWall() {
       var dev = wallData.devices[i];
       var uuBtnHTML = (dev.online !== false && dev.uuDeviceId) ? '<button class="uu-float-btn" onclick="openUU(\'' + dev.uuDeviceId + '\')">🖱️ UU远程</button>' : '';
       cell.innerHTML =
-        '<div class="img-wrapper"><img id="img_' + dev.id + '" src="" style="display:none;"></div>' +
+        '<div class="img-wrapper"><img id="img_' + dev.id + '" alt="监控画面: ' + dev.name + '" src="" style="display:none;"></div>' +
         '<div class="wall-zoom-level" id="zoom_' + dev.id + '" style="opacity:0;">100%</div>' +
         '<div class="wall-timestamp" id="ts_' + dev.id + '">等待画面</div>' +
         '<div class="wall-info" id="info_' + dev.id + '">' +
