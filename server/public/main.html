@@ -736,82 +736,14 @@ function renderPendingFrames() {
 // ─────────────────────────────────────────
 // Base64 转 Blob URL（避免 431 错误）
 // ─────────────────────────────────────────
-const blobUrlCache = new Map(); // cellIndex -> blobUrl
-const previewBlobUrlCache = { url: null };
 
-function base64ToBlobUrl(base64) {
-  if (!base64) return null;
-  const t0 = performance.now();
-  try {
-    // 提取 MIME 类型和数据
-    const match = base64.match(/^data:([^;]+);base64,(.+)$/);
-    if (!match) return null;
 
-    const mimeType = match[1];
-    const base64Data = match[2];
-
-    // 解码 base64
-    const t1 = performance.now();
-    const binaryString = atob(base64Data);
-    const t2 = performance.now();
-    const bytes = Uint8Array.from(binaryString, c => c.charCodeAt(0));
-    const t3 = performance.now();
-
-    // 创建 Blob
-    const blob = new Blob([bytes], { type: mimeType });
-    const t4 = performance.now();
-    const url = URL.createObjectURL(blob);
-    const t5 = performance.now();
-
-    // if (t5 - t0 > 50) {
-    //   console.log(`[BLOB] 解码耗时: atob=${(t2-t1).toFixed(1)}ms uint8=${(t3-t2).toFixed(1)}ms blob=${(t4-t3).toFixed(1)}ms createURL=${(t5-t4).toFixed(1)}ms 总=${(t5-t0).toFixed(1)}ms`);
-    // }
-    return url;
-  } catch (e) {
-//     console.warn('[ScreenWall] base64ToBlobUrl 失败:', e.message);
-    return null;
-  }
-}
-
-function revokeBlobUrl(cellIndex) {
-  const old = blobUrlCache.get(cellIndex);
-  blobUrlCache.delete(cellIndex);
-  if (old) URL.revokeObjectURL(old);
-}
 
 // 追踪所有待撤销的预览 blob URL（key -> timeoutId），新帧到达时立即撤销旧 blob
-const _pendingPreviewRevokes = new Map();
 
 // 获取预览 blob URL
-function getPreviewBlobUrl(base64Data) {
-  if (!base64Data) return null;
-  const url = base64ToBlobUrl(base64Data);
-  if (url) {
-    // 新帧到达时，立即撤销上一个 blob（不再等 500ms）
-    if (previewBlobUrlCache.url) {
-      // 如果上一个已登记待撤销，先取消它，再立即 revoke
-      if (_pendingPreviewRevokes.has(previewBlobUrlCache.url)) {
-        clearTimeout(_pendingPreviewRevokes.get(previewBlobUrlCache.url));
-        _pendingPreviewRevokes.delete(previewBlobUrlCache.url);
-      }
-      URL.revokeObjectURL(previewBlobUrlCache.url);
-    }
-    previewBlobUrlCache.url = url;
-  }
-  return url;
-}
 
 // 关闭预览时撤销
-function revokePreviewBlobUrl() {
-  if (previewBlobUrlCache.url) {
-    if (_pendingPreviewRevokes.has(previewBlobUrlCache.url)) {
-      clearTimeout(_pendingPreviewRevokes.get(previewBlobUrlCache.url));
-      _pendingPreviewRevokes.delete(previewBlobUrlCache.url);
-    }
-    URL.revokeObjectURL(previewBlobUrlCache.url);
-    previewBlobUrlCache.url = null;
-  }
-}
 
 // ─────────────────────────────────────────
 // 全局状态
@@ -957,7 +889,6 @@ function setCell(cellIndex, deviceId) {
   // 如果设备已在其他格子，先移除（1对1限制）
   for (let i = 0; i < gridCells.length; i++) {
     if (gridCells[i] && gridCells[i].deviceId === deviceId && i !== cellIndex) {
-      revokeBlobUrl(i);  // 清理旧 blob URL
       gridCells[i] = { index: i, deviceId: null, deviceName: null, uuDeviceId: null, online: false, screenshot: null, frameCount: 0 };
       updateCellElement(i);
     }
@@ -1183,7 +1114,6 @@ function connectWS() {
           else {
             // 设备已从服务端删除
             c.online = false;
-            revokeBlobUrl(c.index);
           }
         }
       });
@@ -1300,8 +1230,6 @@ function connectWS() {
           // 清理 blob 缓存
           if (status === 'deleted') {
             const cellIndex = typeof gridCells !== 'undefined' ? gridCells.findIndex(c => c && c.deviceId === deviceId) : -1;
-            if (cellIndex !== -1) revokeBlobUrl(cellIndex);
-            revokePreviewBlobUrl();
           }
           // 只显示水印，不变灰
           if (watermark) {
@@ -1884,8 +1812,6 @@ function renderGrid() {
     const cellData = gridCells[removeIndex];
     if (cellData && cellData.deviceId) {
       // 清理 blob URL 缓存
-      const oldUrl = blobUrlCache.get(removeIndex);
-      blobUrlCache.delete(removeIndex);
       if (oldUrl) {
         setTimeout(() => URL.revokeObjectURL(oldUrl), 500);
       }
@@ -2121,17 +2047,12 @@ function updateCellElement(index) {
       // 使用离线瞬间保存的帧（_offlineScreenshot），fallback 到当前截图
       const offlineFrame = cell._offlineScreenshot || cell.screenshot;
       if (offlineFrame) {
-        // 有截图：显示灰度截图+离线标签（使用 Blob URL 避免 431）
-        revokeBlobUrl(index);  // 先清理旧的 blob URL
-        const blobUrl = base64ToBlobUrl(offlineFrame);
-        if (blobUrl) {
-          blobUrlCache.set(index, blobUrl);
-          img.src = blobUrl;
-          img.style.display = 'block';
-          img.classList.add('grayscale');
-          ns.style.display = 'none';
-          offlineLabel.style.display = 'flex';
-        }
+        // 有截图：直接显示灰度截图+离线标签
+        img.src = offlineFrame;
+        img.style.display = 'block';
+        img.classList.add('grayscale');
+        ns.style.display = 'none';
+        offlineLabel.style.display = 'flex';
       } else {
         // 无截图：显示灰色背景（ns_ div）+离线标签覆盖在上面
         img.style.display = 'none';
@@ -2702,7 +2623,6 @@ function assignCell(cellIndex, deviceId) {
   // 1对1限制：如果设备已在其他格子，先移除
   for (let i = 0; i < gridCells.length; i++) {
     if (gridCells[i] && gridCells[i].deviceId === deviceId && i !== cellIndex) {
-      revokeBlobUrl(i);  // 清理旧 blob URL
       gridCells[i] = { index: i, deviceId: null, deviceName: null, uuDeviceId: null, online: false, screenshot: null };
       updateCellElement(i);  // 清除旧格子的颜色
     }
@@ -2711,7 +2631,6 @@ function assignCell(cellIndex, deviceId) {
   // 记住当前格子的旧设备（清除其颜色）
   const oldDeviceId = gridCells[cellIndex] && gridCells[cellIndex].deviceId;
   if (oldDeviceId && oldDeviceId !== deviceId) {
-    revokeBlobUrl(cellIndex);  // 清理旧 blob URL
   }
 
   // 通知服务器（服务器会广播给所有浏览器）
@@ -2891,7 +2810,6 @@ function closePreview() {
   previewDeviceId = null;
   alarmPreviewDeviceId = null;  // 清除报警预览绑定的设备ID
   previewActive = false;  // 恢复格子渲染
-  revokePreviewBlobUrl();  // 关闭时撤销预览 blob URL
 
   document.getElementById('previewOverlay').classList.remove('active');
   // 隐藏浮动关闭按钮
@@ -4140,7 +4058,6 @@ document.getElementById('btnClear').onclick = () => {
   // 乐观更新：立即清空本地UI
   for (let i = 0; i < gridCells.length; i++) {
     if (gridCells[i] && gridCells[i].deviceId) {
-      revokeBlobUrl(i);  // 清理旧 blob URL
       gridCells[i] = { index: i, deviceId: null, deviceName: null, uuDeviceId: null, online: false, screenshot: null, frameCount: 0 };
       updateCellElement(i);
     }
@@ -4191,7 +4108,6 @@ function toggleFullscreen() {
 document.getElementById('dialogClose').onclick = closeDeviceDialog;
 document.getElementById('dialogClear').onclick = () => {
   if (selectedCell !== null) {
-    revokeBlobUrl(selectedCell);  // 清理旧 blob URL
     ws.send(JSON.stringify({ type: 'setCell', gridSize, cellIndex: selectedCell, deviceId: null }));
     gridCells[selectedCell] = { index: selectedCell, deviceId: null, deviceName: null, uuDeviceId: null, online: false, screenshot: null, frameCount: 0 };
     updateCellElement(selectedCell);
@@ -4918,7 +4834,6 @@ function deleteOfflineDevice(deviceId) {
         if (typeof gridCells !== 'undefined') {
           for (var i = 0; i < gridCells.length; i++) {
             if (gridCells[i] && gridCells[i].deviceId === deviceId) {
-              revokeBlobUrl(i);
               gridCells[i] = { index: i, deviceId: null, deviceName: null, uuDeviceId: null, online: false, screenshot: null };
               updateCellElement(i);
             }
@@ -4956,7 +4871,6 @@ function deleteAllOfflineDevices() {
           if (typeof gridCells !== 'undefined') {
             for (var i = 0; i < gridCells.length; i++) {
               if (gridCells[i] && gridCells[i].deviceId === d.deviceId) {
-                revokeBlobUrl(i);
                 gridCells[i] = { index: i, deviceId: null, deviceName: null, uuDeviceId: null, online: false, screenshot: null, frameCount: 0 };
                 updateCellElement(i);
               }
@@ -5182,7 +5096,6 @@ function openAlarmPreview(alarmId) {
   // 清除可能残留的状态
   previewImg.style.filter = '';  // 清除可能残留的灰度滤镜
   previewImg.onload = null;
-  revokePreviewBlobUrl(previewImg);
 
   // 直接设置 URL（URL 加载方式）
   previewImg.src = rec.screenshot;
