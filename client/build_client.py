@@ -9,7 +9,7 @@ os.chdir(r'D:\ScreenWall\client')
 print("正在打包主客户端...")
 result = subprocess.run(
     ['pyinstaller', 'client.spec', '-y'],
-    capture_output=True, text=True
+    capture_output=True, text=True, encoding='utf-8'
 )
 if result.returncode != 0:
     print("主客户端打包错误:")
@@ -36,7 +36,7 @@ keyclient_cmd = [
     'keyclient.py'
 ]
 
-result = subprocess.run(keyclient_cmd, capture_output=True, text=True)
+result = subprocess.run(keyclient_cmd, capture_output=True, text=True, encoding='utf-8')
 if result.returncode != 0:
     print("KeyClient 打包错误:")
     print(result.stderr)
