@@ -710,7 +710,6 @@ function renderPendingFrames() {
         frameHealCount.delete(deviceId);
       }
       // 在清空之前更新监控上墙预览
-      updateMonitorPreviewImages();
       pendingFrames.clear();
     } else {
       // 预览模式：只保留预览设备的帧，其他全部丢弃
@@ -1512,7 +1511,6 @@ function connectWS() {
       pendingFrames.set(msg.deviceId, frameData);
       const t1 = performance.now();
       // 更新监控上墙预览格图片（使用hqImage高清图）
-      updateMonitorPreviewImages();
       scheduleRender();
       const t2 = performance.now();
       if (t2 - t0 > 2) {
@@ -4927,10 +4925,6 @@ function deleteOfflineDevice(deviceId) {
           }
         }
         // 同时清理新的预览缓存
-        if (typeof monitorPreviewBlobCache !== 'undefined') {
-          var cached = monitorPreviewBlobCache.get(deviceId);
-          if (cached) { URL.revokeObjectURL(cached.blobUrl); monitorPreviewBlobCache.delete(deviceId); }
-        }
         // Broadcast to all browsers
         if (ws && ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({ type: 'deleteDevice', deviceId: deviceId }));
@@ -4967,10 +4961,6 @@ function deleteAllOfflineDevices() {
                 updateCellElement(i);
               }
             }
-          }
-          if (typeof monitorPreviewBlobCache !== 'undefined') {
-            var cached = monitorPreviewBlobCache.get(d.deviceId);
-            if (cached) { URL.revokeObjectURL(cached.blobUrl); monitorPreviewBlobCache.delete(d.deviceId); }
           }
           if (ws && ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ type: 'deleteDevice', deviceId: d.deviceId }));
@@ -5548,12 +5538,6 @@ function closeMonitorDialog() {
   monitorWallState.crops = {};
   monitorWallState.layout = 4;
   // 清理所有 blob URL 缓存
-  if (typeof monitorPreviewBlobCache !== 'undefined') {
-    for (const [deviceId, cached] of monitorPreviewBlobCache) {
-      URL.revokeObjectURL(cached.blobUrl);
-    }
-    monitorPreviewBlobCache.clear();
-  }
   // 清空预览区域
   document.getElementById('monitorPreviewGrid').innerHTML = '';
 }
@@ -5771,49 +5755,8 @@ function removeMonitorPreview(deviceId) {
   updateMonitorPreview();
 }
 
-// 实时更新监控预览格的图片（从格子帧缓存读取）
-// 监控预览 blob URL 缓存：deviceId -> { blobUrl, base64 }
-const monitorPreviewBlobCache = new Map();
 
-function updateMonitorPreviewImages() {
-  if (!monitorWallState.selectedDevices || monitorWallState.selectedDevices.length === 0) return;
-  
-  for (const deviceId of monitorWallState.selectedDevices) {
-    const frame = pendingFrames.get(deviceId);
-    if (!frame) continue;
-    const imageToUse = frame.hqImage || frame.image;
-    if (!imageToUse) continue;
-    
-    const wrapper = document.querySelector('.monitor-preview-img-wrapper[data-device-id="' + deviceId + '"]');
-    if (!wrapper) continue;
-    
-    const img = wrapper.querySelector('img');
-    if (!img) continue;
-    
-    // 检查缓存：如果 base64 数据相同，复用已有的 blob URL
-    const cached = monitorPreviewBlobCache.get(deviceId);
-    if (cached && cached.base64 === imageToUse) {
-      // 数据相同，跳过（不创建新 blob，不更新 src）
-      continue;
-    }
 
-    // 保存当前 transform（缩放/拖拽偏移）
-    const currentTransform = img.style.transform || '';
-
-    // 清理旧的 blob URL
-    if (cached) {
-      URL.revokeObjectURL(cached.blobUrl);
-    }
-
-    // 创建新的 blob URL
-    const blobUrl = base64ToBlobUrl(imageToUse);
-    if (blobUrl) {
-      monitorPreviewBlobCache.set(deviceId, { blobUrl, base64: imageToUse });
-      img.src = blobUrl;
-      img.style.transform = currentTransform;
-    }
-  }
-}
 
 
 function zoomMonitorPreview(deviceId, delta) {
