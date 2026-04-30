@@ -657,6 +657,12 @@ function connectWebSocket() {
         var screenshot = data.screenshot;
         var timestamp = data.timestamp || Date.now();
 
+        // 保存当前帧（用于离线帧缓存）
+        var dev = devices[deviceId];
+        if (dev) {
+          dev.lastFrame = screenshot;
+        }
+
         // 自愈：累加帧计数，只有连续收到多帧才恢复在线状态
         var cell = findCellByDeviceId(deviceId);
         if (cell && cell.classList.contains('offline')) {
@@ -753,6 +759,23 @@ function handleWallStateUpdate(data) {
       if (badge) { badge.textContent = '设备已离线'; badge.style.display = 'block'; }
       updateUUButtonVisibility(cell, false);
     }
+    // 保存离线帧（离线瞬间的最后一帧）
+    var dev = devices[deviceId];
+    if (dev && dev.lastFrame) {
+      dev._offlineScreenshot = dev.lastFrame;
+    }
+    // 停止 MJPEG 流，显示离线帧
+    var img = document.getElementById('img_' + deviceId);
+    if (img) {
+      img.src = ''; // 停止 MJPEG 流
+      if (dev && dev._offlineScreenshot) {
+        var blobUrl = wallBlobSet(deviceId, dev._offlineScreenshot);
+        if (blobUrl) {
+          img.src = blobUrl;
+          img.style.display = 'block';
+        }
+      }
+    }
     // 注意：不清空 _wallBlobCache，保留最后一张截图
     // 新帧到达时会自动更新，revoke 会导致离线期间白屏
   }
@@ -779,11 +802,16 @@ function handleWallStateUpdate(data) {
         uuBtn.classList.remove('hidden');
       }
     }
+    // 清除离线帧缓存，上线后使用实时流
+    var devOnline = devices[deviceId];
+    if (devOnline) {
+      devOnline._offlineScreenshot = null;
+    }
     // 设备上线时主动启动 MJPEG 流
     startWallMjpeg(deviceId);
     if (data.deviceName) {
-      var dev = devices[deviceId];
-      if (dev) dev.name = data.deviceName;
+      var devName = devices[deviceId];
+      if (devName) devName.name = data.deviceName;
       updateDeviceInfo(deviceId, data.deviceName, null);
     }
   }
