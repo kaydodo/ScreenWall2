@@ -92,10 +92,10 @@
         <span class="sidebar-stat" id="sidebarStat"></span>
       </div>
       <div style="display:flex;gap:8px;align-items:center;">
-        <span id="configBtn" class="sidebar-btn" onclick="openConfigDialog('group')" title="配置">
+        <span id="configBtn" class="sidebar-btn" role="button" tabindex="0" aria-label="配置" onclick="openConfigDialog('group')" title="配置">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         </span>
-        <span id="mobileCollapseBtn" class="mobile-collapse-btn" onclick="toggleSidebar()">‹</span>
+        <span id="mobileCollapseBtn" class="mobile-collapse-btn" role="button" tabindex="0" aria-label="展开/收起侧边栏" onclick="toggleSidebar()">‹</span>
       </div>
     </div>
     <div class="sidebar-body" id="sidebarBody">
@@ -306,7 +306,7 @@
       <span id="previewDeviceName">实时预览</span>
       <!-- 远控开关和列表按钮，紧跟标题 -->
       <div style="display:inline-flex;align-items:center;gap:4px;position:relative;z-index:10;" id="previewRemoteWrap">
-        <div id="previewRemoteSlider" onclick="event.stopPropagation();togglePreviewRemote()" style="width:36px;height:18px;background:#555;border-radius:9px;position:relative;transition:background 0.2s;cursor:pointer;pointer-events:auto;">
+        <div id="previewRemoteSlider" role="button" tabindex="0" aria-label="远控开关" onclick="event.stopPropagation();togglePreviewRemote()" style="width:36px;height:18px;background:#555;border-radius:9px;position:relative;transition:background 0.2s;cursor:pointer;pointer-events:auto;">
           <div id="previewRemoteKnob" style="width:14px;height:14px;background:#fff;border-radius:50%;position:absolute;top:2px;left:2px;transition:transform 0.2s;"></div>
         </div>
         <span style="font-size:12px;color:#888;">远控</span>
@@ -1966,7 +1966,7 @@ function createCellElement(index) {
         <span class="no-sig-icon">📺</span>
         <span class="no-sig-text">等待接入</span>
       </div>
-      <img class="cell-img" id="img_${index}" style="display:none" />
+      <img class="cell-img" id="img_${index}" alt="设备画面" style="display:none" />
       <button class="cell-star-btn" id="star_${index}" title="收藏截图">★</button>
       <button class="cell-task-btn" id="taskBtn_${index}" title="发布任务" onclick="openTaskDialog(${index}, event)">
         <span style="font-size:12px;position:relative;top:1px;" id="taskBtnInner_${index}">📋<span class="task-badge" id="taskBadge_${index}" style="display:none;"></span></span>
@@ -2469,7 +2469,7 @@ function renderCollectionDialog() {
       const showDeletedLabel = item.deleted && !devices.find(d => d.deviceId === item.deviceId);
       
       html += `<div class="collection-item" data-timestamp="${group.timestamp}" data-deviceid="${item.deviceId}">
-        <div class="collection-item-img" onclick="openCollectionPreview(${group.timestamp}, '${item.deviceId}')">
+        <div class="collection-item-img" role="button" tabindex="0" aria-label="查看收藏截图" onclick="openCollectionPreview(${group.timestamp}, '${item.deviceId}')">
           <img src="${item.screenshot || ''}" alt="${escHtml(displayName)}" ${!item.online && !showDeletedLabel ? 'style="filter:grayscale(30%);"' : ''}>
           ${showDeletedLabel ? '<div class="collection-item-deleted">已删除</div>' : ''}
         </div>
@@ -2540,7 +2540,7 @@ function openPreviewImage(imgSrc, deviceName, deviceId, online) {
           </div>
         </div>
         <div class="preview-image-body">
-          <img class="preview-image-img" id="previewImageImg" src="">
+          <img class="preview-image-img" id="previewImageImg" alt="实时预览画面" src="">
           <div id="previewImageWatermark" style="display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-15deg) scale(3);font-size:52px;font-weight:300;color:rgba(160,160,160,0.7);pointer-events:none;white-space:nowrap;text-shadow:0 0 30px rgba(255,255,255,0.4);">设备已离线</div>
         </div>
       </div>
@@ -5708,7 +5708,7 @@ function updateMonitorPreview() {
         
         if (device.screenshot) {
           cell.innerHTML = '<div class="monitor-preview-img-wrapper' + offlineClass + '" data-device-id="' + deviceId + '">' +
-            '<img src="' + device.screenshot + '" style="transform: scale(' + crop.scale + ') translate(' + crop.translateX + 'px, ' + crop.translateY + 'px);' + offlineStyle + '">' +
+            '<img alt="监控画面: ' + (device.deviceName || '设备') + '" src="' + device.screenshot + '" style="transform: scale(' + crop.scale + ') translate(' + crop.translateX + 'px, ' + crop.translateY + 'px);' + offlineStyle + '">' +
             '<div class="monitor-zoom-level" id="zoomLevel_' + deviceId + '">' + (crop.scale * 100).toFixed(0) + '%</div>' +
             '<div class="monitor-preview-name">' + device.deviceName + (isOffline ? ' (离线)' : '') + '</div>' +
             offlineBadge +
