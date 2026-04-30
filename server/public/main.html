@@ -1591,7 +1591,17 @@ function connectWS() {
       }
       // 在线设备才使用 MJPEG 流；离线设备不设置，避免白屏
       if (isOnline) {
-        previewImg.src = `/mjpeg/${previewDeviceId}`;
+        const expectedSrc = `/mjpeg/${previewDeviceId}`;
+        if (!previewImg.src.includes(expectedSrc)) {
+          // 先保持背景图显示，等第一帧到达后再清除
+          const wrapper = document.getElementById('previewImgWrapper');
+          previewImg.onload = function() {
+            previewImg.style.visibility = 'visible';
+            if (wrapper) wrapper.style.backgroundImage = '';
+            previewImg.onload = null;
+          };
+          previewImg.src = expectedSrc;
+        }
       }
       previewImg.style.display = 'block';
     }
@@ -2828,6 +2838,13 @@ function openPreview(cellIndex) {
   const cachedFrame = pendingFrames.get(cell.deviceId);
   const initialImg = (cachedFrame && cachedFrame.image) || cell.screenshot || 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
   const previewImg = document.getElementById('previewImg');
+  const previewWrapper = document.getElementById('previewImgWrapper');
+  // 用背景图保持缓存帧显示，避免 MJPEG 流启动时的闪黑
+  previewWrapper.style.backgroundImage = `url("${initialImg}")`;
+  previewWrapper.style.backgroundSize = 'contain';
+  previewWrapper.style.backgroundPosition = 'center';
+  previewWrapper.style.backgroundRepeat = 'no-repeat';
+  previewImg.style.visibility = 'hidden';
   previewImg.src = initialImg;
   previewImg.style.display = 'block';
   previewImg.style.filter = '';
@@ -2848,6 +2865,12 @@ function openPreview(cellIndex) {
     const expectedSrc = `/mjpeg/${previewDeviceId}`;
     const currentSrc = previewImg.src || '';
     if (!currentSrc.includes(expectedSrc)) {
+      // 第一帧到达后，清除背景图，显示实时流
+      previewImg.onload = function() {
+        previewImg.style.visibility = 'visible';
+        previewWrapper.style.backgroundImage = '';
+        previewImg.onload = null; // MJPEG 第一帧只触发一次
+      };
       previewImg.src = expectedSrc;
       previewImg.style.display = 'block';
       previewImg.style.filter = '';
