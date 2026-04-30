@@ -207,39 +207,6 @@ html, body {
 // 性能优化模块
 // ═══════════════════════════════════════════════════════════════
 
-// ── 1. Blob URL 缓存（与格子页面一致的简化模式）────────
-// 每设备 1 个 blob URL，新帧到达时立即 revoke 旧 URL
-const _wallBlobCache = new Map();  // deviceId -> url
-const _pendingWallRevokes = new Map();  // url -> timeoutId（追踪待 revoke 的 timeout）
-function wallBlobSet(deviceId, base64Data) {
-  if (!base64Data) return null;
-  const old = _wallBlobCache.get(deviceId);
-  const match = base64Data.match(/^data:([^;]+);base64,(.+)$/);
-  if (!match) return null;
-  const mimeType = match[1];
-  const data = atob(match[2]);
-  const len = data.length;
-  const buf = new Uint8Array(len);
-  for (let i = 0; i < len; i++) buf[i] = data.charCodeAt(i);
-  const url = URL.createObjectURL(new Blob([buf], { type: mimeType }));
-  _wallBlobCache.set(deviceId, url);
-  // 新帧到达时立即 revoke 旧 URL（不再等 500ms）
-  if (old) {
-    URL.revokeObjectURL(old);
-    _pendingWallRevokes.delete(old);
-  }
-  return url;
-}
-function wallBlobRevokeAll() {
-  // 关闭时立即 revoke 所有 blob，并清除待处理的 timeout
-  for (const url of _wallBlobCache.values()) {
-    URL.revokeObjectURL(url);
-    const tid = _pendingWallRevokes.get(url);
-    if (tid) { clearTimeout(tid); _pendingWallRevokes.delete(url); }
-  }
-  _wallBlobCache.clear();
-}
-
 
 // ── 5. 看门狗（增强版）───────────────────────────────────────
 const watchdog = (function() {
@@ -499,7 +466,6 @@ function updateStats() {
     'FPS: ' + fps + '<br>' +
     'Recv: ' + stats.framesReceived + '<br>' +
     'Render: ' + stats.framesRendered + '<br>' +
-    'BlobCache: ' + _wallBlobCache.size + '<br>' +
     'Reconnects: ' + stats.wsReconnects;
   stats.framesReceived = 0;
   stats.lastReport = now;
@@ -605,7 +571,6 @@ function initWall() {
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: 'unsubscribeWall', devices: subscribedDevices }));
     }
-    wallBlobRevokeAll();
     watchdog.stop();
     try {
       var stored = localStorage.getItem('walledDevices');
@@ -745,8 +710,6 @@ function handleWallStateUpdate(data) {
       if (badge) { badge.textContent = '设备已离线'; badge.style.display = 'block'; }
       updateUUButtonVisibility(cell, false);
     }
-    // 注意：不清空 _wallBlobCache，保留最后一张截图
-    // 新帧到达时会自动更新，revoke 会导致离线期间白屏
   }
 
   if (eventType === 'deviceOnline') {
@@ -813,13 +776,6 @@ function handleWallStateUpdate(data) {
       var badge = cell.querySelector('.offline-badge');
       if (badge) badge.textContent = '设备已删除';
       updateUUButtonVisibility(cell, false);
-    }
-    // 清理设备 blob 缓存（立即 revoke）
-    var old = _wallBlobCache.get(deviceId);
-    _wallBlobCache.delete(deviceId);
-    if (old) {
-      URL.revokeObjectURL(old);
-      _pendingWallRevokes.delete(old);
     }
     updateDeviceInfo(deviceId, '设备已删除', '已删除');
   }
