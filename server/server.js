@@ -3252,7 +3252,13 @@ wssBrowser.on('connection', (ws) => {
 });
 
 // ========== HTTP 服务器 ==========
-const httpServer = http.createServer();
+// 默认安全响应头（可被路由层覆盖）
+const httpServer = http.createServer({
+  setHeaders(res) {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+  }
+});
 
 httpServer.on('upgrade', (req, socket, head) => {
   // 安全解析 URL，防止 host 头为空或无效导致崩溃
