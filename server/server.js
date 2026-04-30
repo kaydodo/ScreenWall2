@@ -261,67 +261,6 @@ function createMjpegStream(deviceId, req, res) {
   return cleanup;
 }
 
-// ========== 图像压缩工具 ==========
-// 压缩缓存：deviceId -> compressed base64（同一设备短时间内复用）
-const compressCache = new Map();
-const COMPRESS_WIDTH = 480;
-const COMPRESS_HEIGHT = 270;
-const COMPRESS_QUALITY = 30;
-const COMPRESS_CACHE_TTL = 2000; // 缓存有效期2秒
-
-// 压缩状态追踪
-const compressingDevices = new Set();  // 正在压缩的设备
-
-async function compressForGrid(hdBase64, deviceId) {
-  if (!hdBase64) return null;
-  try {
-    // 检查缓存
-    const cached = compressCache.get(deviceId);
-    if (cached && (Date.now() - cached.time < COMPRESS_CACHE_TTL)) {
-      return cached.data;  // 缓存命中，静默返回
-    }
-    
-    // 第一次压缩这个设备时记录状态
-    if (!compressingDevices.has(deviceId)) {
-      compressingDevices.add(deviceId);
-      // serverLog(`[压缩] 开始: ${deviceId}`);
-    }
-    
-    // 去掉 data:image/webp;base64, 前缀
-    const base64Data = hdBase64.replace(/^data:image\/\w+;base64,/, '');
-    const buffer = Buffer.from(base64Data, 'base64');
-    const compressed = await sharp(buffer)
-      .resize(COMPRESS_WIDTH, COMPRESS_HEIGHT, { fit: 'cover' })
-      .webp({ quality: COMPRESS_QUALITY, effort: 4 })
-      .toBuffer();
-    const result = 'data:image/webp;base64,' + compressed.toString('base64');
-    // 更新缓存
-    compressCache.set(deviceId, { data: result, time: Date.now() });
-    return result;
-  } catch (e) {
-    return hdBase64;
-  }
-}
-
-// 压缩结束检查函数
-function checkCompressEnd(deviceId) {
-  if (compressingDevices.has(deviceId)) {
-    // 检查是否还有人在用这个设备的 HQ
-    let hasPreview = false;
-    for (const set of browserPreviewHD.values()) {
-      if (set.has(deviceId)) {
-        hasPreview = true;
-        break;
-      }
-    }
-    const hasWall = hdRequests.has(deviceId) && hdRequests.get(deviceId).size > 0;
-    if (!hasPreview && !hasWall) {
-      compressingDevices.delete(deviceId);
-      // serverLog(`[压缩] 结束: ${deviceId}`);
-    }
-  }
-}
-
 // ========== 简单内存数据库 ==========
 const sessions = new Map();
 const loginAttempts = new Map();
@@ -1741,39 +1680,47 @@ wssClient.on('connection', (ws, req) => {
             const cellIndex = getCellIndexForDevice(deviceId);
             const online = dev.online;
             
-            // 生成缩略图（压缩成更小的图）
-            compressForGrid(image, deviceId + '_thum').then(thumbnail => {
-              if (!collections.has(collectionTimestamp)) {
-                collections.set(collectionTimestamp, []);
-              }
-              const items = collections.get(collectionTimestamp);
-              // 查找是否已有该设备的截图
-              const existingIdx = items.findIndex(item => item.deviceId === deviceId);
-              const newItem = {
-                deviceId,
-                screenshot: thumbnail || image,
-                hdScreenshot: image,
-                deviceName: dev.deviceName,
-                groupName,
-                cellIndex,
-                online,
-                deleted: false,
-                timestamp: collectionTimestamp
-              };
-              if (existingIdx >= 0) {
-                items[existingIdx] = newItem;
-              } else {
-                items.push(newItem);
-              }
-              saveCollections();
-              // 广播更新后的截图集合给所有浏览器
-              const collectionsArr = [];
-              collections.forEach((its, ts) => {
-                collectionsArr.push({ timestamp: ts, items: its });
-              });
-              collectionsArr.sort((a, b) => b.timestamp - a.timestamp);
-              broadcastToBrowsers({ type: 'collectionsUpdate', collections: collectionsArr });
-            });
+            // 生成缩略图（压缩成 480x270 webp）
+            (async () => {
+              try {
+                const base64Data = image.replace(/^data:image\/\w+;base64,/, '');
+                const buffer = Buffer.from(base64Data, 'base64');
+                const compressed = await sharp(buffer)
+                  .resize(480, 270, { fit: 'cover' })
+                  .webp({ quality: 30, effort: 4 })
+                  .toBuffer();
+                const thumbnail = 'data:image/webp;base64,' + compressed.toString('base64');
+                if (!collections.has(collectionTimestamp)) {
+                  collections.set(collectionTimestamp, []);
+                }
+                const items = collections.get(collectionTimestamp);
+                const existingIdx = items.findIndex(item => item.deviceId === deviceId);
+                const newItem = {
+                  deviceId,
+                  screenshot: thumbnail || image,
+                  hdScreenshot: image,
+                  deviceName: dev.deviceName,
+                  groupName,
+                  cellIndex,
+                  online,
+                  deleted: false,
+                  timestamp: collectionTimestamp
+                };
+                if (existingIdx >= 0) {
+                  items[existingIdx] = newItem;
+                } else {
+                  items.push(newItem);
+                }
+                saveCollections();
+                // 广播更新后的截图集合给所有浏览器
+                const collectionsArr = [];
+                collections.forEach((its, ts) => {
+                  collectionsArr.push({ timestamp: ts, items: its });
+                });
+                collectionsArr.sort((a, b) => b.timestamp - a.timestamp);
+                broadcastToBrowsers({ type: 'collectionsUpdate', collections: collectionsArr });
+              } catch (e) {}
+            })();
           }
         }
 
@@ -1792,16 +1739,6 @@ wssClient.on('connection', (ws, req) => {
               updateDeviceFrame(msg.deviceId, jpegBuffer);
             }
           });
-
-          // ── 帧缓存（已禁用）────────────────────────────
-          // const rawBase64 = msg.image.replace(/^data:image\/\w+;base64,/, '');
-          // const frameMd5 = crypto.createHash('md5').update(rawBase64).digest('hex');
-          // const cached = frameCache.get(msg.deviceId);
-          // const now = Date.now();
-          // const frameIsDuplicate = cached && cached.md5 === frameMd5 && (now - cached.time) < FRAME_CACHE_TTL;
-          // if (!frameIsDuplicate) {
-          //   frameCache.set(msg.deviceId, { md5: frameMd5, time: now });
-          // }
 
           const now = Date.now();
 
@@ -1840,19 +1777,8 @@ wssClient.on('connection', (ws, req) => {
           }
         } else {
           // ===== 标准模式：直接转发原图 =====
-
-          // ── 帧缓存（已禁用）────────────────────────────
-          // const rawBase64 = msg.image.replace(/^data:image\/\w+;base64,/, '');
-          // const frameMd5 = crypto.createHash('md5').update(rawBase64).digest('hex');
-          // const cached = frameCache.get(msg.deviceId);
-          // const now = Date.now();
-          // const frameIsDuplicate = cached && cached.md5 === frameMd5 && (now - cached.time) < FRAME_CACHE_TTL;
-          // if (!frameIsDuplicate) {
-          //   frameCache.set(msg.deviceId, { md5: frameMd5, time: now });
           dev.screenshot = msg.image;
           dev.hqScreenshot = null;
-          broadcastToBrowsers({ type: 'screenshot', deviceId: msg.deviceId, image: msg.image, hq: false, hqImage: null });
-          // }
         }
       }
     }
