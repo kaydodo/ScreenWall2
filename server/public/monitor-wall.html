@@ -326,12 +326,6 @@ function enterWallFullscreen(cell, deviceId) {
   var container = document.getElementById('wallContainer');
   var dev = devices[deviceId];
 
-  // 检查设备是否在线，离线设备不允许全屏
-  if (!dev || dev.online === false) {
-    alert('该设备已离线，无法全屏显示');
-    return;
-  }
-
   // 保存原始状态（只在首次进入时保存）
   if (wallFullscreenDeviceId === null) {
     wallOriginalLayout = wallData.layout;
@@ -388,9 +382,23 @@ function enterWallFullscreen(cell, deviceId) {
     }
   }
 
-  // 开启1080p
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'hq1080On', deviceId: deviceId }));
+  // 处理在线/离线状态
+  if (!dev || dev.online === false) {
+    // 离线设备：显示离线badge + 静态图
+    cell.classList.add('offline');
+    var badge = cell.querySelector('.offline-badge');
+    if (badge) { badge.textContent = '设备已离线'; badge.style.display = 'block'; }
+    // 显示静态图
+    var img = document.getElementById('img_' + deviceId);
+    if (img && dev && dev.screenshot) {
+      img.src = dev.screenshot;
+      img.style.display = 'block';
+    }
+  } else {
+    // 在线设备：开启1080p
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'hq1080On', deviceId: deviceId }));
+    }
   }
 }
 
@@ -562,13 +570,25 @@ function initWall() {
 
   // 主动启动 MJPEG 流（在线设备）
   wallData.devices.forEach(function(dev) {
-    if (dev.online === false) return;
     var img = document.getElementById('img_' + dev.id);
-    if (img) {
+    if (!img) return;
+
+    if (dev.online === false) {
+      // 离线设备：显示静态图
+      if (dev.screenshot) {
+        img.src = dev.screenshot;
+      }
+      img.style.display = 'block';
+    } else {
+      // 在线设备：启动 MJPEG 流
       img.style.width = '100%';
       img.style.height = '100%';
       img.src = '/mjpeg/' + dev.id;
       img.style.display = 'block';
+      // 发送 startHQ 请求720p高清流
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'startHQ', deviceId: dev.id }));
+      }
     }
   });
 
@@ -622,6 +642,11 @@ function connectWebSocket() {
         var deviceId = data.deviceId;
         var screenshot = data.screenshot;
         var timestamp = data.timestamp || Date.now();
+
+        // 保存截图用于离线显示
+        if (devices[deviceId]) {
+          devices[deviceId].screenshot = screenshot;
+        }
 
         // 自愈：累加帧计数，只有连续收到多帧才恢复在线状态
         var cell = findCellByDeviceId(deviceId);
@@ -715,6 +740,19 @@ function handleWallStateUpdate(data) {
       var badge = cell.querySelector('.offline-badge');
       if (badge) { badge.textContent = '设备已离线'; badge.style.display = 'block'; }
       updateUUButtonVisibility(cell, false);
+      // 发送 stopHQ 停止720p推送
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'stopHQ', deviceId: deviceId }));
+      }
+      // 离线显示静态图
+      var img = document.getElementById('img_' + deviceId);
+      if (img) {
+        var dev = devices[deviceId];
+        if (dev && dev.screenshot) {
+          img.src = dev.screenshot;
+        }
+        img.style.display = 'block';
+      }
     }
   }
 
@@ -746,6 +784,10 @@ function handleWallStateUpdate(data) {
         img.style.height = '100%';
         img.src = '/mjpeg/' + deviceId;
         img.style.display = 'block';
+      }
+      // 发送 startHQ 请求720p高清流
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'startHQ', deviceId: deviceId }));
       }
     }
     if (data.deviceName) {
