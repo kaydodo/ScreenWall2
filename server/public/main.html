@@ -1865,6 +1865,37 @@ function updateGridCellHeight() {
   grid.style.minWidth = minWidth + 'px';
 }
 
+// 格子懒加载：IntersectionObserver 监听可见性，进入视口时启动 MJPEG 流
+let cellObserver = null;
+
+function initCellObserver() {
+  if (cellObserver) return;
+  const grid = document.getElementById('mainGrid');
+  if (!grid) return;
+  cellObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (!entry.isIntersecting) return;
+      const el = entry.target;
+      const index = parseInt(el.dataset.index);
+      const cell = gridCells[index];
+      if (!cell || !cell.deviceId) return;
+      if (!cell.online) return;
+      const img = document.getElementById(`img_${index}`);
+      const ns = document.getElementById(`ns_${index}`);
+      if (!img) return;
+      const expectedSrc = `/mjpeg/${cell.deviceId}`;
+      if (img.src && img.src.includes(expectedSrc)) return; // 已启动
+      img.src = expectedSrc;
+      img.style.display = 'block';
+      img.classList.remove('grayscale');
+      if (ns) ns.style.display = 'none';
+    });
+  }, {
+    root: grid,
+    threshold: 0.1 // 10% 可见时触发
+  });
+}
+
 function renderGrid() {
   if (!isMobile) {
     updateGridCellHeight();  // 更新列数相关 CSS 变量
@@ -1878,7 +1909,9 @@ function renderGrid() {
     grid.appendChild(cell);
   }
   while (grid.children.length > total) {
-    // 缩容前清理 blob 缓存
+    // 缩容前：移除监听 + 清理 blob 缓存
+    const removeEl = grid.lastChild;
+    if (cellObserver) cellObserver.unobserve(removeEl);
     const removeIndex = grid.children.length - 1;
     const cellData = gridCells[removeIndex];
     if (cellData && cellData.deviceId) {
@@ -1897,12 +1930,18 @@ function renderGrid() {
       deviceBlobMap.delete(cellData.deviceId + '_ts');
       frameHealCount.delete(cellData.deviceId);
     }
-    grid.removeChild(grid.lastChild);
+    grid.removeChild(removeEl);
   }
 
   // 更新每个格子
   for (let i = 0; i < total; i++) {
     updateCellElement(i);
+  }
+
+  // 初始化懒加载 observer 并监听所有格子（格子进入视口时自动启动 MJPEG 流）
+  initCellObserver();
+  for (let i = 0; i < grid.children.length; i++) {
+    cellObserver.observe(grid.children[i]);
   }
   
   // 视口更新：滚动时上报可见格子
@@ -2132,29 +2171,23 @@ function updateCellElement(index) {
         offlineLabel.style.display = 'flex';
       }
     } else {
-      // 在线设备
+      // 在线设备：主动启动 MJPEG 流
       if (cellEl) cellEl.classList.remove('offline-cell');
       stxt.textContent = '在线';
       dot.className = 'status-dot online';
       stxt.className = 'status-text online';
       document.getElementById(`uubtn_${index}`).style.display = 'flex';
 
-      if (cell.screenshot) {
-        // 在线设备有截图：显示正常截图
-        // 直接调用 compressImageForGrid 复用已有的缓存管理逻辑，避免创建未追踪的 blob URL
-        const deviceId = cell.deviceId;
-        // 同步调用，无需 .then()
-        const compressedUrl = compressImageForGrid(deviceId, cell.screenshot);
-        if (compressedUrl) {
-          img.src = compressedUrl;
-          img.style.display = 'block';
-          img.classList.remove('grayscale');
-          ns.style.display = 'none';
-        }
-      } else {
-        img.style.display = 'none';
-        ns.style.display = 'flex';
+      // 主动启动 MJPEG 低清流（如果尚未启动）
+      const expectedSrc = `/mjpeg/${cell.deviceId}`;
+      const currentSrc = img.src || '';
+      if (!currentSrc.includes(expectedSrc)) {
+        img.src = expectedSrc;
+        img.style.display = 'block';
+        img.classList.remove('grayscale');
+        ns.style.display = 'none';
       }
+
       let offlineLabel = document.getElementById(`offline_${index}`);
       if (offlineLabel) offlineLabel.style.display = 'none';
     }
