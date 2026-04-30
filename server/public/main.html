@@ -2828,6 +2828,18 @@ function openPreview(cellIndex) {
   const dev = devices.find(d => d.deviceId === cell.deviceId);
   const isOnline = dev ? dev.online : false;
 
+  // 5. 主动启动 MJPEG 流（仅在线设备），避免等待 previewScreenshot 消息
+  const previewImg = document.getElementById('previewImg');
+  if (isOnline) {
+    const expectedSrc = `/mjpeg/${previewDeviceId}`;
+    const currentSrc = previewImg.src || '';
+    if (!currentSrc.includes(expectedSrc)) {
+      previewImg.src = expectedSrc;
+      previewImg.style.display = 'block';
+      previewImg.style.filter = '';
+    }
+  }
+
   const watermark = document.getElementById('previewOfflineWatermark');
   const uubtn = document.getElementById('previewUUbtn');
   if (!isOnline) {

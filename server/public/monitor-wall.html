@@ -240,60 +240,7 @@ function wallBlobRevokeAll() {
   _wallBlobCache.clear();
 }
 
-// ── 2. rAF 批量渲染队列 ─────────────────────────────────────
-// 收集待渲染帧，下一 rAF 统一处理，避免高频 DOM 更新
-const renderQueue = (function() {
-  const _pending = new Map();  // deviceId -> { md5, url, timestamp }
-  let _rafId = null;
-  let _lastFlush = 0;
-
-  function queue(deviceId, md5, url, timestamp) {
-    _pending.set(deviceId, { md5, url, timestamp });
-    if (!_rafId) {
-      _rafId = requestAnimationFrame(flush);
-    }
-  }
-
-  function flush() {
-    _rafId = null;
-    const now = performance.now();
-    if (_pending.size === 0) return;
-
-    for (const [deviceId, frame] of _pending) {
-      const img = document.getElementById('img_' + deviceId);
-      if (!img) continue;
-
-      // 设置 img 尺寸等于格子（scale 1 时视觉大小 = 格子）
-      // 最多支持 3 倍放大（3x 200% = 600% 实际尺寸，外层 cover 切掉多余部分）
-      img.style.width = '100%';
-      img.style.height = '100%';
-
-      // 直接设置 URL
-      img.src = frame.url;
-
-      // 更新时间戳
-      const ts = document.getElementById('ts_' + deviceId);
-      if (ts) {
-        const d = new Date(frame.timestamp);
-        ts.textContent = formatDate(d);
-      }
-    }
-
-    _pending.clear();
-    _lastFlush = now;
-  }
-
-  function clear() {
-    _pending.clear();
-    if (_rafId) { cancelAnimationFrame(_rafId); _rafId = null; }
-  }
-
-  function getPendingCount() { return _pending.size; }
-
-  return { queue, flush, clear, getPendingCount, getLastFlush: () => _lastFlush };
-})();
-
-// ── 5. 看门狗（增强版）───────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════
 const watchdog = (function() {
   let _interval = null;
   let _lastUpdate = {};
@@ -330,6 +277,18 @@ const watchdog = (function() {
 
   return { start, touch, stop };
 })();
+
+// ── 辅助函数：为指定设备启动 MJPEG 流 ────────────────────────
+function startWallMjpeg(deviceId) {
+  var img = document.getElementById('img_' + deviceId);
+  if (!img) return;
+  var expectedSrc = '/mjpeg/' + deviceId;
+  if (img.src && img.src.includes(expectedSrc)) return;
+  img.style.width = '100%';
+  img.style.height = '100%';
+  img.src = expectedSrc;
+  img.style.display = 'block';
+}
 
 // ═══════════════════════════════════════════════════════════════
 // 主程序
@@ -670,19 +629,12 @@ function connectWebSocket() {
       devices: wallData.devices.map(function(d) { return d.id; }),
       interval: 333
     }));
-    // 延迟启动 MJPEG 流（等服务端处理完 subscribeWall）
-    setTimeout(function() {
-      wallData.devices.forEach(function(dev) {
-        if (dev.online === false) return;
-        var img = document.getElementById('img_' + dev.id);
-        if (img) {
-          img.style.width = '100%';
-          img.style.height = '100%';
-          img.src = '/mjpeg/' + dev.id;
-          img.style.display = 'block';
-        }
-      });
-    }, 1000);
+    // 立即启动所有在线设备的 MJPEG 流（wallScreenshot 消息处理有兜底，不会重复设置）
+    wallData.devices.forEach(function(dev) {
+      if (dev.online !== false) {
+        startWallMjpeg(dev.id);
+      }
+    });
   };
 
   ws.onclose = function() {
@@ -827,6 +779,8 @@ function handleWallStateUpdate(data) {
         uuBtn.classList.remove('hidden');
       }
     }
+    // 设备上线时主动启动 MJPEG 流
+    startWallMjpeg(deviceId);
     if (data.deviceName) {
       var dev = devices[deviceId];
       if (dev) dev.name = data.deviceName;
