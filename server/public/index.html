@@ -123,12 +123,12 @@
   <div class="login-sub">SCREEN WALL MONITOR SYSTEM</div>
 
   <div class="form-group">
-    <label>账 号</label>
-    <input type="text" id="username" placeholder="请输入用户名" autocomplete="username" />
+    <label for="username">账 号</label>
+    <input type="text" id="username" name="username" placeholder="请输入用户名" autocomplete="username" />
   </div>
   <div class="form-group">
-    <label>密 码</label>
-    <input type="password" id="password" placeholder="请输入密码" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()" />
+    <label for="password">密 码</label>
+    <input type="password" id="password" name="password" placeholder="请输入密码" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()" />
   </div>
   <button class="login-btn" id="loginBtn" onclick="doLogin()">登 录</button>
   <div class="login-error" id="errorMsg"></div>

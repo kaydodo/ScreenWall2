@@ -18,8 +18,8 @@
 
   <div class="topbar-center">
     <div class="ctrl-group">
-      <label>布局</label>
-      <select id="selGrid" title="选择网格布局">
+      <label for="selGrid">布局</label>
+      <select id="selGrid" name="selGrid" title="选择网格布局">
         <option value="4">4列</option>
         <option value="5">5列</option>
         <option value="6">6列</option>
@@ -134,7 +134,7 @@
       <button class="dialog-close" id="dialogClose">✕</button>
     </div>
     <div class="dialog-search">
-      <input type="text" id="deviceSearch" placeholder="搜索设备名称..." />
+      <input type="text" id="deviceSearch" name="deviceSearch" aria-label="搜索设备名称" placeholder="搜索设备名称..." />
     </div>
     <div class="device-list" id="deviceList"></div>
     <div class="dialog-footer">
@@ -377,7 +377,7 @@
     </div>
     <!-- 输入区 -->
     <div class="task-input-area" id="taskInputArea">
-      <textarea class="task-input" id="taskInput" rows="1" placeholder="输入任务内容..." onkeydown="taskInputKeydown(event)"></textarea>
+      <textarea class="task-input" id="taskInput" name="taskInput" rows="1" placeholder="输入任务内容..." onkeydown="taskInputKeydown(event)"></textarea>
       <button class="task-send-btn" id="taskSendBtn" onclick="sendTask()">发布</button>
     </div>
   </div>
@@ -504,7 +504,7 @@
               <div id="configAddGroupInline" style="display:none;margin-top:8px;padding:8px;background:var(--bg-page);border-radius:6px;border:1px solid var(--accent);">
                 <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;">新建分组</div>
                 <div style="display:flex;gap:6px;">
-                  <input id="newGroupNameInput" type="text" placeholder="分组名称" style="flex:1;padding:6px 8px;background:var(--bg-card);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px;" />
+                  <input id="newGroupNameInput" name="newGroupNameInput" type="text" placeholder="分组名称" style="flex:1;padding:6px 8px;background:var(--bg-card);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px;" />
                   <button onclick="addGroupFromInline()" style="padding:6px 12px;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:12px;">添加</button>
                   <button onclick="hideAddGroupInline()" style="padding:6px 12px;background:var(--bg-hover);color:var(--text-muted);border:1px solid var(--border);border-radius:4px;cursor:pointer;font-size:12px;">取消</button>
                 </div>
@@ -544,12 +544,12 @@
       输入新的服务器地址和端口，只推送给选中的分组或未分组设备。
     </div>
     <div style="margin-bottom:12px;">
-      <label style="display:block;font-size:13px;color:var(--text-muted);margin-bottom:5px;">服务器地址</label>
-      <input id="migrateHost" type="text" placeholder="例: 192.168.1.100" style="width:100%;padding:9px 12px;background:var(--bg-page);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;box-sizing:border-box;" />
+      <label for="migrateHost" style="display:block;font-size:13px;color:var(--text-muted);margin-bottom:5px;">服务器地址</label>
+      <input id="migrateHost" name="migrateHost" type="text" placeholder="例: 192.168.1.100" style="width:100%;padding:9px 12px;background:var(--bg-page);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;box-sizing:border-box;" />
     </div>
     <div style="margin-bottom:16px;">
-      <label style="display:block;font-size:13px;color:var(--text-muted);margin-bottom:5px;">端口</label>
-      <input id="migratePort" type="number" placeholder="3000" value="3000" style="width:100%;padding:9px 12px;background:var(--bg-page);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;box-sizing:border-box;" />
+      <label for="migratePort" style="display:block;font-size:13px;color:var(--text-muted);margin-bottom:5px;">端口</label>
+      <input id="migratePort" name="migratePort" type="number" placeholder="3000" value="3000" style="width:100%;padding:9px 12px;background:var(--bg-page);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;box-sizing:border-box;" />
     </div>
     <!-- 分组选择区 -->
     <div style="margin-bottom:16px;">
@@ -2347,7 +2347,7 @@ function buildSidebarItem(dev) {
       <span class="si-dot ${dev.online ? 'si-online' : 'si-offline'}"></span>
       <div class="si-info">
         <div class="si-name" title="${escHtml(dev.deviceName)}">
-          <input type="text" class="si-name-input" value="${escHtml(dev.deviceName)}" data-device-id="${dev.deviceId}" data-original="${escHtml(dev.deviceName)}" onclick="event.stopPropagation()" onkeydown="if(event.key==='Enter'){renameDeviceInline(this);}else if(event.key==='Escape'){this.value=this.dataset.original;this.blur();}" style="max-width:85px;" title="${escHtml(dev.deviceName)}" />
+          <input type="text" name="deviceRename" aria-label="设备名称" class="si-name-input" value="${escHtml(dev.deviceName)}" data-device-id="${dev.deviceId}" data-original="${escHtml(dev.deviceName)}" onclick="event.stopPropagation()" onkeydown="if(event.key==='Enter'){renameDeviceInline(this);}else if(event.key==='Escape'){this.value=this.dataset.original;this.blur();}" style="max-width:85px;" title="${escHtml(dev.deviceName)}" />
           <button class="btn btn-xs" onclick="event.stopPropagation();renameDeviceInline(this.previousElementSibling)" style="margin-left:1px;">更名</button>
           <span class="si-pos" style="margin-left:2px;">格:${posLabel}</span>
           <button class="${powerBtnClass}" onclick="event.stopPropagation();executePowerScene('${dev.deviceId}')" title="${hasPowerScene ? '执行开关机场景' : '未配置场景'}" style="margin-left:7px;">
@@ -3889,7 +3889,7 @@ function rebuildFilterPanel() {
     const itemClass = isEmpty ? 'filter-item disabled' : 'filter-item';
     return `
       <label class="${itemClass}">
-        <input type="checkbox" data-group-id="${groupId === null ? 'null' : groupId}" ${isChecked ? 'checked' : ''} ${disabledAttr}>
+        <input type="checkbox" name="groupFilter" aria-label="${label}" data-group-id="${groupId === null ? 'null' : groupId}" ${isChecked ? 'checked' : ''} ${disabledAttr}>
         <span class="filter-item-label" style="${color ? 'background:' + color + ';padding:1px 6px;border-radius:4px;' : ''}">${label}</span>
         <span class="filter-item-count">${count}</span>
       </label>
@@ -4444,7 +4444,7 @@ function renderConfigGroupList() {
       html += '<div onclick="showGroupColorPicker(\'' + g.id + '\')" style="width:16px;height:16px;border-radius:50%;background:#ddd;cursor:pointer;flex-shrink:0;border:1px solid rgba(0,0,0,0.1);" title="点击更换颜色"></div>';
     }
     // Group name as inline input
-    html += '<input id="groupName_' + g.id + '" type="text" value="' + escHtml(g.name) + '" style="flex:1;min-width:0;padding:4px 8px;background:var(--bg-card);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px;" />';
+    html += '<input id="groupName_' + g.id + '" name="groupName" aria-label="分组名称" type="text" value="' + escHtml(g.name) + '" style="flex:1;min-width:0;padding:4px 8px;background:var(--bg-card);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px;" />';
 
     html += '<span style="font-size:11px;color:var(--text-muted);flex-shrink:0;">' + deviceCount + '台</span>';
     html += '</div>';
@@ -4500,7 +4500,7 @@ function renderConfigUngroupedList() {
     var cellInfo = getDeviceCellInfo(d.deviceId);
     var groupName = '';
     html += '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);">';
-    html += '<input type="checkbox" class="ungrouped-device-cb" value="' + d.deviceId + '" style="cursor:pointer;flex-shrink:0;" />';
+    html += '<input type="checkbox" name="ungroupedDevice" aria-label="选择设备" class="ungrouped-device-cb" value="' + d.deviceId + '" style="cursor:pointer;flex-shrink:0;" />';
     html += '<span style="width:10px;height:10px;border-radius:50%;background:' + (d.online ? 'var(--online)' : 'var(--offline)') + ';flex-shrink:0;"></span>';
     html += '<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;">' + escHtml(d.deviceName) + '</span>';
     if (cellInfo) {
@@ -4625,7 +4625,7 @@ function renderConfigPowerList() {
     if (!d.online) html += (groupName || cellInfo ? ' | ' : '') + '<span style="color:var(--offline);">离线</span>';
     html += '</div>';
     html += '<div style="display:flex;align-items:center;gap:6px;">';
-    html += '<input type="text" value="' + escHtml(scene) + '" placeholder="场景名" data-deviceid="' + d.deviceId + '" style="flex:1;min-width:0;padding:6px 8px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;" />';
+    html += '<input type="text" name="powerScene" aria-label="场景名" value="' + escHtml(scene) + '" placeholder="场景名" data-deviceid="' + d.deviceId + '" style="flex:1;min-width:0;padding:6px 8px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;" />';
     html += '<button onclick="saveConfigPowerScene(\'' + d.deviceId + '\')" style="padding:6px 10px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:11px;flex-shrink:0;">保存</button>';
     html += '</div></div>';
   });
@@ -4647,7 +4647,7 @@ function renderMigrateGroupList() {
   var html = '';
   // 未分组（key = ''）
   html += '<label style="display:flex;align-items:center;gap:8px;padding:5px 2px;cursor:pointer;font-size:13px;color:var(--text);">'
-       +  '<input type="checkbox" class="migrate-group-cb" value="" style="width:14px;height:14px;cursor:pointer;">'
+       +  '<input type="checkbox" name="migrateGroup" aria-label="未分组" class="migrate-group-cb" value="" style="width:14px;height:14px;cursor:pointer;">'
        +  '<span>未分组</span>'
        +  '<span style="color:var(--text-muted);font-size:11px;margin-left:auto;">'
        +  devices.filter(function(d){ return !d.groupId; }).length + '</span></label>';
@@ -4655,7 +4655,7 @@ function renderMigrateGroupList() {
   groups.forEach(function(g) {
     var cnt = devices.filter(function(d){ return d.groupId === g.id; }).length;
     html += '<label style="display:flex;align-items:center;gap:8px;padding:5px 2px;cursor:pointer;font-size:13px;color:var(--text);">'
-         +  '<input type="checkbox" class="migrate-group-cb" value="' + g.id + '" style="width:14px;height:14px;cursor:pointer;">'
+         +  '<input type="checkbox" name="migrateGroup" aria-label="' + escHtml(g.name) + '" class="migrate-group-cb" value="' + g.id + '" style="width:14px;height:14px;cursor:pointer;">'
          +  '<span style="color:' + g.color + ';">●</span>'
          +  '<span>' + escHtml(g.name) + '</span>'
          +  '<span style="color:var(--text-muted);font-size:11px;margin-left:auto;">' + cnt + '</span></label>';
@@ -5349,7 +5349,7 @@ function renderPowerBody() {
       }
       html += '</div>';
       // 内联场景输入框
-      html += '<input type="text" class="power-item-input" id="powerInput_' + escHtml(dev.deviceId) + '" value="' + escHtml(sceneName) + '" placeholder="未配置" />';
+      html += '<input type="text" name="powerInput" aria-label="场景配置" class="power-item-input" id="powerInput_' + escHtml(dev.deviceId) + '" value="' + escHtml(sceneName) + '" placeholder="未配置" />';
       // 确定按钮
       html += '<button class="power-item-save" onclick="savePowerSceneInline(\'' + escHtml(dev.deviceId) + '\')">确定</button>';
       html += '</div>';
@@ -5597,7 +5597,7 @@ function refreshMonitorDeviceList() {
     var alreadySelected = monitorWallState.selectedDevices.indexOf(d.deviceId) >= 0;
 
     html += '<label class="monitor-device-item ' + statusClass + '">' +
-      '<input type="checkbox" value="' + d.deviceId + '" ' +
+      '<input type="checkbox" name="monitorDevice" aria-label="' + d.deviceName + '" value="' + d.deviceId + '" ' +
       (isChecked ? 'checked' : '') + ' ' +
       (alreadySelected && !isChecked ? 'disabled' : '') +
       ' onchange="toggleMonitorDevice(this)">' +
