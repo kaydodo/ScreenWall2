@@ -19,7 +19,7 @@ import time
 import webbrowser
 
 # 客户端版本号（每次功能更新时手动递增）
-CLIENT_VERSION = "1.3.18"
+CLIENT_VERSION = "1.3.19"
 
 
 def has_key_client():
@@ -929,8 +929,10 @@ class ScreenCapturer:
             return m["left"], m["top"], m["width"], m["height"]
         return 0, 0, 1920, 1080
 
-    def capture(self, hq=False, lossless=False, hq_limit=720, hq_quality=30):
+    def capture(self, hq=False, lossless=False, hq_limit=720, hq_quality=40, is_static=False):
         # hq_limit: HQ 模式分辨率上限，默认 720p（普通预览），可设为 1080（高清预览）
+        # is_static: 是否为静态截图（收藏/报警），静态用 WebP 质量 30，实时流用 JPG
+        # 实时流：480x270 用 JPG 质量 30，720P/1080P 用 JPG 质量 40
         img_bytes = None
         use_dxgi = False
 
@@ -961,7 +963,13 @@ class ScreenCapturer:
                             pic.save(buf, format="WEBP", lossless=True)
                             img_bytes = buf.getvalue()
                         else:
-                            pic.save(buf, format="WEBP", quality=self.quality if not hq else hq_quality, method=6)
+                            # 静态截图用 WebP 质量 30，实时流根据分辨率选择格式和压缩质量
+                            if is_static:
+                                pic.save(buf, format="WEBP", quality=30, method=6)
+                            elif not hq:
+                                pic.save(buf, format="JPEG", quality=30, optimize=True)
+                            else:
+                                pic.save(buf, format="JPEG", quality=hq_quality, optimize=True)
                             img_bytes = buf.getvalue()
                         if len(img_bytes) < 1000:
                             img_bytes = None
@@ -990,7 +998,13 @@ class ScreenCapturer:
                         pic.save(buf, format="WEBP", lossless=True)
                         img_bytes = buf.getvalue()
                     else:
-                        pic.save(buf, format="WEBP", quality=self.quality if not hq else hq_quality, method=6)
+                        # 静态截图用 WebP 质量 30，实时流根据分辨率选择格式和压缩质量
+                        if is_static:
+                            pic.save(buf, format="WEBP", quality=30, method=6)
+                        elif not hq:
+                            pic.save(buf, format="JPEG", quality=30, optimize=True)
+                        else:
+                            pic.save(buf, format="JPEG", quality=hq_quality, optimize=True)
                         img_bytes = buf.getvalue()
                     if len(img_bytes) < 1000:
                         self._mss_ok = False
@@ -1014,7 +1028,13 @@ class ScreenCapturer:
                     pic.save(buf, format="WEBP", lossless=True)
                     img_bytes = buf.getvalue()
                 else:
-                    pic.save(buf, format="WEBP", quality=self.quality if not hq else hq_quality, method=6)
+                    # 静态截图用 WebP 质量 30，实时流根据分辨率选择格式和压缩质量
+                    if is_static:
+                        pic.save(buf, format="WEBP", quality=30, method=6)
+                    elif not hq:
+                        pic.save(buf, format="JPEG", quality=30, optimize=True)
+                    else:
+                        pic.save(buf, format="JPEG", quality=hq_quality, optimize=True)
                     img_bytes = buf.getvalue()
             except Exception:
                 pass
@@ -1786,8 +1806,8 @@ class ScreenWallClient:
             "deviceName":   device_name,
             "computerName": os.environ.get("COMPUTERNAME", ""),
             "uuDeviceId":   uu_device_id,
-            "interval":     0.333,   # 3fps 写死
-            "quality":      30,      # 写死
+            "interval":     0.2,    # 5fps 写死
+            "quality":      30,     # 小图 JPG 质量 30
             "resizeW":      480,     # 写死
             "resizeH":      270,     # 写死
         }
@@ -1964,18 +1984,24 @@ class ScreenWallClient:
                 hq_limit = 720  # 不影响 hq=False 的情况
             capt = ScreenCapturer(cfg["quality"], cfg["resizeW"], cfg["resizeH"], monitor_index=_current_monitor_index)
             try:
-                img_bytes = capt.capture(hq=hq, hq_limit=hq_limit, hq_quality=30)
+                img_bytes = capt.capture(hq=hq, hq_limit=hq_limit, hq_quality=40)
             finally:
                 capt.close()
 
             if img_bytes:
                 try:
+                    # 根据是否 HQ 模式选择图片格式（用于 MJPEG 流）
+                    img_format = "image/jpeg"
+                    if hq:
+                        img_format = "image/jpeg"
+                    else:
+                        img_format = "image/jpeg"
                     # 获取当前分辨率（实时同步到服务端，用于鼠标点击坐标映射）
                     off_x, off_y, off_w, off_h = _get_current_monitor_offset()
                     payload = {
                         "type":       "screenshot",
                         "deviceId":   cfg["deviceId"],
-                        "image":      "data:image/webp;base64," + base64.b64encode(img_bytes).decode("ascii"),
+                        "image":      "data:" + img_format + ";base64," + base64.b64encode(img_bytes).decode("ascii"),
                         "hq":         self.hq_mode,
                         "clientTime": int(time.time() * 1000),
                         "screenWidth": off_w,
@@ -2018,7 +2044,7 @@ class ScreenWallClient:
                     elif msg_type == "stopHQ":
                         capt = ScreenCapturer(cfg["quality"], cfg["resizeW"], cfg["resizeH"], monitor_index=_current_monitor_index)
                         try:
-                            img_bytes = capt.capture(hq=True)
+                            img_bytes = capt.capture(hq=True, hq_quality=40, is_static=True)
                         finally:
                             capt.close()
                         if img_bytes:
@@ -2052,7 +2078,7 @@ class ScreenWallClient:
                         if cfg["deviceId"] in device_ids and timestamp:
                             capt = ScreenCapturer(quality=30, resize_w=1920, resize_h=1080, monitor_index=_current_monitor_index)
                             try:
-                                img_bytes = capt.capture(hq=False, lossless=False)
+                                img_bytes = capt.capture(hq=False, is_static=True)
                             finally:
                                 capt.close()
                             if img_bytes:
@@ -2147,7 +2173,7 @@ class ScreenWallClient:
                         try:
                             capt = ScreenCapturer(quality=80, resize_w=1920, resize_h=1080, monitor_index=_current_monitor_index)
                             try:
-                                full_img = capt.capture(hq=True, hq_limit=1080)
+                                full_img = capt.capture(hq=True, hq_limit=1080, is_static=True)
                                 if full_img:
                                     alarm_full_b64 = "data:image/webp;base64," + base64.b64encode(full_img).decode("ascii")
                                     off_x, off_y, off_w, off_h = _get_current_monitor_offset()
