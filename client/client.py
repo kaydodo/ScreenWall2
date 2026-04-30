@@ -19,7 +19,7 @@ import time
 import webbrowser
 
 # 客户端版本号（每次功能更新时手动递增）
-CLIENT_VERSION = "1.3.19"
+CLIENT_VERSION = "1.3.20"
 
 
 def has_key_client():
@@ -1806,7 +1806,7 @@ class ScreenWallClient:
             "deviceName":   device_name,
             "computerName": os.environ.get("COMPUTERNAME", ""),
             "uuDeviceId":   uu_device_id,
-            "interval":     0.2,    # 5fps 写死
+            "interval":     0.125,  # 8fps 写死
             "quality":      30,     # 小图 JPG 质量 30
             "resizeW":      480,     # 写死
             "resizeH":      270,     # 写死
@@ -1906,10 +1906,10 @@ class ScreenWallClient:
                 cfg = new_cfg
                 self._last_cfg_hash = self._cfg_hash(cfg)
 
-            # 心跳计数：每 150 帧（约 30 秒 @ 5fps）主动发一次心跳
+            # 心跳计数：每 240 帧（约 30 秒 @ 8fps）主动发一次心跳
             # 心跳用于接收服务端的升级通知，不依赖截图失败才触发
             self._heartbeat_tick += 1
-            heartbeat_interval = 150  # 可配置，每 N 帧发一次心跳（约30秒 @ 5fps）
+            heartbeat_interval = 240  # 可配置，每 N 帧发一次心跳（约30秒 @ 8fps）
             if self._heartbeat_tick >= heartbeat_interval:
                 self._heartbeat_tick = 0
                 try:
