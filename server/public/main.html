@@ -2137,13 +2137,23 @@ function updateCellScreenshot(index, imgData) {
   const cell = gridCells[index];
   const deviceId = cell ? cell.deviceId : null;
   if (imgData && deviceId) {
-    // 使用 MJPEG 流代替静态图片
-    img.src = `/mjpeg/${deviceId}`;
-    img.style.display = 'block';
-    ns.style.display = 'none';
-    // 如果设备离线，保持灰度
+    // 离线设备：显示静态图；在线设备：使用 MJPEG 流
     if (cell && !cell.online) {
+      // 离线：显示静态图（通过监控预览弹窗放入时，screenshot可能从devices中获取）
+      const dev = devices.find(d => d.deviceId === deviceId);
+      const offlineFrame = (cell.screenshot || (dev && (dev._offlineScreenshot || dev.screenshot)));
+      if (offlineFrame) {
+        img.src = offlineFrame;
+        img.style.display = 'block';
+      }
       img.classList.add('grayscale');
+      ns.style.display = 'none';
+    } else {
+      // 在线：使用 MJPEG 流
+      img.src = `/mjpeg/${deviceId}`;
+      img.style.display = 'block';
+      img.classList.remove('grayscale');
+      ns.style.display = 'none';
     }
   }
 }
@@ -2151,7 +2161,7 @@ function updateCellScreenshot(index, imgData) {
 // 格子位置标签 A1, A2, ... B1, B2, ...
 // 格子编号显示为 编号01 ~ 编号100
 function getPositionLabel(index) {
-  return String(index + 1).padStart(2, '0');
+  return String(index + 1).padStart(3, '0');
 }
 
 // ─────────────────────────────────────────
@@ -5539,7 +5549,11 @@ function toggleMonitorDevice(cb) {
 var compactLayouts = {
   6: { rows: 2, cols: 3 },   // 3x2
   12: { rows: 3, cols: 4 },  // 4x3
-  20: { rows: 4, cols: 5 }   // 5x4
+  20: { rows: 4, cols: 5 },  // 5x4
+  30: { rows: 5, cols: 6 },  // 6x5
+  50: { rows: 5, cols: 10 }, // 10x5
+  100: { rows: 10, cols: 10 },// 10x10
+  200: { rows: 10, cols: 20 },// 20x10
 };
 
 function selectMonitorLayout(layout) {

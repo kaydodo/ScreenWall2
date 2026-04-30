@@ -395,8 +395,9 @@ function enterWallFullscreen(cell, deviceId) {
       img.style.display = 'block';
     }
   } else {
-    // 在线设备：开启1080p
+    // 在线设备：先 startHQ（720p），再 hq1080On（1080p）
     if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'startHQ', deviceId: deviceId }));
       ws.send(JSON.stringify({ type: 'hq1080On', deviceId: deviceId }));
     }
   }
