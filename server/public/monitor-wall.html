@@ -324,6 +324,13 @@ function toggleWallCellFullscreen(cell, deviceId) {
 
 function enterWallFullscreen(cell, deviceId) {
   var container = document.getElementById('wallContainer');
+  var dev = devices[deviceId];
+
+  // 检查设备是否在线，离线设备不允许全屏
+  if (!dev || dev.online === false) {
+    alert('该设备已离线，无法全屏显示');
+    return;
+  }
 
   // 保存原始状态（只在首次进入时保存）
   if (wallFullscreenDeviceId === null) {
@@ -341,7 +348,6 @@ function enterWallFullscreen(cell, deviceId) {
   // ① 记录变换前的格子尺寸（layout 尺寸，不受 CSS transform 影响）
   var cellW = cell.offsetWidth;
   var cellH = cell.offsetHeight;
-  var dev = devices[deviceId];
   var oldTx = (dev && dev.crop) ? (dev.crop.translateX || 0) : 0;
   var oldTy = (dev && dev.crop) ? (dev.crop.translateY || 0) : 0;
   var scale  = (dev && dev.crop) ? (dev.crop.scale  || 1) : 1;
