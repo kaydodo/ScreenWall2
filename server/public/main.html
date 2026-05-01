@@ -1237,9 +1237,10 @@ function connectWS() {
             watermark.textContent = status === 'deleted' ? '设备已删除' : '设备已离线';
             watermark.style.display = 'block';
           }
-          // 设置离线图
+          // 设置离线图：优先使用格子离线瞬间的截图，其次用当前截图
+          const cell = gridCells.find(c => c && c.deviceId === deviceId);
           const dev = devices.find(d => d.deviceId === deviceId);
-          const offlineFrame = dev && (dev._offlineScreenshot || dev.screenshot);
+          const offlineFrame = (cell && (cell._offlineScreenshot || cell.screenshot)) || (dev && dev.screenshot);
           if (offlineFrame) {
             previewImg.src = offlineFrame;
           }
