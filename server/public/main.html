@@ -5645,10 +5645,32 @@ function updateMonitorPreview() {
             img.style.filter = '';
             img.style.opacity = '';
             cell.querySelector('.monitor-preview-img-wrapper').classList.remove('offline');
+            // 上线：切换到 MJPEG 流，并移除离线 badge
+            var expectedSrc = '/mjpeg/' + deviceId;
+            if (!img.src.includes(expectedSrc)) {
+              img.src = expectedSrc;
+            }
+            var badge = cell.querySelector('.monitor-offline-badge');
+            if (badge) badge.remove();
+            var nameEl = cell.querySelector('.monitor-preview-name');
+            if (nameEl) nameEl.textContent = device.deviceName;
           } else {
             img.style.filter = 'grayscale(100%)';
             img.style.opacity = '0.5';
             cell.querySelector('.monitor-preview-img-wrapper').classList.add('offline');
+            // 离线：切换到静态图，并添加离线 badge
+            img.src = device.screenshot || '';
+            var nameEl2 = cell.querySelector('.monitor-preview-name');
+            if (nameEl2) nameEl2.textContent = device.deviceName + ' (离线)';
+            if (!cell.querySelector('.monitor-offline-badge')) {
+              var wrapper2 = cell.querySelector('.monitor-preview-img-wrapper');
+              if (wrapper2) {
+                var badge = document.createElement('div');
+                badge.className = 'monitor-offline-badge';
+                badge.textContent = '设备已离线';
+                wrapper2.appendChild(badge);
+              }
+            }
           }
         }
         continue;
