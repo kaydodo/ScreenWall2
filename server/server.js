@@ -215,7 +215,7 @@ function createMjpegStream(deviceId, req, res) {
   serverLog(`[MJPEG] 流建立: ${deviceId}`);
   // 设置 MJPEG 流响应头
   res.writeHead(200, {
-    'Content-Type': `multipart/x-mixed-replace; boundary=--${MJPEG_BOUNDARY}`,
+    'Content-Type': `multipart/x-mixed-replace; boundary=${MJPEG_BOUNDARY}`,
     'Cache-Control': 'no-cache, no-store, must-revalidate',
     'Pragma': 'no-cache',
     'Expires': '0',
@@ -230,23 +230,20 @@ function createMjpegStream(deviceId, req, res) {
   // 定期发送帧
   const interval = setInterval(() => {
     if (!active) return;
+    if (!res.writable) {
+      serverLog(`[MJPEG] ${deviceId} 响应不可写，关闭流`);
+      cleanup();
+      return;
+    }
 
     const frame = deviceFrames.get(deviceId);
     if (!frame || !frame.jpeg) {
       emptyCount++;
-      // 连续空帧超过 50 次（约 5 秒）才打一条日志，避免刷屏
+      // 连续空帧超过 50 次（约 5 秒）才打一条日志
       if (emptyCount === 50) {
         serverLog(`[MJPEG] ${deviceId} 流读空帧: deviceFrames无数据(${emptyCount}次)`);
       }
-      // 没有帧数据，发送空白帧（1x1 黑色 JPEG）
-      if (active) {
-        const emptyFrame = Buffer.from(
-          '--' + MJPEG_BOUNDARY + '\r\n' +
-          'Content-Type: image/jpeg\r\n' +
-          'Content-Length: 0\r\n\r\n'
-        );
-        res.write(emptyFrame);
-      }
+      // 没有帧数据时不发送，避免破坏 MJPEG 流格式
       return;
     }
 
@@ -256,6 +253,12 @@ function createMjpegStream(deviceId, req, res) {
     }
 
     try {
+      // 诊断：确认帧是有效 JPEG
+      const jpegStart = frame.jpeg[0] === 0xFF && frame.jpeg[1] === 0xD8;
+      if (!jpegStart) {
+        serverLog(`[MJPEG] ⚠️ ${deviceId} 帧不是JPEG: head=${frame.jpeg.slice(0,4).toString('hex')}`);
+        return;
+      }
       // 构造 JPEG 帧
       const header = Buffer.from(
         '--' + MJPEG_BOUNDARY + '\r\n' +
