@@ -1679,6 +1679,9 @@ wssClient.on('connection', (ws, req) => {
         // 标准模式用 MD5 去重节流，HQ 模式直接推送
         let shouldSendBrowser = true;
         if (!msg.hq) {
+          // 从 msg.image 提取 buffer 用于 MD5 去重
+          const base64Data = msg.image.replace(/^data:image\/\w+;base64,/, '');
+          const buf = Buffer.from(base64Data, 'base64');
           const md5 = crypto.createHash('md5').update(buf).digest('hex');
           const cached = frameCache.get(msg.deviceId);
           if (cached && cached.md5 === md5 && (now - cached.time < 100)) {
