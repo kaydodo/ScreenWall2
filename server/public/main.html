@@ -693,8 +693,7 @@ function renderPendingFrames() {
               if (stxt) stxt.textContent = '在线';
             }
           }
-          // 只对在线设备更新截图，离线设备的截图应保持为离线瞬间的值
-          if (cell && cell.online) {
+          if (cell) {
             cell.screenshot = frame.image;
             updateCellScreenshot(cell.index, frame.image);
             rendered = true;
@@ -1237,10 +1236,9 @@ function connectWS() {
             watermark.textContent = status === 'deleted' ? '设备已删除' : '设备已离线';
             watermark.style.display = 'block';
           }
-          // 设置离线图：优先使用格子离线瞬间的截图，其次用当前截图
-          const cell = gridCells.find(c => c && c.deviceId === deviceId);
+          // 设置离线图：使用 devices 中的截图（和监控预览弹窗等页面一致）
           const dev = devices.find(d => d.deviceId === deviceId);
-          const offlineFrame = (cell && (cell._offlineScreenshot || cell.screenshot)) || (dev && dev.screenshot);
+          const offlineFrame = dev && dev.screenshot;
           if (offlineFrame) {
             previewImg.src = offlineFrame;
           }
@@ -2064,12 +2062,6 @@ function updateCellElement(index) {
     const cellEl = document.querySelector(`.wall-cell[data-index="${index}"]`);
     if (isOffline) {
       if (cellEl) cellEl.classList.add('offline-cell');
-      // 离线瞬间：保存最后一帧（只在首次离线时保存，后续保持不变）
-      if (!cell._offlineScreenshot && cell.screenshot) {
-        cell._offlineScreenshot = cell.screenshot;
-      }
-      // 标记下次上线时需要从当前截图更新离线帧缓存
-      cell._offlineNeedsSave = true;
       // 始终显示灰色背景+中央"设备已离线"文字
       stxt.textContent = '离线';
       dot.className = 'status-dot offline';
@@ -2086,8 +2078,9 @@ function updateCellElement(index) {
         img.parentElement.appendChild(offlineLabel);
       }
 
-      // 使用离线瞬间保存的帧（_offlineScreenshot），fallback 到当前截图
-      const offlineFrame = cell._offlineScreenshot || cell.screenshot;
+      // 使用 devices 中的截图（和监控预览弹窗等页面一致）
+      const dev = devices.find(d => d.deviceId === cell.deviceId);
+      const offlineFrame = dev && dev.screenshot;
       if (offlineFrame) {
         // 有截图：直接显示灰度截图+离线标签
         img.src = offlineFrame;
@@ -2109,13 +2102,6 @@ function updateCellElement(index) {
       dot.className = 'status-dot online';
       stxt.className = 'status-text online';
       document.getElementById(`uubtn_${index}`).style.display = 'flex';
-
-      // 设备从离线恢复在线时，缓存离线瞬间的最后一帧
-      // 后续新帧会持续更新 cell.screenshot，但 _offlineScreenshot 保持不变
-      if (cell._offlineNeedsSave && cell.screenshot) {
-        cell._offlineScreenshot = cell.screenshot;
-        cell._offlineNeedsSave = false;
-      }
 
       // 主动启动 MJPEG 低清流（如果尚未启动）
       const expectedSrc = `/mjpeg/${cell.deviceId}`;
@@ -2176,9 +2162,9 @@ function updateCellScreenshot(index, imgData) {
   if (imgData && deviceId) {
     // 离线设备：显示静态图；在线设备：使用 MJPEG 流
     if (cell && !cell.online) {
-      // 离线：显示静态图（通过监控预览弹窗放入时，screenshot可能从devices中获取）
+      // 离线：使用 devices 中的截图（和监控预览弹窗等页面一致）
       const dev = devices.find(d => d.deviceId === deviceId);
-      const offlineFrame = (cell.screenshot || (dev && (dev._offlineScreenshot || dev.screenshot)));
+      const offlineFrame = dev && dev.screenshot;
       if (offlineFrame) {
         img.src = offlineFrame;
         img.style.display = 'block';
