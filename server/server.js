@@ -327,6 +327,8 @@ let gridSizeSetting = 4;  // 默认布局大小
 
 // ========== 帧缓存（MD5 去重推送）==========
 const frameCache = new Map(); // deviceId -> { md5, time }
+// 截图路径统计（用于诊断 JPEG 快速路径 vs sharp 慢速路径）
+let screenshotPathStats = null; // { fast, slow, lastLog }
 // 333ms内相同 MD5 的帧不重复推送（约3fps，减少重复传输）
 const FRAME_CACHE_TTL = 333;
 
