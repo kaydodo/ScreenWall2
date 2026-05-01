@@ -196,12 +196,23 @@ function updateDeviceFrame(deviceId, jpegBuffer) {
     jpeg: jpegBuffer,
     timestamp: Date.now()
   });
+  // 每秒采样日志，避免刷屏
+  const now = Date.now();
+  if (!updateFrameLogCache) updateFrameLogCache = { last: 0, interval: 0 };
+  if (now - updateFrameLogCache.last > 1000) {
+    updateFrameLogCache.last = now;
+    updateFrameLogCache.interval++;
+    if (updateFrameLogCache.interval % 10 === 1) { // 每约10秒打一条
+      serverLog(`[帧] deviceFrames写入统计: size=${jpegBuffer.length}, total=${deviceFrames.size}`);
+    }
+  }
 }
 
 /**
  * 生成 MJPEG 流响应（multipart/x-mixed-replace）
  */
 function createMjpegStream(deviceId, req, res) {
+  serverLog(`[MJPEG] 流建立: ${deviceId}`);
   // 设置 MJPEG 流响应头
   res.writeHead(200, {
     'Content-Type': `multipart/x-mixed-replace; boundary=--${MJPEG_BOUNDARY}`,
@@ -255,6 +266,9 @@ function createMjpegStream(deviceId, req, res) {
       res.write(frame.jpeg);
       res.write('\r\n');
       frameIndex++;
+      // 每发 100 帧打一条日志，确认流在工作
+      if (frameIndex % 100 === 0) {
+        serverLog(`[MJPEG] ${deviceId} 流已发送${frameIndex}帧`);
     } catch (e) {
       // 连接已关闭
       active = false;
@@ -1669,10 +1683,10 @@ wssClient.on('connection', (ws, req) => {
 
     if (msg.type === 'screenshot' && msg.deviceId) {
       const receiveTime = Date.now();
-        const dev = devices.get(msg.deviceId);
-        if (dev) {
-          dev.lastSeen = receiveTime;
-          dev.online = true;
+      const dev = devices.get(msg.deviceId);
+      if (dev) {
+        dev.lastSeen = receiveTime;
+        dev.online = true;
 
         // 实时同步分辨率（防止人工修改后坐标映射错误）
         if (msg.screenWidth && msg.screenHeight) {
@@ -1747,14 +1761,21 @@ wssClient.on('connection', (ws, req) => {
         const buf = Buffer.from(b64str, 'base64');
         const isJpeg = buf[0] === 0xFF && buf[1] === 0xD8 && buf[2] === 0xFF;
 
+        // 统计：记录路径选择（每100条采样一次）
+        if (!screenshotPathStats) screenshotPathStats = { fast: 0, slow: 0, lastLog: 0 };
+        if (isJpeg && buf.length >= 100) screenshotPathStats.fast++;
+        else screenshotPathStats.slow++;
+        const nowStat = Date.now();
+        if (nowStat - screenshotPathStats.lastLog > 5000) {
+          screenshotPathStats.lastLog = nowStat;
+          serverLog(`[截图路径] 快速路径=${screenshotPathStats.fast}, 慢速路径=${screenshotPathStats.slow}`);
+        }
+
         if (isJpeg && buf.length >= 100) {
           // JPEG 直接同步更新，不走 async decodeImageToJpeg，避免高并发时 Promise 堆积
           updateDeviceFrame(msg.deviceId, buf);
         } else {
           // 非 JPEG（如 WebP），走异步转换
-          if (!isJpeg) {
-            serverLog(`[JPEG] ${dev.deviceName} 非JPEG格式, 头=${buf.slice(0,4).toString('hex')}, 走sharp转换`);
-          }
           decodeImageToJpeg(msg.image, msg.deviceId).then(jpegBuffer => {
             if (jpegBuffer) {
               updateDeviceFrame(msg.deviceId, jpegBuffer);
