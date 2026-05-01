@@ -1220,6 +1220,8 @@ function connectWS() {
     // 设备预览状态变更（上下线、删除时刷新预览大图）
     if (msg.type === 'devicePreviewStatus') {
       const { deviceId, status } = msg;
+      // DEBUG
+      console.warn('[DEBUG offline] devicePreviewStatus', { deviceId, status, hasScreenshot: !!msg.screenshot, screenshotLen: msg.screenshot ? msg.screenshot.length : 0 });
       // 检查是否正在预览该设备（主预览）
       if (previewDeviceId === deviceId && document.getElementById('previewOverlay')) {
         const previewImg = document.getElementById('previewImg');
@@ -1239,6 +1241,8 @@ function connectWS() {
           // 设置离线图：优先使用广播中的截图，其次从 devices 获取（和格子页面一致）
           const dev = devices.find(d => d.deviceId === deviceId);
           const offlineFrame = msg.screenshot || (dev && dev.screenshot);
+          // DEBUG
+          console.warn('[DEBUG offline] setImg', { msgHasScreenshot: !!msg.screenshot, devHasScreenshot: !!(dev && dev.screenshot), offlineFrameLen: offlineFrame ? offlineFrame.length : 0 });
           if (offlineFrame) {
             previewImg.src = offlineFrame;
           }
