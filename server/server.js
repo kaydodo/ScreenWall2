@@ -269,6 +269,7 @@ function createMjpegStream(deviceId, req, res) {
       // 每发 100 帧打一条日志，确认流在工作
       if (frameIndex % 100 === 0) {
         serverLog(`[MJPEG] ${deviceId} 流已发送${frameIndex}帧`);
+      }
     } catch (e) {
       // 连接已关闭
       active = false;
