@@ -579,22 +579,24 @@ function initWall() {
   // 启动看门狗
   watchdog.start();
 
-  // 主动启动 MJPEG 流（在线设备）
+  // WebSocket 推送方案：初始化时不设置 img.src，等待 wallScreenshot 消息更新
+  // wallScreenshot 消息会自动更新图片（已在消息处理中实现）
   wallData.devices.forEach(function(dev) {
     var img = document.getElementById('img_' + dev.id);
     if (!img) return;
 
     if (dev.online === false) {
-      // 离线设备：显示静态图
+      // 离线设备：显示静态图（来自 devices.screenshot）
       if (dev.screenshot) {
         img.src = dev.screenshot;
       }
       img.style.display = 'block';
     } else {
-      // 在线设备：启动 MJPEG 流
-      img.style.width = '100%';
-      img.style.height = '100%';
-      img.src = '/mjpeg/' + dev.id;
+      // 在线设备：等待 wallScreenshot 消息推送图片
+      // 先显示 devices.screenshot 作为占位（可能是旧图）
+      if (dev.screenshot) {
+        img.src = dev.screenshot;
+      }
       img.style.display = 'block';
       // 发送 startHQ 请求720p高清流
       if (ws && ws.readyState === WebSocket.OPEN) {
@@ -678,18 +680,12 @@ function connectWebSocket() {
           frameHealCount.delete(deviceId);
         }
 
-        // ── MJPEG 流：只在首次或未正确设置时启动（离线设备跳过）─────────────────
+        // ── WebSocket 推送：直接使用截图数据（无需 MJPEG 流）────────
         var img = document.getElementById('img_' + deviceId);
-        var dev = devices[deviceId];
-        if (img && dev && dev.online !== false) {
-          var expectedSrc = '/mjpeg/' + deviceId;
-          if (!img.src || !img.src.includes(expectedSrc)) {
-            img.style.width = '100%';
-            img.style.height = '100%';
-            img.src = expectedSrc;
-            img.style.display = 'block';
-          }
-          img.style.transform = 'scale(' + dev.crop.scale + ') translate(' + (dev.crop.translateX || 0) + 'px, ' + (dev.crop.translateY || 0) + 'px)';
+        if (img && screenshot) {
+          img.src = screenshot;
+          img.style.display = 'block';
+          img.style.transform = 'scale(' + (dev.crop.scale || 1) + ') translate(' + (dev.crop.translateX || 0) + 'px, ' + (dev.crop.translateY || 0) + 'px)';
           img.style.transformOrigin = 'center center';
         }
 
@@ -791,13 +787,14 @@ function handleWallStateUpdate(data) {
       } else if (uuBtn) {
         uuBtn.classList.remove('hidden');
       }
-      // 主动启动 MJPEG 流
+      // WebSocket 推送方案：等待 wallScreenshot 消息更新图片，无需主动设置
       var img = document.getElementById('img_' + deviceId);
       if (img) {
-        img.style.width = '100%';
-        img.style.height = '100%';
-        img.src = '/mjpeg/' + deviceId;
         img.style.display = 'block';
+        // 全屏设备恢复在线时，清除离线样式
+        if (wallFullscreenDeviceId === deviceId) {
+          img.classList.remove('offline');
+        }
       }
       // 发送 startHQ 请求720p高清流
       if (ws && ws.readyState === WebSocket.OPEN) {
