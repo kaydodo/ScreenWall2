@@ -169,23 +169,16 @@ const MJPEG_BOUNDARY = 'frame'; // multipart boundary
 async function decodeImageToJpeg(base64Data, deviceId) {
   if (!base64Data) return null;
   try {
-    // 去掉 data:image/xxx;base64, 前缀
     const base64Str = base64Data.replace(/^data:image\/\w+;base64,/, '');
     const buffer = Buffer.from(base64Str, 'base64');
-    if (!buffer || buffer.length < 100) {
-      serverLog(`[JPEG] ${deviceId} buffer太小: ${buffer ? buffer.length : 'null'}`);
-      return null;
-    }
-    // 检查 JPEG 文件头 (FFD8FF)
+    if (!buffer || buffer.length < 100) return null;
     const isJpeg = buffer[0] === 0xFF && buffer[1] === 0xD8 && buffer[2] === 0xFF;
-    // 如果是 WebP 格式，转换为 JPEG
     if (base64Data.startsWith('data:image/webp') || !isJpeg) {
       if (!isJpeg) {
-        serverLog(`[JPEG] ${deviceId} 非JPEG格式, 尝试WebP转换, 头=${buffer.slice(0,4).toString('hex')}`);
+        serverLog(`[JPEG] ${deviceId} 非JPEG格式, 尝试WebP转换`);
       }
       return await sharp(buffer).jpeg({ quality: 80 }).toBuffer();
     }
-    // 其他格式直接返回（已经是 JPEG）
     return buffer;
   } catch (e) {
     serverLog(`[JPEG] ${deviceId} decodeImageToJpeg失败: ${e.message}`);
@@ -221,6 +214,7 @@ function createMjpegStream(deviceId, req, res) {
 
   let active = true;
   let frameIndex = 0;
+  let emptyCount = 0; // 追踪连续读空帧次数
 
   // 定期发送帧
   const interval = setInterval(() => {
@@ -228,6 +222,11 @@ function createMjpegStream(deviceId, req, res) {
 
     const frame = deviceFrames.get(deviceId);
     if (!frame || !frame.jpeg) {
+      emptyCount++;
+      // 连续空帧超过 50 次（约 5 秒）才打一条日志，避免刷屏
+      if (emptyCount === 50) {
+        serverLog(`[MJPEG] ${deviceId} 流读空帧: deviceFrames无数据(${emptyCount}次)`);
+      }
       // 没有帧数据，发送空白帧（1x1 黑色 JPEG）
       if (active) {
         const emptyFrame = Buffer.from(
@@ -238,6 +237,11 @@ function createMjpegStream(deviceId, req, res) {
         res.write(emptyFrame);
       }
       return;
+    }
+
+    // 有帧数据
+    if (emptyCount > 0) {
+      emptyCount = 0; // 重置计数
     }
 
     try {
@@ -1665,13 +1669,10 @@ wssClient.on('connection', (ws, req) => {
 
     if (msg.type === 'screenshot' && msg.deviceId) {
       const receiveTime = Date.now();
-      const dev = devices.get(msg.deviceId);
-      if (dev) {
-        dev.lastSeen = receiveTime;
-        dev.online = true;
-        // 调试：记录收到截图
-        const imgLen = msg.image ? msg.image.length : 0;
-        serverLog(`[截图] 收到 ${dev.deviceName}(${msg.deviceId}) 截图: 大小=${imgLen}, HQ=${!!msg.hq}`);
+        const dev = devices.get(msg.deviceId);
+        if (dev) {
+          dev.lastSeen = receiveTime;
+          dev.online = true;
 
         // 实时同步分辨率（防止人工修改后坐标映射错误）
         if (msg.screenWidth && msg.screenHeight) {
@@ -1749,9 +1750,6 @@ wssClient.on('connection', (ws, req) => {
         if (isJpeg && buf.length >= 100) {
           // JPEG 直接同步更新，不走 async decodeImageToJpeg，避免高并发时 Promise 堆积
           updateDeviceFrame(msg.deviceId, buf);
-          if (Math.random() < 0.01) {
-            serverLog(`[MJPEG] ${dev.deviceName} 帧更新成功(JPEG直接), 大小=${buf.length}`);
-          }
         } else {
           // 非 JPEG（如 WebP），走异步转换
           if (!isJpeg) {
@@ -1760,9 +1758,6 @@ wssClient.on('connection', (ws, req) => {
           decodeImageToJpeg(msg.image, msg.deviceId).then(jpegBuffer => {
             if (jpegBuffer) {
               updateDeviceFrame(msg.deviceId, jpegBuffer);
-              if (Math.random() < 0.01) {
-                serverLog(`[MJPEG] ${dev.deviceName} 帧更新成功(转换后), 大小=${jpegBuffer.length}`);
-              }
             } else {
               serverLog(`[MJPEG] ${dev.deviceName} decodeImageToJpeg 返回 null`);
             }
