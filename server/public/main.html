@@ -1243,10 +1243,10 @@ function connectWS() {
           // 设置离线图：优先使用广播中的截图，其次从 devices 获取（和格子页面一致）
           const dev = devices.find(d => d.deviceId === deviceId);
           const offlineFrame = msg.screenshot || (dev && dev.screenshot);
-          // DEBUG
-          console.warn('[DEBUG offline] setImg, msgScreenshot=' + !!msg.screenshot + ' devScreenshot=' + !!(dev && dev.screenshot) + ' offlineFrame=' + !!offlineFrame + ' previewSrc=' + (previewImg.src ? previewImg.src.substring(0, 50) : 'empty') + ' newSrc=' + (offlineFrame ? offlineFrame.substring(0, 50) : 'empty'));
           if (offlineFrame) {
+            previewImg.onload = null;
             previewImg.src = offlineFrame;
+            previewImg.style.visibility = 'visible';
           }
           // 更新标题（优先使用广播中的设备名，其次从devices获取）
           if (previewNameEl) {
@@ -2770,8 +2770,10 @@ function openPreview(cellIndex) {
     // 设置离线静态图
     const offlineFrame = dev && dev.screenshot;
     if (offlineFrame) {
+      previewImg.onload = null;
       previewImg.src = offlineFrame;
       previewImg.style.display = 'block';
+      previewImg.style.visibility = 'visible';
     }
   }
 
