@@ -1250,6 +1250,11 @@ function connectWS() {
           }
           // UU按钮变灰不可点
           if (uubtn) { uubtn.disabled = true; uubtn.style.opacity = '0.35'; uubtn.style.cursor = 'not-allowed'; uubtn.style.pointerEvents = 'none'; }
+          // 关闭设备端高清流（1080p先关，再关720p）
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'hq1080Off', deviceId: previewDeviceId }));
+            ws.send(JSON.stringify({ type: 'stopHQ', deviceId: previewDeviceId }));
+          }
           // 不关闭预览，保持打开状态（水印+灰度表示离线）
           // 关闭远控设备列表弹窗
           closeRemoteListModal();
@@ -1277,9 +1282,10 @@ function connectWS() {
             previewImg.src = expectedSrc;
             previewImg.style.display = 'block';
           }
-          // 重新申请高清流
+          // 重新申请高清流（1080p：先startHQ再hq1080On）
           if (ws && ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ type: 'startHQ', deviceId: previewDeviceId }));
+            ws.send(JSON.stringify({ type: 'hq1080On', deviceId: previewDeviceId }));
           }
           // 显示UU按钮（如果有uuDeviceId），恢复可点状态
           const dev = devices.find(d => d.deviceId === previewDeviceId);
