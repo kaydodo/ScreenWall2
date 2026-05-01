@@ -1265,6 +1265,18 @@ function connectWS() {
             const mon = dev && dev.monitorCount > 1 ? ' 🖥️' + (dev.monitorIndex || 1) : '';
             previewNameEl.textContent = (dev && dev.deviceName ? dev.deviceName : '未知') + ' - 实时预览' + mon;
           }
+          // 主动切换到 MJPEG 流（不等 previewScreenshot 消息，避免延迟黑屏）
+          const expectedSrc = `/mjpeg/${previewDeviceId}`;
+          if (!previewImg.src.includes(expectedSrc)) {
+            const wrapper = document.getElementById('previewImgWrapper');
+            previewImg.onload = function() {
+              previewImg.style.visibility = 'visible';
+              if (wrapper) wrapper.style.backgroundImage = '';
+              previewImg.onload = null;
+            };
+            previewImg.src = expectedSrc;
+            previewImg.style.display = 'block';
+          }
           // 重新申请高清流
           if (ws && ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ type: 'startHQ', deviceId: previewDeviceId }));
