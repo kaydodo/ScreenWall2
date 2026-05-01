@@ -802,6 +802,10 @@ function handleWallStateUpdate(data) {
       // 发送 startHQ 请求720p高清流
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'startHQ', deviceId: deviceId }));
+        // 全屏中的设备恢复上线：同步发送 hq1080On 恢复1080p
+        if (wallFullscreenDeviceId === deviceId) {
+          ws.send(JSON.stringify({ type: 'hq1080On', deviceId: deviceId }));
+        }
       }
     }
     if (data.deviceName) {
