@@ -1236,8 +1236,9 @@ function connectWS() {
             watermark.textContent = status === 'deleted' ? '设备已删除' : '设备已离线';
             watermark.style.display = 'block';
           }
-          // 设置离线图：优先使用广播中直接带来的截图（避免批次延迟），否则从devices中获取
-          const offlineFrame = msg.screenshot || (devices.find(d => d.deviceId === deviceId) && devices.find(d => d.deviceId === deviceId).screenshot);
+          // 设置离线图：使用 devices 中的截图（和格子页面一致）
+          const dev = devices.find(d => d.deviceId === deviceId);
+          const offlineFrame = dev && dev.screenshot;
           if (offlineFrame) {
             previewImg.src = offlineFrame;
           }
