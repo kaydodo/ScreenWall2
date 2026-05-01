@@ -670,15 +670,18 @@ function connectWebSocket() {
             var badge = cell.querySelector('.offline-badge');
             if (badge) badge.style.display = 'none';
             updateUUButtonVisibility(cell, true);
+            // 同步更新设备在线状态，让 MJPEG 流判断正确
+            if (devices[deviceId]) devices[deviceId].online = true;
           }
         } else if (cell) {
           // 非离线格子，重置帧计数（下次离线会重新累加）
           frameHealCount.delete(deviceId);
         }
 
-        // ── MJPEG 流：只在首次或未正确设置时启动 ─────────────────
+        // ── MJPEG 流：只在首次或未正确设置时启动（离线设备跳过）─────────────────
         var img = document.getElementById('img_' + deviceId);
-        if (img) {
+        var dev = devices[deviceId];
+        if (img && dev && dev.online !== false) {
           var expectedSrc = '/mjpeg/' + deviceId;
           if (!img.src || !img.src.includes(expectedSrc)) {
             img.style.width = '100%';
@@ -686,11 +689,8 @@ function connectWebSocket() {
             img.src = expectedSrc;
             img.style.display = 'block';
           }
-          var dev = devices[deviceId];
-          if (dev) {
-            img.style.transform = 'scale(' + dev.crop.scale + ') translate(' + (dev.crop.translateX || 0) + 'px, ' + (dev.crop.translateY || 0) + 'px)';
-            img.style.transformOrigin = 'center center';
-          }
+          img.style.transform = 'scale(' + dev.crop.scale + ') translate(' + (dev.crop.translateX || 0) + 'px, ' + (dev.crop.translateY || 0) + 'px)';
+          img.style.transformOrigin = 'center center';
         }
 
         // ── 更新时间戳 ───────────────────────────────────
