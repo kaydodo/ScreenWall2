@@ -1793,21 +1793,17 @@ function updateGridCellHeight() {
   // 设置网格列数 CSS 变量（桌面端使用 minmax 自动计算最小宽度）
   document.documentElement.style.setProperty('--grid-cols', gridSize);
 
-  // 根据列数调整格子最小宽度和最大宽度，避免少列时格子过宽
+  // 根据列数调整格子最小宽度，不限制最大宽度，让格子自然撑满
   let cellMinW = 180;
-  let gridMaxW = '';
   if (gridSize === 1) {
     cellMinW = 500;
-    gridMaxW = '900px';
   } else if (gridSize === 2) {
     cellMinW = 400;
-    gridMaxW = '1000px';
   } else if (gridSize === 3) {
     cellMinW = 300;
-    gridMaxW = '1100px';
   }
   document.documentElement.style.setProperty('--cell-min-w', cellMinW + 'px');
-  grid.style.maxWidth = gridMaxW;
+  grid.style.maxWidth = '';
 
   // 桌面端：设置网格最小宽度，当窗口小于此值时触发横向滚动
   // 公式：列数 * 每列最小宽度 + (列数-1) * gap
