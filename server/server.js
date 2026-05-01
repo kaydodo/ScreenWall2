@@ -1766,15 +1766,70 @@ wssClient.on('connection', (ws, req) => {
           }).catch(e => {});
         }
 
+        // ===== 统一截图推送（HQ/标准 共用）=====
+        // 更新设备状态
         if (msg.hq) {
+          dev.hqScreenshot = msg.image;
+          dev.screenshot = msg.image;
+        } else {
+          dev.screenshot = msg.image;
+          dev.hqScreenshot = null;
+        }
 
-          // ===== 高清模式（方案D）：单码流高清 + 直接发原图给格子（无服务器压缩）=====
-          dev.hqScreenshot = msg.image; // 存储高清图
-          dev.screenshot = msg.image;   // 也存为截图
+        const now = Date.now();
 
-          const now = Date.now();
+        // ── browserScreenshot：推送给所有浏览器（格子页面 + 监控预览弹窗）──────
+        // 标准模式用 MD5 去重节流，HQ 模式直接推送
+        let shouldSendBrowser = true;
+        if (!msg.hq) {
+          const md5 = crypto.createHash('md5').update(buf).digest('hex');
+          const cached = frameCache.get(msg.deviceId);
+          if (cached && cached.md5 === md5 && (now - cached.time < 100)) {
+            shouldSendBrowser = false;
+          } else {
+            frameCache.set(msg.deviceId, { md5, time: now });
+          }
+        }
 
-          // ── 格子预览独立通道（不受帧缓存去重影响）────────
+        if (shouldSendBrowser) {
+          const browserMsg = JSON.stringify({
+            type: 'browserScreenshot',
+            deviceId: msg.deviceId,
+            image: msg.image,
+            timestamp: now
+          });
+          for (const browserWs of browserClients) {
+            if (browserWs.readyState === 1 && !wallClients.has(browserWs)) {
+              browserWs.send(browserMsg);
+            }
+          }
+        }
+
+        // ── wallScreenshot：推送给监控墙 ────────────────
+        // 标准模式 200ms 节流，HQ 模式直接推送
+        let shouldSendWall = true;
+        if (!msg.hq) {
+          if (dev._lastWallPush && now - dev._lastWallPush <= 200) {
+            shouldSendWall = false;
+          } else {
+            dev._lastWallPush = now;
+          }
+        }
+        if (shouldSendWall) {
+          for (const [wallWs, subscription] of wallClients) {
+            if (subscription.devices.has(msg.deviceId) && wallWs.readyState === 1) {
+              wallWs.send(JSON.stringify({
+                type: 'wallScreenshot',
+                deviceId: msg.deviceId,
+                screenshot: msg.image,
+                timestamp: now
+              }));
+            }
+          }
+        }
+
+        // ── previewScreenshot：仅 HQ 模式，推送给大图预览 ─────
+        if (msg.hq) {
           const previewMsg = JSON.stringify({
             type: 'previewScreenshot',
             deviceId: msg.deviceId,
@@ -1786,78 +1841,6 @@ wssClient.on('connection', (ws, req) => {
           for (const [previewWs, previewInfo] of previewClients) {
             if (previewInfo.deviceId === msg.deviceId && previewWs.readyState === 1) {
               previewWs.send(previewMsg);
-            }
-          }
-
-          // ── 格子小图（始终广播）──────────────────────────
-          const hqMsg = JSON.stringify({ type: 'screenshot', deviceId: msg.deviceId, image: msg.image, hq: true, hqImage: msg.image });
-          const browserMsg = JSON.stringify({
-            type: 'browserScreenshot',
-            deviceId: msg.deviceId,
-            image: msg.image,
-            timestamp: now
-          });
-
-          for (const browserWs of browserClients) {
-            if (browserWs.readyState === 1) {
-              // 监控墙窗口不需要 screenshot 消息（只接收 wallScreenshot）
-              if (wallClients.has(browserWs)) continue;
-              browserWs.send(hqMsg);
-              // 同时发送 browserScreenshot 给监控预览弹窗用
-              browserWs.send(browserMsg);
-            }
-          }
-
-          // ── 监控墙独立通道 ─────────────────────────
-          for (const [wallWs, subscription] of wallClients) {
-            const hdChannels = wallHDChannels.get(wallWs);
-            if (subscription.devices.has(msg.deviceId) && hdChannels && hdChannels.has(msg.deviceId) && wallWs.readyState === 1) {
-              wallWs.send(JSON.stringify({ type: 'wallScreenshot', deviceId: msg.deviceId, screenshot: msg.image, timestamp: now }));
-            }
-          }
-        } else {
-          // ===== 标准模式：推送低清帧给浏览器（WebSocket方案，替代MJPEG HTTP连接）=====
-          dev.screenshot = msg.image;
-          dev.hqScreenshot = null;
-
-          // 帧缓存去重（MD5），避免重复推送相同内容
-          const md5 = crypto.createHash('md5').update(buf).digest('hex');
-          const cached = frameCache.get(msg.deviceId);
-          if (cached && cached.md5 === md5 && (Date.now() - cached.time < 100)) {
-            // 与上帧相同，跳过推送（节流）
-          } else {
-            frameCache.set(msg.deviceId, { md5, time: Date.now() });
-
-            // 推送给所有浏览器客户端（格子页面用）
-            const gridMsg = JSON.stringify({
-              type: 'browserScreenshot',
-              deviceId: msg.deviceId,
-              image: msg.image,
-              timestamp: Date.now()
-            });
-            for (const browserWs of browserClients) {
-              if (browserWs.readyState === 1) {
-                // 监控墙窗口不需要 browserScreenshot（用 wallScreenshot）
-                if (wallClients.has(browserWs)) continue;
-                browserWs.send(gridMsg);
-              }
-            }
-          }
-
-          // 低清帧也推送给监控墙（修复黑屏问题）
-          // 用时间戳做简单控制：200ms 内只推一次，避免消息洪水
-          const now = Date.now();
-          if (!dev._lastWallPush || now - dev._lastWallPush > 200) {
-            dev._lastWallPush = now;
-            for (const [wallWs, subscription] of wallClients) {
-              if (subscription.devices.has(msg.deviceId) && wallWs.readyState === 1) {
-                wallWs.send(JSON.stringify({
-                  type: 'wallScreenshot',
-                  deviceId: msg.deviceId,
-                  screenshot: msg.image,
-                  timestamp: now
-                }));
-              }
             }
           }
         }
