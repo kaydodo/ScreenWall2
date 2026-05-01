@@ -19,7 +19,7 @@ import time
 import webbrowser
 
 # 客户端版本号（每次功能更新时手动递增）
-CLIENT_VERSION = "1.3.21"
+CLIENT_VERSION = "1.4.0"
 
 
 def has_key_client():

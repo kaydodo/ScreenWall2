@@ -1791,12 +1791,20 @@ wssClient.on('connection', (ws, req) => {
 
           // ── 格子小图（始终广播）──────────────────────────
           const hqMsg = JSON.stringify({ type: 'screenshot', deviceId: msg.deviceId, image: msg.image, hq: true, hqImage: msg.image });
+          const browserMsg = JSON.stringify({
+            type: 'browserScreenshot',
+            deviceId: msg.deviceId,
+            image: msg.image,
+            timestamp: now
+          });
 
           for (const browserWs of browserClients) {
             if (browserWs.readyState === 1) {
               // 监控墙窗口不需要 screenshot 消息（只接收 wallScreenshot）
               if (wallClients.has(browserWs)) continue;
               browserWs.send(hqMsg);
+              // 同时发送 browserScreenshot 给监控预览弹窗用
+              browserWs.send(browserMsg);
             }
           }
 
