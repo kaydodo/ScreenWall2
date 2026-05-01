@@ -1241,6 +1241,8 @@ function connectWS() {
           const offlineFrame = msg.screenshot || (dev && dev.screenshot);
           if (offlineFrame) {
             previewImg.src = offlineFrame;
+            previewImg.style.filter = 'grayscale(100%)';
+            previewImg.style.opacity = '0.5';
           }
           // 更新标题（优先使用广播中的设备名，其次从devices获取）
           if (previewNameEl) {
@@ -2750,7 +2752,7 @@ function openPreview(cellIndex) {
   const watermark = document.getElementById('previewOfflineWatermark');
   const uubtn = document.getElementById('previewUUbtn');
   if (!isOnline) {
-    // 离线：显示水印，UU按钮变灰
+    // 离线：显示水印，UU按钮变灰，设置离线静态图
     if (watermark) {
       watermark.style.display = 'block';
     }
@@ -2760,6 +2762,14 @@ function openPreview(cellIndex) {
       uubtn.style.opacity = '0.35';
       uubtn.style.cursor = 'not-allowed';
       uubtn.style.pointerEvents = 'none';
+    }
+    // 设置离线静态图
+    const offlineFrame = dev && dev.screenshot;
+    if (offlineFrame) {
+      previewImg.src = offlineFrame;
+      previewImg.style.display = 'block';
+      previewImg.style.filter = 'grayscale(100%)';
+      previewImg.style.opacity = '0.5';
     }
   }
 
