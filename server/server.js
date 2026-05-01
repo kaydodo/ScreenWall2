@@ -2026,12 +2026,13 @@ wssClient.on('connection', (ws, req) => {
   ws.on('close', () => {
     try {
       if (deviceId && devices.has(deviceId)) {
-        devices.get(deviceId).online = false;
-        serverLog(`[-] 离线: ${devices.get(deviceId).deviceName}`);
+        const dev = devices.get(deviceId);
+        dev.online = false;
+        serverLog(`[-] 离线: ${dev.deviceName}`);
         persistDevices();  // 设备离线时持久化
         broadcastToBrowsers({ type: 'deviceList', devices: getDeviceListPayload() });
-        // 广播设备预览状态变更（让所有浏览器刷新预览大图）
-        broadcastToBrowsers({ type: 'devicePreviewStatus', deviceId, status: 'offline' });
+        // 广播设备预览状态变更（让所有浏览器刷新预览大图），带上最新截图避免批次延迟问题
+        broadcastToBrowsers({ type: 'devicePreviewStatus', deviceId, status: 'offline', screenshot: dev.screenshot || null });
         notifyWallClients('deviceOffline', { deviceId });
         updateCollectionsDeviceStatus(deviceId, {});
       }

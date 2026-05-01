@@ -1236,13 +1236,13 @@ function connectWS() {
             watermark.textContent = status === 'deleted' ? '设备已删除' : '设备已离线';
             watermark.style.display = 'block';
           }
-          // 设置离线图：使用 devices 中的截图（和监控预览弹窗等页面一致）
-          const dev = devices.find(d => d.deviceId === deviceId);
-          const offlineFrame = dev && dev.screenshot;
+          // 设置离线图：优先使用广播中直接带来的截图（避免批次延迟），否则从devices中获取
+          const offlineFrame = msg.screenshot || (devices.find(d => d.deviceId === deviceId) && devices.find(d => d.deviceId === deviceId).screenshot);
           if (offlineFrame) {
             previewImg.src = offlineFrame;
           }
           // 更新标题（优先使用广播中的设备名，其次从devices获取）
+          const dev = devices.find(d => d.deviceId === deviceId);
           if (previewNameEl) {
             const name = msg.deviceName || (dev && dev.deviceName) || '未知';
             const mon = dev && dev.monitorCount > 1 ? ' 🖥️' + (dev.monitorIndex || 1) : '';
