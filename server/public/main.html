@@ -693,7 +693,8 @@ function renderPendingFrames() {
               if (stxt) stxt.textContent = '在线';
             }
           }
-          if (cell) {
+          // 只对在线设备更新截图，离线设备的截图应保持为离线瞬间的值
+          if (cell && cell.online) {
             cell.screenshot = frame.image;
             updateCellScreenshot(cell.index, frame.image);
             rendered = true;
