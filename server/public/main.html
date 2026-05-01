@@ -1221,7 +1221,7 @@ function connectWS() {
     if (msg.type === 'devicePreviewStatus') {
       const { deviceId, status } = msg;
       // 检查是否正在预览该设备（主预览）
-      if (previewDeviceId === deviceId && document.getElementById('previewOverlay').classList.contains('active')) {
+      if (previewDeviceId === deviceId && document.getElementById('previewOverlay')) {
         const previewImg = document.getElementById('previewImg');
         const watermark = document.getElementById('previewOfflineWatermark');
         const uubtn = document.getElementById('previewUUbtn');
