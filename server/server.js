@@ -166,19 +166,29 @@ const MJPEG_BOUNDARY = 'frame'; // multipart boundary
 /**
  * 解码 base64 图片并转换为 JPEG Buffer
  */
-async function decodeImageToJpeg(base64Data) {
+async function decodeImageToJpeg(base64Data, deviceId) {
   if (!base64Data) return null;
   try {
     // 去掉 data:image/xxx;base64, 前缀
     const base64Str = base64Data.replace(/^data:image\/\w+;base64,/, '');
     const buffer = Buffer.from(base64Str, 'base64');
+    if (!buffer || buffer.length < 100) {
+      serverLog(`[JPEG] ${deviceId} buffer太小: ${buffer ? buffer.length : 'null'}`);
+      return null;
+    }
+    // 检查 JPEG 文件头 (FFD8FF)
+    const isJpeg = buffer[0] === 0xFF && buffer[1] === 0xD8 && buffer[2] === 0xFF;
     // 如果是 WebP 格式，转换为 JPEG
-    if (base64Data.startsWith('data:image/webp')) {
+    if (base64Data.startsWith('data:image/webp') || !isJpeg) {
+      if (!isJpeg) {
+        serverLog(`[JPEG] ${deviceId} 非JPEG格式, 尝试WebP转换, 头=${buffer.slice(0,4).toString('hex')}`);
+      }
       return await sharp(buffer).jpeg({ quality: 80 }).toBuffer();
     }
     // 其他格式直接返回（已经是 JPEG）
     return buffer;
   } catch (e) {
+    serverLog(`[JPEG] ${deviceId} decodeImageToJpeg失败: ${e.message}`);
     return null;
   }
 }
@@ -1731,7 +1741,7 @@ wssClient.on('connection', (ws, req) => {
         // 帧缓存去重（MD5）已经能保证不重复渲染相同内容
 
         // ── 更新 MJPEG 帧缓冲区（所有截图都更新，低清/高清都需要）────────
-        decodeImageToJpeg(msg.image).then(jpegBuffer => {
+        decodeImageToJpeg(msg.image, msg.deviceId).then(jpegBuffer => {
           if (jpegBuffer) {
             updateDeviceFrame(msg.deviceId, jpegBuffer);
             // 调试：记录帧更新
