@@ -1848,6 +1848,7 @@ wssClient.on('connection', (ws, req) => {
         const heartbeatScreenshot = msg.screenshot;
         const latestScreenshot = heartbeatScreenshot || dev.hqScreenshot || dev.screenshot;
         if (latestScreenshot) {
+          dev.screenshot = latestScreenshot; // 心跳截图也要存，让离线广播有最新截图
           const timestamp = Date.now();
           for (const [client, sub] of wallClients) {
             if (sub.devices.has(msg.deviceId)) {
