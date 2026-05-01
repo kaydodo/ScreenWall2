@@ -1221,13 +1221,15 @@ function connectWS() {
     if (msg.type === 'devicePreviewStatus') {
       const { deviceId, status } = msg;
       // DEBUG
-      console.warn('[DEBUG offline] devicePreviewStatus', { deviceId, status, hasScreenshot: !!msg.screenshot, screenshotLen: msg.screenshot ? msg.screenshot.length : 0 });
+      console.warn('[DEBUG offline] devicePreviewStatus', { deviceId, status, previewDeviceId, hasScreenshot: !!msg.screenshot, screenshotLen: msg.screenshot ? msg.screenshot.length : 0 });
       // 检查是否正在预览该设备（主预览）
       if (previewDeviceId === deviceId && document.getElementById('previewOverlay')) {
         const previewImg = document.getElementById('previewImg');
         const watermark = document.getElementById('previewOfflineWatermark');
         const uubtn = document.getElementById('previewUUbtn');
         const previewNameEl = document.getElementById('previewDeviceName');
+        // DEBUG
+        console.warn('[DEBUG offline] entering offline branch');
         if (status === 'offline' || status === 'deleted') {
           // 清理 blob 缓存
           if (status === 'deleted') {
@@ -1242,7 +1244,7 @@ function connectWS() {
           const dev = devices.find(d => d.deviceId === deviceId);
           const offlineFrame = msg.screenshot || (dev && dev.screenshot);
           // DEBUG
-          console.warn('[DEBUG offline] setImg', { msgHasScreenshot: !!msg.screenshot, devHasScreenshot: !!(dev && dev.screenshot), offlineFrameLen: offlineFrame ? offlineFrame.length : 0 });
+          console.warn('[DEBUG offline] setImg', { msgHasScreenshot: !!msg.screenshot, devHasScreenshot: !!(dev && dev.screenshot), offlineFrameLen: offlineFrame ? offlineFrame.length : 0, previewSrc: previewImg.src ? previewImg.src.substring(0, 50) : 'empty', newSrc: offlineFrame ? offlineFrame.substring(0, 50) : 'empty' });
           if (offlineFrame) {
             previewImg.src = offlineFrame;
           }
