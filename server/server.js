@@ -1659,6 +1659,9 @@ wssClient.on('connection', (ws, req) => {
       if (dev) {
         dev.lastSeen = receiveTime;
         dev.online = true;
+        // 调试：记录收到截图
+        const imgLen = msg.image ? msg.image.length : 0;
+        serverLog(`[截图] 收到 ${dev.deviceName}(${msg.deviceId}) 截图: 大小=${imgLen}, HQ=${!!msg.hq}`);
 
         // 实时同步分辨率（防止人工修改后坐标映射错误）
         if (msg.screenWidth && msg.screenHeight) {
@@ -1731,7 +1734,15 @@ wssClient.on('connection', (ws, req) => {
         decodeImageToJpeg(msg.image).then(jpegBuffer => {
           if (jpegBuffer) {
             updateDeviceFrame(msg.deviceId, jpegBuffer);
+            // 调试：记录帧更新
+            if (Math.random() < 0.01) { // 1% 采样，避免日志洪水
+              serverLog(`[MJPEG] ${dev.deviceName} 帧更新成功, 大小=${jpegBuffer.length}`);
+            }
+          } else {
+            serverLog(`[MJPEG] ${dev.deviceName} decodeImageToJpeg 返回 null`);
           }
+        }).catch(e => {
+          serverLog(`[MJPEG] ${dev.deviceName} decodeImageToJpeg 失败: ${e.message}`);
         });
 
         if (msg.hq) {
