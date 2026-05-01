@@ -156,41 +156,31 @@ function hasOtherWallSubscription(deviceId, excludeWs) {
   return hdRequests.has(deviceId) && hdRequests.get(deviceId).size > 0;
 }
 
-// ========== MJPEG 流服务 ==========
-// 帧缓冲区：deviceId -> { jpeg: Buffer, timestamp: number }
-// 新帧到达时覆盖旧帧（不积压），发送时读取当前帧
+// ========== MJPEG 流服务（已禁用，新架构使用 WebSocket 三通道推送）==========
+/*
 const deviceFrames = new Map();
-const MJPEG_FRAME_RATE = 10; // 帧率（fps）
-const MJPEG_BOUNDARY = 'frame'; // multipart boundary
+const MJPEG_FRAME_RATE = 10;
+const MJPEG_BOUNDARY = 'frame';
 
-/**
- * 解码 base64 图片并转换为 JPEG Buffer
- */
 async function decodeImageToJpeg(base64Data, deviceId) {
   if (!base64Data) return null;
   try {
     const base64Str = base64Data.replace(/^data:image\/\w+;base64,/, '');
     const buffer = Buffer.from(base64Str, 'base64');
     if (!buffer || buffer.length < 100) return null;
+    if (base64Data.startsWith('data:image/webp')) {
+      return buffer;
+    }
     const isJpeg = buffer[0] === 0xFF && buffer[1] === 0xD8 && buffer[2] === 0xFF;
-    if (base64Data.startsWith('data:image/webp') || !isJpeg) {
-      if (!isJpeg) {
-        serverLog(`[JPEG] ${deviceId} 非JPEG格式, 尝试WebP转换`);
-      }
+    if (!isJpeg) {
       return await sharp(buffer).jpeg({ quality: 80 }).toBuffer();
     }
     return buffer;
   } catch (e) {
-    serverLog(`[JPEG] ${deviceId} decodeImageToJpeg失败: ${e.message}`);
     return null;
   }
 }
 
-/**
- * 更新设备帧缓冲区
- * @param {string} deviceId - 设备ID
- * @param {Buffer} jpegBuffer - JPEG 帧数据
- */
 function updateDeviceFrame(deviceId, jpegBuffer) {
   deviceFrames.set(deviceId, {
     jpeg: jpegBuffer,
@@ -198,85 +188,10 @@ function updateDeviceFrame(deviceId, jpegBuffer) {
   });
 }
 
-/**
- * 生成 MJPEG 流响应（multipart/x-mixed-replace）
- */
 function createMjpegStream(deviceId, req, res) {
-  serverLog(`[MJPEG] 流建立: ${deviceId}`);
-  // 设置 MJPEG 流响应头
-  res.writeHead(200, {
-    'Content-Type': `multipart/x-mixed-replace; boundary=${MJPEG_BOUNDARY}`,
-    'Cache-Control': 'no-cache, no-store, must-revalidate',
-    'Pragma': 'no-cache',
-    'Expires': '0',
-    'Connection': 'keep-alive',
-    'X-Accel-Buffering': 'no' // 禁用 Nginx/代理缓冲
-  });
-
-  let active = true;
-  let frameIndex = 0;
-  let emptyCount = 0; // 追踪连续读空帧次数
-
-  // 定期发送帧
-  const interval = setInterval(() => {
-    if (!active) return;
-    if (!res.writable) {
-      serverLog(`[MJPEG] ${deviceId} 响应不可写，关闭流`);
-      cleanup();
-      return;
-    }
-
-    const frame = deviceFrames.get(deviceId);
-    if (!frame || !frame.jpeg) {
-      emptyCount++;
-      // 连续空帧超过 50 次（约 5 秒）才打一条日志
-      if (emptyCount === 50) {
-        serverLog(`[MJPEG] ${deviceId} 流读空帧: deviceFrames无数据(${emptyCount}次)`);
-      }
-      // 没有帧数据时不发送，避免破坏 MJPEG 流格式
-      return;
-    }
-
-    // 有帧数据
-    if (emptyCount > 0) {
-      emptyCount = 0; // 重置计数
-    }
-
-    try {
-      // 诊断：确认帧是有效 JPEG
-      const jpegStart = frame.jpeg[0] === 0xFF && frame.jpeg[1] === 0xD8;
-      if (!jpegStart) {
-        serverLog(`[MJPEG] ⚠️ ${deviceId} 帧不是JPEG: head=${frame.jpeg.slice(0,4).toString('hex')}`);
-        return;
-      }
-      // 构造 JPEG 帧
-      const header = Buffer.from(
-        '--' + MJPEG_BOUNDARY + '\r\n' +
-        'Content-Type: image/jpeg\r\n' +
-        'Content-Length: ' + frame.jpeg.length + '\r\n\r\n'
-      );
-      res.write(header);
-      res.write(frame.jpeg);
-      res.write('\r\n');
-    } catch (e) {
-      // 连接已关闭
-      active = false;
-      clearInterval(interval);
-    }
-  }, 1000 / MJPEG_FRAME_RATE);
-
-  // 清理函数
-  const cleanup = () => {
-    active = false;
-    clearInterval(interval);
-  };
-
-  // 客户端断开时清理
-  req.on('close', cleanup);
-  req.on('error', cleanup);
-
-  return cleanup;
+  // 已禁用
 }
+*/
 
 // ========== 简单内存数据库 ==========
 const sessions = new Map();
@@ -1638,14 +1553,12 @@ wssClient.on('connection', (ws, req) => {
       // 如果设备在监控墙上（之前被订阅过），自动恢复高清流
       if (wallDevices.has(deviceId)) {
         const interval = wallDevices.get(deviceId);
-        // serverLog(`[监控墙] 设备 ${newDev.deviceName} 重连，自动恢复高清流 (间隔 ${interval}ms)`);
         ws.send(JSON.stringify({ type: 'startHQ', interval }));
       }
 
       // 检查是否有浏览器正在预览该设备，如果有则自动恢复高清流
       for (const [browserWs, previewDevices] of browserPreviewHD) {
         if (previewDevices.has(deviceId)) {
-          // serverLog(`[浏览器预览] 设备 ${newDev.deviceName} 重连，自动恢复预览高清流`);
           ws.send(JSON.stringify({ type: 'startHQ' }));
           break;
         }
@@ -1748,23 +1661,7 @@ wssClient.on('connection', (ws, req) => {
         // 注：移除 667ms 延迟检查，因为客户端时间戳与服务端不同步会导致误判
         // 帧缓存去重（MD5）已经能保证不重复渲染相同内容
 
-        // ── 更新 MJPEG 帧缓冲区（所有截图都更新，低清/高清都需要）────────
-        // 快速路径：如果是 JPEG，直接同步更新帧，避免 Promise 堆积导致服务器忙不过来
-        const b64str = msg.image.replace(/^data:image\/\w+;base64,/, '');
-        const buf = Buffer.from(b64str, 'base64');
-        const isJpeg = buf[0] === 0xFF && buf[1] === 0xD8 && buf[2] === 0xFF;
-
-        if (isJpeg && buf.length >= 100) {
-          // JPEG 直接同步更新，不走 async decodeImageToJpeg，避免高并发时 Promise 堆积
-          updateDeviceFrame(msg.deviceId, buf);
-        } else {
-          // 非 JPEG（如 WebP），走异步转换
-          decodeImageToJpeg(msg.image, msg.deviceId).then(jpegBuffer => {
-            if (jpegBuffer) {
-              updateDeviceFrame(msg.deviceId, jpegBuffer);
-            }
-          }).catch(e => {});
-        }
+        // MJPEG 帧缓冲区更新已禁用（新架构使用 WebSocket 三通道推送）
 
         // ===== 统一截图推送（HQ/标准 共用）=====
         // 更新设备状态
@@ -2686,7 +2583,6 @@ wssBrowser.on('connection', (ws) => {
         persistGroups();
         // 广播给所有浏览器
         broadcastToClients({ type: 'groupUpdate', groups: groups });
-        serverLog(`[分组] 更新广播，${groups.length}个分组`);
       }
     }
 
@@ -2890,10 +2786,6 @@ wssBrowser.on('connection', (ws) => {
     // 处理收藏截图请求
     if (msg.type === 'requestCollectionScreenshot') {
       // 客户端收到服务器请求，发送1帧截图
-      // 消息格式：{ type: 'requestCollectionScreenshot', timestamp, deviceIds }
-      // 客户端应该检查自己的 deviceId 是否在 deviceIds 中
-      // 实际处理在客户端进行，这里只是记录日志
-      serverLog(`[收藏] 客户端 ${ws._deviceId} 收到截图请求`);
     }
 
     // ── 格子预览独立通道订阅 ──────────────────────────
@@ -4013,19 +3905,19 @@ httpServer.on('request', (req, res) => {
     return;
   }
 
-  // MJPEG 流端点：/mjpeg/:deviceId
+  // MJPEG 流端点（已禁用，新架构使用 WebSocket 三通道推送）
+  /*
   if (cleanPath.startsWith('/mjpeg/')) {
     const deviceId = cleanPath.slice('/mjpeg/'.length);
-    // 安全检查：只允许有效的设备ID
     if (!deviceId || deviceId.includes('..') || deviceId.includes('/') || deviceId.includes('\\')) {
       res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' });
       res.end('Invalid deviceId');
       return;
     }
-    // 启动 MJPEG 流
     createMjpegStream(deviceId, req, res);
     return;
   }
+  */
 
   if (cleanPath === '' || cleanPath === '/index.html' || cleanPath === '/main.html') {
     const filePath = path.join(__dirname, 'public', cleanPath === '' ? 'index.html' : cleanPath.slice(1));
