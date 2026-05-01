@@ -22,7 +22,10 @@
     <div class="ctrl-group">
       <label for="selGrid">布局</label>
       <select id="selGrid" name="selGrid" title="选择网格布局">
-        <option value="4">4列</option>
+        <option value="1">1列</option>
+        <option value="2">2列</option>
+        <option value="3">3列</option>
+        <option value="4" selected>4列</option>
         <option value="5">5列</option>
         <option value="6">6列</option>
         <option value="7">7列</option>
@@ -1789,14 +1792,28 @@ function updateGridCellHeight() {
 
   // 设置网格列数 CSS 变量（桌面端使用 minmax 自动计算最小宽度）
   document.documentElement.style.setProperty('--grid-cols', gridSize);
-  // 每个格子最小宽度 (确保预览可读)
-  document.documentElement.style.setProperty('--cell-min-w', '180px');
+
+  // 根据列数调整格子最小宽度和最大宽度，避免少列时格子过宽
+  let cellMinW = 180;
+  let gridMaxW = '';
+  if (gridSize === 1) {
+    cellMinW = 500;
+    gridMaxW = '900px';
+  } else if (gridSize === 2) {
+    cellMinW = 400;
+    gridMaxW = '1000px';
+  } else if (gridSize === 3) {
+    cellMinW = 300;
+    gridMaxW = '1100px';
+  }
+  document.documentElement.style.setProperty('--cell-min-w', cellMinW + 'px');
+  grid.style.maxWidth = gridMaxW;
 
   // 桌面端：设置网格最小宽度，当窗口小于此值时触发横向滚动
   // 公式：列数 * 每列最小宽度 + (列数-1) * gap
   const gap = 8;
   const totalGaps = (gridSize - 1) * gap;
-  const minWidth = gridSize * 180 + totalGaps;
+  const minWidth = gridSize * cellMinW + totalGaps;
   grid.style.minWidth = minWidth + 'px';
 }
 
