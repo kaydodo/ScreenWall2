@@ -1241,8 +1241,6 @@ function connectWS() {
           const offlineFrame = msg.screenshot || (dev && dev.screenshot);
           if (offlineFrame) {
             previewImg.src = offlineFrame;
-            previewImg.style.filter = 'grayscale(100%)';
-            previewImg.style.opacity = '0.5';
           }
           // 更新标题（优先使用广播中的设备名，其次从devices获取）
           if (previewNameEl) {
@@ -2768,8 +2766,6 @@ function openPreview(cellIndex) {
     if (offlineFrame) {
       previewImg.src = offlineFrame;
       previewImg.style.display = 'block';
-      previewImg.style.filter = 'grayscale(100%)';
-      previewImg.style.opacity = '0.5';
     }
   }
 
