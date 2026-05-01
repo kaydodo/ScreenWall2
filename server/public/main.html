@@ -1271,23 +1271,7 @@ function connectWS() {
             const mon = dev && dev.monitorCount > 1 ? ' 🖥️' + (dev.monitorIndex || 1) : '';
             previewNameEl.textContent = (dev && dev.deviceName ? dev.deviceName : '未知') + ' - 实时预览' + mon;
           }
-          // 主动切换到 MJPEG 流（不等 previewScreenshot 消息，避免延迟黑屏）
-          const expectedSrc = `/mjpeg/${previewDeviceId}`;
-          if (!previewImg.src.includes(expectedSrc)) {
-            const wrapper = document.getElementById('previewImgWrapper');
-            previewImg.onload = function() {
-              previewImg.style.visibility = 'visible';
-              if (wrapper) wrapper.style.backgroundImage = '';
-              previewImg.onload = null;
-            };
-            previewImg.src = expectedSrc;
-            previewImg.style.display = 'block';
-          }
-          // 重新申请高清流（1080p：先startHQ再hq1080On）
-          if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ type: 'startHQ', deviceId: previewDeviceId }));
-            ws.send(JSON.stringify({ type: 'hq1080On', deviceId: previewDeviceId }));
-          }
+          // WebSocket 方案：预览图由 previewScreenshot 消息推送，无需切换 MJPEG 流
           // 显示UU按钮（如果有uuDeviceId），恢复可点状态
           const dev = devices.find(d => d.deviceId === previewDeviceId);
           if (uubtn) { uubtn.disabled = false; uubtn.style.opacity = ''; uubtn.style.cursor = ''; uubtn.style.pointerEvents = ''; }
@@ -1497,6 +1481,21 @@ function connectWS() {
       }
     }
 
+    // ── WebSocket 推送截图（新方案：替代MJPEG HTTP连接）──────
+    if (msg.type === 'browserScreenshot' && msg.deviceId && msg.image) {
+      // 存入帧缓冲，由 scheduleRender 统一渲染（格子页面）
+      const frameData = { image: msg.image, hqImage: null, timestamp: Date.now() };
+      pendingFrames.set(msg.deviceId, frameData);
+      scheduleRender();
+
+      // 同时更新监控预览弹窗中的图片（如果有）
+      const monitorImg = document.querySelector(`.monitor-preview-img-wrapper[data-device-id="${msg.deviceId}"] img`);
+      if (monitorImg) {
+        monitorImg.src = msg.image;
+        monitorImg.style.display = 'block';
+      }
+    }
+
     // ── 格子预览独立通道消息（不受帧缓存去重影响）──────
     if (msg.type === 'previewScreenshot' && msg.deviceId && previewDeviceId === msg.deviceId) {
       const previewImg = document.getElementById('previewImg');
@@ -1514,19 +1513,12 @@ function connectWS() {
         watermark.style.display = 'none';
         previewImg.style.filter = '';
       }
-      // 在线设备才使用 MJPEG 流；离线设备不设置，避免白屏
-      if (isOnline) {
-        const expectedSrc = `/mjpeg/${previewDeviceId}`;
-        if (!previewImg.src.includes(expectedSrc)) {
-          // 先保持背景图显示，等第一帧到达后再清除
-          const wrapper = document.getElementById('previewImgWrapper');
-          previewImg.onload = function() {
-            previewImg.style.visibility = 'visible';
-            if (wrapper) wrapper.style.backgroundImage = '';
-            previewImg.onload = null;
-          };
-          previewImg.src = expectedSrc;
-        }
+      // WebSocket 方案：直接使用推送的 base64 数据
+      if (isOnline && msg.image) {
+        previewImg.src = msg.image;
+        previewImg.style.visibility = 'visible';
+        const wrapper = document.getElementById('previewImgWrapper');
+        if (wrapper) wrapper.style.backgroundImage = '';
       }
       previewImg.style.display = 'block';
     }
@@ -1802,7 +1794,7 @@ function updateGridCellHeight() {
   grid.style.minWidth = minWidth + 'px';
 }
 
-// 格子懒加载：IntersectionObserver 监听可见性，进入视口时启动 MJPEG 流
+// 格子懒加载：IntersectionObserver 监听可见性（WebSocket方案，无需启动MJPEG流）
 let cellObserver = null;
 
 function initCellObserver() {
@@ -1817,13 +1809,13 @@ function initCellObserver() {
       const cell = gridCells[index];
       if (!cell || !cell.deviceId) return;
       if (!cell.online) return;
+      // WebSocket 方案：截图由服务端推送，无需设置 img.src = /mjpeg/...
+      // 只需确保图片可见即可
       const img = document.getElementById(`img_${index}`);
       const ns = document.getElementById(`ns_${index}`);
       if (!img) return;
-      const expectedSrc = `/mjpeg/${cell.deviceId}`;
-      if (img.src && img.src.includes(expectedSrc)) return; // 已启动
-      img.src = expectedSrc;
       img.style.display = 'block';
+      if (ns) ns.style.display = 'none';
       img.classList.remove('grayscale');
       if (ns) ns.style.display = 'none';
     });
@@ -2104,15 +2096,6 @@ function updateCellElement(index) {
       stxt.className = 'status-text online';
       document.getElementById(`uubtn_${index}`).style.display = 'flex';
 
-      // 主动启动 MJPEG 低清流（如果尚未启动）
-      const expectedSrc = `/mjpeg/${cell.deviceId}`;
-      const currentSrc = img.src || '';
-      if (!currentSrc.includes(expectedSrc)) {
-        img.src = expectedSrc;
-        img.style.display = 'block';
-        img.classList.remove('grayscale');
-        ns.style.display = 'none';
-      }
 
       let offlineLabel = document.getElementById(`offline_${index}`);
       if (offlineLabel) offlineLabel.style.display = 'none';
@@ -2161,9 +2144,9 @@ function updateCellScreenshot(index, imgData) {
   const cell = gridCells[index];
   const deviceId = cell ? cell.deviceId : null;
   if (imgData && deviceId) {
-    // 离线设备：显示静态图；在线设备：使用 MJPEG 流
+    // 离线设备：显示静态图；在线设备：使用 WebSocket 推送的帧（base64）
     if (cell && !cell.online) {
-      // 离线：使用 devices 中的截图（和监控预览弹窗等页面一致）
+      // 离线：使用 devices 中的截图
       const dev = devices.find(d => d.deviceId === deviceId);
       const offlineFrame = dev && dev.screenshot;
       if (offlineFrame) {
@@ -2173,8 +2156,8 @@ function updateCellScreenshot(index, imgData) {
       img.classList.add('grayscale');
       ns.style.display = 'none';
     } else {
-      // 在线：使用 MJPEG 流
-      img.src = `/mjpeg/${deviceId}`;
+      // 在线：直接使用推送的 base64 数据（WebSocket 方案，不再请求 MJPEG 流）
+      img.src = imgData;
       img.style.display = 'block';
       img.classList.remove('grayscale');
       ns.style.display = 'none';
@@ -2731,20 +2714,15 @@ function openPreview(cellIndex) {
   const dev = devices.find(d => d.deviceId === cell.deviceId);
   const isOnline = dev ? dev.online : false;
 
-  // 5. 主动启动 MJPEG 流（仅在线设备），避免等待 previewScreenshot 消息
+  // 5. 主动启动预览流（仅在线设备）- WebSocket方案使用 previewScreenshot 消息
   if (isOnline) {
-    const expectedSrc = `/mjpeg/${previewDeviceId}`;
-    const currentSrc = previewImg.src || '';
-    if (!currentSrc.includes(expectedSrc)) {
-      // 第一帧到达后，清除背景图，显示实时流
-      previewImg.onload = function() {
-        previewImg.style.visibility = 'visible';
-        previewWrapper.style.backgroundImage = '';
-        previewImg.onload = null; // MJPEG 第一帧只触发一次
-      };
-      previewImg.src = expectedSrc;
+    // WebSocket 推送方案：等待 previewScreenshot 消息更新预览图
+    // 不再需要手动设置 img.src = /mjpeg/...
+    const offlineFrame = dev && dev.screenshot;
+    if (offlineFrame) {
+      previewImg.src = offlineFrame;
       previewImg.style.display = 'block';
-      previewImg.style.filter = '';
+      previewImg.style.visibility = 'visible';
     }
   }
 
@@ -5665,11 +5643,7 @@ function updateMonitorPreview() {
             img.style.filter = '';
             img.style.opacity = '';
             cell.querySelector('.monitor-preview-img-wrapper').classList.remove('offline');
-            // 上线：切换到 MJPEG 流，并移除离线 badge
-            var expectedSrc = '/mjpeg/' + deviceId;
-            if (!img.src.includes(expectedSrc)) {
-              img.src = expectedSrc;
-            }
+            // WebSocket 方案：截图由 browserScreenshot 消息推送，无需设置 MJPEG
             var badge = cell.querySelector('.monitor-offline-badge');
             if (badge) badge.remove();
             var nameEl = cell.querySelector('.monitor-preview-name');
@@ -5701,7 +5675,8 @@ function updateMonitorPreview() {
         var isOffline = !device.online;
         var offlineClass = isOffline ? ' offline' : '';
         var offlineBadge = isOffline ? '<div class="monitor-offline-badge">设备已离线</div>' : '';
-        var imgSrc = isOffline ? (device.screenshot || '') : ('/mjpeg/' + deviceId);
+        // WebSocket 方案：在线设备留空，由 browserScreenshot 消息推送更新
+        var imgSrc = isOffline ? (device.screenshot || '') : '';
         var offlineStyle = isOffline ? 'filter: grayscale(100%);opacity:0.5;' : '';
 
         if (imgSrc || !isOffline) {

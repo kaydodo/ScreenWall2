@@ -196,16 +196,6 @@ function updateDeviceFrame(deviceId, jpegBuffer) {
     jpeg: jpegBuffer,
     timestamp: Date.now()
   });
-  // 每秒采样日志，避免刷屏
-  const now = Date.now();
-  if (!updateFrameLogCache) updateFrameLogCache = { last: 0, interval: 0 };
-  if (now - updateFrameLogCache.last > 1000) {
-    updateFrameLogCache.last = now;
-    updateFrameLogCache.interval++;
-    if (updateFrameLogCache.interval % 10 === 1) { // 每约10秒打一条
-      serverLog(`[帧] deviceFrames写入统计: size=${jpegBuffer.length}, total=${deviceFrames.size}`);
-    }
-  }
 }
 
 /**
@@ -268,11 +258,6 @@ function createMjpegStream(deviceId, req, res) {
       res.write(header);
       res.write(frame.jpeg);
       res.write('\r\n');
-      frameIndex++;
-      // 每发 100 帧打一条日志，确认流在工作
-      if (frameIndex % 100 === 0) {
-        serverLog(`[MJPEG] ${deviceId} 流已发送${frameIndex}帧`);
-      }
     } catch (e) {
       // 连接已关闭
       active = false;
@@ -1769,16 +1754,6 @@ wssClient.on('connection', (ws, req) => {
         const buf = Buffer.from(b64str, 'base64');
         const isJpeg = buf[0] === 0xFF && buf[1] === 0xD8 && buf[2] === 0xFF;
 
-        // 统计：记录路径选择（每100条采样一次）
-        if (!screenshotPathStats) screenshotPathStats = { fast: 0, slow: 0, lastLog: 0 };
-        if (isJpeg && buf.length >= 100) screenshotPathStats.fast++;
-        else screenshotPathStats.slow++;
-        const nowStat = Date.now();
-        if (nowStat - screenshotPathStats.lastLog > 5000) {
-          screenshotPathStats.lastLog = nowStat;
-          serverLog(`[截图路径] 快速路径=${screenshotPathStats.fast}, 慢速路径=${screenshotPathStats.slow}`);
-        }
-
         if (isJpeg && buf.length >= 100) {
           // JPEG 直接同步更新，不走 async decodeImageToJpeg，避免高并发时 Promise 堆积
           updateDeviceFrame(msg.deviceId, buf);
@@ -1787,12 +1762,8 @@ wssClient.on('connection', (ws, req) => {
           decodeImageToJpeg(msg.image, msg.deviceId).then(jpegBuffer => {
             if (jpegBuffer) {
               updateDeviceFrame(msg.deviceId, jpegBuffer);
-            } else {
-              serverLog(`[MJPEG] ${dev.deviceName} decodeImageToJpeg 返回 null`);
             }
-          }).catch(e => {
-            serverLog(`[MJPEG] ${dev.deviceName} decodeImageToJpeg 失败: ${e.message}`);
-          });
+          }).catch(e => {});
         }
 
         if (msg.hq) {
@@ -1837,9 +1808,33 @@ wssClient.on('connection', (ws, req) => {
             }
           }
         } else {
-          // ===== 标准模式：直接转发原图 =====
+          // ===== 标准模式：推送低清帧给浏览器（WebSocket方案，替代MJPEG HTTP连接）=====
           dev.screenshot = msg.image;
           dev.hqScreenshot = null;
+
+          // 帧缓存去重（MD5），避免重复推送相同内容
+          const md5 = crypto.createHash('md5').update(buf).digest('hex');
+          const cached = frameCache.get(msg.deviceId);
+          if (cached && cached.md5 === md5 && (Date.now() - cached.time < 100)) {
+            // 与上帧相同，跳过推送（节流）
+          } else {
+            frameCache.set(msg.deviceId, { md5, time: Date.now() });
+
+            // 推送给所有浏览器客户端（格子页面用）
+            const gridMsg = JSON.stringify({
+              type: 'browserScreenshot',
+              deviceId: msg.deviceId,
+              image: msg.image,
+              timestamp: Date.now()
+            });
+            for (const browserWs of browserClients) {
+              if (browserWs.readyState === 1) {
+                // 监控墙窗口不需要 browserScreenshot（用 wallScreenshot）
+                if (wallClients.has(browserWs)) continue;
+                browserWs.send(gridMsg);
+              }
+            }
+          }
 
           // 低清帧也推送给监控墙（修复黑屏问题）
           // 用时间戳做简单控制：200ms 内只推一次，避免消息洪水
