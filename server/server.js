@@ -1741,19 +1741,35 @@ wssClient.on('connection', (ws, req) => {
         // 帧缓存去重（MD5）已经能保证不重复渲染相同内容
 
         // ── 更新 MJPEG 帧缓冲区（所有截图都更新，低清/高清都需要）────────
-        decodeImageToJpeg(msg.image, msg.deviceId).then(jpegBuffer => {
-          if (jpegBuffer) {
-            updateDeviceFrame(msg.deviceId, jpegBuffer);
-            // 调试：记录帧更新
-            if (Math.random() < 0.01) { // 1% 采样，避免日志洪水
-              serverLog(`[MJPEG] ${dev.deviceName} 帧更新成功, 大小=${jpegBuffer.length}`);
-            }
-          } else {
-            serverLog(`[MJPEG] ${dev.deviceName} decodeImageToJpeg 返回 null`);
+        // 快速路径：如果是 JPEG，直接同步更新帧，避免 Promise 堆积导致服务器忙不过来
+        const b64str = msg.image.replace(/^data:image\/\w+;base64,/, '');
+        const buf = Buffer.from(b64str, 'base64');
+        const isJpeg = buf[0] === 0xFF && buf[1] === 0xD8 && buf[2] === 0xFF;
+
+        if (isJpeg && buf.length >= 100) {
+          // JPEG 直接同步更新，不走 async decodeImageToJpeg，避免高并发时 Promise 堆积
+          updateDeviceFrame(msg.deviceId, buf);
+          if (Math.random() < 0.01) {
+            serverLog(`[MJPEG] ${dev.deviceName} 帧更新成功(JPEG直接), 大小=${buf.length}`);
           }
-        }).catch(e => {
-          serverLog(`[MJPEG] ${dev.deviceName} decodeImageToJpeg 失败: ${e.message}`);
-        });
+        } else {
+          // 非 JPEG（如 WebP），走异步转换
+          if (!isJpeg) {
+            serverLog(`[JPEG] ${dev.deviceName} 非JPEG格式, 头=${buf.slice(0,4).toString('hex')}, 走sharp转换`);
+          }
+          decodeImageToJpeg(msg.image, msg.deviceId).then(jpegBuffer => {
+            if (jpegBuffer) {
+              updateDeviceFrame(msg.deviceId, jpegBuffer);
+              if (Math.random() < 0.01) {
+                serverLog(`[MJPEG] ${dev.deviceName} 帧更新成功(转换后), 大小=${jpegBuffer.length}`);
+              }
+            } else {
+              serverLog(`[MJPEG] ${dev.deviceName} decodeImageToJpeg 返回 null`);
+            }
+          }).catch(e => {
+            serverLog(`[MJPEG] ${dev.deviceName} decodeImageToJpeg 失败: ${e.message}`);
+          });
+        }
 
         if (msg.hq) {
 
