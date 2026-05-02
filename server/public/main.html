@@ -2710,21 +2710,24 @@ function openPreview(cellIndex) {
   // 1. 在线设备：等实时帧（previewScreenshot），不显示缓存旧帧；离线设备：显示静态图
   const dev = devices.find(d => d.deviceId === cell.deviceId);
   const isOffline = dev ? !dev.online : true;
-  const initialImg = isOffline ? (cell.screenshot || '') : '';
   const previewImg = document.getElementById('previewImg');
   const previewWrapper = document.getElementById('previewImgWrapper');
-  if (initialImg) {
-    previewWrapper.style.backgroundImage = `url("${initialImg}")`;
-    previewWrapper.style.backgroundSize = 'contain';
-    previewWrapper.style.backgroundPosition = 'center';
-    previewWrapper.style.backgroundRepeat = 'no-repeat';
-  } else {
-    previewWrapper.style.backgroundImage = '';
-  }
+  // 先彻底清除所有旧帧残留
+  previewWrapper.style.backgroundImage = '';
+  previewImg.removeAttribute('src');
+  previewImg.style.display = 'none';
   previewImg.style.visibility = 'hidden';
-  previewImg.src = initialImg;
-  previewImg.style.display = initialImg ? 'block' : 'none';
   previewImg.style.filter = '';
+
+  if (isOffline) {
+    // 离线：显示最新静态图
+    const staticImg = (dev && dev.screenshot) || cell.screenshot || '';
+    if (staticImg) {
+      previewImg.src = staticImg;
+      previewImg.style.display = 'block';
+      previewImg.style.visibility = 'visible';
+    }
+  }
 
   // 2. 显示弹窗遮罩
   document.getElementById('previewOverlay').classList.add('active');
@@ -2736,17 +2739,7 @@ function openPreview(cellIndex) {
   // 4. 从 devices 获取最新在线状态（gridCells 可能未及时更新）
   const isOnline = dev ? dev.online : false;
 
-  // 5. 主动启动预览流（仅在线设备）- WebSocket方案使用 previewScreenshot 消息
-  if (isOnline) {
-    // WebSocket 推送方案：等待 previewScreenshot 消息更新预览图
-    // 不再需要手动设置 img.src = /mjpeg/...
-    const offlineFrame = dev && dev.screenshot;
-    if (offlineFrame) {
-      previewImg.src = offlineFrame;
-      previewImg.style.display = 'block';
-      previewImg.style.visibility = 'visible';
-    }
-  }
+  // 5. 在线设备已在第1步清空旧帧，等 previewScreenshot 实时推送即可
 
   const watermark = document.getElementById('previewOfflineWatermark');
   const uubtn = document.getElementById('previewUUbtn');
@@ -2762,14 +2755,7 @@ function openPreview(cellIndex) {
       uubtn.style.cursor = 'not-allowed';
       uubtn.style.pointerEvents = 'none';
     }
-    // 设置离线静态图
-    const offlineFrame = dev && dev.screenshot;
-    if (offlineFrame) {
-      previewImg.onload = null;
-      previewImg.src = offlineFrame;
-      previewImg.style.display = 'block';
-      previewImg.style.visibility = 'visible';
-    }
+    // 离线静态图已在第1步设置
   }
 
   document.getElementById('previewDeviceName').textContent = (cell.deviceName || (dev && dev.deviceName) || '未知') + ' - 实时预览' + ((dev && dev.monitorCount > 1) ? ' 🖥️' + (dev.monitorIndex || 1) : '');
@@ -5701,24 +5687,29 @@ function updateMonitorPreview() {
         var imgSrc = isOffline ? (device.screenshot || '') : '';
         var offlineStyle = isOffline ? 'filter: grayscale(100%);opacity:0.5;' : '';
 
-        if (imgSrc || !isOffline) {
+        if (imgSrc) {
+          // 有图可显示（离线设备有静态图）
           cell.innerHTML = '<div class="monitor-preview-img-wrapper' + offlineClass + '" data-device-id="' + deviceId + '">' +
             '<img alt="监控画面: ' + (device.deviceName || '设备') + '" src="' + imgSrc + '" style="transform: scale(' + crop.scale + ') translate(' + crop.translateX + 'px, ' + crop.translateY + 'px);' + offlineStyle + '">' +
             '<div class="monitor-zoom-level" id="zoomLevel_' + deviceId + '">' + (crop.scale * 100).toFixed(0) + '%</div>' +
             '<div class="monitor-preview-name">' + device.deviceName + (isOffline ? ' (离线)' : '') + '</div>' +
             offlineBadge +
             '</div>';
-
-          // 拖动功能
           var wrapper = cell.querySelector('.monitor-preview-img-wrapper');
           var img = cell.querySelector('img');
-          if (isOffline && img && device.screenshot) {
-            img.src = device.screenshot;
-            img.style.display = 'block';
-          }
+          makeMonitorDraggable(wrapper, img, deviceId);
+        } else if (!isOffline) {
+          // 在线设备无缓存帧：等 browserScreenshot 实时推送，先显示占位
+          cell.innerHTML = '<div class="monitor-preview-img-wrapper" data-device-id="' + deviceId + '">' +
+            '<img alt="监控画面: ' + (device.deviceName || '设备') + '" style="display:none;transform: scale(' + crop.scale + ') translate(' + crop.translateX + 'px, ' + crop.translateY + 'px);">' +
+            '<div class="monitor-zoom-level" id="zoomLevel_' + deviceId + '">' + (crop.scale * 100).toFixed(0) + '%</div>' +
+            '<div class="monitor-preview-name">' + device.deviceName + '</div>' +
+            '</div>';
+          var wrapper = cell.querySelector('.monitor-preview-img-wrapper');
+          var img = cell.querySelector('img');
           makeMonitorDraggable(wrapper, img, deviceId);
         } else {
-          cell.innerHTML = '<div class="monitor-preview-empty">' + (isOffline ? '设备已离线' : '等待画面...') + '</div>';
+          cell.innerHTML = '<div class="monitor-preview-empty">设备已离线</div>';
         }
       } else {
         cell.innerHTML = '<div class="monitor-preview-empty">设备不存在</div>';
