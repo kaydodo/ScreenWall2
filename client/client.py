@@ -1872,6 +1872,8 @@ class ScreenWallClient:
         # self._tasks.append(self._tasks[-1])
 
         while self.running:
+            frame_start = time.time()  # 记录帧开始时间
+            
             # 热更新配置
             new_cfg = self._get_config()
             if self._cfg_hash(new_cfg) != self._last_cfg_hash:
@@ -2008,9 +2010,11 @@ class ScreenWallClient:
 
             # HQ 模式使用服务器指定的间隔，LQ 使用配置的间隔
             # interval = self.hq_interval if (self.hq_mode and self.hq_interval) else cfg["interval"]
-            # 改为统一 8fps（0.125s），服务端不再下发 interval
-            interval = 0.125
-            await asyncio.sleep(interval)
+            # 改为统一 8fps（0.125s），动态 sleep 补偿处理耗时
+            target_interval = 0.125  # 目标帧间隔 125ms
+            elapsed = time.time() - frame_start  # 本帧已耗时
+            sleep_time = max(0, target_interval - elapsed)  # 动态 sleep
+            await asyncio.sleep(sleep_time)
 
         await self._cleanup_ws()
 
