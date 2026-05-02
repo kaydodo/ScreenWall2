@@ -592,11 +592,8 @@ function initWall() {
       }
       img.style.display = 'block';
     } else {
-      // 在线设备：等待 wallScreenshot 消息推送图片
-      // 先显示 devices.screenshot 作为占位（可能是旧图）
-      if (dev.screenshot) {
-        img.src = dev.screenshot;
-      }
+      // 在线设备：等待 wallScreenshot 消息推送，不要预设占位图
+      img.src = '';
       img.style.display = 'block';
       // 发送 startHQ 请求720p高清流
       if (ws && ws.readyState === WebSocket.OPEN) {

@@ -2709,17 +2709,22 @@ function openPreview(cellIndex) {
 
   // 1. 瞬间渲染缓存的低清帧（优先级最高）
   const cachedFrame = pendingFrames.get(cell.deviceId);
-  const initialImg = (cachedFrame && cachedFrame.image) || cell.screenshot || 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+  // 优先用低清帧，其次用格子自带的截图，不要用透明占位图
+  const initialImg = (cachedFrame && cachedFrame.image) || cell.screenshot || '';
   const previewImg = document.getElementById('previewImg');
   const previewWrapper = document.getElementById('previewImgWrapper');
   // 用背景图保持缓存帧显示，避免 MJPEG 流启动时的闪黑
-  previewWrapper.style.backgroundImage = `url("${initialImg}")`;
-  previewWrapper.style.backgroundSize = 'contain';
-  previewWrapper.style.backgroundPosition = 'center';
-  previewWrapper.style.backgroundRepeat = 'no-repeat';
+  if (initialImg) {
+    previewWrapper.style.backgroundImage = `url("${initialImg}")`;
+    previewWrapper.style.backgroundSize = 'contain';
+    previewWrapper.style.backgroundPosition = 'center';
+    previewWrapper.style.backgroundRepeat = 'no-repeat';
+  } else {
+    previewWrapper.style.backgroundImage = '';
+  }
   previewImg.style.visibility = 'hidden';
   previewImg.src = initialImg;
-  previewImg.style.display = 'block';
+  previewImg.style.display = initialImg ? 'block' : 'none';
   previewImg.style.filter = '';
 
   // 2. 显示弹窗遮罩
