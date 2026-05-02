@@ -19,7 +19,7 @@ import time
 import webbrowser
 
 # 客户端版本号（每次功能更新时手动递增）
-CLIENT_VERSION = "1.6.0"
+CLIENT_VERSION = "1.6.1"
 
 
 def has_key_client():
@@ -957,7 +957,16 @@ class ScreenCapturer:
                         if not hq:
                             pic.thumbnail((self.resize_w, self.resize_h), Image.LANCZOS)
                         if hq and (pic.width > hq_limit * 1.5 or pic.height > hq_limit):
-                            pic.thumbnail((int(hq_limit * 1.5), hq_limit), Image.LANCZOS)
+                            # 1080p 模式：横向压缩到 960 保持视觉清晰，编码更快
+                            if hq_limit == 1080:
+                                pic.thumbnail((960, 1080), Image.LANCZOS)
+                                # 960x1080 视觉清晰度相当于 1920x1080@45 → 提升质量到 70
+                                save_quality = 70
+                            else:
+                                pic.thumbnail((int(hq_limit * 1.5), hq_limit), Image.LANCZOS)
+                                save_quality = hq_quality
+                        else:
+                            save_quality = hq_quality
                         buf = BytesIO()
                         if lossless:
                             pic.save(buf, format="WEBP", lossless=True)
@@ -969,7 +978,7 @@ class ScreenCapturer:
                             elif not hq:
                                 pic.save(buf, format="WEBP", quality=30, method=6)
                             else:
-                                pic.save(buf, format="WEBP", quality=hq_quality, method=6)
+                                pic.save(buf, format="WEBP", quality=save_quality, method=6)
                             img_bytes = buf.getvalue()
                         if len(img_bytes) < 1000:
                             img_bytes = None
@@ -992,7 +1001,14 @@ class ScreenCapturer:
                         pic.thumbnail((self.resize_w, self.resize_h), Image.LANCZOS)
                     # HQ 模式限制分辨率上限为 hq_limit（默认 720p，可设 1080p）
                     if hq and (pic.width > hq_limit * 1.5 or pic.height > hq_limit):
-                        pic.thumbnail((int(hq_limit * 1.5), hq_limit), Image.LANCZOS)
+                        if hq_limit == 1080:
+                            pic.thumbnail((960, 1080), Image.LANCZOS)
+                            save_quality = 70
+                        else:
+                            pic.thumbnail((int(hq_limit * 1.5), hq_limit), Image.LANCZOS)
+                            save_quality = hq_quality
+                    else:
+                        save_quality = hq_quality
                     buf = BytesIO()
                     if lossless:
                         pic.save(buf, format="WEBP", lossless=True)
@@ -1004,7 +1020,7 @@ class ScreenCapturer:
                         elif not hq:
                             pic.save(buf, format="WEBP", quality=30, method=6)
                         else:
-                            pic.save(buf, format="WEBP", quality=hq_quality, method=6)
+                            pic.save(buf, format="WEBP", quality=save_quality, method=6)
                         img_bytes = buf.getvalue()
                     if len(img_bytes) < 1000:
                         self._mss_ok = False
@@ -1022,7 +1038,14 @@ class ScreenCapturer:
                     pic.thumbnail((self.resize_w, self.resize_h), Image.LANCZOS)
                 # HQ 模式限制分辨率上限为 hq_limit（默认 720p，可设 1080p）
                 if hq and (pic.width > hq_limit * 1.5 or pic.height > hq_limit):
-                    pic.thumbnail((int(hq_limit * 1.5), hq_limit), Image.LANCZOS)
+                    if hq_limit == 1080:
+                        pic.thumbnail((960, 1080), Image.LANCZOS)
+                        save_quality = 70
+                    else:
+                        pic.thumbnail((int(hq_limit * 1.5), hq_limit), Image.LANCZOS)
+                        save_quality = hq_quality
+                else:
+                    save_quality = hq_quality
                 buf = BytesIO()
                 if lossless:
                     pic.save(buf, format="WEBP", lossless=True)
@@ -1033,7 +1056,7 @@ class ScreenCapturer:
                     elif not hq:
                         pic.save(buf, format="WEBP", quality=30, method=6)
                     else:
-                        pic.save(buf, format="WEBP", quality=hq_quality, method=6)
+                        pic.save(buf, format="WEBP", quality=save_quality, method=6)
                     img_bytes = buf.getvalue()
             except Exception:
                 pass
