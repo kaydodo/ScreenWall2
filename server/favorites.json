@@ -4,5 +4,11 @@
     "deviceName": "9UXW",
     "groupId": "1775730265174",
     "cellIndex": 6
+  },
+  {
+    "deviceId": "offline_test_010",
+    "deviceName": "TEST-PC-010",
+    "groupId": "1776042401413",
+    "cellIndex": 10
   }
 ]

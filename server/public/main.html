@@ -2707,13 +2707,12 @@ function openPreview(cellIndex) {
   const cell = gridCells[cellIndex];
   if (!cell || !cell.deviceId) return;
 
-  // 1. 瞬间渲染缓存的低清帧（优先级最高）
-  const cachedFrame = pendingFrames.get(cell.deviceId);
-  // 优先用低清帧，其次用格子自带的截图，不要用透明占位图
-  const initialImg = (cachedFrame && cachedFrame.image) || cell.screenshot || '';
+  // 1. 在线设备：等实时帧（previewScreenshot），不显示缓存旧帧；离线设备：显示静态图
+  const dev = devices.find(d => d.deviceId === cell.deviceId);
+  const isOffline = dev ? !dev.online : true;
+  const initialImg = isOffline ? (cell.screenshot || '') : '';
   const previewImg = document.getElementById('previewImg');
   const previewWrapper = document.getElementById('previewImgWrapper');
-  // 用背景图保持缓存帧显示，避免 MJPEG 流启动时的闪黑
   if (initialImg) {
     previewWrapper.style.backgroundImage = `url("${initialImg}")`;
     previewWrapper.style.backgroundSize = 'contain';
@@ -5699,9 +5698,8 @@ function updateMonitorPreview() {
         var isOffline = !device.online;
         var offlineClass = isOffline ? ' offline' : '';
         var offlineBadge = isOffline ? '<div class="monitor-offline-badge">设备已离线</div>' : '';
-        // 在线：优先用 pendingFrames 缓存帧，其次用 device.screenshot，都没有才空
-        var cachedFrame = pendingFrames.get(deviceId);
-        var imgSrc = isOffline ? (device.screenshot || '') : ((cachedFrame && cachedFrame.image) || device.screenshot || '');
+        // 在线：等实时帧（browserScreenshot），不显示缓存旧帧；离线：显示静态图
+        var imgSrc = isOffline ? (device.screenshot || '') : '';
         var offlineStyle = isOffline ? 'filter: grayscale(100%);opacity:0.5;' : '';
 
         if (imgSrc || !isOffline) {
