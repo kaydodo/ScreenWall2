@@ -2734,7 +2734,6 @@ function openPreview(cellIndex) {
   previewActive = true;
 
   // 4. 从 devices 获取最新在线状态（gridCells 可能未及时更新）
-  const dev = devices.find(d => d.deviceId === cell.deviceId);
   const isOnline = dev ? dev.online : false;
 
   // 5. 主动启动预览流（仅在线设备）- WebSocket方案使用 previewScreenshot 消息
