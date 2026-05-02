@@ -1552,15 +1552,13 @@ wssClient.on('connection', (ws, req) => {
 
       // 如果设备在监控墙上（之前被订阅过），自动恢复高清流
       if (wallDevices.has(deviceId)) {
-        const interval = 125; // 125ms = 8fps，覆盖旧值（可能是333ms）
-        wallDevices.set(deviceId, interval); // 更新为新值
-        ws.send(JSON.stringify({ type: 'startHQ', interval }));
+        ws.send(JSON.stringify({ type: 'startHQ' }));
       }
 
       // 检查是否有浏览器正在预览该设备，如果有则自动恢复高清流
       for (const [browserWs, previewDevices] of browserPreviewHD) {
         if (previewDevices.has(deviceId)) {
-          ws.send(JSON.stringify({ type: 'startHQ', interval: 125 })); // 125ms = 8fps
+          ws.send(JSON.stringify({ type: 'startHQ' }));
           break;
         }
       }
@@ -3006,7 +3004,6 @@ wssBrowser.on('connection', (ws) => {
     if (msg.type === 'subscribeWall') {
       // 监控墙订阅高清截图（每个窗口独立通道）
       const deviceList = msg.devices || [];
-      const interval = msg.interval || 125; // 125ms = 8fps
       
       // 获取该窗口当前的高清通道
       const existingHD = wallHDChannels.get(ws) || new Set();
@@ -3020,7 +3017,7 @@ wssBrowser.on('connection', (ws) => {
       for (const deviceId of deviceList) {
         newDevices.add(deviceId);
         newHDChannels.add(deviceId); // 每个设备只开启一次高清通道
-        wallDevices.set(deviceId, interval); // 持久化追踪，设备重连后自动恢复
+        wallDevices.set(deviceId, true); // 持久化追踪，设备重连后自动恢复
 
         // 每次订阅都尝试发送 startHQ（幂等，设备客户端会处理重复）
         // 记录高清请求引用（用于 unsubscribe 时计数）
@@ -3030,13 +3027,13 @@ wssBrowser.on('connection', (ws) => {
         // 遍历设备客户端，找到对应设备并发送 startHQ
         for (const client of wssClient.clients) {
           if (client._deviceId === deviceId) {
-            client.send(JSON.stringify({ type: 'startHQ', interval }));
+            client.send(JSON.stringify({ type: 'startHQ' }));
             break;
           }
         }
       }
       
-      wallClients.set(ws, { devices: newDevices, interval });
+      wallClients.set(ws, { devices: newDevices });
       wallHDChannels.set(ws, newHDChannels);
       
       // 【修复】立即推送所有设备的最新截图给监控墙（监控上墙无画面问题）
@@ -3472,12 +3469,11 @@ httpServer.on('request', (req, res) => {
     // 【调试】POST /api/test-starthq - 手动发送 startHQ 命令给设备
     if (cleanPath === '/api/test-starthq' && req.method === 'POST') {
       const deviceId = urlObj.searchParams.get('deviceId') || 'aeawtmgwtiau3yfl';
-      const interval = parseInt(urlObj.searchParams.get('interval')) || 333;
       
       let sent = false;
       for (const client of wssClient.clients) {
         if (client._deviceId === deviceId) {
-          client.send(JSON.stringify({ type: 'startHQ', interval }));
+          client.send(JSON.stringify({ type: 'startHQ' }));
           
           sent = true;
           break;
