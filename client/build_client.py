@@ -3,7 +3,7 @@ import subprocess
 import os
 import shutil
 
-os.chdir(r'D:\ScreenWall\client')
+os.chdir(r'D:\ScreenWall2\client')
 
 # ── 1. 打包主客户端（使用 spec 文件，包含 collect_data_files 配置） ──
 print("正在打包主客户端...")

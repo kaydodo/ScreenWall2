@@ -19,7 +19,7 @@ import time
 import webbrowser
 
 # 客户端版本号（每次功能更新时手动递增）
-CLIENT_VERSION = "1.4.0"
+CLIENT_VERSION = "1.5.0"
 
 
 def has_key_client():
@@ -2037,22 +2037,7 @@ class ScreenWallClient:
                         else:
                             self.hq_interval = None
                     elif msg_type == "stopHQ":
-                        capt = ScreenCapturer(cfg["quality"], cfg["resizeW"], cfg["resizeH"], monitor_index=_current_monitor_index)
-                        try:
-                            img_bytes = capt.capture(hq=True, hq_quality=45, is_static=True)
-                        finally:
-                            capt.close()
-                        if img_bytes:
-                            off_x, off_y, off_w, off_h = _get_current_monitor_offset()
-                            await ws.send(json.dumps({
-                                "type":     "screenshot",
-                                "deviceId": cfg["deviceId"],
-                                "image":    "data:image/webp;base64," + base64.b64encode(img_bytes).decode("ascii"),
-                                "hq":       True,
-                                "screenWidth": off_w,
-                                "screenHeight": off_h,
-                            }))
-                        # 关闭 HQ 模式
+                        # 直接关闭 HQ 模式，不再捕获静态帧
                         self.hq_mode = False
                         self.hq_streaming = False
                         self.hq_interval = None
