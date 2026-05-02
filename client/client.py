@@ -19,7 +19,7 @@ import time
 import webbrowser
 
 # 客户端版本号（每次功能更新时手动递增）
-CLIENT_VERSION = "1.5.0"
+CLIENT_VERSION = "1.6.0"
 
 
 def has_key_client():
@@ -1203,7 +1203,6 @@ class ScreenWallClient:
         self.registered = False
         self.hq_mode = False
         self.hq_streaming = False
-        self.hq_interval = None  # 服务器指定的 HQ 截图间隔（秒）
         self.hq_1080 = False  # 1080p 预览模式（临时开启，不受 720p 上限限制）
         self._tasks = []
         self._last_cfg_hash = ""
@@ -1805,7 +1804,6 @@ class ScreenWallClient:
             "deviceName":   device_name,
             "computerName": os.environ.get("COMPUTERNAME", ""),
             "uuDeviceId":   uu_device_id,
-            "interval":     0.125,  # 8fps 写死
             "quality":      30,     # 小图 JPG 质量 30
             "resizeW":      480,     # 写死
             "resizeH":      270,     # 写死
@@ -1966,7 +1964,9 @@ class ScreenWallClient:
                     await ws.send(json.dumps(payload))
                 except Exception:
                     break
-                interval = self.hq_interval if (self.hq_mode and self.hq_interval) else cfg["interval"]
+                # interval = self.hq_interval if (self.hq_mode and self.hq_interval) else cfg["interval"]
+                # 改为统一 8fps（0.125s），服务端不再下发 interval
+                interval = 0.125
                 await asyncio.sleep(interval)
                 continue  # 跳过本次截图，进入下一轮
 
@@ -2007,7 +2007,9 @@ class ScreenWallClient:
                     break
 
             # HQ 模式使用服务器指定的间隔，LQ 使用配置的间隔
-            interval = self.hq_interval if (self.hq_mode and self.hq_interval) else cfg["interval"]
+            # interval = self.hq_interval if (self.hq_mode and self.hq_interval) else cfg["interval"]
+            # 改为统一 8fps（0.125s），服务端不再下发 interval
+            interval = 0.125
             await asyncio.sleep(interval)
 
         await self._cleanup_ws()
@@ -2030,17 +2032,11 @@ class ScreenWallClient:
                     elif msg_type == "startHQ":
                         self.hq_mode = True
                         self.hq_streaming = True
-                        # 接收服务器指定的 HQ 截图间隔（毫秒→秒）
-                        hq_interval_ms = data.get("interval")
-                        if hq_interval_ms and hq_interval_ms > 0:
-                            self.hq_interval = hq_interval_ms / 1000.0
-                        else:
-                            self.hq_interval = None
+                        # 不再接收 interval，客户端统一用 0.125s（8fps）
                     elif msg_type == "stopHQ":
                         # 直接关闭 HQ 模式，不再捕获静态帧
                         self.hq_mode = False
                         self.hq_streaming = False
-                        self.hq_interval = None
                         self.hq_1080 = False  # 同时关闭 1080p 模式
                         self._last_msg_time = time.time()
 
