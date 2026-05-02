@@ -5,7 +5,7 @@ $ErrorActionPreference = "SilentlyContinue"
 $Log = "$env:TEMP\sw_server_watchdog.log"
 $StopFile = "$env:TEMP\sw_server.stop"
 $PIDFile = "$env:TEMP\sw_watchdog.pid"
-$ServerDir = "D:\ScreenWall\server"
+$ServerDir = "D:\ScreenWall2\server"
 $Port = 3000
 
 # Record this watchdog PID so stop.bat can kill us

@@ -628,11 +628,11 @@ function connectWebSocket() {
   ws = new WebSocket(wsUrl);
 
   ws.onopen = function() {
-    // 连接成功，请求高清截图（3fps）
+    // 连接成功，请求高清截图（8fps = 125ms）
     ws.send(JSON.stringify({
       type: 'subscribeWall',
       devices: wallData.devices.map(function(d) { return d.id; }),
-      interval: 333
+      interval: 125
     }));
   };
 
@@ -682,10 +682,12 @@ function connectWebSocket() {
 
         // ── WebSocket 推送：直接使用截图数据（无需 MJPEG 流）────────
         var img = document.getElementById('img_' + deviceId);
-        if (img && screenshot) {
+        var dev = devices[deviceId]; // 获取设备对象
+        if (img && screenshot && dev) {
           img.src = screenshot;
           img.style.display = 'block';
-          img.style.transform = 'scale(' + (dev.crop.scale || 1) + ') translate(' + (dev.crop.translateX || 0) + 'px, ' + (dev.crop.translateY || 0) + 'px)';
+          var crop = dev.crop || { scale: 1, translateX: 0, translateY: 0 };
+          img.style.transform = 'scale(' + crop.scale + ') translate(' + crop.translateX + 'px, ' + crop.translateY + 'px)';
           img.style.transformOrigin = 'center center';
         }
 
