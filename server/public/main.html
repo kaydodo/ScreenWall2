@@ -2822,7 +2822,7 @@ function openPreview(cellIndex) {
   }
   // 订阅格子预览独立通道
   if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'subscribePreview', deviceId: cell.deviceId, interval: 333 }));
+    ws.send(JSON.stringify({ type: 'subscribePreview', deviceId: cell.deviceId }));
   }
 }
 

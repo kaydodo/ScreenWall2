@@ -2794,8 +2794,8 @@ wssBrowser.on('connection', (ws) => {
     if (msg.type === 'subscribePreview') {
       const deviceId = msg.deviceId;
       if (deviceId) {
-        // 记录预览订阅
-        previewClients.set(ws, { deviceId, interval: msg.interval || 333 });
+        // 记录预览订阅（interval 已废弃，客户端统一8fps）
+        previewClients.set(ws, { deviceId });
 
         // startHQ 已由 openPreview 发送（确保立即开启），此处只推送最新截图
         const dev = devices.get(deviceId);

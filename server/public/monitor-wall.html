@@ -628,11 +628,10 @@ function connectWebSocket() {
   ws = new WebSocket(wsUrl);
 
   ws.onopen = function() {
-    // 连接成功，请求高清截图（8fps = 125ms）
+    // 连接成功，请求高清截图（客户端统一8fps，无需传interval）
     ws.send(JSON.stringify({
       type: 'subscribeWall',
-      devices: wallData.devices.map(function(d) { return d.id; }),
-      interval: 125
+      devices: wallData.devices.map(function(d) { return d.id; })
     }));
   };
 
