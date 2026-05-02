@@ -1552,14 +1552,15 @@ wssClient.on('connection', (ws, req) => {
 
       // 如果设备在监控墙上（之前被订阅过），自动恢复高清流
       if (wallDevices.has(deviceId)) {
-        const interval = wallDevices.get(deviceId);
+        const interval = 125; // 125ms = 8fps，覆盖旧值（可能是333ms）
+        wallDevices.set(deviceId, interval); // 更新为新值
         ws.send(JSON.stringify({ type: 'startHQ', interval }));
       }
 
       // 检查是否有浏览器正在预览该设备，如果有则自动恢复高清流
       for (const [browserWs, previewDevices] of browserPreviewHD) {
         if (previewDevices.has(deviceId)) {
-          ws.send(JSON.stringify({ type: 'startHQ' }));
+          ws.send(JSON.stringify({ type: 'startHQ', interval: 125 })); // 125ms = 8fps
           break;
         }
       }
@@ -3005,7 +3006,7 @@ wssBrowser.on('connection', (ws) => {
     if (msg.type === 'subscribeWall') {
       // 监控墙订阅高清截图（每个窗口独立通道）
       const deviceList = msg.devices || [];
-      const interval = msg.interval || 333;
+      const interval = msg.interval || 125; // 125ms = 8fps
       
       // 获取该窗口当前的高清通道
       const existingHD = wallHDChannels.get(ws) || new Set();
