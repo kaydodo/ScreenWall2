@@ -5699,8 +5699,9 @@ function updateMonitorPreview() {
         var isOffline = !device.online;
         var offlineClass = isOffline ? ' offline' : '';
         var offlineBadge = isOffline ? '<div class="monitor-offline-badge">设备已离线</div>' : '';
-        // WebSocket 方案：在线设备留空，由 browserScreenshot 消息推送更新
-        var imgSrc = isOffline ? (device.screenshot || '') : '';
+        // 在线：优先用 pendingFrames 缓存帧，其次用 device.screenshot，都没有才空
+        var cachedFrame = pendingFrames.get(deviceId);
+        var imgSrc = isOffline ? (device.screenshot || '') : ((cachedFrame && cachedFrame.image) || device.screenshot || '');
         var offlineStyle = isOffline ? 'filter: grayscale(100%);opacity:0.5;' : '';
 
         if (imgSrc || !isOffline) {
