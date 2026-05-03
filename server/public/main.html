@@ -1538,11 +1538,17 @@ function connectWS() {
       previewImg.style.display = 'block';
     }
 
-    // 批量截图消息处理
+    // 批量截图消息处理（服务端攒批推送，替代逐条 browserScreenshot）
     if (msg.type === 'screenshotBatch' && msg.screenshots) {
       for (const sc of msg.screenshots) {
         const frameData = { image: sc.image, hqImage: sc.hqImage || null, timestamp: Date.now() };
         pendingFrames.set(sc.deviceId, frameData);
+        // 同时更新监控预览弹窗中的图片（如果有）
+        const monitorImg = document.querySelector(`.monitor-preview-img-wrapper[data-device-id="${sc.deviceId}"] img`);
+        if (monitorImg) {
+          monitorImg.src = sc.image;
+          monitorImg.style.display = 'block';
+        }
         // 自愈：批量截图也累加帧计数，达到阈值才恢复
         const cell = gridCells.find(c => c && c.deviceId === sc.deviceId);
         if (cell && !cell.online) {
