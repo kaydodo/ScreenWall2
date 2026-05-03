@@ -1324,6 +1324,7 @@ function getDeviceListPayload() {
       deviceId: d.deviceId,
       deviceName: d.deviceName,
       uuDeviceId: d.uuDeviceId,
+      macAddress: d.macAddress || null,
       online: d.online,
       lastSeen: d.lastSeen,
       screenshot: d.screenshot || null,
@@ -1546,13 +1547,31 @@ wssClient.on('connection', (ws, req) => {
       }
 
       // deviceId 不为空：正常创建设备逻辑
-      // 唯一标识：只用 deviceId 查找已有设备（避免 uuDeviceId 相同导致设备混淆）
+      // 唯一标识：先用 deviceId 查找，找不到则尝试 deviceName + MAC 地址匹配
       let existing = null;
+      let matchedOldDeviceId = null;  // 记录匹配到的旧设备ID（用于删除旧记录）
       if (incomingDeviceId) {
         existing = devices.get(incomingDeviceId) || null;
       }
 
-      // 确定最终 deviceId
+      // 如果没找到，尝试用 deviceName + MAC 地址查找（用于设备重装后识别同一设备）
+      const incomingMac = String(msg.macAddress || '').trim().toLowerCase();
+      const incomingName = String(msg.deviceName || '').trim();
+      if (!existing && incomingMac && incomingName) {
+        for (const [devId, devInfo] of devices) {
+          const devMac = String(devInfo.macAddress || '').trim().toLowerCase();
+          const devName = String(devInfo.deviceName || '').trim();
+          // MAC 地址匹配且设备名相同（或设备名包含关系）
+          if (devMac === incomingMac && (devName === incomingName || devName.includes(incomingName) || incomingName.includes(devName))) {
+            existing = devInfo;  // 继承旧设备的所有信息
+            matchedOldDeviceId = devId;  // 记录旧设备ID，后面要删除
+            serverLog(`[识别] 通过 MAC+设备名匹配到已有设备: ${devName} (${devId})，将更新为新的 deviceId: ${incomingDeviceId}`);
+            break;
+          }
+        }
+      }
+
+      // 确定最终 deviceId（始终使用客户端上报的新 deviceId）
       deviceId = incomingDeviceId;
 
       // 服务器端 deviceName 优先；客户端名字只在服务器没有记录时使用
@@ -1565,6 +1584,7 @@ wssClient.on('connection', (ws, req) => {
         deviceId,
         deviceName: finalName,
         uuDeviceId: incomingUU || (existing && existing.uuDeviceId) || '',
+        macAddress: incomingMac || (existing && existing.macAddress) || '',
         screenshot: (existing && existing.screenshot) || null,
         lastSeen: Date.now(),
         online: true,
@@ -1589,6 +1609,12 @@ wssClient.on('connection', (ws, req) => {
         const kbTag = msg.supportsKeyClient ? '远控' : '—';
         serverLog(`[+] 上线: ${newDev.deviceName} (${deviceId}) uuId=${newDev.uuDeviceId} | IP: ${ip} | ${kbTag} | 显示器${newDev.monitorIndex} | ${newDev.screenWidth || '?'}×${newDev.screenHeight || '?'}`);
       }
+      // 如果匹配到了旧设备，删除旧记录（因为已经用新 deviceId 保存了）
+      if (matchedOldDeviceId && matchedOldDeviceId !== deviceId) {
+        devices.delete(matchedOldDeviceId);
+        serverLog(`[识别] 已删除旧设备记录: ${matchedOldDeviceId}`);
+      }
+
       persistDevices();  // 持久化设备列表
       broadcastToBrowsers({ type: 'deviceList', devices: getDeviceListPayload() });
       // 广播设备预览状态变更（让所有浏览器刷新预览大图，移除离线/删除状态）

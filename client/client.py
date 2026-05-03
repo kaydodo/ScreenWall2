@@ -19,7 +19,35 @@ import time
 import webbrowser
 
 # 客户端版本号（每次功能更新时手动递增）
-CLIENT_VERSION = "1.6.1"
+CLIENT_VERSION = "1.6.2"
+
+
+def _get_mac_address():
+    """获取本机 MAC 地址（取第一个非虚拟网卡的物理地址）"""
+    try:
+        import subprocess
+        result = subprocess.run(
+            ['wmic', 'nic', 'where', 'NetConnectionStatus=2', 'get', 'MACAddress', '/value'],
+            capture_output=True, text=True, timeout=10,
+            creationflags=subprocess.CREATE_NO_WINDOW
+        )
+        if result.returncode == 0:
+            # 解析 MACAddress=xx:xx:xx:xx:xx:xx
+            for line in result.stdout.split('\n'):
+                if 'MACAddress=' in line:
+                    mac = line.split('=')[1].strip()
+                    if mac and mac != '00:00:00:00:00:00':
+                        return mac.replace(':', '-')
+    except Exception:
+        pass
+    # 备用方案：用 uuid
+    try:
+        mac = uuid.getnode()
+        if mac:
+            return ':'.join(['%02X' % ((mac >> (8 * i)) & 0xFF) for i in range(5, -1, -1)])
+    except Exception:
+        pass
+    return ""
 
 
 def has_key_client():
@@ -1821,12 +1849,16 @@ class ScreenWallClient:
             device_name = base_name
 
         host = srv.get("host", "localhost").replace("http://", "").replace("https://", "")
+        # 获取 MAC 地址（首次获取后缓存）
+        if not hasattr(self, '_mac_address'):
+            self._mac_address = _get_mac_address()
         return {
             "uri":          f"ws://{host}:{srv.get('port', 3000)}/ws/client",
             "deviceId":     device_id,
             "deviceName":   device_name,
             "computerName": os.environ.get("COMPUTERNAME", ""),
             "uuDeviceId":   uu_device_id,
+            "macAddress":   self._mac_address,
             "quality":      30,     # 小图 JPG 质量 30
             "resizeW":      480,     # 写死
             "resizeH":      270,     # 写死
@@ -1868,6 +1900,7 @@ class ScreenWallClient:
                 "deviceId":        cfg["deviceId"],
                 "deviceName":      cfg["deviceName"],
                 "uuDeviceId":      cfg["uuDeviceId"],
+                "macAddress":      cfg.get("macAddress", ""),
                 "localDeviceName": cfg["deviceName"],
                 "supportsKeyClient": has_kb,
                 "version":         CLIENT_VERSION,
@@ -1911,6 +1944,7 @@ class ScreenWallClient:
                         "deviceId":        new_cfg["deviceId"],
                         "deviceName":      new_cfg["deviceName"],
                         "uuDeviceId":      new_cfg["uuDeviceId"],
+                        "macAddress":      new_cfg.get("macAddress", ""),
                         "localDeviceName": new_cfg["deviceName"],
                         "supportsKeyClient": has_kb,
                         "version":         CLIENT_VERSION,
