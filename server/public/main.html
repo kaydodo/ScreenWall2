@@ -633,6 +633,12 @@ const pendingFrames = new Map(); // deviceId -> {image, timestamp, frameCount}
 const pendingPreviewFrame = { deviceId: null, image: null, timestamp: 0 };
 let renderScheduled = false;
 
+// Blob URL 系统：避免 base64 每帧解码导致位图缓存堆积
+// Map<cellIndex, { blobUrl: string, md5: string, timestamp: number }>
+const _cellBlobs = new Map();
+let _previewBlobUrl = null;
+let _previewBlobMd5 = null;
+
 // 自愈帧计数：deviceId -> 收到的新鲜帧数量（超过阈值才算真正在线）
 const frameHealCount = new Map(); // deviceId -> count
 const FRAME_HEAL_THRESHOLD = 2;   // 至少收到2帧才恢复离线格子
@@ -1243,7 +1249,7 @@ function connectWS() {
           const offlineFrame = msg.screenshot || (dev && dev.screenshot);
           if (offlineFrame) {
             previewImg.onload = null;
-            previewImg.src = offlineFrame;
+            previewImg.src = offlineFrame; // 离线静态图直接用 base64（低频）
             previewImg.style.visibility = 'visible';
           }
           // 更新标题（优先使用广播中的设备名，其次从devices获取）
@@ -1522,9 +1528,9 @@ function connectWS() {
         watermark.style.display = 'none';
         previewImg.style.filter = '';
       }
-      // WebSocket 方案：直接使用推送的 base64 数据
+      // WebSocket 方案：Blob URL 方案 + 内容相同跳过
       if (isOnline && msg.image) {
-        previewImg.src = msg.image;
+        setPreviewBlobSrc(previewImg, msg.image);
         previewImg.style.visibility = 'visible';
         const wrapper = document.getElementById('previewImgWrapper');
         if (wrapper) wrapper.style.backgroundImage = '';
@@ -2141,7 +2147,17 @@ function updateCellElement(index) {
     if (pwrBtn) pwrBtn.style.display = 'none';
     document.getElementById(`ns_${index}`).style.display = 'flex';
     const img = document.getElementById(`img_${index}`);
-    if (img) { img.classList.remove('grayscale'); img.style.display = 'none'; img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'; }
+    if (img) {
+      // 清理该格子的 blob URL
+      const existingBlob = _cellBlobs.get(index);
+      if (existingBlob) {
+        try { URL.revokeObjectURL(existingBlob.blobUrl); } catch(e) {}
+        _cellBlobs.delete(index);
+      }
+      img.classList.remove('grayscale');
+      img.style.display = 'none';
+      img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+    }
     let offlineLabel = document.getElementById(`offline_${index}`);
     if (offlineLabel) offlineLabel.style.display = 'none';
     // 隐藏星星按钮
@@ -2158,29 +2174,83 @@ function updateCellScreenshot(index, imgData) {
   const t0 = performance.now();
   const img = document.getElementById(`img_${index}`);
   const ns = document.getElementById(`ns_${index}`);
-  const t1 = performance.now();
   if (!img || !ns) return;
   const cell = gridCells[index];
   const deviceId = cell ? cell.deviceId : null;
-  if (imgData && deviceId) {
-    // 离线设备：显示静态图；在线设备：使用 WebSocket 推送的帧（base64）
-    if (cell && !cell.online) {
-      // 离线：使用 devices 中的截图
-      const dev = devices.find(d => d.deviceId === deviceId);
-      const offlineFrame = dev && dev.screenshot;
-      if (offlineFrame) {
-        img.src = offlineFrame;
-        img.style.display = 'block';
-      }
-      img.classList.add('grayscale');
-      ns.style.display = 'none';
-    } else {
-      // 在线：直接使用推送的 base64 数据（WebSocket 方案，不再请求 MJPEG 流）
-      img.src = imgData;
+  if (!imgData || !deviceId) return;
+
+  if (!cell.online) {
+    // 离线：使用 devices 中的截图
+    const dev = devices.find(d => d.deviceId === deviceId);
+    const offlineFrame = dev && dev.screenshot;
+    if (offlineFrame) {
+      img.src = offlineFrame;
       img.style.display = 'block';
-      img.classList.remove('grayscale');
-      ns.style.display = 'none';
     }
+    img.classList.add('grayscale');
+    ns.style.display = 'none';
+    // 离线设备不参与 blob 管理，直接返回
+    return;
+  }
+
+  // 在线设备：Blob URL 方案
+  // 计算 md5 判断内容是否变化
+  let md5 = '';
+  try {
+    md5 = btoa(imgData.slice(-32, -1)).slice(0, 16); // 用末尾32字符作为近似md5（性能优先）
+  } catch(e) { md5 = imgData.slice(0, 32); }
+
+  const existing = _cellBlobs.get(index);
+  if (existing && existing.md5 === md5) {
+    // 内容未变，引用同一个 blob URL，跳过 DOM 更新
+    return;
+  }
+
+  // 内容变化：先释放旧 blob URL，再创建新的
+  if (existing) {
+    try { URL.revokeObjectURL(existing.blobUrl); } catch(e) {}
+  }
+
+  try {
+    const blob = base64ToBlob(imgData, 'image/webp');
+    const blobUrl = URL.createObjectURL(blob);
+    _cellBlobs.set(index, { blobUrl, md5, timestamp: Date.now() });
+    img.src = blobUrl;
+    img.style.display = 'block';
+    img.classList.remove('grayscale');
+    ns.style.display = 'none';
+  } catch(e) {
+    // blob 创建失败时降级 base64（兜底）
+    img.src = imgData;
+    img.style.display = 'block';
+    img.classList.remove('grayscale');
+    ns.style.display = 'none';
+  }
+}
+
+// base64 -> Blob（性能优先，不做完整 md5）
+function base64ToBlob(base64, mimeType) {
+  const b64 = base64.replace(/^data:[^;]+;base64,/, '');
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return new Blob([bytes], { type: mimeType });
+}
+
+// 预览图 Blob URL 辅助：内容相同则复用 URL，避免重复解码
+function setPreviewBlobSrc(imgEl, base64) {
+  const md5 = base64.slice(-32, -1); // 用末尾32字符近似md5
+  if (_previewBlobMd5 === md5) return; // 内容未变，跳过
+  if (_previewBlobUrl) {
+    try { URL.revokeObjectURL(_previewBlobUrl); } catch(e) {}
+  }
+  try {
+    const blob = base64ToBlob(base64, 'image/webp');
+    _previewBlobUrl = URL.createObjectURL(blob);
+    _previewBlobMd5 = md5;
+    imgEl.src = _previewBlobUrl;
+  } catch(e) {
+    imgEl.src = base64; // blob 失败降级 base64
   }
 }
 
@@ -2859,6 +2929,17 @@ function closePreview() {
   if (previewImg) previewImg.onclick = null;
   // 先移除图片显示，再设置src，避免浏览器尝试加载base64作为URL
   if (previewImg) { previewImg.style.display = 'none'; previewImg.style.filter = ''; previewImg.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'; }
+  // 清理预览 Blob URL
+  if (_previewBlobUrl) {
+    try { URL.revokeObjectURL(_previewBlobUrl); } catch(e) {}
+    _previewBlobUrl = null;
+    _previewBlobMd5 = null;
+  }
+  // 清理格子 Blob URL
+  for (const [idx, entry] of _cellBlobs) {
+    try { URL.revokeObjectURL(entry.blobUrl); } catch(e) {}
+  }
+  _cellBlobs.clear();
 }
 
 // ─────────────────────────────────────────
