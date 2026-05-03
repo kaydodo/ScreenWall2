@@ -228,8 +228,65 @@ const lastPushTime = new Map(); // deviceId -> timestamp(ms)
 let gridLayout = {};
 let gridSizeSetting = 4;  // 默认布局大小
 
-// ========== 帧缓存（MD5 去重推送）==========
+// ========== wallScreenshot 批量推送（监控墙，同优化）==========
+const _wallBatch = new Map();
+let _wallBatchScheduled = false;
+function _flushWallBatch() {
+  _wallBatchScheduled = false;
+  if (_wallBatch.size === 0 || wallClients.size === 0) { _wallBatch.clear(); return; }
+  const screenshots = [];
+  for (const [deviceId, data] of _wallBatch) {
+    screenshots.push({ deviceId, screenshot: data.screenshot, timestamp: data.timestamp });
+  }
+  try {
+    const batchMsg = JSON.stringify({ type: 'wallScreenshotBatch', screenshots });
+    for (const [wallWs] of wallClients) {
+      if (wallWs.readyState === 1) wallWs.send(batchMsg);
+    }
+  } catch(e) { log('error', 'wallBatch 推送失败:', e.message); }
+  _wallBatch.clear();
+}
+function _scheduleWallBatch() {
+  if (!_wallBatchScheduled) {
+    _wallBatchScheduled = true;
+    setTimeout(_flushWallBatch, 125);
+  }
+}
 const frameCache = new Map(); // deviceId -> { md5, time }
+
+// ========== browserScreenshot 批量推送（减少 Browser 进程内存压力）==========
+// 不再逐条推送，改为攒批后统一发送 screenshotBatch
+// 200设备×8fps = 1600条/秒 → 合并为 8条/秒，Browser进程 IPC 压力降200倍
+const _browserBatch = new Map(); // deviceId -> { image, timestamp }
+let _browserBatchScheduled = false;
+function _flushBrowserBatch() {
+  _browserBatchScheduled = false;
+  if (_browserBatch.size === 0 || browserClients.size === 0) {
+    _browserBatch.clear();
+    return;
+  }
+  const screenshots = [];
+  for (const [deviceId, data] of _browserBatch) {
+    screenshots.push({ deviceId, image: data.image, timestamp: data.timestamp });
+  }
+  try {
+    const batchMsg = JSON.stringify({ type: 'screenshotBatch', screenshots });
+    for (const browserWs of browserClients) {
+      if (browserWs.readyState === 1 && !wallClients.has(browserWs)) {
+        browserWs.send(batchMsg);
+      }
+    }
+  } catch(e) {
+    log('error', '批量推送失败:', e.message);
+  }
+  _browserBatch.clear();
+}
+function _scheduleBrowserBatch() {
+  if (!_browserBatchScheduled) {
+    _browserBatchScheduled = true;
+    setTimeout(_flushBrowserBatch, 125); // 125ms ≈ 8fps，与客户端帧率对齐
+  }
+}
 // 截图路径统计（用于诊断 JPEG 快速路径 vs sharp 慢速路径）
 let screenshotPathStats = null; // { fast, slow, lastLog }
 // deviceFrames 写入统计
@@ -1674,8 +1731,8 @@ wssClient.on('connection', (ws, req) => {
 
         const now = Date.now();
 
-        // ── browserScreenshot：推送给所有浏览器（格子页面 + 监控预览弹窗）──────
-        // 标准模式用 MD5 去重节流，HQ 模式直接推送
+        // ── browserScreenshot：批量攒批推送（减少 Browser 进程 IPC 压力）──────
+        // 不再逐条发送，改为攒入 _browserBatch，由定时器统一发送 screenshotBatch
         let shouldSendBrowser = true;
         if (!msg.hq) {
           // 从 msg.image 提取 buffer 用于 MD5 去重
@@ -1691,21 +1748,13 @@ wssClient.on('connection', (ws, req) => {
         }
 
         if (shouldSendBrowser) {
-          const browserMsg = JSON.stringify({
-            type: 'browserScreenshot',
-            deviceId: msg.deviceId,
-            image: msg.image,
-            timestamp: now
-          });
-          for (const browserWs of browserClients) {
-            if (browserWs.readyState === 1 && !wallClients.has(browserWs)) {
-              browserWs.send(browserMsg);
-            }
-          }
+          // 入批（覆盖旧帧，每设备只保留最新一帧）
+          _browserBatch.set(msg.deviceId, { image: msg.image, timestamp: now });
+          _scheduleBrowserBatch();
         }
 
-        // ── wallScreenshot：推送给监控墙 ────────────────
-        // 标准模式 200ms 节流，HQ 模式直接推送
+        // ── wallScreenshot：批量攒批推送（减少 Browser 进程 IPC 压力）────
+        // 不再逐条发送，改为攒入 _wallBatch，125ms 定时器统一发送 wallScreenshotBatch
         let shouldSendWall = true;
         if (!msg.hq) {
           if (dev._lastWallPush && now - dev._lastWallPush <= 200) {
@@ -1715,16 +1764,9 @@ wssClient.on('connection', (ws, req) => {
           }
         }
         if (shouldSendWall) {
-          for (const [wallWs, subscription] of wallClients) {
-            if (subscription.devices.has(msg.deviceId) && wallWs.readyState === 1) {
-              wallWs.send(JSON.stringify({
-                type: 'wallScreenshot',
-                deviceId: msg.deviceId,
-                screenshot: msg.image,
-                timestamp: now
-              }));
-            }
-          }
+          // 入批（覆盖旧帧，每设备只保留最新一帧）
+          _wallBatch.set(msg.deviceId, { screenshot: msg.image, timestamp: now });
+          _scheduleWallBatch();
         }
 
         // ── previewScreenshot：仅 HQ 模式，推送给大图预览 ─────
@@ -1751,6 +1793,7 @@ wssClient.on('connection', (ws, req) => {
       if (dev) {
         dev.lastSeen = Date.now();
         dev.online = true;
+        const now = Date.now();
 
         // 心跳日志
 
@@ -1795,17 +1838,9 @@ wssClient.on('connection', (ws, req) => {
         const latestScreenshot = heartbeatScreenshot || dev.hqScreenshot || dev.screenshot;
         if (latestScreenshot) {
           dev.screenshot = latestScreenshot; // 心跳截图也要存，让离线广播有最新截图
-          const timestamp = Date.now();
-          for (const [client, sub] of wallClients) {
-            if (sub.devices.has(msg.deviceId)) {
-              client.send(JSON.stringify({
-                type: 'wallScreenshot',
-                deviceId: msg.deviceId,
-                screenshot: latestScreenshot,
-                timestamp: timestamp
-              }));
-            }
-          }
+          // 入 wallBatch 攒批（心跳触发的截图同样走批量通道）
+          _wallBatch.set(msg.deviceId, { screenshot: latestScreenshot, timestamp: now });
+          _scheduleWallBatch();
         }
 
         // 心跳响应：告诉客户端是否有新版本（只在有升级时打日志）
