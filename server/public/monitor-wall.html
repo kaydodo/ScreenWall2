@@ -284,6 +284,67 @@ if (!wallData) {
 var ws = null;
 var subscribedDevices = []; // 订阅的设备列表
 
+// ── Blob URL 管理（减少浏览器解码内存）────────────────────────────
+var _wallBlobs = {}; // deviceId -> blobUrl
+var _wallBlobMds = {}; // deviceId -> last md5
+
+function _md5Hex(base64) {
+  try {
+    var raw = atob(base64.replace(/^data:image\/\w+;base64,/, ''));
+    var bin = '';
+    for (var i = 0; i < raw.length; i++) {
+      var x = raw.charCodeAt(i) & 0xff;
+      bin += ('0' + x.toString(16)).slice(-2);
+    }
+    return bin;
+  } catch(e) { return null; }
+}
+
+
+function base64ToBlob(base64) {
+  try {
+    var mime = base64.match(/^data:image\/(\w+);base64,/);
+    if (!mime) mime = 'image/jpeg';
+    else mime = 'image/' + mime[1];
+    var raw = atob(base64.replace(/^data:image\/\w+;base64,/, ''));
+    var arr = new Uint8Array(raw.length);
+    for (var i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+    return new Blob([arr], { type: mime });
+  } catch(e) { return null; }
+}
+
+function updateWallCellScreenshot(deviceId, screenshot) {
+  var img = document.getElementById('img_' + deviceId);
+  var dev = devices[deviceId];
+  if (!img || !screenshot || !dev) return;
+
+  var md5 = _md5Hex(screenshot);
+  if (md5 && _wallBlobMds[deviceId] === md5) return; // 帧内容未变，跳过 DOM 更新
+  _wallBlobMds[deviceId] = md5;
+
+  // 释放旧 blob URL
+  if (_wallBlobs[deviceId]) {
+    URL.revokeObjectURL(_wallBlobs[deviceId]);
+    _wallBlobs[deviceId] = null;
+  }
+
+  var blob = base64ToBlob(screenshot);
+  if (!blob) return;
+  var blobUrl = URL.createObjectURL(blob);
+  _wallBlobs[deviceId] = blobUrl;
+
+  // 帧到达：恢复透明度（首次到达时 opacity:0→1 淡入）
+  if (img.style.opacity !== '1') img.style.opacity = '1';
+
+  img.src = blobUrl;
+  img.style.display = 'block';
+  var crop = dev.crop || { scale: 1, translateX: 0, translateY: 0 };
+  img.style.transform = 'scale(' + crop.scale + ') translate(' + (crop.translateX || 0) + 'px, ' + (crop.translateY || 0) + 'px)';
+  img.style.transformOrigin = 'center center';
+
+
+}
+
 // ── 全屏状态 ────────────────────────────────────────────────
 var wallFullscreenDeviceId = null; // 当前全屏的设备ID
 var wallFullscreenReset = false; // 是否已点击过重置
@@ -396,6 +457,7 @@ function enterWallFullscreen(cell, deviceId) {
       if (screenshot) {
         img.src = screenshot;
         img.style.display = 'block';
+        img.style.opacity = '0.4';
       }
     }
   } else {
@@ -579,23 +641,22 @@ function initWall() {
   // 启动看门狗
   watchdog.start();
 
-  // WebSocket 推送方案：初始化时不设置 img.src，等待 wallScreenshot 消息更新
-  // wallScreenshot 消息会自动更新图片（已在消息处理中实现）
+  // WebSocket 推送方案：初始化时在线格 opacity:0（黑色背景透出），离线格 opacity:0.4 显示静态图
+  // 首帧到达后 opacity:0→1 淡入
+
   wallData.devices.forEach(function(dev) {
     var img = document.getElementById('img_' + dev.id);
     if (!img) return;
 
     if (dev.online === false) {
-      // 离线设备：显示静态图（来自 devices.screenshot）
-      if (dev.screenshot) {
-        img.src = dev.screenshot;
-      }
+      // 离线设备：显示静态图
+      if (dev.screenshot) img.src = dev.screenshot;
       img.style.display = 'block';
+      img.style.opacity = '0.4';
     } else {
-      // 在线设备：等待 wallScreenshot 消息推送，不要预设占位图
-      img.src = '';
+      // 在线设备：初始 opacity:0，等待首帧时黑色背景透出，不做其他处理
       img.style.display = 'block';
-      // 发送 startHQ 请求720p高清流
+      img.style.opacity = '0';
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'startHQ', deviceId: dev.id }));
       }
@@ -676,16 +737,8 @@ function connectWebSocket() {
           frameHealCount.delete(deviceId);
         }
 
-        // ── WebSocket 推送：直接使用截图数据（无需 MJPEG 流）────────
-        var img = document.getElementById('img_' + deviceId);
-        var dev = devices[deviceId]; // 获取设备对象
-        if (img && screenshot && dev) {
-          img.src = screenshot;
-          img.style.display = 'block';
-          var crop = dev.crop || { scale: 1, translateX: 0, translateY: 0 };
-          img.style.transform = 'scale(' + crop.scale + ') translate(' + crop.translateX + 'px, ' + crop.translateY + 'px)';
-          img.style.transformOrigin = 'center center';
-        }
+        // ── Blob URL 更新（带 MD5 跳帧）────────
+        updateWallCellScreenshot(deviceId, screenshot);
 
         // ── 更新时间戳 ───────────────────────────────────
         var ts = document.getElementById('ts_' + deviceId);
@@ -699,7 +752,25 @@ function connectWebSocket() {
         stats.framesRendered++;
       }
 
-      if (data.type === 'wallStateUpdate') {
+
+      if (data.type === 'wallScreenshotBatch' && data.screenshots) {
+        var nowTs = Date.now();
+        for (var i = 0; i < data.screenshots.length; i++) {
+          var sc = data.screenshots[i];
+          if (devices[sc.deviceId]) devices[sc.deviceId].screenshot = sc.screenshot;
+          updateWallCellScreenshot(sc.deviceId, sc.screenshot);
+          var ts = document.getElementById('ts_' + sc.deviceId);
+          if (ts && sc.timestamp) {
+            var d = new Date(sc.timestamp);
+            ts.textContent = formatDate(d);
+          }
+          watchdog.touch(sc.deviceId);
+        }
+        stats.framesReceived += data.screenshots.length;
+        stats.framesRendered += data.screenshots.length;
+      }
+
+            if (data.type === 'wallStateUpdate') {
         handleWallStateUpdate(data);
       }
 
