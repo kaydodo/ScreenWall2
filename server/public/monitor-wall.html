@@ -664,29 +664,6 @@ function initWall() {
     }
   });
 
-  // 页面关闭时清理
-  window.addEventListener('beforeunload', function() {
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      // 先关闭1080p（如果正在全屏），再关闭所有设备的HQ
-      if (wallFullscreenDeviceId) {
-        ws.send(JSON.stringify({ type: 'hq1080Off', deviceId: wallFullscreenDeviceId }));
-      }
-      subscribedDevices.forEach(function(deviceId) {
-        ws.send(JSON.stringify({ type: 'stopHQ', deviceId: deviceId }));
-      });
-      ws.send(JSON.stringify({ type: 'unsubscribeWall', devices: subscribedDevices }));
-    }
-    watchdog.stop();
-    try {
-      var stored = localStorage.getItem('walledDevices');
-      if (stored) {
-        var arr = JSON.parse(stored);
-        var deviceIds = wallData.devices.map(function(d) { return d.id; });
-        arr = arr.filter(function(item) { return deviceIds.indexOf(item.deviceId) < 0; });
-        localStorage.setItem('walledDevices', JSON.stringify(arr));
-      }
-    } catch(e) {}
-  });
 }
 
 function connectWebSocket() {
@@ -1180,6 +1157,33 @@ function makeWallCellDraggable(cell, deviceId) {
     _isDragging = false;
   });
 }
+
+// 页面关闭时清理 - 在脚本级别注册，确保尽早绑定
+window.addEventListener('beforeunload', function() {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    // 先关闭1080p（如果正在全屏），再关闭所有设备的HQ
+    if (wallFullscreenDeviceId) {
+      ws.send(JSON.stringify({ type: 'hq1080Off', deviceId: wallFullscreenDeviceId }));
+    }
+    // 使用 wallData.devices 获取当前所有设备（不依赖 subscribedDevices）
+    if (wallData && wallData.devices) {
+      wallData.devices.forEach(function(dev) {
+        ws.send(JSON.stringify({ type: 'stopHQ', deviceId: dev.id }));
+      });
+      ws.send(JSON.stringify({ type: 'unsubscribeWall', devices: wallData.devices.map(function(d) { return d.id; }) }));
+    }
+  }
+  watchdog.stop();
+  try {
+    var stored = localStorage.getItem('walledDevices');
+    if (stored && wallData && wallData.devices) {
+      var arr = JSON.parse(stored);
+      var deviceIds = wallData.devices.map(function(d) { return d.id; });
+      arr = arr.filter(function(item) { return deviceIds.indexOf(item.deviceId) < 0; });
+      localStorage.setItem('walledDevices', JSON.stringify(arr));
+    }
+  } catch(e) {}
+});
 
 // 初始化
 initWall();
