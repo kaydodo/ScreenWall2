@@ -1179,7 +1179,7 @@ window.addEventListener('beforeunload', function() {
       wallData.devices.forEach(function(dev) {
         ws.send(JSON.stringify({ type: 'stopHQ', deviceId: dev.id }));
       });
-      ws.send(JSON.stringify({ type: 'unsubscribeWall', devices: wallData.devices.map(function(d) { return d.id; }) }));
+      ws.send(JSON.stringify({ type: 'unsubscribeWall', devices: wallData.devices.map(function(d) { return d.id; }), pageClosing: true }));
     }
   }
   watchdog.stop();

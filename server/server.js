@@ -3144,49 +3144,51 @@ wssBrowser.on('connection', (ws) => {
     }
 
     if (msg.type === 'unsubscribeWall') {
-      // 取消监控墙订阅（手动关闭单个设备）
       const devicesToUnsubscribe = msg.devices || [];
+      const isPageClosing = msg.pageClosing === true; // 页面关闭时的预清理标记
       
-      const subscription = wallClients.get(ws);
-      const hdChannels = wallHDChannels.get(ws);
-      if (subscription) {
-        // 从该浏览器的已上墙集合中移除
-        for (const deviceId of devicesToUnsubscribe) {
-          subscription.devices.delete(deviceId);
-          // 只关闭本窗口的高清通道
-          if (hdChannels) hdChannels.delete(deviceId);
-          // 从hdRequests中移除本浏览器
-          if (hdRequests.has(deviceId)) {
-            hdRequests.get(deviceId).delete(ws);
-          }
-          // 递减globalHQ，检查是否需要真正停止设备高清流
-          if (globalHQ.has(deviceId)) {
-            const newCount = globalHQ.get(deviceId) - 1;
-            if (newCount <= 0) {
-              globalHQ.delete(deviceId);
-              // 发stopHQ前检查墙上是否还有其他人需要该设备的HQ
-              let wallStillNeedsHQ = false;
-              for (const [wWs, wHd] of wallHDChannels) {
-                if (wHd.has(deviceId)) { wallStillNeedsHQ = true; break; }
-              }
-              if (!wallStillNeedsHQ) {
-                hdRequests.delete(deviceId);
-                wallDevices.delete(deviceId);
-                for (const client of wssClient.clients) {
-                  if (client._deviceId === deviceId) {
-                    client.send(JSON.stringify({ type: 'stopHQ' }));
-                    break;
+      if (isPageClosing) {
+        // 页面关闭：只标记，不删 devices，留给 close 事件统一清理
+        serverLog(`[监控墙] 收到 unsubscribeWall (页面关闭): ${devicesToUnsubscribe.length} 设备`);
+        if (devicesToUnsubscribe.length > 0) {
+          ws._wallUnsubscribing = true;
+        }
+      } else {
+        // 手动取消单个设备：立即清理该设备（原逻辑）
+        const subscription = wallClients.get(ws);
+        const hdChannels = wallHDChannels.get(ws);
+        if (subscription) {
+          for (const deviceId of devicesToUnsubscribe) {
+            subscription.devices.delete(deviceId);
+            if (hdChannels) hdChannels.delete(deviceId);
+            if (hdRequests.has(deviceId)) {
+              hdRequests.get(deviceId).delete(ws);
+            }
+            if (globalHQ.has(deviceId)) {
+              const newCount = globalHQ.get(deviceId) - 1;
+              if (newCount <= 0) {
+                globalHQ.delete(deviceId);
+                let wallStillNeedsHQ = false;
+                for (const [wWs, wHd] of wallHDChannels) {
+                  if (wHd.has(deviceId)) { wallStillNeedsHQ = true; break; }
+                }
+                if (!wallStillNeedsHQ) {
+                  hdRequests.delete(deviceId);
+                  wallDevices.delete(deviceId);
+                  for (const client of wssClient.clients) {
+                    if (client._deviceId === deviceId) {
+                      client.send(JSON.stringify({ type: 'stopHQ' }));
+                      break;
+                    }
                   }
                 }
+              } else {
+                globalHQ.set(deviceId, newCount);
               }
-            } else {
-              globalHQ.set(deviceId, newCount);
             }
           }
+          ws.send(JSON.stringify({ type: 'walledDevices', devices: Array.from(subscription.devices) }));
         }
-
-        // 返回该浏览器已上墙设备列表
-        ws.send(JSON.stringify({ type: 'walledDevices', devices: Array.from(subscription.devices) }));
       }
     }
 
@@ -3325,10 +3327,12 @@ wssBrowser.on('connection', (ws) => {
           return;
         }
         
-        // 再次检查这个 ws 是否真的断开了
-        const isReallyClosed = !wallClients.has(ws) && !wallHDChannels.has(ws);
+        // 检查是否需要清理：ws 已断开，且没有同一指纹的新连接接手
+        // 注意：不检查 wallClients.has(ws)，因为 unsubscribeWall(pageClosing) 不删除记录
+        const hasReconnected2 = _wallBrowserSessions.has(deviceFingerprint) && 
+                                 _wallBrowserSessions.get(deviceFingerprint).ws !== ws;
         
-        if (isReallyClosed) {
+        if (!hasReconnected2) {
           serverLog(`[监控墙] 连接确认断开，清理 ${devicesToClean.length} 设备 (HD:${hdDevicesToClean.length}) 指纹:${deviceFingerprint || 'empty'}`);
           
           // 清理指纹记录
@@ -3389,7 +3393,7 @@ wssBrowser.on('connection', (ws) => {
             }
           }
         } else {
-          serverLog(`[监控墙] 连接已恢复，取消清理`);
+          serverLog(`[监控墙] 检测到同一浏览器已重新连接，跳过延迟清理`);
         }
       }, _wallCloseDelayMs);
       
