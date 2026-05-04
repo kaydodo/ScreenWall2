@@ -19,7 +19,7 @@ import time
 import webbrowser
 
 # 客户端版本号（每次功能更新时手动递增）
-CLIENT_VERSION = "1.7.0"
+CLIENT_VERSION = "1.7.3"  # 键盘全改Unicode路径，Shift+Q正确解析，不受CapsLock影响
 
 
 def _get_mac_address():
@@ -1386,15 +1386,13 @@ class ScreenWallClient:
                 self._uu_install_triggered = False
                 return
 
-            # 静默安装：/S /mode=7 /bgstartup=yes /launchapp=no /autorun=yes
+            # 静默安装：/S /mode=7 /launchapp=yes /autorun=yes
             install_cmd = [
                 tmp_path,
                 "/S",
                 "/mode=7",
-                "/bgstartup=yes",
-                "/launchapp=no",
+                "/launchapp=yes",
                 "/autorun=yes",
-                r'/D=C:\Program Files\Netease\GameViewer',
             ]
             subprocess.Popen(
                 install_cmd,
