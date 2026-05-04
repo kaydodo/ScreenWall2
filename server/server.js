@@ -3097,6 +3097,7 @@ wssBrowser.on('connection', (ws) => {
       const newDevices = new Set(existingDevices);
       
       for (const deviceId of deviceList) {
+        const isNewDevice = !existingDevices.has(deviceId); // 只对新增设备计数，避免重复订阅导致计数膨胀
         newDevices.add(deviceId);
         newHDChannels.add(deviceId); // 每个设备只开启一次高清通道
         wallDevices.set(deviceId, true); // 持久化追踪，设备重连后自动恢复
@@ -3105,6 +3106,12 @@ wssBrowser.on('connection', (ws) => {
         // 记录高清请求引用（用于 unsubscribe 时计数）
         if (!hdRequests.has(deviceId)) hdRequests.set(deviceId, new Set());
         hdRequests.get(deviceId).add(ws);
+
+        // 【修复】subscribeWall 时也增加 globalHQ 计数，与 startHQ 消息处理保持一致
+        // 只对新增设备计数（同一窗口重复订阅同一设备不算新引用）
+        if (isNewDevice) {
+          globalHQ.set(deviceId, (globalHQ.get(deviceId) || 0) + 1);
+        }
 
         // 遍历设备客户端，找到对应设备并发送 startHQ
         for (const client of wssClient.clients) {
