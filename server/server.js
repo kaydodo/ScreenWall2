@@ -1701,8 +1701,16 @@ wssClient.on('connection', (ws, req) => {
         deviceName: newDev.deviceName,
         groupId: newDev.groupId,
       });
-      // 同步格子布局（设备迁移后格子位置可能变了，让所有浏览器刷新格子）
       broadcastToBrowsers({ type: 'grid', cells: getGridPayload() });
+      broadcastToBrowsers({ type: 'groups', groups });
+      // 广播 collections（截图集合），格式与 saveCollections() 保持一致
+      const _migCollectionsArr = [];
+      for (const [timestamp, items] of collections) {
+        _migCollectionsArr.push({ timestamp, items });
+      }
+      _migCollectionsArr.sort((a, b) => b.timestamp - a.timestamp);
+      broadcastToBrowsers({ type: 'collectionsUpdate', collections: _migCollectionsArr });
+      broadcastToBrowsers({ type: 'favorites', favorites });
 
       // 如果设备在监控墙上（之前被订阅过），自动恢复高清流
       if (wallDevices.has(deviceId)) {
