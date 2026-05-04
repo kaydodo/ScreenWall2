@@ -3235,34 +3235,9 @@ wssBrowser.on('connection', (ws) => {
     const previewInfo = previewClients.get(ws);
     previewClients.delete(ws);
 
-    // ── 清理 1080p 预览模式 ──────────────────────
+    // ── 清理 1080p 预览模式（仅删除记录，不立即发 hq1080Off，留给延迟清理统一处理）───
     const my1080pDevices = browser1080p.get(ws);
     browser1080p.delete(ws);
-    if (my1080pDevices && my1080pDevices.size > 0) {
-      for (const deviceId of my1080pDevices) {
-        if (global1080p.has(deviceId)) {
-          const newCount = global1080p.get(deviceId) - 1;
-          if (newCount <= 0) {
-            global1080p.delete(deviceId);
-            // 发hq1080Off前检查墙上是否还有人在用该设备的1080p
-            let wallStillNeeds1080 = false;
-            for (const [wallWs, hdChannels] of wallHDChannels) {
-              if (hdChannels.has(deviceId)) { wallStillNeeds1080 = true; break; }
-            }
-            if (!wallStillNeeds1080) {
-              for (const client of wssClient.clients) {
-                if (client._deviceId === deviceId && client.readyState === 1) {
-                  client.send(JSON.stringify({ type: 'hq1080Off' }));
-                  break;
-                }
-              }
-            }
-          } else {
-            global1080p.set(deviceId, newCount);
-          }
-        }
-      }
-    }
 
     // ── 清理 startHQ 追踪（browserPreviewHD）─────────
     const myPreviewHD = browserPreviewHD.get(ws);
@@ -3299,10 +3274,11 @@ wssBrowser.on('connection', (ws) => {
     const subscription = wallClients.get(ws);
     const hdChannels = wallHDChannels.get(ws);
     
-    if (subscription || hdChannels) {
+    if (subscription || hdChannels || (my1080pDevices && my1080pDevices.size > 0)) {
       // 保存订阅信息用于延迟清理
       const devicesToClean = subscription ? Array.from(subscription.devices) : [];
       const hdDevicesToClean = hdChannels ? Array.from(hdChannels) : [];
+      const devices1080pToClean = my1080pDevices ? Array.from(my1080pDevices) : [];
       
       // 取消之前的定时器（如果有）
       if (_wallCloseTimers.has(ws)) {
@@ -3310,7 +3286,7 @@ wssBrowser.on('connection', (ws) => {
       }
       
       // 生成设备指纹用于识别同一浏览器
-      const deviceFingerprint = devicesToClean.slice().sort().join(',');
+      const deviceFingerprint = [...new Set([...devicesToClean, ...hdDevicesToClean, ...devices1080pToClean])].sort().join(',');
       
       // 延迟清理：5秒后确认连接真的断开了
       const timerId = setTimeout(() => {
@@ -3338,15 +3314,11 @@ wssBrowser.on('connection', (ws) => {
           // 清理指纹记录
           _wallBrowserSessions.delete(deviceFingerprint);
           
-          const allDevices = new Set([...devicesToClean, ...hdDevicesToClean]);
+          const allDevices = new Set([...devicesToClean, ...hdDevicesToClean, ...devices1080pToClean]);
           
-          // 第1步：先关闭 1080p（高清优先降速）
-          for (const deviceId of hdDevicesToClean) {
-            let stillNeeds1080 = false;
-            for (const [otherWs, otherHd] of wallHDChannels) {
-              if (otherHd.has(deviceId)) { stillNeeds1080 = true; break; }
-            }
-            if (!stillNeeds1080 && global1080p.has(deviceId)) {
+          // 第1步：先关闭所有设备的 1080p（尝试关闭，引用计数保护不会误关）
+          for (const deviceId of allDevices) {
+            if (global1080p.has(deviceId)) {
               const newCount = global1080p.get(deviceId) - 1;
               if (newCount <= 0) {
                 global1080p.delete(deviceId);
@@ -4056,74 +4028,16 @@ httpServer.on('request', (req, res) => {
     return;
   }
 
-  // POST /api/wall-close - 监控墙页面关闭时完整清理 HQ 流（sendBeacon 调用）
+  // POST /api/wall-close - 监控墙页面关闭通知（sendBeacon 调用）
+  // 注意：实际资源清理由 WebSocket close 延迟清理统一处理，此接口仅做日志记录
+  // 避免 sendBeacon 和 close 延迟清理双重减引用计数的问题
   if (cleanPath === '/api/wall-close' && req.method === 'POST') {
     let body = '';
     req.on('data', chunk => body += chunk);
     req.on('end', () => {
       try {
         const data = JSON.parse(body);
-        const { devices: deviceIds, fullscreenDeviceId } = data;
-        serverLog(`[WallClose] 收到请求: devices=${JSON.stringify(deviceIds)}, fullscreen=${fullscreenDeviceId}`);
-        
-        // 第1步：关闭全屏设备的 1080p 流
-        if (fullscreenDeviceId && global1080p.has(fullscreenDeviceId)) {
-          const newCount = global1080p.get(fullscreenDeviceId) - 1;
-          if (newCount <= 0) {
-            global1080p.delete(fullscreenDeviceId);
-            for (const client of wssClient.clients) {
-              if (client._deviceId === fullscreenDeviceId && client.readyState === 1) {
-                client.send(JSON.stringify({ type: 'hq1080Off' }));
-                serverLog(`[WallClose] 关闭1080p流: ${fullscreenDeviceId}`);
-                break;
-              }
-            }
-          } else {
-            global1080p.set(fullscreenDeviceId, newCount);
-          }
-        }
-        
-        // 第2步：完整清理每个设备的 HQ 流（与 WebSocket close 事件逻辑一致）
-        if (Array.isArray(deviceIds)) {
-          for (const deviceId of deviceIds) {
-            // 检查是否还有其他监控墙窗口在使用这个设备
-            let stillInUse = false;
-            for (const [otherWs, otherHd] of wallHDChannels) {
-              if (otherHd.has(deviceId)) { stillInUse = true; break; }
-            }
-            for (const [otherWs, otherSub] of wallClients) {
-              if (otherSub.devices.has(deviceId)) { stillInUse = true; break; }
-            }
-            
-            if (!stillInUse && globalHQ.has(deviceId)) {
-              const newCount = globalHQ.get(deviceId) - 1;
-              if (newCount <= 0) {
-                globalHQ.delete(deviceId);
-                hdRequests.delete(deviceId);
-                wallDevices.delete(deviceId);
-                for (const client of wssClient.clients) {
-                  if (client._deviceId === deviceId) {
-                    client.send(JSON.stringify({ type: 'stopHQ' }));
-                    serverLog(`[WallClose] 关闭HQ流: ${deviceId}`);
-                    break;
-                  }
-                }
-              } else {
-                globalHQ.set(deviceId, newCount);
-              }
-            }
-            
-            // 清理设备标志
-            const dev = devices.get(deviceId);
-            if (dev) {
-              dev.hqMode = false;
-              dev.hq1080 = false;
-              dev.hqBrowser = null;
-            }
-          }
-          serverLog(`[WallClose] 完整清理 ${deviceIds.length} 设备`);
-        }
-        
+        serverLog(`[WallClose] 收到 sendBeacon 通知: devices=${JSON.stringify(data.devices)}`);
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true }));
       } catch (e) {

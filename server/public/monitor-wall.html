@@ -1164,18 +1164,20 @@ window.addEventListener('beforeunload', function() {
   if (wallData && wallData.devices) {
     var beaconData = {
       type: 'wallClose',
-      devices: wallData.devices.map(function(d) { return d.id; }),
-      fullscreenDeviceId: wallFullscreenDeviceId
+      devices: wallData.devices.map(function(d) { return d.id; })
+      // 注意：不再单独传 fullscreenDeviceId，服务端对所有设备尝试关闭1080p
     };
     navigator.sendBeacon('/api/wall-close', new Blob([JSON.stringify(beaconData)], { type: 'application/json' }));
   }
   
   // 同时尝试 WebSocket 发送（兼容旧逻辑）
   if (ws && ws.readyState === WebSocket.OPEN) {
-    if (wallFullscreenDeviceId) {
-      ws.send(JSON.stringify({ type: 'hq1080Off', deviceId: wallFullscreenDeviceId }));
-    }
+    // 尝试关闭所有设备的 1080p（有引用计数保护，不需要的不受影响）
     if (wallData && wallData.devices) {
+      wallData.devices.forEach(function(dev) {
+        ws.send(JSON.stringify({ type: 'hq1080Off', deviceId: dev.id }));
+      });
+      // 关闭所有设备的 HQ
       wallData.devices.forEach(function(dev) {
         ws.send(JSON.stringify({ type: 'stopHQ', deviceId: dev.id }));
       });
