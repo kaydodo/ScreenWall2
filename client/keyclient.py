@@ -35,14 +35,14 @@ signal.signal(signal.SIGTERM, _handle_signal)
 SendInput = ctypes.windll.user32.SendInput
 VkKeyScanW = ctypes.windll.user32.VkKeyScanW
 
-# VK码映射（字母键始终填小写，Shift组合键时会正确转换）
+# VK码映射（字母用大写键名，key_press统一转大写后查表，OS根据键盘状态决定大小写）
 VK_CODES = {
-    # 字母（SendInput发小写VK=大写值，配合普通按下即可）
-    'a': 0x41, 'b': 0x42, 'c': 0x43, 'd': 0x44, 'e': 0x45, 'f': 0x46,
-    'g': 0x47, 'h': 0x48, 'i': 0x49, 'j': 0x4A, 'k': 0x4B, 'l': 0x4C,
-    'm': 0x4D, 'n': 0x4E, 'o': 0x4F, 'p': 0x50, 'q': 0x51, 'r': 0x52,
-    's': 0x53, 't': 0x54, 'u': 0x55, 'v': 0x56, 'w': 0x57, 'x': 0x58,
-    'y': 0x59, 'z': 0x5A,
+    # 字母（SendInput的wVk填VK值，OS按CapsLock/Shift决定输出大小写）
+    'A': 0x41, 'B': 0x42, 'C': 0x43, 'D': 0x44, 'E': 0x45, 'F': 0x46,
+    'G': 0x47, 'H': 0x48, 'I': 0x49, 'J': 0x4A, 'K': 0x4B, 'L': 0x4C,
+    'M': 0x4D, 'N': 0x4E, 'O': 0x4F, 'P': 0x50, 'Q': 0x51, 'R': 0x52,
+    'S': 0x53, 'T': 0x54, 'U': 0x55, 'V': 0x56, 'W': 0x57, 'X': 0x58,
+    'Y': 0x59, 'Z': 0x5A,
     # 功能键
     'F1': 0x70, 'F2': 0x71, 'F3': 0x72, 'F4': 0x73,
     'F5': 0x74, 'F6': 0x75, 'F7': 0x76, 'F8': 0x77,
@@ -137,18 +137,24 @@ def _send_input(inp):
 
 
 def key_press(key):
-    """发送普通按键（字母/符号/功能键）"""
-    key = key.upper()
-
-    if key in VK_CODES:
-        vk = VK_CODES[key]
-        scan = 0
-        flags = 0
-    else:
-        # Unicode字符
-        vk = 0
-        scan = ord(key.upper()) if len(key) == 1 else ord(key)
+    """发送普通按键（字母/符号/功能键）
+    全部走Unicode路径，确保目标机器收到的是准确的字符，不受CapsLock影响。
+    """
+    vk = 0
+    if len(key) == 1:
+        scan = ord(key)  # 直接用字符的Unicode码点，不做任何转换
         flags = KEYEVENTF_UNICODE
+    else:
+        # 具名功能键（如 SPACE, ENTER）走VK码路径
+        upper_key = key.upper()
+        if upper_key in VK_CODES:
+            vk = VK_CODES[upper_key]
+            scan = 0
+            flags = 0
+        else:
+            # 未知的非单字符，查Unicode码
+            scan = ord(key[0]) if key else 0
+            flags = KEYEVENTF_UNICODE
 
     # 按下
     inp = INPUT()
@@ -304,7 +310,10 @@ def handle_client(conn, addr):
             if msg_type == 'keyClick':
                 key = msg.get('key', '')
                 if key:
-                    key_press(key)
+                    if key.startswith('Shift+'):
+                        key_press_with_shift(key[6:])  # 'Shift+Q' → key_press_with_shift('Q')
+                    else:
+                        key_press(key)
                     conn.send(b'{"ok": true}')
 
             elif msg_type == 'mouseClick':
