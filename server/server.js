@@ -2944,7 +2944,7 @@ wssBrowser.on('connection', (ws) => {
       if (!isWallClient) {
         globalHQ.set(msg.deviceId, (globalHQ.get(msg.deviceId) || 0) + 1);
       }
-      serverLog(`[startHQ] 浏览器请求启动 HQ: ${msg.deviceId}，${isWallClient ? '监控墙(跳过+1)' : '主页面(globalHQ+1→' + globalHQ.get(msg.deviceId) + ')'}}`);
+
 
       for (const client of wssClient.clients) {
         if (client._deviceId === msg.deviceId) {
@@ -2994,7 +2994,7 @@ wssBrowser.on('connection', (ws) => {
       // 监控墙的 globalHQ 由 subscribeWall/close 延迟清理管理，stopHQ 消息不减
       const isWallClient = wallClients.has(ws) || ws._wallUnsubscribing;
       if (isWallClient) {
-        serverLog(`[stopHQ] 监控墙浏览器请求停止 HQ: ${msg.deviceId}，跳过 globalHQ 操作`);
+
       } else {
         // 主页面：从全局计数器中减1
         if (globalHQ.has(msg.deviceId)) {
@@ -3015,19 +3015,19 @@ wssBrowser.on('connection', (ws) => {
               for (const client of wssClient.clients) {
                 if (client._deviceId === msg.deviceId) {
                   client.send(JSON.stringify({ type: 'stopHQ' }));
-                  serverLog(`[stopHQ] 主页面：发送 stopHQ 给 Python 客户端: ${msg.deviceId}`);
+
                   break;
                 }
               }
             } else {
-              serverLog(`[stopHQ] 主页面：设备 ${msg.deviceId} globalHQ 归零但其他窗口仍在使用`);
+
             }
           } else {
             globalHQ.set(msg.deviceId, newCount);
-            serverLog(`[stopHQ] 主页面：设备 ${msg.deviceId} globalHQ ${newCount + 1} → ${newCount}`);
+
           }
         } else {
-          serverLog(`[stopHQ] 主页面：设备 ${msg.deviceId} globalHQ 不存在，跳过`);
+
         }
       }
     }
@@ -3177,7 +3177,7 @@ wssBrowser.on('connection', (ws) => {
       
       if (isPageClosing) {
         // 页面关闭：只标记，不删 devices，留给 close 事件统一清理
-        serverLog(`[监控墙] 收到 unsubscribeWall (页面关闭): ${devicesToUnsubscribe.length} 设备`);
+
         if (devicesToUnsubscribe.length > 0) {
           ws._wallUnsubscribing = true;
         }
@@ -3302,12 +3302,12 @@ wssBrowser.on('connection', (ws) => {
 
           // 检查是否同一浏览器已重新连接
           if (_wallBrowserSessions.has(deviceFingerprint) && _wallBrowserSessions.get(deviceFingerprint).ws !== ws) {
-            serverLog(`[监控墙] 检测到同一浏览器已重新连接，跳过清理`);
+    
             _wallBrowserSessions.delete(deviceFingerprint);
             return;
           }
 
-          serverLog(`[监控墙] 连接确认断开，清理 ${devicesToClean.length} 设备 (HD:${hdDevicesToClean.length})`);
+
           _wallBrowserSessions.delete(deviceFingerprint);
 
           const allDevices = new Set([...devicesToClean, ...hdDevicesToClean, ...devices1080pToClean]);
@@ -3321,7 +3321,7 @@ wssBrowser.on('connection', (ws) => {
                 for (const client of wssClient.clients) {
                   if (client._deviceId === deviceId && client.readyState === 1) {
                     client.send(JSON.stringify({ type: 'hq1080Off' }));
-                    serverLog(`[监控墙] 延迟清理：关闭设备 ${deviceId} 的 1080p`);
+
                     break;
                   }
                 }
@@ -3355,7 +3355,7 @@ wssBrowser.on('connection', (ws) => {
                 for (const client of wssClient.clients) {
                   if (client._deviceId === deviceId && client.readyState === 1) {
                     client.send(JSON.stringify({ type: 'stopHQ' }));
-                    serverLog(`[监控墙] 延迟清理：关闭设备 ${deviceId} 的 HQ`);
+
                     break;
                   }
                 }
@@ -3386,7 +3386,7 @@ wssBrowser.on('connection', (ws) => {
               for (const client of wssClient.clients) {
                 if (client._deviceId === deviceId && client.readyState === 1) {
                   client.send(JSON.stringify({ type: 'hq1080Off' }));
-                  serverLog(`[close] 主页面：关闭设备 ${deviceId} 的 1080p`);
+
                   break;
                 }
               }
@@ -3421,7 +3421,7 @@ wssBrowser.on('connection', (ws) => {
                 for (const client of wssClient.clients) {
                   if (client._deviceId === deviceId && client.readyState === 1) {
                     client.send(JSON.stringify({ type: 'stopHQ' }));
-                    serverLog(`[close] 主页面：关闭设备 ${deviceId} 的 HQ`);
+
                     break;
                   }
                 }
@@ -4087,7 +4087,7 @@ httpServer.on('request', (req, res) => {
     req.on('end', () => {
       try {
         const data = JSON.parse(body);
-        serverLog(`[WallClose] 收到 sendBeacon 通知: devices=${JSON.stringify(data.devices)}`);
+
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true }));
       } catch (e) {
