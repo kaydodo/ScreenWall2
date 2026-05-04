@@ -214,6 +214,11 @@ const browser1080p = new Map(); // ws -> Set<deviceId>
 // 全局1080p追踪：deviceId -> 使用该设备的浏览器数量（只有所有浏览器都不用时才通知设备关闭）
 // 每个浏览器独立管理已上墙设备，同一浏览器的不同窗口共享 localStorage 同步
 
+// ========== 监控墙连接延迟清理机制 ==========
+// 防止页面刷新/短暂断开时误关 HQ 流
+const _wallCloseTimers = new Map(); // ws -> timeoutId
+const _wallCloseDelayMs = 5000; // 延迟5秒确认断开
+
 // ========== 渲染优化 ==========
 // 视口追踪：浏览器上报当前可见格子
 const browserViewport = new Map(); // ws -> Set<deviceId>
@@ -3205,10 +3210,6 @@ wssBrowser.on('connection', (ws) => {
     browserClients.delete(ws);
     browserViewport.delete(ws); // 清理视口追踪，防止浏览器关闭后残留
 
-    // ── 清理监控墙订阅（防止 close 后残留导致 wallStillNeedsHQ 误判）──
-    wallClients.delete(ws);
-    wallHDChannels.delete(ws);
-
     // ── 清理格子预览独立通道订阅 ──────────────────────
     const previewInfo = previewClients.get(ws);
     previewClients.delete(ws);
@@ -3242,7 +3243,7 @@ wssBrowser.on('connection', (ws) => {
       }
     }
 
-    // ── 清理 startHQ 追踪（browserPreviewHD + wallHDChannels）─────────
+    // ── 清理 startHQ 追踪（browserPreviewHD）─────────
     const myPreviewHD = browserPreviewHD.get(ws);
     browserPreviewHD.delete(ws);
     if (myPreviewHD) {
@@ -3273,34 +3274,87 @@ wssBrowser.on('connection', (ws) => {
       }
     }
 
-    // ── 清理监控墙订阅（页面关闭）────────────────────
+    // ── 清理监控墙订阅（延迟确认机制，防止误关）────────────────────
     const subscription = wallClients.get(ws);
     const hdChannels = wallHDChannels.get(ws);
-    wallClients.delete(ws);
-    wallHDChannels.delete(ws);
-    if (subscription) {
-      for (const deviceId of subscription.devices) {
-        if (globalHQ.has(deviceId)) {
-          const newCount = globalHQ.get(deviceId) - 1;
-          if (newCount <= 0) {
-            globalHQ.delete(deviceId);
-            hdRequests.delete(deviceId);
-            wallDevices.delete(deviceId);
-            for (const client of wssClient.clients) {
-              if (client._deviceId === deviceId) {
-                client.send(JSON.stringify({ type: 'stopHQ' }));
-                break;
+    
+    if (subscription || hdChannels) {
+      // 保存订阅信息用于延迟清理
+      const devicesToClean = subscription ? Array.from(subscription.devices) : [];
+      const hdDevicesToClean = hdChannels ? Array.from(hdChannels) : [];
+      
+      // 取消之前的定时器（如果有）
+      if (_wallCloseTimers.has(ws)) {
+        clearTimeout(_wallCloseTimers.get(ws));
+      }
+      
+      // 延迟清理：5秒后确认连接真的断开了
+      const timerId = setTimeout(() => {
+        _wallCloseTimers.delete(ws);
+        
+        // 再次检查这个 ws 是否真的断开了（可能页面刷新后快速重连）
+        // 检查是否有新的连接订阅了相同的设备
+        const isReallyClosed = !wallClients.has(ws) && !wallHDChannels.has(ws);
+        
+        if (isReallyClosed) {
+          serverLog(`[监控墙] 连接确认断开，清理 ${devicesToClean.length} 设备的 HQ 流`);
+          
+          // 清理所有设备的 HQ 流
+          const allDevices = new Set([...devicesToClean, ...hdDevicesToClean]);
+          for (const deviceId of allDevices) {
+            // 检查是否还有其他监控墙窗口在使用这个设备
+            let stillInUse = false;
+            for (const [otherWs, otherHd] of wallHDChannels) {
+              if (otherHd.has(deviceId)) { stillInUse = true; break; }
+            }
+            for (const [otherWs, otherSub] of wallClients) {
+              if (otherSub.devices.has(deviceId)) { stillInUse = true; break; }
+            }
+            
+            if (!stillInUse && globalHQ.has(deviceId)) {
+              const newCount = globalHQ.get(deviceId) - 1;
+              if (newCount <= 0) {
+                globalHQ.delete(deviceId);
+                hdRequests.delete(deviceId);
+                wallDevices.delete(deviceId);
+                for (const client of wssClient.clients) {
+                  if (client._deviceId === deviceId) {
+                    client.send(JSON.stringify({ type: 'stopHQ' }));
+                    serverLog(`[监控墙] 延迟清理：关闭设备 ${deviceId} 的 HQ 流`);
+                    break;
+                  }
+                }
+              } else {
+                globalHQ.set(deviceId, newCount);
               }
             }
-          } else {
-            globalHQ.set(deviceId, newCount);
           }
+          
+          // 清理 1080p
+          for (const deviceId of hdDevicesToClean) {
+            let stillNeeds1080 = false;
+            for (const [otherWs, otherHd] of wallHDChannels) {
+              if (otherHd.has(deviceId)) { stillNeeds1080 = true; break; }
+            }
+            if (!stillNeeds1080) {
+              for (const client of wssClient.clients) {
+                if (client._deviceId === deviceId && client.readyState === 1) {
+                  client.send(JSON.stringify({ type: 'hq1080Off' }));
+                  break;
+                }
+              }
+            }
+          }
+        } else {
+          serverLog(`[监控墙] 连接已恢复，取消清理`);
         }
-        // 同步清理 wallHDChannels 引用（格子预览关闭时也走这里）
-        for (const [wWs, wHd] of wallHDChannels) {
-          wHd.delete(deviceId);
-        }
-      }
+      }, _wallCloseDelayMs);
+      
+      _wallCloseTimers.set(ws, timerId);
+      
+      // 立即从 Map 中移除（但保留清理数据在闭包中）
+      wallClients.delete(ws);
+      wallHDChannels.delete(ws);
     }
 
     // 清理格子预览独立通道订阅中的 wallHDChannels 引用
