@@ -4052,7 +4052,7 @@ httpServer.on('request', (req, res) => {
     return;
   }
 
-  // POST /api/wall-close - 监控墙页面关闭时清理 HQ 流（sendBeacon 调用）
+  // POST /api/wall-close - 监控墙页面关闭时完整清理 HQ 流（sendBeacon 调用）
   if (cleanPath === '/api/wall-close' && req.method === 'POST') {
     let body = '';
     req.on('data', chunk => body += chunk);
@@ -4061,24 +4061,62 @@ httpServer.on('request', (req, res) => {
         const data = JSON.parse(body);
         const { devices: deviceIds, fullscreenDeviceId } = data;
         
-        if (fullscreenDeviceId) {
-          const dev = devices.get(fullscreenDeviceId);
-          if (dev) {
-            dev.hq1080 = false;
-            serverLog(`[WallClose] 关闭1080p: ${fullscreenDeviceId}`);
+        // 第1步：关闭全屏设备的 1080p 流
+        if (fullscreenDeviceId && global1080p.has(fullscreenDeviceId)) {
+          const newCount = global1080p.get(fullscreenDeviceId) - 1;
+          if (newCount <= 0) {
+            global1080p.delete(fullscreenDeviceId);
+            for (const client of wssClient.clients) {
+              if (client._deviceId === fullscreenDeviceId && client.readyState === 1) {
+                client.send(JSON.stringify({ type: 'hq1080Off' }));
+                serverLog(`[WallClose] 关闭1080p流: ${fullscreenDeviceId}`);
+                break;
+              }
+            }
+          } else {
+            global1080p.set(fullscreenDeviceId, newCount);
           }
         }
         
+        // 第2步：完整清理每个设备的 HQ 流（与 WebSocket close 事件逻辑一致）
         if (Array.isArray(deviceIds)) {
-          deviceIds.forEach(deviceId => {
+          for (const deviceId of deviceIds) {
+            // 检查是否还有其他监控墙窗口在使用这个设备
+            let stillInUse = false;
+            for (const [otherWs, otherHd] of wallHDChannels) {
+              if (otherHd.has(deviceId)) { stillInUse = true; break; }
+            }
+            for (const [otherWs, otherSub] of wallClients) {
+              if (otherSub.devices.has(deviceId)) { stillInUse = true; break; }
+            }
+            
+            if (!stillInUse && globalHQ.has(deviceId)) {
+              const newCount = globalHQ.get(deviceId) - 1;
+              if (newCount <= 0) {
+                globalHQ.delete(deviceId);
+                hdRequests.delete(deviceId);
+                wallDevices.delete(deviceId);
+                for (const client of wssClient.clients) {
+                  if (client._deviceId === deviceId) {
+                    client.send(JSON.stringify({ type: 'stopHQ' }));
+                    serverLog(`[WallClose] 关闭HQ流: ${deviceId}`);
+                    break;
+                  }
+                }
+              } else {
+                globalHQ.set(deviceId, newCount);
+              }
+            }
+            
+            // 清理设备标志
             const dev = devices.get(deviceId);
             if (dev) {
               dev.hqMode = false;
               dev.hq1080 = false;
               dev.hqBrowser = null;
-              serverLog(`[WallClose] 关闭HQ流: ${deviceId}`);
             }
-          });
+          }
+          serverLog(`[WallClose] 完整清理 ${deviceIds.length} 设备`);
         }
         
         res.writeHead(200, { 'Content-Type': 'application/json' });
