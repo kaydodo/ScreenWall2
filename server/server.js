@@ -218,6 +218,8 @@ const browser1080p = new Map(); // ws -> Set<deviceId>
 // 防止页面刷新/短暂断开时误关 HQ 流
 const _wallCloseTimers = new Map(); // ws -> timeoutId
 const _wallCloseDelayMs = 5000; // 延迟5秒确认断开
+// 浏览器会话追踪：通过设备列表指纹识别同一浏览器重新连接
+const _wallBrowserSessions = new Map(); // deviceFingerprint -> { ws, devices, hdDevices }
 
 // ========== 渲染优化 ==========
 // 视口追踪：浏览器上报当前可见格子
@@ -3071,6 +3073,20 @@ wssBrowser.on('connection', (ws) => {
       // 监控墙订阅高清截图（每个窗口独立通道）
       const deviceList = msg.devices || [];
       
+      // 【修复】检查是否是同一浏览器重新连接（通过设备列表指纹）
+      const deviceFingerprint = deviceList.slice().sort().join(',');
+      if (_wallBrowserSessions.has(deviceFingerprint)) {
+        const oldSession = _wallBrowserSessions.get(deviceFingerprint);
+        // 取消之前的清理定时器
+        if (_wallCloseTimers.has(oldSession.ws)) {
+          clearTimeout(_wallCloseTimers.get(oldSession.ws));
+          _wallCloseTimers.delete(oldSession.ws);
+          serverLog(`[监控墙] 检测到同一浏览器重新连接，取消清理定时器`);
+        }
+        // 清理旧会话记录
+        _wallBrowserSessions.delete(deviceFingerprint);
+      }
+      
       // 获取该窗口当前的高清通道
       const existingHD = wallHDChannels.get(ws) || new Set();
       const newHDChannels = new Set(existingHD);
@@ -3101,6 +3117,9 @@ wssBrowser.on('connection', (ws) => {
       
       wallClients.set(ws, { devices: newDevices });
       wallHDChannels.set(ws, newHDChannels);
+      
+      // 记录会话信息用于后续识别重新连接
+      _wallBrowserSessions.set(deviceFingerprint, { ws, devices: new Set(newDevices), hdDevices: new Set(newHDChannels) });
       
       // 【修复】立即推送所有设备的最新截图给监控墙（监控上墙无画面问题）
       for (const deviceId of deviceList) {
@@ -3288,16 +3307,32 @@ wssBrowser.on('connection', (ws) => {
         clearTimeout(_wallCloseTimers.get(ws));
       }
       
+      // 生成设备指纹用于识别同一浏览器
+      const deviceFingerprint = devicesToClean.slice().sort().join(',');
+      
       // 延迟清理：5秒后确认连接真的断开了
       const timerId = setTimeout(() => {
         _wallCloseTimers.delete(ws);
         
-        // 再次检查这个 ws 是否真的断开了（可能页面刷新后快速重连）
-        // 检查是否有新的连接订阅了相同的设备
+        // 【修复】检查是否是同一浏览器重新连接（通过指纹）
+        const hasReconnected = _wallBrowserSessions.has(deviceFingerprint) && 
+                               _wallBrowserSessions.get(deviceFingerprint).ws !== ws;
+        
+        if (hasReconnected) {
+          serverLog(`[监控墙] 检测到同一浏览器已重新连接，跳过清理`);
+          // 清理旧会话记录
+          _wallBrowserSessions.delete(deviceFingerprint);
+          return;
+        }
+        
+        // 再次检查这个 ws 是否真的断开了
         const isReallyClosed = !wallClients.has(ws) && !wallHDChannels.has(ws);
         
         if (isReallyClosed) {
           serverLog(`[监控墙] 连接确认断开，清理 ${devicesToClean.length} 设备的流`);
+          
+          // 清理指纹记录
+          _wallBrowserSessions.delete(deviceFingerprint);
           
           const allDevices = new Set([...devicesToClean, ...hdDevicesToClean]);
           
