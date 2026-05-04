@@ -19,7 +19,7 @@ import time
 import webbrowser
 
 # 客户端版本号（每次功能更新时手动递增）
-CLIENT_VERSION = "1.6.2"
+CLIENT_VERSION = "1.6.4"
 
 
 def _get_mac_address():
@@ -985,14 +985,12 @@ class ScreenCapturer:
                         if not hq:
                             pic.thumbnail((self.resize_w, self.resize_h), Image.LANCZOS)
                         if hq and (pic.width > hq_limit * 1.5 or pic.height > hq_limit):
-                            # 1080p 模式：横向压缩到 960 保持视觉清晰，编码更快
+                            # 1080p: 1920*2/3=1280, 720p: 1280*2/3≈853
                             if hq_limit == 1080:
-                                pic.thumbnail((960, 1080), Image.LANCZOS)
-                                # 960x1080 视觉清晰度相当于 1920x1080@45 → 提升质量到 70
-                                save_quality = 70
+                                pic.thumbnail((1280, 1080), Image.LANCZOS)
                             else:
-                                pic.thumbnail((int(hq_limit * 1.5), hq_limit), Image.LANCZOS)
-                                save_quality = hq_quality
+                                pic.thumbnail((853, 720), Image.LANCZOS)
+                            save_quality = 70  # 统一质量 70
                         else:
                             save_quality = hq_quality
                         buf = BytesIO()
@@ -1030,11 +1028,10 @@ class ScreenCapturer:
                     # HQ 模式限制分辨率上限为 hq_limit（默认 720p，可设 1080p）
                     if hq and (pic.width > hq_limit * 1.5 or pic.height > hq_limit):
                         if hq_limit == 1080:
-                            pic.thumbnail((960, 1080), Image.LANCZOS)
-                            save_quality = 70
+                            pic.thumbnail((1280, 1080), Image.LANCZOS)
                         else:
-                            pic.thumbnail((int(hq_limit * 1.5), hq_limit), Image.LANCZOS)
-                            save_quality = hq_quality
+                            pic.thumbnail((853, 720), Image.LANCZOS)
+                        save_quality = 70
                     else:
                         save_quality = hq_quality
                     buf = BytesIO()
@@ -1067,11 +1064,10 @@ class ScreenCapturer:
                 # HQ 模式限制分辨率上限为 hq_limit（默认 720p，可设 1080p）
                 if hq and (pic.width > hq_limit * 1.5 or pic.height > hq_limit):
                     if hq_limit == 1080:
-                        pic.thumbnail((960, 1080), Image.LANCZOS)
-                        save_quality = 70
+                        pic.thumbnail((1280, 1080), Image.LANCZOS)
                     else:
-                        pic.thumbnail((int(hq_limit * 1.5), hq_limit), Image.LANCZOS)
-                        save_quality = hq_quality
+                        pic.thumbnail((853, 720), Image.LANCZOS)
+                    save_quality = 70
                 else:
                     save_quality = hq_quality
                 buf = BytesIO()
@@ -1821,7 +1817,8 @@ class ScreenWallClient:
         srv = cfg.get("server", {})
         cap = cfg.get("capture", {})
 
-        # deviceId：优先从 user_info.ini 读取，其次从配置读，最后才用 MAC+计算机名 生成
+        # deviceId：优先从 user_info.ini 读取，其次从配置读
+        # 注意：deviceId 只从文件获取，不会自动生成。如为空，服务端会提示安装 UU 远程
         ini_path = Path("C:/ProgramData/Netease/GameViewer/user_info.ini")
         ini_device_id = ""
         if ini_path.exists():

@@ -514,10 +514,10 @@ function restoreWallLayout() {
     }
   }
 
-  // 先关闭1080p，再关闭HQ（与服务端逻辑保持一致）
+  // 退出全屏：关闭1080p，但保持720p HQ流继续（正常监控模式）
   if (ws && ws.readyState === WebSocket.OPEN && wallFullscreenDeviceId) {
     ws.send(JSON.stringify({ type: 'hq1080Off', deviceId: wallFullscreenDeviceId }));
-    ws.send(JSON.stringify({ type: 'stopHQ', deviceId: wallFullscreenDeviceId }));
+    // 注意：不发送 stopHQ，保持720p继续
   }
 
   // 清除状态
@@ -667,6 +667,13 @@ function initWall() {
   // 页面关闭时清理
   window.addEventListener('beforeunload', function() {
     if (ws && ws.readyState === WebSocket.OPEN) {
+      // 先关闭1080p（如果正在全屏），再关闭所有设备的HQ
+      if (wallFullscreenDeviceId) {
+        ws.send(JSON.stringify({ type: 'hq1080Off', deviceId: wallFullscreenDeviceId }));
+      }
+      subscribedDevices.forEach(function(deviceId) {
+        ws.send(JSON.stringify({ type: 'stopHQ', deviceId: deviceId }));
+      });
       ws.send(JSON.stringify({ type: 'unsubscribeWall', devices: subscribedDevices }));
     }
     watchdog.stop();

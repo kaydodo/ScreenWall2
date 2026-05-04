@@ -5570,6 +5570,12 @@ function openMonitorDialog() {
 }
 
 function closeMonitorDialog() {
+  // 关闭所有选中设备的HQ流
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    monitorWallState.selectedDevices.forEach(function(deviceId) {
+      ws.send(JSON.stringify({ type: 'stopHQ', deviceId: deviceId }));
+    });
+  }
   document.getElementById('monitorOverlay').style.display = 'none';
   // 清空选中状态
   monitorWallState.selectedDevices = [];
@@ -5818,6 +5824,10 @@ function removeMonitorPreview(deviceId) {
   if (idx >= 0) {
     monitorWallState.selectedDevices.splice(idx, 1);
     delete monitorWallState.crops[deviceId];
+  }
+  // 关闭该设备的HQ流
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'stopHQ', deviceId: deviceId }));
   }
   // 更新复选框状态
   var checkbox = document.querySelector('#monitorDeviceList input[value="' + deviceId + '"]');
