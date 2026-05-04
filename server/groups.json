@@ -5,38 +5,19 @@
     "color": "#C5C5EB",
     "deviceIds": [
       "aeawtmgwtiau3yfl",
-      "aeawt6adayaygsk7"
-    ]
-  },
-  {
-    "id": "1776042401413",
-    "name": "222233333",
-    "color": "#EBE8C5",
-    "deviceIds": [
-      "offline_test_002",
-      "offline_test_008",
-      "offline_test_009",
-      "offline_test_010",
-      "offline_test_011",
-      "offline_test_016"
+      "aeawt6aoiuaygui4"
     ]
   },
   {
     "id": "1777310882267",
     "name": "5555",
     "color": "#C5EBCD",
-    "deviceIds": [
-      "offline_test_014",
-      "offline_test_015",
-      "offline_test_017"
-    ]
+    "deviceIds": []
   },
   {
     "id": "1777638625017",
     "name": "223333",
     "color": "#D8C5EB",
-    "deviceIds": [
-      "offline_test_003"
-    ]
+    "deviceIds": []
   }
 ]

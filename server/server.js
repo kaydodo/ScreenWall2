@@ -2117,16 +2117,19 @@ wssClient.on('connection', (ws, req) => {
 wssBrowser.on('connection', (ws) => {
   browserClients.add(ws);
   ws._lastPing = Date.now();  // 用于计算延迟
+  ws._lastPingTs = 0; // 记录最新发出的 ping timestamp，防止旧 pong 乱序导致延迟虚高
 
   // 立即发送第一个 ping
   if (ws.readyState === 1) {
-    ws.send(JSON.stringify({ type: 'ping', timestamp: Date.now() }));
+    ws._lastPingTs = Date.now();
+    ws.send(JSON.stringify({ type: 'ping', timestamp: ws._lastPingTs }));
   }
 
   // 定期向浏览器发送 ping，浏览器响应 pong
   const pingInterval = setInterval(() => {
     if (ws.readyState === 1) {
-      ws.send(JSON.stringify({ type: 'ping', timestamp: Date.now() }));
+      ws._lastPingTs = Date.now();
+      ws.send(JSON.stringify({ type: 'ping', timestamp: ws._lastPingTs }));
     }
   }, 5000);
 
@@ -2140,13 +2143,15 @@ wssBrowser.on('connection', (ws) => {
     try { msg = JSON.parse(raw); } catch { return; }
     try {
 
-    // 浏览器响应 pong，计算延迟
+    // 浏览器响应 pong，计算延迟（忽略过期pong，防止乱序导致延迟虚高）
     if (msg.type === 'pong' && msg.clientTimestamp) {
+      // 如果 pong 的 timestamp 和上次发出的 ping 对不上，说明是旧 pong，直接丢弃
+      if (msg.clientTimestamp !== ws._lastPingTs) return;
       const latency = Date.now() - msg.clientTimestamp;
       ws._latency = latency;
       ws._lastPing = Date.now();
       // 将延迟信息广播给所有浏览器
-      broadcastToBrowsers({ type: 'latency', latency, timestamp: Date.now() });
+      broadcastToBrowsers({ type: 'latency', latency });
       return;
     }
 
