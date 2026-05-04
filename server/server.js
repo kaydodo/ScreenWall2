@@ -667,6 +667,7 @@ function persistDevices() {
       deviceId: d.deviceId,
       deviceName: d.deviceName,
       uuDeviceId: d.uuDeviceId,
+      macAddress: d.macAddress || null,
       lastSeen: d.lastSeen,
       groupId: d.groupId || null,
       screenshot: d.screenshot || null,
@@ -2937,8 +2938,13 @@ wssBrowser.on('connection', (ws) => {
       // 追踪浏览器预览高清通道
       if (!browserPreviewHD.has(ws)) browserPreviewHD.set(ws, new Set());
       browserPreviewHD.get(ws).add(msg.deviceId);
-      // 全局计数器
-      globalHQ.set(msg.deviceId, (globalHQ.get(msg.deviceId) || 0) + 1);
+      // globalHQ 计数：主页面走 startHQ 消息 +1，监控墙走 subscribeWall +1
+      // 监控墙前端也会发 startHQ 消息，但 subscribeWall 已经加了计数，这里跳过避免双重计数
+      const isWallClient = wallClients.has(ws);
+      if (!isWallClient) {
+        globalHQ.set(msg.deviceId, (globalHQ.get(msg.deviceId) || 0) + 1);
+      }
+      serverLog(`[startHQ] 浏览器请求启动 HQ: ${msg.deviceId}，${isWallClient ? '监控墙(跳过+1)' : '主页面(globalHQ+1→' + globalHQ.get(msg.deviceId) + ')'}}`);
 
       for (const client of wssClient.clients) {
         if (client._deviceId === msg.deviceId) {
@@ -2985,28 +2991,43 @@ wssBrowser.on('connection', (ws) => {
         browserPreviewHD.get(ws).delete(msg.deviceId);
       }
 
-      // 从全局计数器中减1
-      if (globalHQ.has(msg.deviceId)) {
-        const newCount = globalHQ.get(msg.deviceId) - 1;
-        if (newCount <= 0) {
-          globalHQ.delete(msg.deviceId);
-          // 发stopHQ前检查墙上是否还有人在用该设备的HQ
-          let wallStillNeedsHQ = false;
-          for (const [wallWs, hdChannels] of wallHDChannels) {
-            if (hdChannels.has(msg.deviceId)) { wallStillNeedsHQ = true; break; }
-          }
-          if (!wallStillNeedsHQ) {
-            hdRequests.delete(msg.deviceId);
-            wallDevices.delete(msg.deviceId);
-            for (const client of wssClient.clients) {
-              if (client._deviceId === msg.deviceId) {
-                client.send(JSON.stringify({ type: 'stopHQ' }));
-                break;
-              }
+      // 监控墙的 globalHQ 由 subscribeWall/close 延迟清理管理，stopHQ 消息不减
+      const isWallClient = wallClients.has(ws) || ws._wallUnsubscribing;
+      if (isWallClient) {
+        serverLog(`[stopHQ] 监控墙浏览器请求停止 HQ: ${msg.deviceId}，跳过 globalHQ 操作`);
+      } else {
+        // 主页面：从全局计数器中减1
+        if (globalHQ.has(msg.deviceId)) {
+          const newCount = globalHQ.get(msg.deviceId) - 1;
+          if (newCount <= 0) {
+            globalHQ.delete(msg.deviceId);
+            // 检查是否还有其他窗口在使用该设备的HQ
+            let stillNeedsHQ = false;
+            for (const [wallWs, hdChannels] of wallHDChannels) {
+              if (hdChannels.has(msg.deviceId)) { stillNeedsHQ = true; break; }
             }
+            for (const [otherWs, otherDevices] of browserPreviewHD) {
+              if (otherDevices.has(msg.deviceId)) { stillNeedsHQ = true; break; }
+            }
+            if (!stillNeedsHQ) {
+              hdRequests.delete(msg.deviceId);
+              wallDevices.delete(msg.deviceId);
+              for (const client of wssClient.clients) {
+                if (client._deviceId === msg.deviceId) {
+                  client.send(JSON.stringify({ type: 'stopHQ' }));
+                  serverLog(`[stopHQ] 主页面：发送 stopHQ 给 Python 客户端: ${msg.deviceId}`);
+                  break;
+                }
+              }
+            } else {
+              serverLog(`[stopHQ] 主页面：设备 ${msg.deviceId} globalHQ 归零但其他窗口仍在使用`);
+            }
+          } else {
+            globalHQ.set(msg.deviceId, newCount);
+            serverLog(`[stopHQ] 主页面：设备 ${msg.deviceId} globalHQ ${newCount + 1} → ${newCount}`);
           }
         } else {
-          globalHQ.set(msg.deviceId, newCount);
+          serverLog(`[stopHQ] 主页面：设备 ${msg.deviceId} globalHQ 不存在，跳过`);
         }
       }
     }
@@ -3107,8 +3128,8 @@ wssBrowser.on('connection', (ws) => {
         if (!hdRequests.has(deviceId)) hdRequests.set(deviceId, new Set());
         hdRequests.get(deviceId).add(ws);
 
-        // 【修复】subscribeWall 时也增加 globalHQ 计数，与 startHQ 消息处理保持一致
-        // 只对新增设备计数（同一窗口重复订阅同一设备不算新引用）
+        // subscribeWall 增加 globalHQ 计数（监控墙的计数入口，与主页面的 startHQ 消息对应）
+        // 只对新增设备计数，避免重复订阅导致计数膨胀
         if (isNewDevice) {
           globalHQ.set(deviceId, (globalHQ.get(deviceId) || 0) + 1);
         }
@@ -3177,7 +3198,10 @@ wssBrowser.on('connection', (ws) => {
                 globalHQ.delete(deviceId);
                 let wallStillNeedsHQ = false;
                 for (const [wWs, wHd] of wallHDChannels) {
-                  if (wHd.has(deviceId)) { wallStillNeedsHQ = true; break; }
+                  if (wWs !== ws && wHd.has(deviceId)) { wallStillNeedsHQ = true; break; }
+                }
+                for (const [oWs, oDev] of browserPreviewHD) {
+                  if (oWs !== ws && oDev.has(deviceId)) { wallStillNeedsHQ = true; break; }
                 }
                 if (!wallStillNeedsHQ) {
                   hdRequests.delete(deviceId);
@@ -3246,9 +3270,46 @@ wssBrowser.on('connection', (ws) => {
     const my1080pDevices = browser1080p.get(ws);
     browser1080p.delete(ws);
 
-    // ── 清理 startHQ 追踪（browserPreviewHD，仅删除记录，不减引用计数，留给延迟清理统一处理）───
+    // ── 清理 startHQ 追踪（browserPreviewHD）────────────────────
     const myPreviewHD = browserPreviewHD.get(ws);
     browserPreviewHD.delete(ws);
+
+    // 非监控墙浏览器（主页面）：立即减 globalHQ 引用计数
+    // 原因：主页面 close 时不走延迟清理，如果 stopHQ 消息在 beforeunload 丢了，需要这里先底
+    // 监控墙浏览器：不减，留给 close 延迟清理统一处理
+    const isWallBrowser = wallClients.has(ws) || ws._wallUnsubscribing;
+    if (!isWallBrowser && myPreviewHD && myPreviewHD.size > 0) {
+      serverLog(`[close] 非监控墙浏览器断开，清理 ${myPreviewHD.size} 个 browserPreviewHD 设备的 globalHQ`);
+      for (const deviceId of myPreviewHD) {
+        if (globalHQ.has(deviceId)) {
+          const newCount = globalHQ.get(deviceId) - 1;
+          if (newCount <= 0) {
+            globalHQ.delete(deviceId);
+            // 检查是否还有其他窗口在使用
+            let stillNeedsHQ = false;
+            for (const [wWs, wHd] of wallHDChannels) {
+              if (wHd.has(deviceId)) { stillNeedsHQ = true; break; }
+            }
+            for (const [oWs, oDev] of browserPreviewHD) {
+              if (oDev.has(deviceId)) { stillNeedsHQ = true; break; }
+            }
+            if (!stillNeedsHQ) {
+              hdRequests.delete(deviceId);
+              wallDevices.delete(deviceId);
+              for (const client of wssClient.clients) {
+                if (client._deviceId === deviceId && client.readyState === 1) {
+                  client.send(JSON.stringify({ type: 'stopHQ' }));
+                  serverLog(`[close] 非监控墙：发送 stopHQ 给 Python 客户端: ${deviceId}`);
+                  break;
+                }
+              }
+            }
+          } else {
+            globalHQ.set(deviceId, newCount);
+          }
+        }
+      }
+    }
 
     // ── 清理监控墙订阅（延迟确认机制，防止误关）────────────────────
     const subscription = wallClients.get(ws);
@@ -3334,7 +3395,7 @@ wssBrowser.on('connection', (ws) => {
                 hdRequests.delete(deviceId);
                 wallDevices.delete(deviceId);
                 for (const client of wssClient.clients) {
-                  if (client._deviceId === deviceId) {
+                  if (client._deviceId === deviceId && client.readyState === 1) {
                     client.send(JSON.stringify({ type: 'stopHQ' }));
                     serverLog(`[监控墙] 延迟清理：关闭设备 ${deviceId} 的 HQ 流`);
                     break;
