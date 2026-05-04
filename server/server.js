@@ -3297,10 +3297,34 @@ wssBrowser.on('connection', (ws) => {
         const isReallyClosed = !wallClients.has(ws) && !wallHDChannels.has(ws);
         
         if (isReallyClosed) {
-          serverLog(`[监控墙] 连接确认断开，清理 ${devicesToClean.length} 设备的 HQ 流`);
+          serverLog(`[监控墙] 连接确认断开，清理 ${devicesToClean.length} 设备的流`);
           
-          // 清理所有设备的 HQ 流
           const allDevices = new Set([...devicesToClean, ...hdDevicesToClean]);
+          
+          // 第1步：先关闭 1080p（高清优先降速）
+          for (const deviceId of hdDevicesToClean) {
+            let stillNeeds1080 = false;
+            for (const [otherWs, otherHd] of wallHDChannels) {
+              if (otherHd.has(deviceId)) { stillNeeds1080 = true; break; }
+            }
+            if (!stillNeeds1080 && global1080p.has(deviceId)) {
+              const newCount = global1080p.get(deviceId) - 1;
+              if (newCount <= 0) {
+                global1080p.delete(deviceId);
+                for (const client of wssClient.clients) {
+                  if (client._deviceId === deviceId && client.readyState === 1) {
+                    client.send(JSON.stringify({ type: 'hq1080Off' }));
+                    serverLog(`[监控墙] 延迟清理：关闭设备 ${deviceId} 的 1080p 流`);
+                    break;
+                  }
+                }
+              } else {
+                global1080p.set(deviceId, newCount);
+              }
+            }
+          }
+          
+          // 第2步：再关闭 HQ（普通高清）
           for (const deviceId of allDevices) {
             // 检查是否还有其他监控墙窗口在使用这个设备
             let stillInUse = false;
@@ -3326,22 +3350,6 @@ wssBrowser.on('connection', (ws) => {
                 }
               } else {
                 globalHQ.set(deviceId, newCount);
-              }
-            }
-          }
-          
-          // 清理 1080p
-          for (const deviceId of hdDevicesToClean) {
-            let stillNeeds1080 = false;
-            for (const [otherWs, otherHd] of wallHDChannels) {
-              if (otherHd.has(deviceId)) { stillNeeds1080 = true; break; }
-            }
-            if (!stillNeeds1080) {
-              for (const client of wssClient.clients) {
-                if (client._deviceId === deviceId && client.readyState === 1) {
-                  client.send(JSON.stringify({ type: 'hq1080Off' }));
-                  break;
-                }
               }
             }
           }
