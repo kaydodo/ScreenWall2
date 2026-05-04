@@ -1617,10 +1617,63 @@ wssClient.on('connection', (ws, req) => {
         const kbTag = msg.supportsKeyClient ? '远控' : '—';
         serverLog(`[+] 上线: ${newDev.deviceName} (${deviceId}) uuId=${newDev.uuDeviceId} | IP: ${ip} | ${kbTag} | 显示器${newDev.monitorIndex} | ${newDev.screenWidth || '?'}×${newDev.screenHeight || '?'}`);
       }
-      // 如果匹配到了旧设备，删除旧记录（因为已经用新 deviceId 保存了）
+      // 如果匹配到了旧设备，迁移所有以旧 deviceId 为 key 的关联数据，然后删除旧记录
       if (matchedOldDeviceId && matchedOldDeviceId !== deviceId) {
+        // 1. gridLayout：格子位置映射，旧 deviceId → 新 deviceId
+        for (const idx of Object.keys(gridLayout)) {
+          if (gridLayout[idx] === matchedOldDeviceId) {
+            gridLayout[idx] = deviceId;
+          }
+        }
+        persistGrid();
+
+        // 2. groups：分组的 deviceIds 数组，旧 → 新
+        for (const group of groups) {
+          const pos = group.deviceIds.indexOf(matchedOldDeviceId);
+          if (pos !== -1) {
+            group.deviceIds[pos] = deviceId;
+          }
+        }
+        persistGroups();
+
+        // 3. collections：截图集合的 deviceId，旧 → 新
+        collections.forEach((items) => {
+          for (const item of items) {
+            if (item.deviceId === matchedOldDeviceId) {
+              item.deviceId = deviceId;
+            }
+          }
+        });
+        saveCollections();
+
+        // 4. wallDevices：监控墙持久化追踪
+        if (wallDevices.has(matchedOldDeviceId)) {
+          wallDevices.delete(matchedOldDeviceId);
+          wallDevices.set(deviceId, true);
+        }
+
+        // 5. monitorWallDevices：监控墙白名单
+        if (monitorWallDevices.has(matchedOldDeviceId)) {
+          monitorWallDevices.delete(matchedOldDeviceId);
+          monitorWallDevices.add(deviceId);
+        }
+
+        // 6. alarmRecords：历史报警记录
+        for (const rec of alarmRecords) {
+          if (rec.deviceId === matchedOldDeviceId) {
+            rec.deviceId = deviceId;
+          }
+        }
+        persistAlarmRecords();
+
+        // 7. lastAlarmTime：报警时间 Map
+        if (lastAlarmTime.has(matchedOldDeviceId)) {
+          lastAlarmTime.set(deviceId, lastAlarmTime.get(matchedOldDeviceId));
+          lastAlarmTime.delete(matchedOldDeviceId);
+        }
+
         devices.delete(matchedOldDeviceId);
-        serverLog(`[识别] 已删除旧设备记录: ${matchedOldDeviceId}`);
+        serverLog(`[识别] 已迁移旧设备 ${matchedOldDeviceId} → ${deviceId}（格子/分组/集合/监控墙/报警）`);
       }
 
       persistDevices();  // 持久化设备列表
