@@ -1682,6 +1682,13 @@ wssClient.on('connection', (ws, req) => {
           }
         }
         if (favorites.some(f => f.deviceId === deviceId)) saveFavorites();
+
+        // 9. powerScenes：开关机场景（旧 deviceId → 新 deviceId）
+        if (powerScenes[matchedOldDeviceId]) {
+          powerScenes[deviceId] = powerScenes[matchedOldDeviceId];
+          delete powerScenes[matchedOldDeviceId];
+          persistPowerScenes();
+        }
       }
 
       persistDevices();  // 持久化设备列表
@@ -1703,6 +1710,7 @@ wssClient.on('connection', (ws, req) => {
       });
       broadcastToBrowsers({ type: 'grid', cells: getGridPayload() });
       broadcastToBrowsers({ type: 'groups', groups });
+      broadcastToBrowsers({ type: 'powerScenes', powerScenes });
       // 广播 collections（截图集合），格式与 saveCollections() 保持一致
       const _migCollectionsArr = [];
       for (const [timestamp, items] of collections) {
