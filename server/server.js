@@ -1674,6 +1674,14 @@ wssClient.on('connection', (ws, req) => {
 
         devices.delete(matchedOldDeviceId);
         serverLog(`[识别] 已迁移旧设备 ${matchedOldDeviceId} → ${deviceId}（格子/分组/集合/监控墙/报警）`);
+
+        // 8. favorites：格子上收藏的星星图标
+        for (const fav of favorites) {
+          if (fav.deviceId === matchedOldDeviceId) {
+            fav.deviceId = deviceId;
+          }
+        }
+        if (favorites.some(f => f.deviceId === deviceId)) saveFavorites();
       }
 
       persistDevices();  // 持久化设备列表
@@ -1693,6 +1701,8 @@ wssClient.on('connection', (ws, req) => {
         deviceName: newDev.deviceName,
         groupId: newDev.groupId,
       });
+      // 同步格子布局（设备迁移后格子位置可能变了，让所有浏览器刷新格子）
+      broadcastToBrowsers({ type: 'grid', cells: getGridPayload() });
 
       // 如果设备在监控墙上（之前被订阅过），自动恢复高清流
       if (wallDevices.has(deviceId)) {
