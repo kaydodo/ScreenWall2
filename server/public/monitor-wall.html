@@ -1167,7 +1167,7 @@ window.addEventListener('beforeunload', function() {
       devices: wallData.devices.map(function(d) { return d.id; }),
       fullscreenDeviceId: wallFullscreenDeviceId
     };
-    navigator.sendBeacon('/api/wall-close', JSON.stringify(beaconData));
+    navigator.sendBeacon('/api/wall-close', new Blob([JSON.stringify(beaconData)], { type: 'application/json' }));
   }
   
   // 同时尝试 WebSocket 发送（兼容旧逻辑）

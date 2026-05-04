@@ -4060,6 +4060,7 @@ httpServer.on('request', (req, res) => {
       try {
         const data = JSON.parse(body);
         const { devices: deviceIds, fullscreenDeviceId } = data;
+        serverLog(`[WallClose] 收到请求: devices=${JSON.stringify(deviceIds)}, fullscreen=${fullscreenDeviceId}`);
         
         // 第1步：关闭全屏设备的 1080p 流
         if (fullscreenDeviceId && global1080p.has(fullscreenDeviceId)) {
