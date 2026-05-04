@@ -3952,6 +3952,45 @@ httpServer.on('request', (req, res) => {
     return;
   }
 
+  // POST /api/wall-close - 监控墙页面关闭时清理 HQ 流（sendBeacon 调用）
+  if (cleanPath === '/api/wall-close' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', () => {
+      try {
+        const data = JSON.parse(body);
+        const { devices: deviceIds, fullscreenDeviceId } = data;
+        
+        if (fullscreenDeviceId) {
+          const dev = devices.get(fullscreenDeviceId);
+          if (dev) {
+            dev.hq1080 = false;
+            serverLog(`[WallClose] 关闭1080p: ${fullscreenDeviceId}`);
+          }
+        }
+        
+        if (Array.isArray(deviceIds)) {
+          deviceIds.forEach(deviceId => {
+            const dev = devices.get(deviceId);
+            if (dev) {
+              dev.hqMode = false;
+              dev.hq1080 = false;
+              dev.hqBrowser = null;
+              serverLog(`[WallClose] 关闭HQ流: ${deviceId}`);
+            }
+          });
+        }
+        
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true }));
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: e.message }));
+      }
+    });
+    return;
+  }
+
   // 报警截图服务
   if (cleanPath.startsWith('/alarm-screenshots/')) {
     const fileName = cleanPath.slice('/alarm-screenshots/'.length);

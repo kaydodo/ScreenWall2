@@ -1160,12 +1160,21 @@ function makeWallCellDraggable(cell, deviceId) {
 
 // 页面关闭时清理 - 在脚本级别注册，确保尽早绑定
 window.addEventListener('beforeunload', function() {
+  // 使用 sendBeacon 确保消息可靠发送（浏览器会保证发送完成）
+  if (wallData && wallData.devices) {
+    var beaconData = {
+      type: 'wallClose',
+      devices: wallData.devices.map(function(d) { return d.id; }),
+      fullscreenDeviceId: wallFullscreenDeviceId
+    };
+    navigator.sendBeacon('/api/wall-close', JSON.stringify(beaconData));
+  }
+  
+  // 同时尝试 WebSocket 发送（兼容旧逻辑）
   if (ws && ws.readyState === WebSocket.OPEN) {
-    // 先关闭1080p（如果正在全屏），再关闭所有设备的HQ
     if (wallFullscreenDeviceId) {
       ws.send(JSON.stringify({ type: 'hq1080Off', deviceId: wallFullscreenDeviceId }));
     }
-    // 使用 wallData.devices 获取当前所有设备（不依赖 subscribedDevices）
     if (wallData && wallData.devices) {
       wallData.devices.forEach(function(dev) {
         ws.send(JSON.stringify({ type: 'stopHQ', deviceId: dev.id }));
