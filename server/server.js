@@ -3260,105 +3260,59 @@ wssBrowser.on('connection', (ws) => {
 
   ws.on('close', () => {
     browserClients.delete(ws);
-    browserViewport.delete(ws); // 清理视口追踪，防止浏览器关闭后残留
-
-    // ── 清理格子预览独立通道订阅 ──────────────────────
-    const previewInfo = previewClients.get(ws);
+    browserViewport.delete(ws);
     previewClients.delete(ws);
 
-    // ── 清理 1080p 预览模式（仅删除记录，不立即发 hq1080Off，留给延迟清理统一处理）───
     const my1080pDevices = browser1080p.get(ws);
     browser1080p.delete(ws);
-
-    // ── 清理 startHQ 追踪（browserPreviewHD）────────────────────
     const myPreviewHD = browserPreviewHD.get(ws);
     browserPreviewHD.delete(ws);
 
-    // 非监控墙浏览器（主页面）：立即减 globalHQ 引用计数
-    // 原因：主页面 close 时不走延迟清理，如果 stopHQ 消息在 beforeunload 丢了，需要这里先底
-    // 监控墙浏览器：不减，留给 close 延迟清理统一处理
-    const isWallBrowser = wallClients.has(ws) || ws._wallUnsubscribing;
-    if (!isWallBrowser && myPreviewHD && myPreviewHD.size > 0) {
-      serverLog(`[close] 非监控墙浏览器断开，清理 ${myPreviewHD.size} 个 browserPreviewHD 设备的 globalHQ`);
-      for (const deviceId of myPreviewHD) {
-        if (globalHQ.has(deviceId)) {
-          const newCount = globalHQ.get(deviceId) - 1;
-          if (newCount <= 0) {
-            globalHQ.delete(deviceId);
-            // 检查是否还有其他窗口在使用
-            let stillNeedsHQ = false;
-            for (const [wWs, wHd] of wallHDChannels) {
-              if (wHd.has(deviceId)) { stillNeedsHQ = true; break; }
-            }
-            for (const [oWs, oDev] of browserPreviewHD) {
-              if (oDev.has(deviceId)) { stillNeedsHQ = true; break; }
-            }
-            if (!stillNeedsHQ) {
-              hdRequests.delete(deviceId);
-              wallDevices.delete(deviceId);
-              for (const client of wssClient.clients) {
-                if (client._deviceId === deviceId && client.readyState === 1) {
-                  client.send(JSON.stringify({ type: 'stopHQ' }));
-                  serverLog(`[close] 非监控墙：发送 stopHQ 给 Python 客户端: ${deviceId}`);
-                  break;
-                }
-              }
-            }
-          } else {
-            globalHQ.set(deviceId, newCount);
-          }
-        }
-      }
-    }
+    // ══════════════════════════════════════════════════════════════
+    // 主页面 vs 监控墙：完全分离清理路径
+    // ══════════════════════════════════════════════════════════════
+    // 主页面：不订阅 wall，关闭时立即清理所有资源（不存在重连场景）
+    // 监控墙：延迟5秒清理（防止页面刷新导致误关）
+    //
+    // 核心原则：每种资源只在一个路径里减计数，绝不同时走两个路径
+    // ══════════════════════════════════════════════════════════════
 
-    // ── 清理监控墙订阅（延迟确认机制，防止误关）────────────────────
-    const subscription = wallClients.get(ws);
-    const hdChannels = wallHDChannels.get(ws);
-    
-    if (subscription || hdChannels || (my1080pDevices && my1080pDevices.size > 0) || (myPreviewHD && myPreviewHD.size > 0)) {
-      // 保存订阅信息用于延迟清理
+    const isWallBrowser = wallClients.has(ws) || ws._wallUnsubscribing;
+
+    if (isWallBrowser) {
+      // ── 监控墙浏览器：延迟清理 ────────────────────────────────
+      const subscription = wallClients.get(ws);
+      const hdChannels = wallHDChannels.get(ws);
+
+      // 立即从 Map 移除（但数据保留在闭包中供延迟清理使用）
+      wallClients.delete(ws);
+      wallHDChannels.delete(ws);
+
       const devicesToClean = subscription ? Array.from(subscription.devices) : [];
       const hdDevicesToClean = hdChannels ? Array.from(hdChannels) : [];
       const devices1080pToClean = my1080pDevices ? Array.from(my1080pDevices) : [];
-      const devicesPreviewHDToClean = myPreviewHD ? Array.from(myPreviewHD) : [];
-      
-      // 取消之前的定时器（如果有）
-      if (_wallCloseTimers.has(ws)) {
-        clearTimeout(_wallCloseTimers.get(ws));
-      }
-      
-      // 生成设备指纹用于识别同一浏览器
-      const deviceFingerprint = [...new Set([...devicesToClean, ...hdDevicesToClean, ...devices1080pToClean, ...devicesPreviewHDToClean])].sort().join(',');
-      
-      // 延迟清理：5秒后确认连接真的断开了
-      const timerId = setTimeout(() => {
-        _wallCloseTimers.delete(ws);
-        
-        // 【修复】检查是否是同一浏览器重新连接（通过指纹）
-        const hasReconnected = _wallBrowserSessions.has(deviceFingerprint) && 
-                               _wallBrowserSessions.get(deviceFingerprint).ws !== ws;
-        
-        if (hasReconnected) {
-          serverLog(`[监控墙] 检测到同一浏览器已重新连接，跳过清理`);
-          // 清理旧会话记录
+
+      if (devicesToClean.length + hdDevicesToClean.length + devices1080pToClean.length > 0) {
+        if (_wallCloseTimers.has(ws)) clearTimeout(_wallCloseTimers.get(ws));
+
+        const deviceFingerprint = [...new Set([...devicesToClean, ...hdDevicesToClean, ...devices1080pToClean])].sort().join(',');
+
+        const timerId = setTimeout(() => {
+          _wallCloseTimers.delete(ws);
+
+          // 检查是否同一浏览器已重新连接
+          if (_wallBrowserSessions.has(deviceFingerprint) && _wallBrowserSessions.get(deviceFingerprint).ws !== ws) {
+            serverLog(`[监控墙] 检测到同一浏览器已重新连接，跳过清理`);
+            _wallBrowserSessions.delete(deviceFingerprint);
+            return;
+          }
+
+          serverLog(`[监控墙] 连接确认断开，清理 ${devicesToClean.length} 设备 (HD:${hdDevicesToClean.length})`);
           _wallBrowserSessions.delete(deviceFingerprint);
-          return;
-        }
-        
-        // 检查是否需要清理：ws 已断开，且没有同一指纹的新连接接手
-        // 注意：不检查 wallClients.has(ws)，因为 unsubscribeWall(pageClosing) 不删除记录
-        const hasReconnected2 = _wallBrowserSessions.has(deviceFingerprint) && 
-                                 _wallBrowserSessions.get(deviceFingerprint).ws !== ws;
-        
-        if (!hasReconnected2) {
-          serverLog(`[监控墙] 连接确认断开，清理 ${devicesToClean.length} 设备 (HD:${hdDevicesToClean.length}) 指纹:${deviceFingerprint || 'empty'}`);
-          
-          // 清理指纹记录
-          _wallBrowserSessions.delete(deviceFingerprint);
-          
-          const allDevices = new Set([...devicesToClean, ...hdDevicesToClean, ...devices1080pToClean, ...devicesPreviewHDToClean]);
-          
-          // 第1步：先关闭所有设备的 1080p（尝试关闭，引用计数保护不会误关）
+
+          const allDevices = new Set([...devicesToClean, ...hdDevicesToClean, ...devices1080pToClean]);
+
+          // 第1步：关闭 1080p
           for (const deviceId of allDevices) {
             if (global1080p.has(deviceId)) {
               const newCount = global1080p.get(deviceId) - 1;
@@ -3367,7 +3321,7 @@ wssBrowser.on('connection', (ws) => {
                 for (const client of wssClient.clients) {
                   if (client._deviceId === deviceId && client.readyState === 1) {
                     client.send(JSON.stringify({ type: 'hq1080Off' }));
-                    serverLog(`[监控墙] 延迟清理：关闭设备 ${deviceId} 的 1080p 流`);
+                    serverLog(`[监控墙] 延迟清理：关闭设备 ${deviceId} 的 1080p`);
                     break;
                   }
                 }
@@ -3376,10 +3330,10 @@ wssBrowser.on('connection', (ws) => {
               }
             }
           }
-          
-          // 第2步：再关闭 HQ（普通高清）
+
+          // 第2步：关闭 HQ（720p）
           for (const deviceId of allDevices) {
-            // 检查是否还有其他监控墙窗口在使用这个设备
+            // 检查是否还有其他监控墙窗口在使用
             let stillInUse = false;
             for (const [otherWs, otherHd] of wallHDChannels) {
               if (otherHd.has(deviceId)) { stillInUse = true; break; }
@@ -3387,7 +3341,11 @@ wssBrowser.on('connection', (ws) => {
             for (const [otherWs, otherSub] of wallClients) {
               if (otherSub.devices.has(deviceId)) { stillInUse = true; break; }
             }
-            
+            // 也检查主页面浏览器
+            for (const [otherWs, otherDev] of browserPreviewHD) {
+              if (otherDev.has(deviceId)) { stillInUse = true; break; }
+            }
+
             if (!stillInUse && globalHQ.has(deviceId)) {
               const newCount = globalHQ.get(deviceId) - 1;
               if (newCount <= 0) {
@@ -3397,7 +3355,7 @@ wssBrowser.on('connection', (ws) => {
                 for (const client of wssClient.clients) {
                   if (client._deviceId === deviceId && client.readyState === 1) {
                     client.send(JSON.stringify({ type: 'stopHQ' }));
-                    serverLog(`[监控墙] 延迟清理：关闭设备 ${deviceId} 的 HQ 流`);
+                    serverLog(`[监控墙] 延迟清理：关闭设备 ${deviceId} 的 HQ`);
                     break;
                   }
                 }
@@ -3406,23 +3364,73 @@ wssBrowser.on('connection', (ws) => {
               }
             }
           }
-        } else {
-          serverLog(`[监控墙] 检测到同一浏览器已重新连接，跳过延迟清理`);
-        }
-      }, _wallCloseDelayMs);
-      
-      _wallCloseTimers.set(ws, timerId);
-      
-      // 立即从 Map 中移除（但保留清理数据在闭包中）
-      wallClients.delete(ws);
-      wallHDChannels.delete(ws);
-    }
+        }, _wallCloseDelayMs);
 
-    // 清理格子预览独立通道订阅中的 wallHDChannels 引用
-    if (previewInfo) {
-      const previewDeviceId = previewInfo.deviceId;
-      for (const [wallWs, hdChannels] of wallHDChannels) {
-        hdChannels.delete(previewDeviceId);
+        _wallCloseTimers.set(ws, timerId);
+      }
+
+    } else {
+      // ── 主页面浏览器：立即清理（无重连场景，不需要延迟）──────
+      //
+      // stopHQ/hq1080Off 消息可能在 beforeunload 里已经发了，
+      // 如果已发，browser1080p/browserPreviewHD 的 Set 里对应的 deviceId 已被删除，
+      // 这里不会再重复减计数。如果 beforeunload 消息丢了，这里补上。
+
+      // 清理 1080p
+      if (my1080pDevices && my1080pDevices.size > 0) {
+        for (const deviceId of my1080pDevices) {
+          if (global1080p.has(deviceId)) {
+            const newCount = global1080p.get(deviceId) - 1;
+            if (newCount <= 0) {
+              global1080p.delete(deviceId);
+              for (const client of wssClient.clients) {
+                if (client._deviceId === deviceId && client.readyState === 1) {
+                  client.send(JSON.stringify({ type: 'hq1080Off' }));
+                  serverLog(`[close] 主页面：关闭设备 ${deviceId} 的 1080p`);
+                  break;
+                }
+              }
+            } else {
+              global1080p.set(deviceId, newCount);
+            }
+          }
+        }
+      }
+
+      // 清理 HQ（720p）
+      if (myPreviewHD && myPreviewHD.size > 0) {
+        for (const deviceId of myPreviewHD) {
+          if (globalHQ.has(deviceId)) {
+            const newCount = globalHQ.get(deviceId) - 1;
+            if (newCount <= 0) {
+              globalHQ.delete(deviceId);
+              // 检查是否还有其他窗口在使用
+              let stillNeedsHQ = false;
+              for (const [wWs, wHd] of wallHDChannels) {
+                if (wHd.has(deviceId)) { stillNeedsHQ = true; break; }
+              }
+              for (const [oWs, oSub] of wallClients) {
+                if (oSub.devices.has(deviceId)) { stillNeedsHQ = true; break; }
+              }
+              for (const [oWs, oDev] of browserPreviewHD) {
+                if (oDev.has(deviceId)) { stillNeedsHQ = true; break; }
+              }
+              if (!stillNeedsHQ) {
+                hdRequests.delete(deviceId);
+                wallDevices.delete(deviceId);
+                for (const client of wssClient.clients) {
+                  if (client._deviceId === deviceId && client.readyState === 1) {
+                    client.send(JSON.stringify({ type: 'stopHQ' }));
+                    serverLog(`[close] 主页面：关闭设备 ${deviceId} 的 HQ`);
+                    break;
+                  }
+                }
+              }
+            } else {
+              globalHQ.set(deviceId, newCount);
+            }
+          }
+        }
       }
     }
   });
