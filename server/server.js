@@ -3246,46 +3246,20 @@ wssBrowser.on('connection', (ws) => {
     const my1080pDevices = browser1080p.get(ws);
     browser1080p.delete(ws);
 
-    // ── 清理 startHQ 追踪（browserPreviewHD）─────────
+    // ── 清理 startHQ 追踪（browserPreviewHD，仅删除记录，不减引用计数，留给延迟清理统一处理）───
     const myPreviewHD = browserPreviewHD.get(ws);
     browserPreviewHD.delete(ws);
-    if (myPreviewHD) {
-      for (const deviceId of myPreviewHD) {
-        if (globalHQ.has(deviceId)) {
-          const newCount = globalHQ.get(deviceId) - 1;
-          if (newCount <= 0) {
-            globalHQ.delete(deviceId);
-            // 发stopHQ前检查墙上是否还有人在用该设备的HQ
-            let wallStillNeedsHQ = false;
-            for (const [wallWs, hdChannels] of wallHDChannels) {
-              if (hdChannels.has(deviceId)) { wallStillNeedsHQ = true; break; }
-            }
-            if (!wallStillNeedsHQ) {
-              hdRequests.delete(deviceId);
-              wallDevices.delete(deviceId);
-              for (const client of wssClient.clients) {
-                if (client._deviceId === deviceId) {
-                  client.send(JSON.stringify({ type: 'stopHQ' }));
-                  break;
-                }
-              }
-            }
-          } else {
-            globalHQ.set(deviceId, newCount);
-          }
-        }
-      }
-    }
 
     // ── 清理监控墙订阅（延迟确认机制，防止误关）────────────────────
     const subscription = wallClients.get(ws);
     const hdChannels = wallHDChannels.get(ws);
     
-    if (subscription || hdChannels || (my1080pDevices && my1080pDevices.size > 0)) {
+    if (subscription || hdChannels || (my1080pDevices && my1080pDevices.size > 0) || (myPreviewHD && myPreviewHD.size > 0)) {
       // 保存订阅信息用于延迟清理
       const devicesToClean = subscription ? Array.from(subscription.devices) : [];
       const hdDevicesToClean = hdChannels ? Array.from(hdChannels) : [];
       const devices1080pToClean = my1080pDevices ? Array.from(my1080pDevices) : [];
+      const devicesPreviewHDToClean = myPreviewHD ? Array.from(myPreviewHD) : [];
       
       // 取消之前的定时器（如果有）
       if (_wallCloseTimers.has(ws)) {
@@ -3293,7 +3267,7 @@ wssBrowser.on('connection', (ws) => {
       }
       
       // 生成设备指纹用于识别同一浏览器
-      const deviceFingerprint = [...new Set([...devicesToClean, ...hdDevicesToClean, ...devices1080pToClean])].sort().join(',');
+      const deviceFingerprint = [...new Set([...devicesToClean, ...hdDevicesToClean, ...devices1080pToClean, ...devicesPreviewHDToClean])].sort().join(',');
       
       // 延迟清理：5秒后确认连接真的断开了
       const timerId = setTimeout(() => {
@@ -3321,7 +3295,7 @@ wssBrowser.on('connection', (ws) => {
           // 清理指纹记录
           _wallBrowserSessions.delete(deviceFingerprint);
           
-          const allDevices = new Set([...devicesToClean, ...hdDevicesToClean, ...devices1080pToClean]);
+          const allDevices = new Set([...devicesToClean, ...hdDevicesToClean, ...devices1080pToClean, ...devicesPreviewHDToClean]);
           
           // 第1步：先关闭所有设备的 1080p（尝试关闭，引用计数保护不会误关）
           for (const deviceId of allDevices) {
