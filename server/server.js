@@ -3329,7 +3329,7 @@ wssBrowser.on('connection', (ws) => {
         const isReallyClosed = !wallClients.has(ws) && !wallHDChannels.has(ws);
         
         if (isReallyClosed) {
-          serverLog(`[监控墙] 连接确认断开，清理 ${devicesToClean.length} 设备的流`);
+          serverLog(`[监控墙] 连接确认断开，清理 ${devicesToClean.length} 设备 (HD:${hdDevicesToClean.length}) 指纹:${deviceFingerprint || 'empty'}`);
           
           // 清理指纹记录
           _wallBrowserSessions.delete(deviceFingerprint);
@@ -3472,7 +3472,10 @@ httpServer.on('request', (req, res) => {
     securityHeaders['Content-Security-Policy'] = "frame-ancestors 'none'";
   }
   const _origWriteHead = res.writeHead.bind(res);
+  let _headersSent = false;
   res.writeHead = function(statusCode, headers) {
+    if (_headersSent) return res;
+    _headersSent = true;
     return Reflect.apply(_origWriteHead, this, [statusCode, headers ? { ...headers, ...securityHeaders } : securityHeaders]);
   };
 
