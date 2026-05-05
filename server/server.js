@@ -1933,11 +1933,9 @@ wssClient.on('connection', (ws, req) => {
         }
 
         // 保存设备能力标志（键盘支持）
-        if (msg.supportsKeyClient) {
-          dev.supportsKeyClient = true;
-          // 广播键盘支持状态变更
-          broadcastToBrowsers({ type: 'deviceList', devices: getDeviceListPayload() });
-        }
+        dev.supportsKeyClient = !!msg.supportsKeyClient;
+        // 广播键盘支持状态变更
+        broadcastToBrowsers({ type: 'deviceList', devices: getDeviceListPayload() });
         
         // 保存屏幕分辨率（统一获取，不判断键盘状态）
         if (msg.screenWidth && msg.screenHeight) {
