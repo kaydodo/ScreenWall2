@@ -2883,6 +2883,7 @@ function openPreview(cellIndex) {
   // 绑定预览图片点击事件（仅桌面端，移动端不支持鼠标点击）
   if (previewImg && !isMobile) {
     previewImg.onclick = handlePreviewImageClick;
+  }
   // 预览大图时无条件禁用页面右键菜单和滚轮（全程禁用，不判定键盘状态）
   const previewArea = document.getElementById("previewArea");
   if (previewArea && !isMobile) {
