@@ -3159,7 +3159,12 @@ const KEYBOARD_LAYOUT = {
 };
 
 function togglePreviewKeyboard() {
-  if (!previewKeyboardOpen) openPreviewKeyboard();
+  const overlay = document.getElementById('previewKeyboardOverlay');
+  if (previewKeyboardOpen) {
+    closePreviewKeyboard();
+  } else {
+    openPreviewKeyboard();
+  }
 }
 
 // ── 远控开关 ────────────────────────────────
