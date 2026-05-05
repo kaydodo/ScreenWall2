@@ -3506,6 +3506,9 @@ function closePreviewKeyboard() {
   overlay.style.alignItems = 'flex-end';
   overlay.style.justifyContent = 'center';
   container.style.position = '';
+  // 设备不支持键盘时，自动关闭预览大图
+  const dev = devices.find(d => d.deviceId === previewDeviceId);
+  if (!dev?.supportsKeyClient) closePreview();
   container.style.left = '';
   container.style.top = '';
   container.style.margin = '';
