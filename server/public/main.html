@@ -799,10 +799,10 @@ function updateMouseHint() {
   if (w < 1200) {
     hint.style.display = 'none';
   } else if (w < 1700) {
-    hint.textContent = '📌 可使用鼠标左键点击屏幕';
+    hint.textContent = '📌 左键=移动鼠标/右键=右键菜单/滚轮=滚动';
     hint.style.display = '';
   } else {
-    hint.textContent = '📌 可使用鼠标左键点击屏幕/shift点击=右键/alt点击=下滚轮/alt+shift点击=上滚轮/shift点击键盘切换大写和字符';
+    hint.textContent = '📌 左键点击=移动鼠标/右键=右键菜单/滚轮=滚动/Shift+左键=右键Alt+左键=滚轮下Alt+Shift+左键=滚轮上';
     hint.style.display = '';
   }
 }
@@ -2886,6 +2886,30 @@ function openPreview(cellIndex) {
   if (previewImg && !isMobile) {
     previewImg.onclick = handlePreviewImageClick;
   }
+  // 预览区域新增鼠标事件：右键/滚轮直接远控（仅桌面端且有键盘支持时生效）
+  const previewArea = document.getElementById('previewArea');
+  if (previewArea && !isMobile) {
+    const previewDev = devices.find(d => d.deviceId === previewDeviceId);
+    const hasKeyboard = previewDev && previewDev.supportsKeyClient;
+    if (hasKeyboard) {
+      // 禁用右键菜单
+      previewArea.oncontextmenu = e => e.preventDefault();
+      // 禁用滚轮默认滚动，改为发送远控滚轮
+      previewArea.onwheel = e => {
+        e.preventDefault();
+        const delta = e.deltaY > 0 ? 120 : -120;
+        sendPreviewMouseScroll(delta);
+      };
+      // 鼠标按下：右键=远控右键
+      previewArea.onmousedown = e => {
+        if (e.button === 2) {
+          e.preventDefault();
+          const pos = getPreviewImageClickPos(e);
+          if (pos) sendPreviewMouseRight(pos.x, pos.y);
+        }
+      };
+    }
+  }
   // 订阅格子预览独立通道
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'subscribePreview', deviceId: cell.deviceId }));
@@ -2934,6 +2958,13 @@ function closePreview() {
   // 解绑预览图片点击事件
   const previewImg = document.getElementById('previewImg');
   if (previewImg) previewImg.onclick = null;
+  // 清理预览区域新增的鼠标事件
+  const previewArea = document.getElementById('previewArea');
+  if (previewArea) {
+    previewArea.oncontextmenu = null;
+    previewArea.onwheel = null;
+    previewArea.onmousedown = null;
+  }
   // 先移除图片显示，再设置src，避免浏览器尝试加载base64作为URL
   if (previewImg) { previewImg.style.display = 'none'; previewImg.style.filter = ''; previewImg.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'; }
   // 清理预览 Blob URL
@@ -3543,6 +3574,32 @@ function getPreviewDeviceId() {
   if (previewDeviceId) return previewDeviceId;
   if (typeof previewImageDeviceId !== 'undefined') return previewImageDeviceId;
   return null;
+}
+
+// 计算鼠标在预览图片上的映射坐标（公共函数，供右键/滚轮事件复用）
+function getPreviewImageClickPos(e) {
+  const img = document.getElementById('previewImg');
+  if (!img || img.tagName !== 'IMG') return null;
+  const container = document.getElementById('previewArea');
+  const containerRect = container.getBoundingClientRect();
+  const imgRect = img.getBoundingClientRect();
+  if (imgRect.width === 0 || imgRect.height === 0) return null;
+  const cw = imgRect.width;
+  const ch = imgRect.height;
+  const imgAspect = previewScreenWidth / previewScreenHeight;
+  let imgW, imgH, offsetX, offsetY;
+  if (cw / ch > imgAspect) {
+    imgH = ch; imgW = ch * imgAspect; offsetX = (cw - imgW) / 2; offsetY = 0;
+  } else {
+    imgW = cw; imgH = cw / imgAspect; offsetX = 0; offsetY = (ch - imgH) / 2;
+  }
+  const clickX = e.clientX - imgRect.left - offsetX;
+  const clickY = e.clientY - imgRect.top - offsetY;
+  if (clickX < 0 || clickY < 0 || clickX > imgW || clickY > imgH) return null;
+  return {
+    x: Math.round((clickX / imgW) * previewScreenWidth),
+    y: Math.round((clickY / imgH) * previewScreenHeight)
+  };
 }
 
 // 发送鼠标动作
