@@ -6328,6 +6328,14 @@ function renderAllTaskBadges() {
 
 // 点击遮罩不关闭弹窗，只能通过右上角按钮关闭
 
+// ========== 性能缓冲区清理（减少 PerformanceEventTiming 累积） ==========
+// 每5分钟清除一次性能缓冲区，避免 PerformanceEventTiming/LayoutShift 对象累积
+setInterval(function() {
+  if (performance && performance.clearResourceTimings) {
+    performance.clearResourceTimings();
+  }
+}, 5 * 60 * 1000);
+
 // ========== 定时刷新（释放内存） ==========
 // 每1小时刷新页面，刷新前保存布局和滚动位置，刷新后恢复
 (function() {
