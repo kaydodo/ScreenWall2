@@ -3218,10 +3218,9 @@ function togglePreviewRemote() {
     }));
   }
 
-  // 关闭远控时直接隐藏键盘弹窗
-  if (!_pendingRemoteState) {
-    const overlay = document.getElementById('previewKeyboardOverlay');
-    if (overlay) overlay.style.display = 'none';
+  // 关闭远控时执行×按钮逻辑（关闭键盘弹窗）
+  if (!_pendingRemoteState && previewKeyboardOpen) {
+    closePreviewKeyboard();
   }
 }
 
