@@ -3159,12 +3159,7 @@ const KEYBOARD_LAYOUT = {
 };
 
 function togglePreviewKeyboard() {
-  const overlay = document.getElementById('previewKeyboardOverlay');
-  if (previewKeyboardOpen) {
-    closePreviewKeyboard();
-  } else {
-    openPreviewKeyboard();
-  }
+  if (!previewKeyboardOpen) openPreviewKeyboard();
 }
 
 // ── 远控开关 ────────────────────────────────
@@ -3221,6 +3216,12 @@ function togglePreviewRemote() {
       type: _pendingRemoteState ? 'setKeyboardEnabled' : 'setKeyboardDisabled',
       deviceId: previewDeviceId
     }));
+  }
+
+  // 关闭远控时直接隐藏键盘弹窗
+  if (!_pendingRemoteState) {
+    const overlay = document.getElementById('previewKeyboardOverlay');
+    if (overlay) overlay.style.display = 'none';
   }
 }
 
