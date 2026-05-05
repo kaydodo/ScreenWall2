@@ -1609,8 +1609,7 @@ function connectWS() {
         // 更新预览弹窗远控按钮状态
         if (previewDeviceId === msg.deviceId) {
           updatePreviewRemoteBtn();
-          // 远控状态变化时刷新预览区鼠标事件绑定
-          _bindPreviewMouseEvents();
+          // 远控状态变化时刷新预览区鼠标事件绑定（现已改为openPreview中无条件绑定，此处不再需要）
           // 如果远控被关闭且键盘弹窗开着，关掉键盘
           if (!msg.supportsKeyClient && previewKeyboardOpen) {
             closePreviewKeyboard();
@@ -2884,13 +2883,28 @@ function openPreview(cellIndex) {
   // 绑定预览图片点击事件（仅桌面端，移动端不支持鼠标点击）
   if (previewImg && !isMobile) {
     previewImg.onclick = handlePreviewImageClick;
-  }
-  // 统一绑定预览区鼠标事件（支持键盘远控时生效，previewKeyboardOpen变化时也调用）
-  _bindPreviewMouseEvents();
-  // 如果新设备不支持键盘但键盘弹窗开着，关掉键盘
-  const newDev = devices.find(d => d.deviceId === cell.deviceId);
-  if (!newDev?.supportsKeyClient && previewKeyboardOpen) {
-    closePreviewKeyboard();
+  // 预览大图时无条件禁用页面右键菜单和滚轮（全程禁用，不判定键盘状态）
+  const previewArea = document.getElementById("previewArea");
+  if (previewArea && !isMobile) {
+    previewArea.oncontextmenu = e => e.preventDefault();
+    previewArea.onwheel = e => {
+      e.preventDefault();
+      const previewDev = devices.find(d => d.deviceId === previewDeviceId);
+      if (previewDev && previewDev.supportsKeyClient) {
+        const delta = e.deltaY > 0 ? -120 : 120;
+        sendPreviewMouseScroll(delta);
+      }
+    };
+    previewArea.onmousedown = e => {
+      if (e.button === 2) {
+        e.preventDefault();
+        const previewDev = devices.find(d => d.deviceId === previewDeviceId);
+        if (previewDev && previewDev.supportsKeyClient) {
+          const pos = getPreviewImageClickPos(e);
+          if (pos) sendPreviewMouseRight(pos.x, pos.y);
+        }
+      }
+    };
   }
 
   // 订阅格子预览独立通道
@@ -2900,33 +2914,6 @@ function openPreview(cellIndex) {
 }
 
 // 统一绑定预览区鼠标事件：右键菜单禁用+滚轮远控
-function _bindPreviewMouseEvents() {
-  const previewArea = document.getElementById('previewArea');
-  if (!previewArea || isMobile) return;
-  const previewDev = devices.find(d => d.deviceId === previewDeviceId);
-  const hasKeyboard = previewDev && previewDev.supportsKeyClient;
-  if (hasKeyboard) {
-    previewArea.oncontextmenu = e => e.preventDefault();
-    previewArea.onwheel = e => {
-      e.preventDefault();
-      const delta = e.deltaY > 0 ? -120 : 120;
-      sendPreviewMouseScroll(delta);
-    };
-    previewArea.onmousedown = e => {
-      if (e.button === 2) {
-        e.preventDefault();
-        const pos = getPreviewImageClickPos(e);
-        if (pos) sendPreviewMouseRight(pos.x, pos.y);
-      }
-    };
-  } else {
-    // 不支持键盘时清除事件，避免残留
-    previewArea.oncontextmenu = null;
-    previewArea.onwheel = null;
-    previewArea.onmousedown = null;
-  }
-}
-
 function closePreview() {
   // 关闭时隐藏键盘按钮
   const kbbtn = document.getElementById('previewKBbtn');
@@ -2969,8 +2956,9 @@ function closePreview() {
   // 解绑预览图片点击事件
   const previewImg = document.getElementById('previewImg');
   if (previewImg) previewImg.onclick = null;
-  // 统一通过 _bindPreviewMouseEvents 清理预览区事件（previewDeviceId 还未清零，安全）
-  _bindPreviewMouseEvents();
+  // 清理预览区事件（关闭大图时清除右键/滚轮禁用）
+  const pa2 = document.getElementById('previewArea');
+  if (pa2) { pa2.oncontextmenu = null; pa2.onwheel = null; pa2.onmousedown = null; }
   // 先移除图片显示，再设置src，避免浏览器尝试加载base64作为URL
   if (previewImg) { previewImg.style.display = 'none'; previewImg.style.filter = ''; previewImg.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'; }
   // 清理预览 Blob URL
@@ -3482,8 +3470,9 @@ function openPreviewKeyboard() {
 
   container.innerHTML = html;
   overlay.style.display = 'flex';
-  previewKeyboardOpen = true;
-  _bindPreviewMouseEvents();
+  // 键盘弹窗打开时刷新预览区事件（键盘弹窗开时右键/滚轮仍由openPreview的内联代码处理）
+  const pa3 = document.getElementById('previewArea');
+  if (pa3) { pa3.oncontextmenu = null; pa3.onwheel = null; pa3.onmousedown = null; }
 
   // 移动端固定位置
   if (window.innerWidth <= 768) {
@@ -3519,8 +3508,9 @@ function closePreviewKeyboard() {
   container.style.left = '';
   container.style.top = '';
   container.style.margin = '';
-  previewKeyboardOpen = false;
-  _bindPreviewMouseEvents();
+  // 键盘弹窗关闭时刷新预览区事件（恢复openPreview的内联事件）
+  const pa4 = document.getElementById('previewArea');
+  if (pa4) { pa4.oncontextmenu = null; pa4.onwheel = null; pa4.onmousedown = null; }
 }
 
 function sendPreviewKey(key) {
