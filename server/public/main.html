@@ -1611,6 +1611,10 @@ function connectWS() {
           updatePreviewRemoteBtn();
           // 远控状态变化时刷新预览区鼠标事件绑定
           _bindPreviewMouseEvents();
+          // 如果远控被关闭且键盘弹窗开着，关掉键盘
+          if (!msg.supportsKeyClient && previewKeyboardOpen) {
+            closePreviewKeyboard();
+          }
         }
       }
     }
@@ -2883,6 +2887,11 @@ function openPreview(cellIndex) {
   }
   // 统一绑定预览区鼠标事件（支持键盘远控时生效，previewKeyboardOpen变化时也调用）
   _bindPreviewMouseEvents();
+  // 如果新设备不支持键盘但键盘弹窗开着，关掉键盘
+  const newDev = devices.find(d => d.deviceId === cell.deviceId);
+  if (!newDev?.supportsKeyClient && previewKeyboardOpen) {
+    closePreviewKeyboard();
+  }
 
   // 订阅格子预览独立通道
   if (ws && ws.readyState === WebSocket.OPEN) {
