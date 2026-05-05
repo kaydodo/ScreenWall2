@@ -3509,9 +3509,8 @@ function closePreviewKeyboard() {
   container.style.left = '';
   container.style.top = '';
   container.style.margin = '';
-  // 键盘弹窗关闭时刷新预览区事件（恢复openPreview的内联事件）
-  const pa4 = document.getElementById('previewArea');
-  if (pa4) { pa4.oncontextmenu = null; pa4.onwheel = null; pa4.onmousedown = null; }
+  // 键盘弹窗关闭时重新绑定预览区事件（恢复 openPreview 的内联事件）
+  if (previewDeviceId) openPreview({ deviceId: previewDeviceId });
 }
 
 function sendPreviewKey(key) {
@@ -3684,18 +3683,12 @@ function handlePreviewImageClick(e) {
   const mappedX = Math.round((clickX / imgW) * previewScreenWidth);
   const mappedY = Math.round((clickY / imgH) * previewScreenHeight);
 
-  // 根据修饰键分发不同动作（Shift+Alt 最优先，防止组合键被单项覆盖）
-  if (e.shiftKey && e.altKey) {
-    // Shift + Alt + 左键 → 滚轮上
+  // 根据修饰键分发不同动作（Alt 最优先，防止组合键被单项覆盖）
+  if (e.altKey) {
+    // Alt + 左键 → 滚轮上/下（方向由 deltaY 决定，这里统一发上）
     sendPreviewMouseScroll(120);
-  } else if (e.altKey) {
-    // Alt + 左键 → 滚轮下
-    sendPreviewMouseScroll(-120);
-  } else if (e.shiftKey) {
-    // Shift + 左键 → 右键
-    sendPreviewMouseRight(mappedX, mappedY);
   } else if (e.ctrlKey) {
-    // Ctrl + 左键 → 右键（备用）
+    // Ctrl + 左键 → 右键
     sendPreviewMouseRight(mappedX, mappedY);
   } else {
     // 普通左键
