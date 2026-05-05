@@ -3471,9 +3471,8 @@ function openPreviewKeyboard() {
 
   container.innerHTML = html;
   overlay.style.display = 'flex';
-  // 键盘弹窗打开时刷新预览区事件（键盘弹窗开时右键/滚轮仍由openPreview的内联代码处理）
-  const pa3 = document.getElementById('previewArea');
-  if (pa3) { pa3.oncontextmenu = null; pa3.onwheel = null; pa3.onmousedown = null; }
+  previewKeyboardOpen = true;
+  // 键盘弹窗打开时保留 openPreview 设置的右键/滚轮禁用（不主动清空，避免重复打开预览失效）
 
   // 移动端固定位置
   if (window.innerWidth <= 768) {
@@ -3499,6 +3498,7 @@ function togglePreviewKeyboardShift() {
 }
 
 function closePreviewKeyboard() {
+  previewKeyboardOpen = false;
   const overlay = document.getElementById('previewKeyboardOverlay');
   const container = document.getElementById('previewKeyboardContainer');
   overlay.style.display = 'none';
