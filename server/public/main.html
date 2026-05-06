@@ -2195,8 +2195,8 @@ function updateCellScreenshot(index, imgData) {
   // 计算 md5 判断内容是否变化
   let md5 = '';
   try {
-    md5 = btoa(imgData.slice(-32, -1)).slice(0, 16); // 用末尾32字符作为近似md5（性能优先）
-  } catch(e) { md5 = imgData.slice(0, 32); }
+    md5 = imgData.slice(22, 54); // 跳过头部前缀，取实际base64内容前32字符
+  } catch(e) { md5 = imgData.slice(22, 54); }
 
   const existing = _cellBlobs.get(index);
   if (existing && existing.md5 === md5) {
@@ -2237,7 +2237,7 @@ function base64ToBlob(base64, mimeType) {
 
 // 预览图 Blob URL 辅助：内容相同则复用 URL，避免重复解码
 function setPreviewBlobSrc(imgEl, base64) {
-  const md5 = base64.slice(-32, -1); // 用末尾32字符近似md5
+  const md5 = base64.slice(22, 54); // 跳过头部前缀，取实际内容前32字符
   if (_previewBlobMd5 === md5) return; // 内容未变，跳过
   if (_previewBlobUrl) {
     try { URL.revokeObjectURL(_previewBlobUrl); } catch(e) {}
