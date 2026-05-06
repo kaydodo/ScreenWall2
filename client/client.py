@@ -19,7 +19,7 @@ import time
 import webbrowser
 
 # 客户端版本号（每次功能更新时手动递增）
-CLIENT_VERSION = "1.7.3"  # 键盘全改Unicode路径，Shift+Q正确解析，不受CapsLock影响
+CLIENT_VERSION = "1.7.4"  # HQ模式12fps+1080p质量45，提升流畅度
 
 
 def _get_mac_address():
@@ -985,12 +985,12 @@ class ScreenCapturer:
                         if not hq:
                             pic.thumbnail((self.resize_w, self.resize_h), Image.LANCZOS)
                         if hq and (pic.width > hq_limit * 1.5 or pic.height > hq_limit):
-                            # 1080p: 1920*2/3=1280, 720p: 1280*2/3≈853
+                            # 1080p: 1920*3/5=1152, 720p: 1152*3/5≈691
                             if hq_limit == 1080:
-                                pic.thumbnail((1280, 1080), Image.LANCZOS)
+                                pic.thumbnail((1152, 1080), Image.LANCZOS)
                             else:
-                                pic.thumbnail((853, 720), Image.LANCZOS)
-                            save_quality = 70  # 统一质量 70
+                                pic.thumbnail((691, 720), Image.LANCZOS)
+                            save_quality = 45  # 1080p用质量45
                         else:
                             save_quality = hq_quality
                         buf = BytesIO()
@@ -2019,8 +2019,11 @@ class ScreenWallClient:
                 except Exception:
                     break
                 # interval = self.hq_interval if (self.hq_mode and self.hq_interval) else cfg["interval"]
-                # 改为统一 8fps（0.125s），服务端不再下发 interval
-                interval = 0.125
+                # HQ模式用12fps（0.083s），小图模式用8fps（0.125s）
+                if self.hq_mode or self.hq_1080:
+                    interval = 0.083  # 12fps
+                else:
+                    interval = 0.125  # 8fps
                 await asyncio.sleep(interval)
                 continue  # 跳过本次截图，进入下一轮
 
@@ -2028,16 +2031,19 @@ class ScreenWallClient:
             if self.hq_1080:
                 hq = True
                 hq_limit = 1080
+                hq_quality = 45  # 1080p 用质量45
             elif self.hq_mode:
                 hq = True
                 hq_limit = 720
+                hq_quality = 45  # 720p 也用质量45（与1080p一致）
             else:
                 # 默认低清模式：hq=False，走 resizeW×H 路径（480×270），比例固定
                 hq = False
-                hq_limit = 720  # 不影响 hq=False 的情况
+                hq_limit = 720
+                hq_quality = 30  # 小图用质量30
             capt = ScreenCapturer(cfg["quality"], cfg["resizeW"], cfg["resizeH"], monitor_index=_current_monitor_index)
             try:
-                img_bytes = capt.capture(hq=hq, hq_limit=hq_limit, hq_quality=45)
+                img_bytes = capt.capture(hq=hq, hq_limit=hq_limit, hq_quality=hq_quality)
             finally:
                 capt.close()
 
@@ -2060,10 +2066,13 @@ class ScreenWallClient:
                 except Exception:
                     break
 
-            # HQ 模式使用服务器指定的间隔，LQ 使用配置的间隔
-            # interval = self.hq_interval if (self.hq_mode and self.hq_interval) else cfg["interval"]
-            # 改为统一 8fps（0.125s），动态 sleep 补偿处理耗时
-            target_interval = 0.125  # 目标帧间隔 125ms
+            # 帧率控制：小图8fps，720p用12fps，1080p用15fps
+            if self.hq_1080:
+                target_interval = 0.067  # 15fps
+            elif self.hq_mode:
+                target_interval = 0.083  # 12fps
+            else:
+                target_interval = 0.125  # 8fps
             elapsed = time.time() - frame_start  # 本帧已耗时
             sleep_time = max(0, target_interval - elapsed)  # 动态 sleep
             await asyncio.sleep(sleep_time)
