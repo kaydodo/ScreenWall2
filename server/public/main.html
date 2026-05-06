@@ -671,7 +671,10 @@ document.addEventListener('visibilitychange', () => {
 function scheduleRender() {
   if (renderScheduled) return;
   renderScheduled = true;
-  requestAnimationFrame(renderPendingFrames);
+  requestAnimationFrame(() => {
+    renderPendingFrames();
+    renderScheduled = false;  // ← 回调结束后才重置，防止 rAF 执行期间重复排队
+  });
 }
 
 function renderPendingFrames() {
@@ -1464,15 +1467,15 @@ function connectWS() {
         return;
       }
 
-      // 存入帧缓冲，由 requestAnimationFrame 统一渲染
-      if (!msg.image || msg.image.length < 100) {
-        console.warn('[截图] 空帧跳过:', msg.deviceId, 'length:', msg.image?.length);
-        return;
+      // 防止极端情况下帧堆积失控
+      if (pendingFrames.size >= 200) {
+        const oldest = pendingFrames.keys().next().value;
+        pendingFrames.delete(oldest);
       }
+
       const frameData = { image: msg.image, hqImage: msg.hqImage || null, timestamp: Date.now() };
       pendingFrames.set(msg.deviceId, frameData);
       const t1 = performance.now();
-      // 更新监控上墙预览格图片（使用hqImage高清图）
       scheduleRender();
       const t2 = performance.now();
       if (t2 - t0 > 2) {
@@ -1492,6 +1495,11 @@ function connectWS() {
 
     // ── WebSocket 推送截图（新方案：替代MJPEG HTTP连接）──────
     if (msg.type === 'browserScreenshot' && msg.deviceId && msg.image) {
+      // 防止极端情况下帧堆积失控
+      if (pendingFrames.size >= 200) {
+        const oldest = pendingFrames.keys().next().value;
+        pendingFrames.delete(oldest);
+      }
       // 存入帧缓冲，由 scheduleRender 统一渲染（格子页面）
       const frameData = { image: msg.image, hqImage: null, timestamp: Date.now() };
       pendingFrames.set(msg.deviceId, frameData);
@@ -1875,8 +1883,10 @@ function renderGrid() {
     const cellData = gridCells[removeIndex];
     if (cellData && cellData.deviceId) {
       // 清理 blob URL 缓存
-      if (oldUrl) {
-        setTimeout(() => URL.revokeObjectURL(oldUrl), 500);
+      const existingBlob = _cellBlobs.get(removeIndex);
+      if (existingBlob) {
+        try { URL.revokeObjectURL(existingBlob.blobUrl); } catch(e) {}
+        _cellBlobs.delete(removeIndex);
       }
       frameHealCount.delete(cellData.deviceId);
     }
