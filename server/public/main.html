@@ -654,22 +654,21 @@ class FrameBuffer {
     buf[1 - this._renderIdx] = { image, hqImage, timestamp: Date.now() };
   }
 
-  // 定时器回调：切换渲染槽位，渲染"下一帧"
+  // 定时器回调：渲染"下一帧"槽位中的所有帧（渲染完再切换槽位）
   tick() {
     const now = Date.now();
     const t0 = performance.now();
     let renderedCount = 0;
 
-    // 切换槽位
-    this._renderIdx = 1 - this._renderIdx;
+    // 渲染"下一帧"槽位（不切换，等全部渲染完再切换）
+    const slotToRender = 1 - this._renderIdx;
 
-    // 渲染"下一帧"槽位中的所有帧
     for (const [deviceId, buf] of this._buffers) {
-      const frame = buf[this._renderIdx];
+      const frame = buf[slotToRender];
       if (!frame) continue;
       // 超时丢弃（2秒）
       if (now - frame.timestamp > 2000) {
-        buf[this._renderIdx] = null;
+        buf[slotToRender] = null;
         continue;
       }
       const cell = gridCells.find(c => c && c.deviceId === deviceId);
@@ -681,6 +680,8 @@ class FrameBuffer {
         frameHealCount.set(deviceId, frameHealCount.get(deviceId) + 1);
         if (frameHealCount.get(deviceId) >= FRAME_HEAL_THRESHOLD) {
           cell.online = true;
+          const cellEl = document.getElementById(`cell_${cell.index}`);
+          if (cellEl) cellEl.classList.remove('offline-cell');
           const dot = document.getElementById(`dot_${cell.index}`);
           const stxt = document.getElementById(`stxt_${cell.index}`);
           if (dot) { dot.className = 'status-dot online'; dot.style.backgroundColor = '#34d399'; }
@@ -692,6 +693,9 @@ class FrameBuffer {
       updateCellScreenshot(cell.index, frame.image);
       renderedCount++;
     }
+
+    // 全部渲染完后才切换槽位（保证本次 tick 稳定渲染同一批）
+    this._renderIdx = slotToRender;
 
     const t1 = performance.now();
     if (renderedCount > 0 && t1 - t0 > 5) {
