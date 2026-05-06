@@ -630,7 +630,7 @@ loadServerConfig();
 // ─────────────────────────────────────────
 // 帧缓冲系统：只显示最新帧，丢弃过时帧
 // ─────────────────────────────────────────
-const pendingFrames = new Map(); // deviceId -> {image, timestamp, frameCount}
+const pendingFrames = new Map(); // deviceId -> {image, hqImage, timestamp}（每设备只保留最新帧，自然覆盖）
 const pendingPreviewFrame = { deviceId: null, image: null, timestamp: 0 };
 let renderScheduled = false;
 
@@ -658,8 +658,6 @@ document.addEventListener('visibilitychange', () => {
     const hiddenDuration = Date.now() - _hiddenStartTime;
     // 延迟一帧处理，让浏览器完成渲染管线重建
     requestAnimationFrame(() => {
-      const pendingCount = pendingFrames.size;
-//       console.log(`[TAB] 切回前台，后台时长 ${hiddenDuration}ms，积压帧 ${pendingCount} 个`);
       pendingFrames.clear();
       pendingPreviewFrame.image = null;
       // 重置心跳计时器，避免误报
@@ -673,14 +671,13 @@ function scheduleRender() {
   renderScheduled = true;
   requestAnimationFrame(() => {
     renderPendingFrames();
-    renderScheduled = false;  // ← 回调结束后才重置，防止 rAF 执行期间重复排队
+    renderScheduled = false;  // ← rAF 回调执行完毕后才重置，防止嵌套
   });
 }
 
 function renderPendingFrames() {
   // ── 异常隔离：任何渲染错误都不能让 renderScheduled 卡死 ──
   try {
-    renderScheduled = false;
     const now = Date.now();
     let rendered = false;
 
@@ -722,7 +719,7 @@ function renderPendingFrames() {
       for (const [deviceId] of pendingFrames) {
         frameHealCount.delete(deviceId);
       }
-      // 在清空之前更新监控上墙预览
+      // 渲染完毕后清空（只留最新帧，每轮 rAF 只渲染一次）
       pendingFrames.clear();
     } else {
       // 预览模式：只保留预览设备的帧，其他全部丢弃
@@ -1460,29 +1457,15 @@ function connectWS() {
     }
 
     if (msg.type === 'screenshot') {
-      const t0 = performance.now();
-
       // 丢包/空帧：跳过这一帧，不渲染
       if (!msg.image || msg.image.length < 100) {
         return;
       }
 
-      // 防止极端情况下帧堆积失控
-      if (pendingFrames.size >= 200) {
-        const oldest = pendingFrames.keys().next().value;
-        pendingFrames.delete(oldest);
-      }
-
+      // 每设备只保留最新帧（Map.set 自动覆盖旧帧），内存上限 = 设备数
       const frameData = { image: msg.image, hqImage: msg.hqImage || null, timestamp: Date.now() };
       pendingFrames.set(msg.deviceId, frameData);
-      const t1 = performance.now();
       scheduleRender();
-      const t2 = performance.now();
-      if (t2 - t0 > 2) {
-//         console.log(`[WS] screenshot ${msg.deviceId} 接收耗时 ${(t2-t0).toFixed(1)}ms (set:${(t1-t0).toFixed(1)}ms, sched:${(t2-t1).toFixed(1)}ms)`);
-      }
-
-      // 预览帧走独立通道（previewScreenshot消息），不在这里处理
       // 消息频率监控
       if (!window._msgCount) window._msgCount = { count: 0, last: performance.now() };
       window._msgCount.count++;
@@ -1495,12 +1478,7 @@ function connectWS() {
 
     // ── WebSocket 推送截图（新方案：替代MJPEG HTTP连接）──────
     if (msg.type === 'browserScreenshot' && msg.deviceId && msg.image) {
-      // 防止极端情况下帧堆积失控
-      if (pendingFrames.size >= 200) {
-        const oldest = pendingFrames.keys().next().value;
-        pendingFrames.delete(oldest);
-      }
-      // 存入帧缓冲，由 scheduleRender 统一渲染（格子页面）
+      // 每设备只保留最新帧（Map.set 自动覆盖），无需手动删旧帧
       const frameData = { image: msg.image, hqImage: null, timestamp: Date.now() };
       pendingFrames.set(msg.deviceId, frameData);
       scheduleRender();
