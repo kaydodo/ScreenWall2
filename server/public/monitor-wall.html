@@ -750,6 +750,23 @@ function connectWebSocket() {
             ts.textContent = formatDate(d);
           }
           watchdog.touch(sc.deviceId);
+
+          // 自愈：批量帧也走自愈逻辑（与单条 wallScreenshot 一致）
+          var batchCell = findCellByDeviceId(sc.deviceId);
+          if (batchCell && batchCell.classList.contains('offline')) {
+            if (!frameHealCount.has(sc.deviceId)) frameHealCount.set(sc.deviceId, 0);
+            frameHealCount.set(sc.deviceId, frameHealCount.get(sc.deviceId) + 1);
+            if (frameHealCount.get(sc.deviceId) >= WALL_FRAME_HEAL_THRESHOLD) {
+              batchCell.classList.remove('offline');
+              batchCell.classList.remove('deleted');
+              var badge = batchCell.querySelector('.offline-badge');
+              if (badge) badge.style.display = 'none';
+              updateUUButtonVisibility(batchCell, true);
+              if (devices[sc.deviceId]) devices[sc.deviceId].online = true;
+            }
+          } else if (batchCell) {
+            frameHealCount.delete(sc.deviceId);
+          }
         }
         stats.framesReceived += data.screenshots.length;
         stats.framesRendered += data.screenshots.length;
