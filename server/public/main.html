@@ -644,23 +644,20 @@ let _previewBlobMd5 = null;
 const frameHealCount = new Map(); // deviceId -> count
 const FRAME_HEAL_THRESHOLD = 2;   // 至少收到2帧才恢复离线格子
 
-// Tab 切换时清理积压帧，避免切回时一次性处理大量帧
-let _wasHidden = false;
-let _hiddenStartTime = 0;
+// Tab 隐藏时直接丢弃帧，避免隐藏期间白白消耗 CPU 解码 base64
+let documentHidden = false;
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') {
-    _wasHidden = true;
-    _hiddenStartTime = Date.now();
-    // Tab 进入后台时，停止 rAF 调度，避免积压
+    documentHidden = true;
+    pendingFrames.clear();
+    pendingPreviewFrame.image = null;
     renderScheduled = false;
-  } else if (document.visibilityState === 'visible' && _wasHidden) {
-    _wasHidden = false;
-    const hiddenDuration = Date.now() - _hiddenStartTime;
-    // 延迟一帧处理，让浏览器完成渲染管线重建
+  } else {
+    documentHidden = false;
+    // 切回可见时清空旧帧，等新帧自然到来
     requestAnimationFrame(() => {
       pendingFrames.clear();
       pendingPreviewFrame.image = null;
-      // 重置心跳计时器，避免误报
       _lastBeat = performance.now();
     });
   }
@@ -1457,6 +1454,8 @@ function connectWS() {
     }
 
     if (msg.type === 'screenshot') {
+      // 页面隐藏时直接丢弃，不消耗 CPU 解码
+      if (documentHidden) return;
       // 丢包/空帧：跳过这一帧，不渲染
       if (!msg.image || msg.image.length < 100) {
         return;
@@ -1478,6 +1477,8 @@ function connectWS() {
 
     // ── WebSocket 推送截图（新方案：替代MJPEG HTTP连接）──────
     if (msg.type === 'browserScreenshot' && msg.deviceId && msg.image) {
+      // 页面隐藏时直接丢弃
+      if (documentHidden) return;
       // 每设备只保留最新帧（Map.set 自动覆盖），无需手动删旧帧
       const frameData = { image: msg.image, hqImage: null, timestamp: Date.now() };
       pendingFrames.set(msg.deviceId, frameData);
@@ -1493,6 +1494,8 @@ function connectWS() {
 
     // ── 格子预览独立通道消息（不受帧缓存去重影响）──────
     if (msg.type === 'previewScreenshot' && msg.deviceId && previewDeviceId === msg.deviceId) {
+      // 页面隐藏时丢弃预览帧
+      if (documentHidden) return;
       const previewImg = document.getElementById('previewImg');
       const watermark = document.getElementById('previewOfflineWatermark');
       // 保存设备分辨率用于鼠标点击映射
@@ -1520,6 +1523,8 @@ function connectWS() {
 
     // 批量截图消息处理（服务端攒批推送，替代逐条 browserScreenshot）
     if (msg.type === 'screenshotBatch' && msg.screenshots) {
+      // 页面隐藏时直接丢弃整批
+      if (documentHidden) return;
       for (const sc of msg.screenshots) {
         const frameData = { image: sc.image, hqImage: sc.hqImage || null, timestamp: Date.now() };
         pendingFrames.set(sc.deviceId, frameData);
