@@ -1514,28 +1514,22 @@ function connectWS() {
       // 页面隐藏时丢弃预览帧
       if (documentHidden) return;
       const previewImg = document.getElementById('previewImg');
-      const watermark = document.getElementById('previewOfflineWatermark');
       // 保存设备分辨率用于鼠标点击映射
       if (msg.screenWidth && msg.screenHeight) {
         previewScreenWidth = msg.screenWidth;
         previewScreenHeight = msg.screenHeight;
       }
-      // 自愈：收到预览帧证明设备在线，若当前显示离线水印则自动隐藏
-      // 但必须检查设备确实在线（不能仅凭收到截图就认为在线，可能收到旧帧）
-      const currentDev = devices.find(d => d.deviceId === previewDeviceId);
-      const isOnline = currentDev ? currentDev.online : false;
-      if (watermark && watermark.style.display !== 'none' && isOnline) {
-        watermark.style.display = 'none';
-        previewImg.style.filter = '';
-      }
-      // WebSocket 方案：Blob URL 方案 + 内容相同跳过
-      if (isOnline && msg.image) {
+      // 预览截图到达时直接显示（不再查 isOnline，devices 数组可能未同步）
+      if (msg.image) {
         setPreviewBlobSrc(previewImg, msg.image);
         previewImg.style.visibility = 'visible';
+        previewImg.style.display = 'block';
         const wrapper = document.getElementById('previewImgWrapper');
         if (wrapper) wrapper.style.backgroundImage = '';
+        const watermark = document.getElementById('previewOfflineWatermark');
+        if (watermark) watermark.style.display = 'none';
+        previewImg.style.filter = '';
       }
-      previewImg.style.display = 'block';
     }
 
     // 批量截图消息处理（服务端攒批推送，替代逐条 browserScreenshot）
