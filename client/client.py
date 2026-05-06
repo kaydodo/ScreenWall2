@@ -19,7 +19,7 @@ import time
 import webbrowser
 
 # 客户端版本号（每次功能更新时手动递增）
-CLIENT_VERSION = "1.7.4"  # HQ模式12fps+1080p质量45，提升流畅度
+CLIENT_VERSION = "1.7.5"  # startHQ立即发送第一帧，无需等待下一周期
 
 
 def _get_mac_address():
@@ -2079,6 +2079,34 @@ class ScreenWallClient:
 
         await self._cleanup_ws()
 
+    async def _send_hq_snapshot(self, cfg, ws):
+        """startHQ 触发时立即截图并发送，消除等待下一帧周期的延迟"""
+        try:
+            off_x, off_y, off_w, off_h = _get_current_monitor_offset()
+            screen = self._dxgi_capture()
+            if screen is None:
+                return
+            # 截取全屏或指定区域
+            if off_w == 0 or off_h == 0:
+                frame = screen
+            else:
+                frame = screen.crop((off_x, off_y, off_x + off_w, off_y + off_h))
+            # WebP 编码（质量 45）
+            buf = io.BytesIO()
+            frame.save(buf, format='WEBP', quality=45)
+            img_bytes = buf.getvalue()
+            b64 = base64.b64encode(img_bytes).decode('ascii')
+            await ws.send(json.dumps({
+                'type': 'hqSnapshot',
+                'deviceId': cfg['deviceId'],
+                'hq': True,
+                'image': 'data:image/webp;base64,' + b64,
+                'screenWidth': off_w,
+                'screenHeight': off_h,
+            }))
+        except Exception:
+            pass  # 静默失败，不影响主流程
+
     async def _listen(self, ws, cfg):
         try:
             async for msg in ws:
@@ -2097,7 +2125,8 @@ class ScreenWallClient:
                     elif msg_type == "startHQ":
                         self.hq_mode = True
                         self.hq_streaming = True
-                        # 不再接收 interval，客户端统一用 0.125s（8fps）
+                        # 立即触发一帧高清截图，消除"转圈等帧"的延迟
+                        asyncio.create_task(self._send_hq_snapshot(cfg, ws))
                     elif msg_type == "stopHQ":
                         # 直接关闭 HQ 模式，不再捕获静态帧
                         self.hq_mode = False
