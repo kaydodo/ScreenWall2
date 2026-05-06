@@ -628,11 +628,106 @@
 loadServerConfig();
 
 // ─────────────────────────────────────────
-// 帧缓冲系统：只显示最新帧，丢弃过时帧
+// 帧缓冲系统：双帧缓存（消除rAF时序错位导致的跳帧）
+// - 每设备最多存2帧，frame[0]和frame[1]交替作为"当前帧"
+// - setTimeout 125ms 精确匹配客户端8fps，避免rAF随机性
+// - 消息来时自动填充到"下一帧"槽位，无论当前显示哪个槽位
 // ─────────────────────────────────────────
-const pendingFrames = new Map(); // deviceId -> {image, hqImage, timestamp}（每设备只保留最新帧，自然覆盖）
+class FrameBuffer {
+  constructor() {
+    // deviceId -> [frame0, frame1] 交替缓冲
+    this._buffers = new Map();
+    this._renderIdx = 0;   // 当前显示的槽位（0或1）
+    this._lastTick = 0;
+  }
+
+  // 消息入口：存入"下一帧"槽位（不是当前显示的那个）
+  // 预览激活时只存预览设备的帧，丢弃其他所有帧
+  push(deviceId, image, hqImage) {
+    // 预览模式：只保留预览设备的帧
+    if (previewActive && deviceId !== previewDeviceId) return;
+    if (!this._buffers.has(deviceId)) {
+      this._buffers.set(deviceId, [null, null]);
+    }
+    const buf = this._buffers.get(deviceId);
+    // 存入"下一帧"槽位：当前显示0则存1，显示1则存0
+    buf[1 - this._renderIdx] = { image, hqImage, timestamp: Date.now() };
+  }
+
+  // 定时器回调：切换渲染槽位，渲染"下一帧"
+  tick() {
+    const now = Date.now();
+    const t0 = performance.now();
+    let renderedCount = 0;
+
+    // 切换槽位
+    this._renderIdx = 1 - this._renderIdx;
+
+    // 渲染"下一帧"槽位中的所有帧
+    for (const [deviceId, buf] of this._buffers) {
+      const frame = buf[this._renderIdx];
+      if (!frame) continue;
+      // 超时丢弃（2秒）
+      if (now - frame.timestamp > 2000) {
+        buf[this._renderIdx] = null;
+        continue;
+      }
+      const cell = gridCells.find(c => c && c.deviceId === deviceId);
+      if (!cell) continue;
+
+      // 自愈逻辑
+      if (!cell.online) {
+        if (!frameHealCount.has(deviceId)) frameHealCount.set(deviceId, 0);
+        frameHealCount.set(deviceId, frameHealCount.get(deviceId) + 1);
+        if (frameHealCount.get(deviceId) >= FRAME_HEAL_THRESHOLD) {
+          cell.online = true;
+          const dot = document.getElementById(`dot_${cell.index}`);
+          const stxt = document.getElementById(`stxt_${cell.index}`);
+          if (dot) { dot.className = 'status-dot online'; dot.style.backgroundColor = '#34d399'; }
+          if (stxt) stxt.textContent = '在线';
+        }
+      }
+
+      cell.screenshot = frame.image;
+      updateCellScreenshot(cell.index, frame.image);
+      renderedCount++;
+    }
+
+    const t1 = performance.now();
+    if (renderedCount > 0 && t1 - t0 > 5) {
+      // console.log(`[tick] 渲染${renderedCount}个, 耗时${(t1-t0).toFixed(1)}ms`);
+    }
+    if (renderedCount > 0) updateRefreshTime();
+    this._lastTick = now;
+  }
+
+  // 页面隐藏时清空
+  clear() {
+    this._buffers.clear();
+    this._renderIdx = 0;
+  }
+
+  // 设备离线时删除缓冲
+  remove(deviceId) {
+    this._buffers.delete(deviceId);
+  }
+}
+
+const pendingFrames = new FrameBuffer();
 const pendingPreviewFrame = { deviceId: null, image: null, timestamp: 0 };
 let renderScheduled = false;
+let _renderTimer = null;
+
+function startRenderTimer() {
+  if (_renderTimer) return;
+  _renderTimer = setInterval(() => {
+    if (!documentHidden) pendingFrames.tick();
+  }, 125); // 精确匹配客户端 8fps
+}
+
+function stopRenderTimer() {
+  if (_renderTimer) { clearInterval(_renderTimer); _renderTimer = null; }
+}
 
 // Blob URL 系统：避免 base64 每帧解码导致位图缓存堆积
 // Map<cellIndex, { blobUrl: string, md5: string, timestamp: number }>
@@ -651,93 +746,26 @@ document.addEventListener('visibilitychange', () => {
     documentHidden = true;
     pendingFrames.clear();
     pendingPreviewFrame.image = null;
-    renderScheduled = false;
+    stopRenderTimer();
   } else {
     documentHidden = false;
     // 切回可见时清空旧帧，等新帧自然到来
-    requestAnimationFrame(() => {
-      pendingFrames.clear();
-      pendingPreviewFrame.image = null;
-      _lastBeat = performance.now();
-    });
+    pendingFrames.clear();
+    pendingPreviewFrame.image = null;
+    _lastBeat = performance.now();
+    startRenderTimer();
   }
 });
 
 function scheduleRender() {
-  if (renderScheduled) return;
-  renderScheduled = true;
-  requestAnimationFrame(() => {
-    renderPendingFrames();
-    renderScheduled = false;  // ← rAF 回调执行完毕后才重置，防止嵌套
-  });
+  // 双帧缓冲方案：渲染由 setInterval 125ms 定时驱动，不再用 rAF
+  // scheduleRender 保留作兼容入口，直接触发一次 tick
+  if (!documentHidden) pendingFrames.tick();
 }
 
 function renderPendingFrames() {
-  // ── 异常隔离：任何渲染错误都不能让 renderScheduled 卡死 ──
-  try {
-    const now = Date.now();
-    let rendered = false;
-
-    // 预览激活时跳过格子渲染（性能优化）
-    if (!previewActive) {
-      // 渲染格子帧
-      const t0 = performance.now();
-      let cellCount = 0;
-      for (const [deviceId, frame] of pendingFrames) {
-        // 只渲染最近1秒内的帧（超时丢弃）
-        if (now - frame.timestamp < 1000) {
-          const cell = gridCells.find(c => c.deviceId === deviceId);
-          // 自愈：增加帧计数，只有连续收到多帧才恢复在线状态
-          if (cell) {
-            if (!frameHealCount.has(deviceId)) frameHealCount.set(deviceId, 0);
-            frameHealCount.set(deviceId, frameHealCount.get(deviceId) + 1);
-            // 帧计数达到阈值才恢复在线（防止单帧缓存误判）
-            if (!cell.online && frameHealCount.get(deviceId) >= FRAME_HEAL_THRESHOLD) {
-              cell.online = true;
-              const dot = document.getElementById(`dot_${cell.index}`);
-              const stxt = document.getElementById(`stxt_${cell.index}`);
-              if (dot) { dot.className = 'status-dot online'; dot.style.backgroundColor = '#34d399'; }
-              if (stxt) stxt.textContent = '在线';
-            }
-          }
-          if (cell) {
-            cell.screenshot = frame.image;
-            updateCellScreenshot(cell.index, frame.image);
-            rendered = true;
-            cellCount++;
-          }
-        }
-      }
-      const t1 = performance.now();
-      if (cellCount > 0 && t1 - t0 > 5) {
-//         console.log(`[rAF] 格子渲染 ${cellCount}个, 耗时 ${(t1-t0).toFixed(1)}ms`);
-      }
-      // 渲染后重置帧计数（下次收到帧会重新累加）
-      for (const [deviceId] of pendingFrames) {
-        frameHealCount.delete(deviceId);
-      }
-      // 渲染完毕后清空（只留最新帧，每轮 rAF 只渲染一次）
-      pendingFrames.clear();
-    } else {
-      // 预览模式：只保留预览设备的帧，其他全部丢弃
-      // 收集要删除的 key，避免在 for...of 遍历中直接 delete 导致跳设备
-      const toDelete = [];
-      for (const [deviceId] of pendingFrames) {
-        if (deviceId !== previewDeviceId) {
-          toDelete.push(deviceId);
-        }
-      }
-      for (const id of toDelete) pendingFrames.delete(id);
-    }
-
-    // 预览帧走独立通道（previewScreenshot消息），不在这里渲染
-
-    // 更新刷新时间
-    if (rendered) updateRefreshTime();
-  } catch (err) {
-//     console.error('[ScreenWall] 渲染异常，已恢复:', err.message);
-    renderScheduled = false; // 确保渲染循环不被卡死
-  }
+  // 旧 rAF 渲染函数已废弃，渲染逻辑全部迁移到 FrameBuffer.tick()
+  // 保留作空桩，避免外部引用报错
 }
 
 // ─────────────────────────────────────────
@@ -925,6 +953,7 @@ function connectWS() {
       latencyEl.style.color = '';
     }
     ws.send(JSON.stringify({ type: 'getState', gridSize }));
+    startRenderTimer(); // 启动125ms定时渲染
   };
 
   // 监控连接状态变化
@@ -1460,30 +1489,14 @@ function connectWS() {
       if (!msg.image || msg.image.length < 100) {
         return;
       }
-
-      // 每设备只保留最新帧（Map.set 自动覆盖旧帧），内存上限 = 设备数
-      const frameData = { image: msg.image, hqImage: msg.hqImage || null, timestamp: Date.now() };
-      pendingFrames.set(msg.deviceId, frameData);
-      scheduleRender();
-      // 消息频率监控
-      if (!window._msgCount) window._msgCount = { count: 0, last: performance.now() };
-      window._msgCount.count++;
-      const now2 = performance.now();
-      if (now2 - window._msgCount.last > 2000) {
-//         console.log(`[MON] ${window._msgCount.count}条消息 / ${((now2 - window._msgCount.last)/1000).toFixed(1)}s`);
-        window._msgCount = { count: 0, last: now2 };
-      }
+      pendingFrames.push(msg.deviceId, msg.image, msg.hqImage || null);
     }
 
     // ── WebSocket 推送截图（新方案：替代MJPEG HTTP连接）──────
     if (msg.type === 'browserScreenshot' && msg.deviceId && msg.image) {
       // 页面隐藏时直接丢弃
       if (documentHidden) return;
-      // 每设备只保留最新帧（Map.set 自动覆盖），无需手动删旧帧
-      const frameData = { image: msg.image, hqImage: null, timestamp: Date.now() };
-      pendingFrames.set(msg.deviceId, frameData);
-      scheduleRender();
-
+      pendingFrames.push(msg.deviceId, msg.image, null);
       // 同时更新监控预览弹窗中的图片（如果有）
       const monitorImg = document.querySelector(`.monitor-preview-img-wrapper[data-device-id="${msg.deviceId}"] img`);
       if (monitorImg) {
@@ -1526,29 +1539,14 @@ function connectWS() {
       // 页面隐藏时直接丢弃整批
       if (documentHidden) return;
       for (const sc of msg.screenshots) {
-        const frameData = { image: sc.image, hqImage: sc.hqImage || null, timestamp: Date.now() };
-        pendingFrames.set(sc.deviceId, frameData);
+        pendingFrames.push(sc.deviceId, sc.image, sc.hqImage || null);
         // 同时更新监控预览弹窗中的图片（如果有）
         const monitorImg = document.querySelector(`.monitor-preview-img-wrapper[data-device-id="${sc.deviceId}"] img`);
         if (monitorImg) {
           monitorImg.src = sc.image;
           monitorImg.style.display = 'block';
         }
-        // 自愈：批量截图也累加帧计数，达到阈值才恢复
-        const cell = gridCells.find(c => c && c.deviceId === sc.deviceId);
-        if (cell && !cell.online) {
-          if (!frameHealCount.has(sc.deviceId)) frameHealCount.set(sc.deviceId, 0);
-          frameHealCount.set(sc.deviceId, frameHealCount.get(sc.deviceId) + 1);
-          if (frameHealCount.get(sc.deviceId) >= FRAME_HEAL_THRESHOLD) {
-            cell.online = true;
-            const dot = document.getElementById(`dot_${cell.index}`);
-            const stxt = document.getElementById(`stxt_${cell.index}`);
-            if (dot) { dot.className = 'status-dot online'; dot.style.backgroundColor = '#34d399'; }
-            if (stxt) stxt.textContent = '在线';
-          }
-        }
       }
-      scheduleRender();
     }
 
     // 【修复】视口刷新：收到此消息时重新上报当前视口，服务端会根据新视口重新推送截图
@@ -1745,6 +1743,7 @@ function connectWS() {
       latencyEl.textContent = '离线';
       latencyEl.style.color = '#f87171';  // 红色
     }
+    stopRenderTimer(); // 停止定时渲染
     reconnectTimer = setTimeout(connectWS, 3000);
   };
 
@@ -2230,8 +2229,7 @@ function updateCellScreenshot(index, imgData) {
 function base64ToBlob(base64, mimeType) {
   const b64 = base64.replace(/^data:[^;]+;base64,/, '');
   const binary = atob(b64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  const bytes = Uint8Array.from(binary, c => c.charCodeAt(0));
   return new Blob([bytes], { type: mimeType });
 }
 
