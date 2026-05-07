@@ -1679,8 +1679,8 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
 
   .sidebar:not(.collapsed) {
     transform: translateX(0) !important;
-    width: 260px !important;
-    min-width: 260px !important;
+    width: 240px !important;
+    min-width: 240px !important;
   }
 
   /* 侧边栏打开时，遮挡网格区域 - 只禁止点击，不加蒙版 */
