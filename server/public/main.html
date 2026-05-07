@@ -3756,32 +3756,21 @@ function openUU(uuDeviceId) {
   // URL协议格式: uuycmgr://<UU设备ID>
   const url = `uuycmgr://${uuDeviceId}`;
   
-  // 尝试方法1: window.open
-  try {
-    const opened = window.open(url);
-    if (opened && !opened.closed) {
-      return; // 成功
-    }
-  } catch(e) {}
-  
-  // 尝试方法2: 创建隐藏的 iframe 触发协议
+  // 方法1: 使用隐藏的 iframe 触发协议（不触发弹窗拦截）
   try {
     const iframe = document.createElement('iframe');
     iframe.style.display = 'none';
     iframe.src = url;
     document.body.appendChild(iframe);
-    setTimeout(() => document.body.removeChild(iframe), 1000);
+    setTimeout(() => {
+      if (iframe.parentNode) document.body.removeChild(iframe);
+    }, 2000);
     return;
   } catch(e) {}
   
-  // 尝试方法3: 直接创建一个链接并点击
+  // 方法2: 使用 location.href 跳转（备用，当前页会跳转但通常协议处理程序会阻止）
   try {
-    const a = document.createElement('a');
-    a.href = url;
-    a.style.display = 'none';
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(() => document.body.removeChild(a), 1000);
+    window.location.href = url;
     return;
   } catch(e) {}
   
