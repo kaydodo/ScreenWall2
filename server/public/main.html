@@ -5750,7 +5750,29 @@ loadWalledDevices();
 
 function openMonitorDialog() {
   var overlay = document.getElementById('monitorOverlay');
+  var dialog = document.getElementById('monitorDialog');
   overlay.style.display = 'flex';
+
+  // 动态调整弹窗尺寸：保持16:9.3比例，但确保不超过95%视口高度
+  var vh = window.innerHeight * 0.95;
+  var vw = window.innerWidth * 0.95;
+  var aspectRatio = 16 / 9.3;
+
+  // 先按宽度计算高度
+  var heightFromWidth = vw / aspectRatio;
+
+  if (heightFromWidth > vh) {
+    // 高度超出，以高度为基准计算宽度
+    dialog.style.width = (vh * aspectRatio) + 'px';
+    dialog.style.height = vh + 'px';
+    dialog.style.aspectRatio = 'auto';
+  } else {
+    // 宽度优先，使用CSS默认的aspect-ratio
+    dialog.style.width = '80%';
+    dialog.style.height = 'auto';
+    dialog.style.aspectRatio = '16/9.3';
+  }
+
   // 重置为四画面布局
   monitorWallState.layout = 4;
   selectMonitorLayout(4);
@@ -5775,6 +5797,28 @@ function closeMonitorDialog() {
   // 清空预览区域
   document.getElementById('monitorPreviewGrid').innerHTML = '';
 }
+
+// 监听窗口大小变化，动态调整监控弹窗尺寸
+window.addEventListener('resize', function() {
+  var overlay = document.getElementById('monitorOverlay');
+  var dialog = document.getElementById('monitorDialog');
+  if (overlay && overlay.style.display === 'flex' && dialog) {
+    var vh = window.innerHeight * 0.95;
+    var vw = window.innerWidth * 0.95;
+    var aspectRatio = 16 / 9.3;
+    var heightFromWidth = vw / aspectRatio;
+
+    if (heightFromWidth > vh) {
+      dialog.style.width = (vh * aspectRatio) + 'px';
+      dialog.style.height = vh + 'px';
+      dialog.style.aspectRatio = 'auto';
+    } else {
+      dialog.style.width = '80%';
+      dialog.style.height = 'auto';
+      dialog.style.aspectRatio = '16/9.3';
+    }
+  }
+});
 
 function refreshMonitorDeviceList() {
   var container = document.getElementById('monitorDeviceList');
