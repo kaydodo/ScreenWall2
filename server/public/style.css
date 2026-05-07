@@ -253,7 +253,7 @@ select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(79,126,24
 
 /* ── 侧边栏 ── */
 .sidebar {
-  width: 260px;
+  width: 252px;
   height: calc(100vh - 55px);
   display: flex;
   flex-direction: column;
@@ -273,7 +273,7 @@ select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(79,126,24
 /* ── 侧边栏折叠按钮 ── */
 .sidebar-collapse-btn {
   position: fixed;
-  left: 243px;
+  left: 235px;
   top: 50%;
   transform: translateY(-50%);
   width: 16px;
@@ -465,13 +465,75 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
 .si-name {
   display: flex;
   align-items: center;
-  gap: 2px;
+  justify-content: space-between;
+  gap: 4px;
   font-size: 12px;
   font-weight: 600;
   color: var(--text-primary);
   white-space: nowrap;
+  overflow: visible;
+  position: relative;
+}
+
+.si-name-text {
+  max-width: 85px;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.si-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.rename-popup {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px;
+  padding-right: 2px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-active);
+  border-radius: 4px;
+  box-shadow: var(--shadow-md);
+  z-index: 1000;
+}
+
+.rename-popup .si-rename-btn {
+  flex-shrink: 0;
+  width: 36px;
+  padding: 2px 6px;
+}
+
+.rename-popup-input {
+  flex: 1;
+  height: 22px;
+  padding: 0 6px;
+  font-size: 12px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text-primary);
+  outline: none;
+  min-width: 0;
+}
+
+.rename-popup-input:focus {
+  border-color: var(--accent);
+}
+
+.si-rename-btn {
+  flex-shrink: 0;
 }
 .si-meta {
   display: flex;
@@ -1679,7 +1741,7 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
 
   .sidebar:not(.collapsed) {
     transform: translateX(0) !important;
-    width: 240px !important;
+    width: 280px !important;
     min-width: 240px !important;
   }
 
@@ -1749,6 +1811,11 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
   /* 移动端隐藏电脑端按钮，用新的header内按钮替代 */
   .sidebar-collapse-btn {
     display: none !important;
+  }
+
+  /* 移动端操作区右对齐 */
+  .si-actions {
+    margin-left: auto !important;
   }
 
   body.sidebar-collapsed .sidebar-collapse-btn {
