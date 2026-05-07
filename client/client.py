@@ -2176,13 +2176,11 @@ class ScreenWallClient:
                         self._send_mouse_to_keyclient(0, 0, action='scroll', delta=delta)
 
                     elif msg_type == "requestAlarmFullScreenshot":
-                        # 服务端请求 1080P 报警截图 - 使用最高质量设置
+                        # 服务端请求 1080P 报警截图
                         try:
-                            # 使用 lossless=True 获取无损截图，确保是真正的 1080P
-                            capt = ScreenCapturer(quality=95, resize_w=1920, resize_h=1080, monitor_index=_current_monitor_index)
+                            capt = ScreenCapturer(quality=80, resize_w=1920, resize_h=1080, monitor_index=_current_monitor_index)
                             try:
-                                # hq_limit 设为 2160 (4K) 避免被压缩，确保获取完整分辨率
-                                full_img = capt.capture(hq=True, hq_limit=2160, hq_quality=95, is_static=False)
+                                full_img = capt.capture(hq=True, hq_limit=1080, is_static=True)
                                 if full_img:
                                     alarm_full_b64 = "data:image/webp;base64," + base64.b64encode(full_img).decode("ascii")
                                     off_x, off_y, off_w, off_h = _get_current_monitor_offset()
@@ -2196,8 +2194,7 @@ class ScreenWallClient:
                                     }))
                             finally:
                                 capt.close()
-                        except Exception as e:
-                            # 静默处理，不打印错误
+                        except Exception:
                             pass
 
                     elif msg_type == "deviceNameSync":
