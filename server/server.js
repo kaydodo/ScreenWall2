@@ -52,7 +52,9 @@ function serverLog(...args) {
     const ts = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
     const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
     const line = `[${ts}] ${msg}\n`;
-    process.stdout.write(line);
+    try {
+        fs.writeSync(1, line);  // stdout fd=1，Windows上比process.stdout.write更原子
+    } catch(e) { /* ignore */ }
     try {
         _openLog();
         fs.writeSync(_logFd, line);
