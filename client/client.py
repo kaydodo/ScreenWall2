@@ -19,11 +19,11 @@ import time
 import webbrowser
 
 # 客户端版本号（每次功能更新时手动递增）
-CLIENT_VERSION = "1.7.5"  # startHQ立即发送第一帧，无需等待下一周期
+CLIENT_VERSION = "1.7.8"
 
 
 def _get_mac_address():
-    """获取本机 MAC 地址（取第一个非虚拟网卡的物理地址）"""
+    """获取本机 MAC 地址"""
     try:
         import subprocess
         result = subprocess.run(
@@ -32,7 +32,6 @@ def _get_mac_address():
             creationflags=subprocess.CREATE_NO_WINDOW
         )
         if result.returncode == 0:
-            # 解析 MACAddress=xx:xx:xx:xx:xx:xx
             for line in result.stdout.split('\n'):
                 if 'MACAddress=' in line:
                     mac = line.split('=')[1].strip()
@@ -40,14 +39,13 @@ def _get_mac_address():
                         return mac.replace(':', '-')
     except Exception:
         pass
-    # 备用方案：用 uuid
     try:
         mac = uuid.getnode()
         if mac:
             return ':'.join(['%02X' % ((mac >> (8 * i)) & 0xFF) for i in range(5, -1, -1)])
     except Exception:
         pass
-    return ""
+    return ''
 
 
 def has_key_client():
@@ -984,15 +982,8 @@ class ScreenCapturer:
                         use_dxgi = True
                         if not hq:
                             pic.thumbnail((self.resize_w, self.resize_h), Image.LANCZOS)
-                        if hq and (pic.width > hq_limit * 1.5 or pic.height > hq_limit):
-                            # 1080p: 1920*3/5=1152, 720p: 1152*3/5≈691
-                            if hq_limit == 1080:
-                                pic.thumbnail((1152, 1080), Image.LANCZOS)
-                            else:
-                                pic.thumbnail((691, 720), Image.LANCZOS)
-                            save_quality = 45  # 1080p用质量45
-                        else:
-                            save_quality = hq_quality
+                        if hq and (pic.width > int(hq_limit * 32 / 27) or pic.height > hq_limit):
+                            pic.thumbnail((int(hq_limit * 32 / 27), hq_limit), Image.LANCZOS)
                         buf = BytesIO()
                         if lossless:
                             pic.save(buf, format="WEBP", lossless=True)
@@ -1004,7 +995,7 @@ class ScreenCapturer:
                             elif not hq:
                                 pic.save(buf, format="WEBP", quality=30, method=6)
                             else:
-                                pic.save(buf, format="WEBP", quality=save_quality, method=6)
+                                pic.save(buf, format="WEBP", quality=hq_quality, method=6)
                             img_bytes = buf.getvalue()
                         if len(img_bytes) < 1000:
                             img_bytes = None
@@ -1026,14 +1017,8 @@ class ScreenCapturer:
                     if not hq:
                         pic.thumbnail((self.resize_w, self.resize_h), Image.LANCZOS)
                     # HQ 模式限制分辨率上限为 hq_limit（默认 720p，可设 1080p）
-                    if hq and (pic.width > hq_limit * 1.5 or pic.height > hq_limit):
-                        if hq_limit == 1080:
-                            pic.thumbnail((1280, 1080), Image.LANCZOS)
-                        else:
-                            pic.thumbnail((853, 720), Image.LANCZOS)
-                        save_quality = 70
-                    else:
-                        save_quality = hq_quality
+                    if hq and (pic.width > int(hq_limit * 32 / 27) or pic.height > hq_limit):
+                        pic.thumbnail((int(hq_limit * 32 / 27), hq_limit), Image.LANCZOS)
                     buf = BytesIO()
                     if lossless:
                         pic.save(buf, format="WEBP", lossless=True)
@@ -1045,7 +1030,7 @@ class ScreenCapturer:
                         elif not hq:
                             pic.save(buf, format="WEBP", quality=30, method=6)
                         else:
-                            pic.save(buf, format="WEBP", quality=save_quality, method=6)
+                            pic.save(buf, format="WEBP", quality=hq_quality, method=6)
                         img_bytes = buf.getvalue()
                     if len(img_bytes) < 1000:
                         self._mss_ok = False
@@ -1062,14 +1047,8 @@ class ScreenCapturer:
                 if not hq:
                     pic.thumbnail((self.resize_w, self.resize_h), Image.LANCZOS)
                 # HQ 模式限制分辨率上限为 hq_limit（默认 720p，可设 1080p）
-                if hq and (pic.width > hq_limit * 1.5 or pic.height > hq_limit):
-                    if hq_limit == 1080:
-                        pic.thumbnail((1280, 1080), Image.LANCZOS)
-                    else:
-                        pic.thumbnail((853, 720), Image.LANCZOS)
-                    save_quality = 70
-                else:
-                    save_quality = hq_quality
+                if hq and (pic.width > int(hq_limit * 32 / 27) or pic.height > hq_limit):
+                    pic.thumbnail((int(hq_limit * 32 / 27), hq_limit), Image.LANCZOS)
                 buf = BytesIO()
                 if lossless:
                     pic.save(buf, format="WEBP", lossless=True)
@@ -1080,7 +1059,7 @@ class ScreenCapturer:
                     elif not hq:
                         pic.save(buf, format="WEBP", quality=30, method=6)
                     else:
-                        pic.save(buf, format="WEBP", quality=save_quality, method=6)
+                        pic.save(buf, format="WEBP", quality=hq_quality, method=6)
                     img_bytes = buf.getvalue()
             except Exception:
                 pass
@@ -1386,13 +1365,15 @@ class ScreenWallClient:
                 self._uu_install_triggered = False
                 return
 
-            # 静默安装：/S /mode=7 /launchapp=yes /autorun=yes
+            # 静默安装：/S /mode=7 /bgstartup=yes /launchapp=no /autorun=yes
             install_cmd = [
                 tmp_path,
                 "/S",
                 "/mode=7",
-                "/launchapp=yes",
+                "/bgstartup=yes",
+                "/launchapp=no",
                 "/autorun=yes",
+                r'/D=C:\Program Files\Netease\GameViewer',
             ]
             subprocess.Popen(
                 install_cmd,
@@ -1528,6 +1509,7 @@ class ScreenWallClient:
                 "monitorOffsetY":     off_y,
                 "uuVersion":          self._get_uu_version(),
                 "uuInstalled":        self._is_uu_installed(),
+                "macAddress":         _get_mac_address(),
             }
             await ws.send(json.dumps(payload))
         except Exception:
@@ -1815,8 +1797,7 @@ class ScreenWallClient:
         srv = cfg.get("server", {})
         cap = cfg.get("capture", {})
 
-        # deviceId：优先从 user_info.ini 读取，其次从配置读
-        # 注意：deviceId 只从文件获取，不会自动生成。如为空，服务端会提示安装 UU 远程
+        # deviceId：优先从 user_info.ini 读取，其次从配置读，最后才用 MAC+计算机名 生成
         ini_path = Path("C:/ProgramData/Netease/GameViewer/user_info.ini")
         ini_device_id = ""
         if ini_path.exists():
@@ -1844,16 +1825,12 @@ class ScreenWallClient:
             device_name = base_name
 
         host = srv.get("host", "localhost").replace("http://", "").replace("https://", "")
-        # 获取 MAC 地址（首次获取后缓存）
-        if not hasattr(self, '_mac_address'):
-            self._mac_address = _get_mac_address()
         return {
             "uri":          f"ws://{host}:{srv.get('port', 3000)}/ws/client",
             "deviceId":     device_id,
             "deviceName":   device_name,
             "computerName": os.environ.get("COMPUTERNAME", ""),
             "uuDeviceId":   uu_device_id,
-            "macAddress":   self._mac_address,
             "quality":      30,     # 小图 JPG 质量 30
             "resizeW":      480,     # 写死
             "resizeH":      270,     # 写死
@@ -1895,7 +1872,6 @@ class ScreenWallClient:
                 "deviceId":        cfg["deviceId"],
                 "deviceName":      cfg["deviceName"],
                 "uuDeviceId":      cfg["uuDeviceId"],
-                "macAddress":      cfg.get("macAddress", ""),
                 "localDeviceName": cfg["deviceName"],
                 "supportsKeyClient": has_kb,
                 "version":         CLIENT_VERSION,
@@ -1939,7 +1915,6 @@ class ScreenWallClient:
                         "deviceId":        new_cfg["deviceId"],
                         "deviceName":      new_cfg["deviceName"],
                         "uuDeviceId":      new_cfg["uuDeviceId"],
-                        "macAddress":      new_cfg.get("macAddress", ""),
                         "localDeviceName": new_cfg["deviceName"],
                         "supportsKeyClient": has_kb,
                         "version":         CLIENT_VERSION,
@@ -2019,11 +1994,8 @@ class ScreenWallClient:
                 except Exception:
                     break
                 # interval = self.hq_interval if (self.hq_mode and self.hq_interval) else cfg["interval"]
-                # HQ模式用12fps（0.083s），小图模式用8fps（0.125s）
-                if self.hq_mode or self.hq_1080:
-                    interval = 0.083  # 12fps
-                else:
-                    interval = 0.125  # 8fps
+                # 改为统一 8fps（0.125s），服务端不再下发 interval
+                interval = 0.125
                 await asyncio.sleep(interval)
                 continue  # 跳过本次截图，进入下一轮
 
@@ -2031,19 +2003,16 @@ class ScreenWallClient:
             if self.hq_1080:
                 hq = True
                 hq_limit = 1080
-                hq_quality = 45  # 1080p 用质量45
             elif self.hq_mode:
                 hq = True
                 hq_limit = 720
-                hq_quality = 45  # 720p 也用质量45（与1080p一致）
             else:
                 # 默认低清模式：hq=False，走 resizeW×H 路径（480×270），比例固定
                 hq = False
-                hq_limit = 720
-                hq_quality = 30  # 小图用质量30
+                hq_limit = 720  # 不影响 hq=False 的情况
             capt = ScreenCapturer(cfg["quality"], cfg["resizeW"], cfg["resizeH"], monitor_index=_current_monitor_index)
             try:
-                img_bytes = capt.capture(hq=hq, hq_limit=hq_limit, hq_quality=hq_quality)
+                img_bytes = capt.capture(hq=hq, hq_limit=hq_limit, hq_quality=45)
             finally:
                 capt.close()
 
@@ -2066,46 +2035,15 @@ class ScreenWallClient:
                 except Exception:
                     break
 
-            # 帧率控制：小图8fps，720p用12fps，1080p用15fps
-            if self.hq_1080:
-                target_interval = 0.067  # 15fps
-            elif self.hq_mode:
-                target_interval = 0.083  # 12fps
-            else:
-                target_interval = 0.125  # 8fps
+            # HQ 模式使用服务器指定的间隔，LQ 使用配置的间隔
+            # interval = self.hq_interval if (self.hq_mode and self.hq_interval) else cfg["interval"]
+            # 改为统一 8fps（0.125s），动态 sleep 补偿处理耗时
+            target_interval = 0.125  # 目标帧间隔 125ms
             elapsed = time.time() - frame_start  # 本帧已耗时
             sleep_time = max(0, target_interval - elapsed)  # 动态 sleep
             await asyncio.sleep(sleep_time)
 
         await self._cleanup_ws()
-
-    async def _send_hq_snapshot(self, cfg, ws):
-        """startHQ 触发时立即截图并发送，消除等待下一帧周期的延迟"""
-        try:
-            off_x, off_y, off_w, off_h = _get_current_monitor_offset()
-            screen = self._dxgi_capture()
-            if screen is None:
-                return
-            # 截取全屏或指定区域
-            if off_w == 0 or off_h == 0:
-                frame = screen
-            else:
-                frame = screen.crop((off_x, off_y, off_x + off_w, off_y + off_h))
-            # WebP 编码（质量 45）
-            buf = io.BytesIO()
-            frame.save(buf, format='WEBP', quality=45)
-            img_bytes = buf.getvalue()
-            b64 = base64.b64encode(img_bytes).decode('ascii')
-            await ws.send(json.dumps({
-                'type': 'hqSnapshot',
-                'deviceId': cfg['deviceId'],
-                'hq': True,
-                'image': 'data:image/webp;base64,' + b64,
-                'screenWidth': off_w,
-                'screenHeight': off_h,
-            }))
-        except Exception:
-            pass  # 静默失败，不影响主流程
 
     async def _listen(self, ws, cfg):
         try:
@@ -2125,8 +2063,7 @@ class ScreenWallClient:
                     elif msg_type == "startHQ":
                         self.hq_mode = True
                         self.hq_streaming = True
-                        # 立即触发一帧高清截图，消除"转圈等帧"的延迟
-                        asyncio.create_task(self._send_hq_snapshot(cfg, ws))
+                        # 不再接收 interval，客户端统一用 0.125s（8fps）
                     elif msg_type == "stopHQ":
                         # 直接关闭 HQ 模式，不再捕获静态帧
                         self.hq_mode = False
