@@ -2281,6 +2281,12 @@ function getPositionLabel(index) {
 
 function rebuildSidebar() {
   const list = document.getElementById('sidebarList');
+  
+  // 保存当前打开的弹窗状态
+  const openPopupId = document.querySelector('.rename-popup[style*="flex"]')?.id;
+  const openDeviceId = openPopupId ? openPopupId.replace('renamePopup_', '') : null;
+  const openInputValue = openDeviceId ? document.getElementById('renameInput_' + openDeviceId)?.value : null;
+  
   const filtered = devices;
 
   if (filtered.length === 0) {
@@ -2350,6 +2356,39 @@ function rebuildSidebar() {
   // 同时更新筛选面板
   if (typeof rebuildFilterPanel === 'function') {
     rebuildFilterPanel();
+  }
+  
+  // 恢复之前打开的弹窗
+  if (openDeviceId && document.getElementById('renamePopup_' + openDeviceId)) {
+    const popup = document.getElementById('renamePopup_' + openDeviceId);
+    const input = document.getElementById('renameInput_' + openDeviceId);
+    popup.style.display = 'flex';
+    if (input && openInputValue) {
+      input.value = openInputValue;
+    }
+    if (input) {
+      input.focus();
+      input.select();
+      // 重新绑定键盘事件
+      input.onkeydown = function(e) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          confirmRename(openDeviceId);
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          hideRenamePopup(openDeviceId);
+        }
+      };
+    }
+    // 重新绑定点击外部关闭
+    setTimeout(function() {
+      document.addEventListener('click', function closePopup(e) {
+        if (!popup.contains(e.target)) {
+          hideRenamePopup(openDeviceId);
+          document.removeEventListener('click', closePopup);
+        }
+      });
+    }, 100);
   }
 }
 
