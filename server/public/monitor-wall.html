@@ -226,16 +226,21 @@ const watchdog = (function() {
 
   function check() {
     const now = Date.now();
+    const expired = [];
     for (const deviceId in _lastUpdate) {
       if (now - _lastUpdate[deviceId] > TIMEOUT_MS) {
         const img = document.getElementById('img_' + deviceId);
         if (img && img.src) {
-          // 强制刷新
           const currentSrc = img.src;
           img.src = '';
           img.src = currentSrc;
         }
+        // 超时设备标记清理，避免 _lastUpdate 只增不减
+        expired.push(deviceId);
       }
+    }
+    for (let i = 0; i < expired.length; i++) {
+      delete _lastUpdate[expired[i]];
     }
   }
 
@@ -1036,32 +1041,59 @@ function formatDate(date) {
 // ─────────────────────────────────────────
 // 滚轮放大 + 拖拽功能（与main.html预览一致）
 // ─────────────────────────────────────────
-var _wallDragState = {}; // deviceId -> { isDragging, startX, startY, initTranslateX, initTranslateY }
+
+// ── 全局拖拽状态（全局只注册1对 mousemove/mouseup，避免N格子×2监听器堆积）──
+var _activeDrag = null; // { cell, deviceId, img, sX, sY, initTranslateX, initTranslateY, isDragging }
+var _zoomTimers = {}; // deviceId -> timerId
+
+document.addEventListener('mousemove', function(e) {
+  if (!_activeDrag) return;
+  var dx = e.clientX - _activeDrag.sX;
+  var dy = e.clientY - _activeDrag.sY;
+
+  if (!_activeDrag.isDragging && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
+    _activeDrag.isDragging = true;
+    _activeDrag.cell.style.cursor = 'grabbing';
+  }
+  if (!_activeDrag.isDragging) return;
+
+  var dev = devices[_activeDrag.deviceId];
+  if (!dev || !dev.crop) return;
+
+  dev.crop.translateX = _activeDrag.initTranslateX + dx / (dev.crop.scale * 1.5);
+  dev.crop.translateY = _activeDrag.initTranslateY + dy / (dev.crop.scale * 1.5);
+  _activeDrag.img.style.transform = 'scale(' + dev.crop.scale + ') translate(' + dev.crop.translateX + 'px, ' + dev.crop.translateY + 'px)';
+});
+
+document.addEventListener('mouseup', function(e) {
+  if (!_activeDrag) return;
+  if (_activeDrag.isDragging) {
+    _activeDrag.cell._justDragged = true;
+    setTimeout(function() { _activeDrag.cell._justDragged = false; }, 50);
+  }
+  _activeDrag.cell.style.cursor = '';
+  _activeDrag = null;
+});
+
+function _hideZoom(deviceId) {
+  var zoomEl = document.getElementById('zoom_' + deviceId);
+  if (zoomEl) zoomEl.style.opacity = '0';
+}
+
+function _showZoom(deviceId, scale) {
+  var zoomEl = document.getElementById('zoom_' + deviceId);
+  if (!zoomEl) return;
+  zoomEl.textContent = Math.round(scale * 100) + '%';
+  zoomEl.style.opacity = scale === 1 ? '0' : '1';
+  if (_zoomTimers[deviceId]) clearTimeout(_zoomTimers[deviceId]);
+  if (scale !== 1) {
+    _zoomTimers[deviceId] = setTimeout(function() { _hideZoom(deviceId); }, 2000);
+  }
+}
 
 function makeWallCellDraggable(cell, deviceId) {
   var img = document.getElementById('img_' + deviceId);
   if (!img) return;
-
-  var _sX, _sY;
-  var _initTranslateX = 0, _initTranslateY = 0;
-  var _isDragging = false;
-  var _zoomTimer = null;
-
-  function hideZoom() {
-    var zoomEl = document.getElementById('zoom_' + deviceId);
-    if (zoomEl) zoomEl.style.opacity = '0';
-  }
-
-  function showZoom(scale) {
-    var zoomEl = document.getElementById('zoom_' + deviceId);
-    if (!zoomEl) return;
-    zoomEl.textContent = Math.round(scale * 100) + '%';
-    zoomEl.style.opacity = scale === 1 ? '0' : '1';
-    if (_zoomTimer) clearTimeout(_zoomTimer);
-    if (scale !== 1) {
-      _zoomTimer = setTimeout(hideZoom, 2000);
-    }
-  }
 
   // 滚轮放大/缩小
   cell.addEventListener('wheel', function(e) {
@@ -1069,40 +1101,31 @@ function makeWallCellDraggable(cell, deviceId) {
     var dev = devices[deviceId];
     if (!dev) return;
     var crop = dev.crop || { scale: 1, translateX: 0, translateY: 0 };
-    // 归一化 deltaY
     var normalizedDelta = Math.abs(e.deltaY) > 1 ? e.deltaY / 120 : e.deltaY;
-    // 方向判断：deltaY < 0 向上滚动（放大），> 0 向下滚动（缩小）
     var step = 0.05;
     var delta = normalizedDelta < 0 ? step : -step;
     var newScale = crop.scale + delta;
     
-    // 弹性边界
     if (newScale < 1) {
-      // scale=1时下滚：有偏移则重置居中，倍数不变
       if (crop.scale === 1 && (crop.translateX !== 0 || crop.translateY !== 0)) {
         crop.translateX = 0;
         crop.translateY = 0;
         dev.crop = crop;
         img.style.transform = '';
         img.style.transformOrigin = 'center center';
-        hideZoom();
+        _hideZoom(deviceId);
       }
       return;
     }
     if (newScale > 3) newScale = 3;
-    if (Math.abs(newScale - crop.scale) < 0.001 && crop.scale === 1) {
-      // scale=1时无偏移，直接忽略小变化
-      return;
-    }
+    if (Math.abs(newScale - crop.scale) < 0.001 && crop.scale === 1) return;
 
-    // 以鼠标位置为中心缩放（计算偏移）
     var rect = cell.getBoundingClientRect();
     var mouseX = e.clientX - rect.left - rect.width / 2;
     var mouseY = e.clientY - rect.top - rect.height / 2;
     var scaleDiff = newScale - crop.scale;
 
     crop.scale = newScale;
-    // scale=1 时只在下滚（缩小）时重置居中，拖拽不触发
     if (newScale === 1 && delta < 0) {
       crop.translateX = 0;
       crop.translateY = 0;
@@ -1112,66 +1135,30 @@ function makeWallCellDraggable(cell, deviceId) {
     }
     dev.crop = crop;
 
-    // scale > 1 显示 grab 光标
-    if (newScale > 1) {
-      cell.style.cursor = 'grab';
-    } else {
-      cell.style.cursor = '';
-    }
+    cell.style.cursor = newScale > 1 ? 'grab' : '';
 
-    // 应用 transform（全程用 contain，双层结构：外层cover切边，内层contain放大）
     img.style.transform = 'scale(' + crop.scale + ') translate(' + (crop.translateX || 0) + 'px, ' + (crop.translateY || 0) + 'px)';
     img.style.transformOrigin = 'center center';
 
-    // 更新缩放比例显示
-    showZoom(crop.scale);
+    _showZoom(deviceId, crop.scale);
   }, { passive: false });
 
-  // 拖拽开始
+  // 拖拽开始（只设全局状态，不注册 document 监听器）
   cell.addEventListener('mousedown', function(e) {
     if (e.target.tagName === 'BUTTON') return;
     var dev = devices[deviceId];
     if (!dev || !dev.crop) return;
-    _sX = e.clientX;
-    _sY = e.clientY;
-    _initTranslateX = dev.crop.translateX || 0;
-    _initTranslateY = dev.crop.translateY || 0;
-    _isDragging = false;
+    _activeDrag = {
+      cell: cell,
+      deviceId: deviceId,
+      img: img,
+      sX: e.clientX,
+      sY: e.clientY,
+      initTranslateX: dev.crop.translateX || 0,
+      initTranslateY: dev.crop.translateY || 0,
+      isDragging: false
+    };
     e.preventDefault();
-  });
-
-  // 拖拽移动
-  document.addEventListener('mousemove', function(e) {
-    if (_sX === undefined) return;
-    var dx = e.clientX - _sX;
-    var dy = e.clientY - _sY;
-
-    // 开始拖拽
-    if (!_isDragging && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
-      _isDragging = true;
-      cell.style.cursor = 'grabbing';
-    }
-    if (!_isDragging) return;
-
-    var dev = devices[deviceId];
-    if (!dev || !dev.crop) return;
-
-    // 按缩放系数调整移动速度
-    dev.crop.translateX = _initTranslateX + dx / (dev.crop.scale * 1.5);
-    dev.crop.translateY = _initTranslateY + dy / (dev.crop.scale * 1.5);
-    img.style.transform = 'scale(' + dev.crop.scale + ') translate(' + dev.crop.translateX + 'px, ' + dev.crop.translateY + 'px)';
-  });
-
-  // 拖拽释放
-  document.addEventListener('mouseup', function(e) {
-    if (_isDragging) {
-      cell._justDragged = true;
-      setTimeout(function() { cell._justDragged = false; }, 50);
-    }
-    _sX = undefined;
-    _sY = undefined;
-    cell.style.cursor = '';
-    _isDragging = false;
   });
 }
 
@@ -1202,6 +1189,17 @@ window.addEventListener('beforeunload', function() {
     }
   }
   watchdog.stop();
+  // 清理所有 Blob URL，避免长时间挂墙页面内存不释放
+  for (var id in _wallBlobs) {
+    if (_wallBlobs[id]) URL.revokeObjectURL(_wallBlobs[id]);
+  }
+  _wallBlobs = {};
+  _wallBlobMds = {};
+  // 清理缩放显示定时器
+  for (var zid in _zoomTimers) {
+    if (_zoomTimers[zid]) clearTimeout(_zoomTimers[zid]);
+  }
+  _zoomTimers = {};
   try {
     var stored = localStorage.getItem('walledDevices');
     if (stored && wallData && wallData.devices) {
