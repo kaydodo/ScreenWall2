@@ -53,7 +53,7 @@ function serverLog(...args) {
     const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
     const line = `[${ts}] ${msg}\n`;
     try {
-        fs.writeSync(1, line);  // stdout fd=1，Windows上比process.stdout.write更原子
+        process.stdout.write(line);  // 自动处理Windows控制台编码
     } catch(e) { /* ignore */ }
     try {
         _openLog();
