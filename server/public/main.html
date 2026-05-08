@@ -2834,7 +2834,7 @@ function openPreview(cellIndex) {
   const cell = gridCells[cellIndex];
   if (!cell || !cell.deviceId) return;
 
-  // 1. 在线设备：等实时帧（previewScreenshot），不显示缓存旧帧；离线设备：显示静态图
+  // 1. 在线设备：先显示缓存截图（即使低分辨率），再请求HQ；离线设备：显示静态图
   const dev = devices.find(d => d.deviceId === cell.deviceId);
   const isOffline = dev ? !dev.online : true;
   const previewImg = document.getElementById('previewImg');
@@ -2846,13 +2846,15 @@ function openPreview(cellIndex) {
   previewImg.style.visibility = 'hidden';
   previewImg.style.filter = '';
 
-  if (isOffline) {
-    // 离线：显示最新静态图
-    const staticImg = (dev && dev.screenshot) || cell.screenshot || '';
-    if (staticImg) {
-      previewImg.src = staticImg;
-      previewImg.style.display = 'block';
-      previewImg.style.visibility = 'visible';
+  // 显示缓存截图（离线显示静态图，在线显示低分辨率缓存）
+  const cachedImg = (dev && dev.screenshot) || cell.screenshot || '';
+  if (cachedImg) {
+    previewImg.src = cachedImg;
+    previewImg.style.display = 'block';
+    previewImg.style.visibility = 'visible';
+    // 在线设备：稍后被HQ替换，加透明度提示用户等待
+    if (!isOffline) {
+      previewImg.style.opacity = '0.4';
     }
   }
 
