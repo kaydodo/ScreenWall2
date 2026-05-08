@@ -19,7 +19,7 @@ import time
 import webbrowser
 
 # 客户端版本号（每次功能更新时手动递增）
-CLIENT_VERSION = "1.7.10"
+CLIENT_VERSION = "1.7.11"
 
 
 def _get_mac_address():
@@ -955,10 +955,10 @@ class ScreenCapturer:
             return m["left"], m["top"], m["width"], m["height"]
         return 0, 0, 1920, 1080
 
-    def capture(self, hq=False, lossless=False, hq_limit=720, hq_quality=45, is_static=False):
+    def capture(self, hq=False, lossless=False, hq_limit=720, hq_quality=30, is_static=False):
         # hq_limit: HQ 模式分辨率上限，默认 720p（普通预览），可设为 1080（高清预览）
         # is_static: 是否为静态截图（收藏/报警），静态用 WebP 质量 30，实时流全量 WebP
-        # 实时流：480x270 用 WebP 质量 45，720P/1080P 用 WebP 质量 hq_quality
+        # 实时流：480x270 用 WebP 质量 45，720P/1080P 用 WebP 质量 hq_quality（默认30）
         img_bytes = None
         use_dxgi = False
 
@@ -2012,7 +2012,7 @@ class ScreenWallClient:
                 hq_limit = 720  # 不影响 hq=False 的情况
             capt = ScreenCapturer(cfg["quality"], cfg["resizeW"], cfg["resizeH"], monitor_index=_current_monitor_index)
             try:
-                img_bytes = capt.capture(hq=hq, hq_limit=hq_limit, hq_quality=45)
+                img_bytes = capt.capture(hq=hq, hq_limit=hq_limit, hq_quality=30)
             finally:
                 capt.close()
 
