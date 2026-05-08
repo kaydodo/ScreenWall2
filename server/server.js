@@ -1899,20 +1899,19 @@ wssClient.on('connection', (ws, req) => {
           _scheduleWallBatch();
         }
 
-        // ── previewScreenshot：仅 HQ 模式，推送给大图预览 ─────
-        if (msg.hq) {
-          const previewMsg = JSON.stringify({
-            type: 'previewScreenshot',
-            deviceId: msg.deviceId,
-            image: msg.image,
-            timestamp: now,
-            screenWidth: dev.screenWidth || 1920,
-            screenHeight: dev.screenHeight || 1080
-          });
-          for (const [previewWs, previewInfo] of previewClients) {
-            if (previewInfo.deviceId === msg.deviceId && previewWs.readyState === 1) {
-              previewWs.send(previewMsg);
-            }
+        // ── previewScreenshot：无论 HQ 还是普通模式，每帧都推送给大图预览
+        // 先到普通图先显示，HQ 帧到了自动替换，不会因等待高清而黑屏
+        const previewMsg = JSON.stringify({
+          type: 'previewScreenshot',
+          deviceId: msg.deviceId,
+          image: msg.image,
+          timestamp: now,
+          screenWidth: dev.screenWidth || 1920,
+          screenHeight: dev.screenHeight || 1080
+        });
+        for (const [previewWs, previewInfo] of previewClients) {
+          if (previewInfo.deviceId === msg.deviceId && previewWs.readyState === 1) {
+            previewWs.send(previewMsg);
           }
         }
       }
