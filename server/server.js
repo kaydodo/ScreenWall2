@@ -1866,6 +1866,21 @@ wssClient.on('connection', (ws, req) => {
           // 入批（覆盖旧帧，每设备只保留最新一帧）
           _browserBatch.set(msg.deviceId, { image: msg.image, timestamp: now });
           _scheduleBrowserBatch();
+
+          // ── 预览通道也推送低清图：打开预览时立即显示，不等HQ帧 ─────
+          // 推给订阅了该设备的预览客户端（bypass MD5去重，保证实时性）
+          const previewMsgLow = JSON.stringify({
+            type: 'browserScreenshot',
+            deviceId: msg.deviceId,
+            image: msg.image,
+            screenWidth: dev.screenWidth || 1920,
+            screenHeight: dev.screenHeight || 1080
+          });
+          for (const [previewWs, previewInfo] of previewClients) {
+            if (previewInfo.deviceId === msg.deviceId && previewWs.readyState === 1) {
+              previewWs.send(previewMsgLow);
+            }
+          }
         }
 
         // ── wallScreenshot：批量攒批推送（减少 Browser 进程 IPC 压力）────
