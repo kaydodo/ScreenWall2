@@ -109,8 +109,13 @@ function reloadServerConfig() {
     serverError('[配置] 重载 config.json 失败:', err.message);
   }
 }
-fs.watch(SERVER_CONFIG_PATH, { persistent: false }, (eventType) => {
-  if (eventType === 'change') reloadServerConfig();
+// 使用 fs.watchFile 轮询监听（兼容 FTP/SFTP 上传场景）
+// FTP 上传常用「删除旧文件 → 写入新文件」或「重命名临时文件」方式，fs.watch 会丢失事件
+fs.watchFile(SERVER_CONFIG_PATH, { interval: 5000 }, (curr, prev) => {
+  if (curr.mtimeMs !== prev.mtimeMs) {
+    serverLog('[配置] 检测到 config.json 文件变化，重新加载...');
+    reloadServerConfig();
+  }
 });
 
 function serverError(...args) {
