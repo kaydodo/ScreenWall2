@@ -634,7 +634,6 @@ let renderScheduled = false;
 // Blob URL 系统：避免 base64 每帧解码导致位图缓存堆积
 // Map<cellIndex, { blobUrl: string, md5: string, timestamp: number }>
 const _cellBlobs = new Map();
-let _previewBlobUrl = null;
 let _previewBlobMd5 = null;
 
 // 自愈帧计数：deviceId -> 收到的新鲜帧数量（超过阈值才算真正在线）
@@ -2250,21 +2249,12 @@ function base64ToBlob(base64, mimeType) {
   return new Blob([bytes], { type: mimeType });
 }
 
-// 预览图 Blob URL 辅助：内容相同则复用 URL，避免重复解码
+// 预览图：直接赋值 base64，无 blob 开销，MD5 去重避免重复 DOM 更新
 function setPreviewBlobSrc(imgEl, base64) {
   const md5 = base64.slice(-32, -1); // 用末尾32字符近似md5
   if (_previewBlobMd5 === md5) return; // 内容未变，跳过
-  if (_previewBlobUrl) {
-    try { URL.revokeObjectURL(_previewBlobUrl); } catch(e) {}
-  }
-  try {
-    const blob = base64ToBlob(base64, 'image/webp');
-    _previewBlobUrl = URL.createObjectURL(blob);
-    _previewBlobMd5 = md5;
-    imgEl.src = _previewBlobUrl;
-  } catch(e) {
-    imgEl.src = base64; // blob 失败降级 base64
-  }
+  _previewBlobMd5 = md5;
+  imgEl.src = base64; // 直接赋值，无 blob 开销
 }
 
 // 格子位置标签 A1, A2, ... B1, B2, ...
@@ -3015,12 +3005,8 @@ function closePreview() {
   if (pa2) { pa2.oncontextmenu = null; pa2.onwheel = null; pa2.onmousedown = null; }
   // 先移除图片显示，再设置src，避免浏览器尝试加载base64作为URL
   if (previewImg) { previewImg.style.display = 'none'; previewImg.style.filter = ''; previewImg.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'; }
-  // 清理预览 Blob URL
-  if (_previewBlobUrl) {
-    try { URL.revokeObjectURL(_previewBlobUrl); } catch(e) {}
-    _previewBlobUrl = null;
-    _previewBlobMd5 = null;
-  }
+  // 重置预览 dedup 状态
+  _previewBlobMd5 = null;
   // 清理格子 Blob URL
   for (const [idx, entry] of _cellBlobs) {
     try { URL.revokeObjectURL(entry.blobUrl); } catch(e) {}
@@ -6570,10 +6556,7 @@ window.addEventListener('beforeunload', function() {
   }
   _cellBlobs.clear();
   // 清理预览 Blob URL
-  if (_previewBlobUrl) {
-    try { URL.revokeObjectURL(_previewBlobUrl); } catch(e) {}
-    _previewBlobUrl = null;
-  }
+
   // 清理监控弹窗缩放定时器
   Object.keys(monitorZoomTimers).forEach(function(key) {
     clearTimeout(monitorZoomTimers[key]);
