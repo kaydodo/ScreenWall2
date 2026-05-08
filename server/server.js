@@ -1841,7 +1841,7 @@ wssClient.on('connection', (ws, req) => {
           dev.screenshot = msg.image;
         } else {
           dev.screenshot = msg.image;
-          dev.hqScreenshot = null;
+          // 注意：不清空 hqScreenshot，保留缓存供预览使用
         }
 
         const now = Date.now();
