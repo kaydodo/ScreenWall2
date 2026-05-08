@@ -1511,7 +1511,7 @@ function connectWS() {
     }
 
     // ── 格子预览独立通道消息（不受帧缓存去重影响）──────
-    if (msg.type === 'previewScreenshot' && msg.deviceId && previewDeviceId === msg.deviceId) {
+    if ((msg.type === 'previewScreenshot' || msg.type === 'browserScreenshot') && msg.deviceId && previewDeviceId === msg.deviceId) {
       const previewImg = document.getElementById('previewImg');
       const watermark = document.getElementById('previewOfflineWatermark');
       // 保存设备分辨率用于鼠标点击映射
