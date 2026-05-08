@@ -19,7 +19,7 @@ import time
 import webbrowser
 
 # 客户端版本号（每次功能更新时手动递增）
-CLIENT_VERSION = "1.7.9"
+CLIENT_VERSION = "1.7.10"
 
 
 def _get_mac_address():
@@ -928,7 +928,7 @@ def _capture_dxgi(width, height):
 
 
 class ScreenCapturer:
-    def __init__(self, quality=30, resize_w=480, resize_h=270, monitor_index=1):
+    def __init__(self, quality=45, resize_w=480, resize_h=270, monitor_index=1):
         self.quality = quality
         self.resize_w = resize_w
         self.resize_h = resize_h
@@ -958,7 +958,7 @@ class ScreenCapturer:
     def capture(self, hq=False, lossless=False, hq_limit=720, hq_quality=45, is_static=False):
         # hq_limit: HQ 模式分辨率上限，默认 720p（普通预览），可设为 1080（高清预览）
         # is_static: 是否为静态截图（收藏/报警），静态用 WebP 质量 30，实时流全量 WebP
-        # 实时流：480x270 用 WebP 质量 30，720P/1080P 用 WebP 质量 hq_quality
+        # 实时流：480x270 用 WebP 质量 45，720P/1080P 用 WebP 质量 hq_quality
         img_bytes = None
         use_dxgi = False
 
@@ -1028,7 +1028,7 @@ class ScreenCapturer:
                         if is_static:
                             pic.save(buf, format="WEBP", quality=30, method=6)
                         elif not hq:
-                            pic.save(buf, format="WEBP", quality=30, method=6)
+                            pic.save(buf, format="WEBP", quality=45, method=6)
                         else:
                             pic.save(buf, format="WEBP", quality=hq_quality, method=6)
                         img_bytes = buf.getvalue()
@@ -1057,7 +1057,7 @@ class ScreenCapturer:
                     if is_static:
                         pic.save(buf, format="WEBP", quality=30, method=6)
                     elif not hq:
-                        pic.save(buf, format="WEBP", quality=30, method=6)
+                        pic.save(buf, format="WEBP", quality=45, method=6)
                     else:
                         pic.save(buf, format="WEBP", quality=hq_quality, method=6)
                     img_bytes = buf.getvalue()
@@ -1831,7 +1831,7 @@ class ScreenWallClient:
             "deviceName":   device_name,
             "computerName": os.environ.get("COMPUTERNAME", ""),
             "uuDeviceId":   uu_device_id,
-            "quality":      30,     # 小图 JPG 质量 30
+            "quality":      45,     # 小图 WebP 质量 45
             "resizeW":      480,     # 写死
             "resizeH":      270,     # 写死
         }
