@@ -3044,7 +3044,7 @@ wssBrowser.on('connection', (ws) => {
         const latestScreenshot = dev.hqScreenshot || dev.screenshot;
         if (latestScreenshot) {
           ws.send(JSON.stringify({
-            type: 'screenshot',
+            type: 'previewScreenshot',
             deviceId: msg.deviceId,
             image: latestScreenshot,
             hq: !!dev.hqScreenshot,
