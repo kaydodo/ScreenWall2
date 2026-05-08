@@ -19,7 +19,7 @@ import time
 import webbrowser
 
 # 客户端版本号（每次功能更新时手动递增）
-CLIENT_VERSION = "1.7.8"
+CLIENT_VERSION = "1.7.9"
 
 
 def _get_mac_address():
@@ -1935,7 +1935,7 @@ class ScreenWallClient:
             # 心跳计数：每 240 帧（约 30 秒 @ 8fps）主动发一次心跳
             # 心跳用于接收服务端的升级通知，不依赖截图失败才触发
             self._heartbeat_tick += 1
-            heartbeat_interval = 240  # 可配置，每 N 帧发一次心跳（约30秒 @ 8fps）
+            heartbeat_interval = 180  # 可配置，每 N 帧发一次心跳（约30秒 @ 6fps）
             if self._heartbeat_tick >= heartbeat_interval:
                 self._heartbeat_tick = 0
                 try:
@@ -1994,8 +1994,8 @@ class ScreenWallClient:
                 except Exception:
                     break
                 # interval = self.hq_interval if (self.hq_mode and self.hq_interval) else cfg["interval"]
-                # 改为统一 8fps（0.125s），服务端不再下发 interval
-                interval = 0.125
+                # HQ模式固定 6fps（~166.7ms），动态 sleep 补偿处理耗时
+                interval = 1 / 6
                 await asyncio.sleep(interval)
                 continue  # 跳过本次截图，进入下一轮
 
@@ -2037,8 +2037,8 @@ class ScreenWallClient:
 
             # HQ 模式使用服务器指定的间隔，LQ 使用配置的间隔
             # interval = self.hq_interval if (self.hq_mode and self.hq_interval) else cfg["interval"]
-            # 改为统一 8fps（0.125s），动态 sleep 补偿处理耗时
-            target_interval = 0.125  # 目标帧间隔 125ms
+            # 统一 6fps（~166.7ms），动态 sleep 补偿处理耗时
+            target_interval = 1 / 6  # 目标帧间隔 ~166.7ms（6fps）
             elapsed = time.time() - frame_start  # 本帧已耗时
             sleep_time = max(0, target_interval - elapsed)  # 动态 sleep
             await asyncio.sleep(sleep_time)
@@ -2063,7 +2063,7 @@ class ScreenWallClient:
                     elif msg_type == "startHQ":
                         self.hq_mode = True
                         self.hq_streaming = True
-                        # 不再接收 interval，客户端统一用 0.125s（8fps）
+                        # 不再接收 interval，客户端统一用 6fps（~166.7ms）
                     elif msg_type == "stopHQ":
                         # 直接关闭 HQ 模式，不再捕获静态帧
                         self.hq_mode = False
