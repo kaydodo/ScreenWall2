@@ -245,14 +245,18 @@ let gridSizeSetting = 4;  // 默认布局大小
 // ========== wallScreenshot 批量推送（监控墙，同优化）==========
 const _wallBatch = new Map();
 let _wallBatchScheduled = false;
-function sendBinaryScreenshot(ws, frameType, deviceId, webpBuffer) {
+function sendBinaryScreenshot(ws, frameType, deviceId, webpBuffer, screenWidth, screenHeight, isHQ) {
   if (ws.readyState !== 1 || !webpBuffer || webpBuffer.length === 0) return;
   try {
     const devIdBytes = Buffer.from(deviceId, 'utf8');
-    const header = Buffer.alloc(1 + 4 + devIdBytes.length);
+    const header = Buffer.alloc(8 + devIdBytes.length);
     header[0] = frameType;
-    header.writeUInt32BE(devIdBytes.length, 1);
-    devIdBytes.copy(header, 5);
+    header[1] = devIdBytes.length;
+    header[2] = isHQ ? 0x01 : 0x00;  // flags: bit0 = HQ
+    header[3] = 0x00;  // reserved
+    header.writeUInt16BE(screenWidth || 0, 4);
+    header.writeUInt16BE(screenHeight || 0, 6);
+    devIdBytes.copy(header, 8);
     ws.send(Buffer.concat([header, webpBuffer]));
   } catch(e) {}
 }
@@ -264,7 +268,7 @@ function _flushWallBatch() {
     for (const wallWs of wallClients) {
       if (wallWs.readyState !== 1) continue;
       for (const [deviceId, data] of _wallBatch) {
-        if (data.buffer) sendBinaryScreenshot(wallWs, 0x12, deviceId, data.buffer);
+        if (data.buffer) sendBinaryScreenshot(wallWs, 0x12, deviceId, data.buffer, data.screenWidth || 0, data.screenHeight || 0, false);
       }
     }
   } catch(e) { log('error', 'wall二进制批量推送失败:', e.message); }
@@ -293,7 +297,7 @@ function _flushBrowserBatch() {
     for (const browserWs of browserClients) {
       if (browserWs.readyState !== 1 || wallClients.has(browserWs)) continue;
       for (const [deviceId, data] of _browserBatch) {
-        if (data.buffer) sendBinaryScreenshot(browserWs, 0x10, deviceId, data.buffer);
+        if (data.buffer) sendBinaryScreenshot(browserWs, 0x10, deviceId, data.buffer, data.screenWidth || 0, data.screenHeight || 0, data.isHQ || false);
       }
     }
   } catch(e) { log('error', '二进制批量推送失败:', e.message); }
@@ -1537,20 +1541,7 @@ const wssBrowser = new WebSocketServer({ noServer: true, ...wsDeflateOptions });
 wssClient.on('connection', (ws, req) => {
   const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
   ws._ip = ip;
-  // 辅助：发送二进制截图帧到浏览器
-  function sendBinaryScreenshot(ws, frameType, deviceId, webpBuffer) {
-    if (ws.readyState !== 1 || !webpBuffer || webpBuffer.length === 0) return;
-    try {
-      const devIdBytes = Buffer.from(deviceId, 'utf8');
-      const header = Buffer.alloc(1 + 4 + devIdBytes.length);
-      header[0] = frameType; // 0x10=browser, 0x11=preview, 0x12=wall
-      header.writeUInt32BE(devIdBytes.length, 1);
-      devIdBytes.copy(header, 5);
-      ws.send(Buffer.concat([header, webpBuffer]));
-    } catch(e) {}
-  }
-
-  ws.on('message', (raw) => {
+  // 不再需要内层定义 sendBinaryScreenshot，统一使用顶层函数
     // ── 二进制截图帧（客户端直接发 WebP Buffer，无 Base64）──
     if (Buffer.isBuffer(raw) && raw.length > 8) {
       const frameType = raw[0];
@@ -1571,10 +1562,10 @@ wssClient.on('connection', (ws, req) => {
           dev._frameCount = (dev._frameCount || 0) + 1;
           const now = Date.now();
           if (!dev.online) { dev.online = true; broadcastToBrowsers({ type: 'deviceList', devices: getDeviceListPayload() }); }
-          _browserBatch.set(deviceId, { buffer: webpBuffer, timestamp: now, isHQ });
+          _browserBatch.set(deviceId, { buffer: webpBuffer, timestamp: now, isHQ, screenWidth, screenHeight });
           _scheduleBrowserBatch();
-          if (monitorWallDevices.has(deviceId)) { _wallBatch.set(deviceId, { buffer: webpBuffer, timestamp: now }); _scheduleWallBatch(); }
-          for (const [pw, pi] of previewClients) { if (pi.deviceId === deviceId && pw.readyState === 1) sendBinaryScreenshot(pw, 0x11, deviceId, webpBuffer); }
+          if (monitorWallDevices.has(deviceId)) { _wallBatch.set(deviceId, { buffer: webpBuffer, timestamp: now, screenWidth, screenHeight }); _scheduleWallBatch(); }
+          for (const [pw, pi] of previewClients) { if (pi.deviceId === deviceId && pw.readyState === 1) sendBinaryScreenshot(pw, 0x11, deviceId, webpBuffer, screenWidth, screenHeight, isHQ); }
         } catch(e) { serverError('[二进制帧] 解析失败:', e.message); }
         return;
       }
