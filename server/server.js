@@ -1542,7 +1542,9 @@ wssClient.on('connection', (ws, req) => {
   const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
   ws._ip = ip;
   // 不再需要内层定义 sendBinaryScreenshot，统一使用顶层函数
-    // ── 二进制截图帧（客户端直接发 WebP Buffer，无 Base64）──
+
+  ws.on('message', (raw) => {
+  // ── 二进制截图帧（客户端直接发 WebP Buffer，无 Base64）──
     if (Buffer.isBuffer(raw) && raw.length > 8) {
       const frameType = raw[0];
       if (frameType === 0x01 && raw[1] > 0) {
