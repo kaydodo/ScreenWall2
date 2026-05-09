@@ -136,6 +136,7 @@ def _roundrect(canvas, x1, y1, x2, y2, r, **kwargs):
     _line(x1, y2 - r, x1, y1 + r)
 import hashlib
 import base64
+import struct
 import subprocess
 import threading
 import winreg
@@ -2022,16 +2023,14 @@ class ScreenWallClient:
                     img_format = "image/webp"
                     # 获取当前分辨率（实时同步到服务端，用于鼠标点击坐标映射）
                     off_x, off_y, off_w, off_h = _get_current_monitor_offset()
-                    payload = {
-                        "type":       "screenshot",
-                        "deviceId":   cfg["deviceId"],
-                        "image":      "data:" + img_format + ";base64," + base64.b64encode(img_bytes).decode("ascii"),
-                        "hq":         self.hq_mode or self.hq_1080,
-                        "clientTime": int(time.time() * 1000),
-                        "screenWidth": off_w,
-                        "screenHeight": off_h,
-                    }
-                    await ws.send(json.dumps(payload))
+                    # 二进制帧: [0x01][devIdLen:1][flags:1][reserved:1][screenW:2BE][screenH:2BE][deviceId][webpBuffer]
+                    device_id_bytes = cfg["deviceId"].encode('utf8')
+                    flags = 0
+                    if self.hq_mode or self.hq_1080:
+                        flags |= 0x01
+                    header = struct.pack('>BBBBHH', 0x01, len(device_id_bytes), flags, 0, off_w, off_h)
+                    binary_frame = header + device_id_bytes + img_bytes
+                    await ws.send(binary_frame)
                 except Exception:
                     break
 

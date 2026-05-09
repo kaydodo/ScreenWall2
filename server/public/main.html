@@ -916,7 +916,8 @@ function connectWS() {
   setConnStatus('connecting');
   const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
   ws = new WebSocket(`${protocol}//${location.host}/ws/browser`);
-
+  ws.binaryType = 'arraybuffer';
+  
   ws.onopen = () => {
 //     console.log('[WS] connected');
     setConnStatus('connected');
@@ -943,6 +944,33 @@ function connectWS() {
   };
 
   ws.onmessage = (e) => {
+    // ── 二进制帧（server → browser）──
+    if (e.data instanceof ArrayBuffer) {
+      try {
+        const data = new Uint8Array(e.data);
+        const frameType = data[0];
+        if (frameType === 0x10 || frameType === 0x11) {
+          const devIdLen = new DataView(e.data).getUint32(1);
+          let off = 5;
+          const devId = new TextDecoder().decode(new Uint8Array(e.data, off, devIdLen));
+          off += devIdLen;
+          const webpBuf = e.data.slice(off);
+          const blob = new Blob([webpBuf], { type: 'image/webp' });
+          const blobUrl = URL.createObjectURL(blob);
+          if (frameType === 0x10) {
+            const el = document.querySelector('[data-device-id="' + devId + '"] .cell-img');
+            if (el) { if (el._blobUrl) URL.revokeObjectURL(el._blobUrl); el.src = blobUrl; el._blobUrl = blobUrl; }
+          } else if (frameType === 0x11) {
+            if (typeof previewDeviceId !== 'undefined' && previewDeviceId === devId && previewImgEl) {
+              if (previewImgEl._blobUrl) URL.revokeObjectURL(previewImgEl._blobUrl);
+              previewImgEl.src = blobUrl; previewImgEl._blobUrl = blobUrl;
+            }
+          }
+        }
+      } catch(ex) {}
+      return;
+    }
+    // ── JSON 消息 ──
     const msg = JSON.parse(e.data);
     _taskName = 'ws:' + (msg.type || 'unknown');
     const msgStart = performance.now();

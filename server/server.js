@@ -245,19 +245,29 @@ let gridSizeSetting = 4;  // 默认布局大小
 // ========== wallScreenshot 批量推送（监控墙，同优化）==========
 const _wallBatch = new Map();
 let _wallBatchScheduled = false;
+function sendBinaryScreenshot(ws, frameType, deviceId, webpBuffer) {
+  if (ws.readyState !== 1 || !webpBuffer || webpBuffer.length === 0) return;
+  try {
+    const devIdBytes = Buffer.from(deviceId, 'utf8');
+    const header = Buffer.alloc(1 + 4 + devIdBytes.length);
+    header[0] = frameType;
+    header.writeUInt32BE(devIdBytes.length, 1);
+    devIdBytes.copy(header, 5);
+    ws.send(Buffer.concat([header, webpBuffer]));
+  } catch(e) {}
+}
+
 function _flushWallBatch() {
   _wallBatchScheduled = false;
   if (_wallBatch.size === 0 || wallClients.size === 0) { _wallBatch.clear(); return; }
-  const screenshots = [];
-  for (const [deviceId, data] of _wallBatch) {
-    screenshots.push({ deviceId, screenshot: data.screenshot, timestamp: data.timestamp });
-  }
   try {
-    const batchMsg = JSON.stringify({ type: 'wallScreenshotBatch', screenshots });
-    for (const [wallWs] of wallClients) {
-      if (wallWs.readyState === 1) wallWs.send(batchMsg);
+    for (const wallWs of wallClients) {
+      if (wallWs.readyState !== 1) continue;
+      for (const [deviceId, data] of _wallBatch) {
+        if (data.buffer) sendBinaryScreenshot(wallWs, 0x12, deviceId, data.buffer);
+      }
     }
-  } catch(e) { log('error', 'wallBatch 推送失败:', e.message); }
+  } catch(e) { log('error', 'wall二进制批量推送失败:', e.message); }
   _wallBatch.clear();
 }
 function _scheduleWallBatch() {
@@ -279,20 +289,14 @@ function _flushBrowserBatch() {
     _browserBatch.clear();
     return;
   }
-  const screenshots = [];
-  for (const [deviceId, data] of _browserBatch) {
-    screenshots.push({ deviceId, image: data.image, timestamp: data.timestamp });
-  }
   try {
-    const batchMsg = JSON.stringify({ type: 'screenshotBatch', screenshots });
     for (const browserWs of browserClients) {
-      if (browserWs.readyState === 1 && !wallClients.has(browserWs)) {
-        browserWs.send(batchMsg);
+      if (browserWs.readyState !== 1 || wallClients.has(browserWs)) continue;
+      for (const [deviceId, data] of _browserBatch) {
+        if (data.buffer) sendBinaryScreenshot(browserWs, 0x10, deviceId, data.buffer);
       }
     }
-  } catch(e) {
-    log('error', '批量推送失败:', e.message);
-  }
+  } catch(e) { log('error', '二进制批量推送失败:', e.message); }
   _browserBatch.clear();
 }
 function _scheduleBrowserBatch() {
@@ -1533,9 +1537,48 @@ const wssBrowser = new WebSocketServer({ noServer: true, ...wsDeflateOptions });
 wssClient.on('connection', (ws, req) => {
   const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
   ws._ip = ip;
-  let deviceId = null;
+  // 辅助：发送二进制截图帧到浏览器
+  function sendBinaryScreenshot(ws, frameType, deviceId, webpBuffer) {
+    if (ws.readyState !== 1 || !webpBuffer || webpBuffer.length === 0) return;
+    try {
+      const devIdBytes = Buffer.from(deviceId, 'utf8');
+      const header = Buffer.alloc(1 + 4 + devIdBytes.length);
+      header[0] = frameType; // 0x10=browser, 0x11=preview, 0x12=wall
+      header.writeUInt32BE(devIdBytes.length, 1);
+      devIdBytes.copy(header, 5);
+      ws.send(Buffer.concat([header, webpBuffer]));
+    } catch(e) {}
+  }
 
   ws.on('message', (raw) => {
+    // ── 二进制截图帧（客户端直接发 WebP Buffer，无 Base64）──
+    if (Buffer.isBuffer(raw) && raw.length > 8) {
+      const frameType = raw[0];
+      if (frameType === 0x01 && raw[1] > 0) {
+        try {
+          const devIdLen = raw[1];
+          const flags = raw[2];
+          const isHQ = (flags & 0x01) !== 0;
+          const screenWidth = raw.readUInt16BE(4);
+          const screenHeight = raw.readUInt16BE(6);
+          const deviceId = raw.slice(8, 8 + devIdLen).toString('utf8');
+          const webpBuffer = raw.slice(8 + devIdLen);
+          let dev = devices.get(deviceId);
+          if (!dev) return;
+          dev.screenshot = webpBuffer;
+          dev.screenWidth = screenWidth;
+          dev.screenHeight = screenHeight;
+          dev._frameCount = (dev._frameCount || 0) + 1;
+          const now = Date.now();
+          if (!dev.online) { dev.online = true; broadcastToBrowsers({ type: 'deviceList', devices: getDeviceListPayload() }); }
+          _browserBatch.set(deviceId, { buffer: webpBuffer, timestamp: now, isHQ });
+          _scheduleBrowserBatch();
+          if (monitorWallDevices.has(deviceId)) { _wallBatch.set(deviceId, { buffer: webpBuffer, timestamp: now }); _scheduleWallBatch(); }
+          for (const [pw, pi] of previewClients) { if (pi.deviceId === deviceId && pw.readyState === 1) sendBinaryScreenshot(pw, 0x11, deviceId, webpBuffer); }
+        } catch(e) { serverError('[二进制帧] 解析失败:', e.message); }
+        return;
+      }
+    }
     let msg;
     try { msg = JSON.parse(raw); } catch (e) { 
       serverLog(`[设备消息] JSON解析失败: ${e.message}, raw长度: ${raw.length}`);

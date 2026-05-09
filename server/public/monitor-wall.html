@@ -674,6 +674,7 @@ function initWall() {
 function connectWebSocket() {
   var wsUrl = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws/browser';
   ws = new WebSocket(wsUrl);
+  ws.binaryType = "arraybuffer";
 
   ws.onopen = function() {
     // 连接成功，请求高清截图（客户端统一8fps，无需传interval）
@@ -694,6 +695,30 @@ function connectWebSocket() {
   };
 
   ws.onmessage = function(e) {
+    // ── 二进制帧（server → 监控墙）──
+    if (e.data instanceof ArrayBuffer) {
+      try {
+        const data = new Uint8Array(e.data);
+        const frameType = data[0];
+        if (frameType === 0x12) {
+          const devIdLen = new DataView(e.data).getUint32(1);
+          let off = 5;
+          const devId = new TextDecoder().decode(new Uint8Array(e.data, off, devIdLen));
+          off += devIdLen;
+          const webpBuf = e.data.slice(off);
+          const blob = new Blob([webpBuf], { type: 'image/webp' });
+          const blobUrl = URL.createObjectURL(blob);
+          const el = document.querySelector('[data-device-id="' + devId + '"] img');
+          if (el) {
+            if (el._blobUrl) URL.revokeObjectURL(el._blobUrl);
+            el.src = blobUrl;
+            el._blobUrl = blobUrl;
+          }
+        }
+      } catch(ex) {}
+      return;
+    }
+    // ── JSON 消息 ──
     try {
       var data = JSON.parse(e.data);
 
