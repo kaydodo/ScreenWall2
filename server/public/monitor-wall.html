@@ -713,11 +713,14 @@ function connectWebSocket() {
           const webpBuf = e.data.slice(off);
           const blob = new Blob([webpBuf], { type: 'image/webp' });
           const blobUrl = URL.createObjectURL(blob);
-          const el = document.querySelector('[data-device-id="' + devId + '"] img');
+          const el = document.getElementById('img_' + devId);
           if (el) {
             if (el._blobUrl) URL.revokeObjectURL(el._blobUrl);
             el.src = blobUrl;
             el._blobUrl = blobUrl;
+            el.classList.remove('wall-img-hidden');
+            el.style.display = 'block';
+            el.style.opacity = '1';
           }
         }
       } catch(ex) {}
