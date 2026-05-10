@@ -241,6 +241,13 @@ html, body {
 }
 .wall-preview-uu-btn {
   background: #4f7ef7;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  display: none;
 }
 .wall-preview-uu-btn:hover {
   background: #3c64e6;
@@ -251,16 +258,16 @@ html, body {
   pointer-events: none;
 }
 .wall-preview-kb-btn {
-  background: #2a2d3a;
-  border: 1px solid #444;
+  background: #4a5568;
   color: #fff;
+  border: none;
   border-radius: 6px;
-  padding: 4px 10px;
+  padding: 6px 12px;
   font-size: 13px;
   cursor: pointer;
 }
 .wall-preview-kb-btn:hover {
-  background: #3a3d4a;
+  background: #2d3748;
 }
 .wall-preview-area {
   flex: 1;
@@ -1149,17 +1156,20 @@ function wallOpenPreview(deviceId) {
     if (watermark) watermark.style.display = 'none';
   }
 
-  // UU按钮
+  // UU按钮：设备在线即显示，不判断uuDeviceId
   var uuBtn = document.getElementById('wallPreviewUUbtn');
   if (uuBtn) {
-    if (dev.uuDeviceId && isOnline) {
+    if (isOnline) {
+      // 从设备列表获取uuDeviceId
+      var uuId = dev ? dev.uuDeviceId : null;
       uuBtn.style.display = 'inline-flex';
       uuBtn.disabled = false;
       uuBtn.style.opacity = '';
       uuBtn.style.cursor = '';
       uuBtn.style.pointerEvents = '';
-      uuBtn.onclick = function() { openUU(dev.uuDeviceId); };
+      uuBtn.onclick = function() { if (uuId) openUU(uuId); };
     } else {
+      // 离线：变灰不可点
       uuBtn.style.display = 'inline-flex';
       uuBtn.disabled = true;
       uuBtn.style.opacity = '0.35';
@@ -1664,11 +1674,14 @@ function handleWallStateUpdate(data) {
           if (previewImg) previewImg.style.filter = '';
           // 恢复UU按钮
           var previewUUbtn = document.getElementById('wallPreviewUUbtn');
-          if (previewUUbtn && dev && dev.uuDeviceId) {
+          if (previewUUbtn) {
             previewUUbtn.disabled = false;
             previewUUbtn.style.opacity = '';
             previewUUbtn.style.cursor = '';
             previewUUbtn.style.pointerEvents = '';
+            if (dev && dev.uuDeviceId) {
+              previewUUbtn.onclick = function() { openUU(dev.uuDeviceId); };
+            }
           }
         }
       }
