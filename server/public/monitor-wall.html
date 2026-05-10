@@ -1597,6 +1597,12 @@ function handleWallStateUpdate(data) {
 
   if (eventType === 'deviceOffline') {
     var deviceId = data.deviceId;
+    if (devices[deviceId]) {
+      devices[deviceId].online = false;
+      if (data.supportsKeyClient !== undefined) {
+        devices[deviceId].supportsKeyClient = data.supportsKeyClient;
+      }
+    }
     var cell = findCellByDeviceId(deviceId);
     if (cell) {
       cell.classList.add('offline');
@@ -1641,6 +1647,12 @@ function handleWallStateUpdate(data) {
 
   if (eventType === 'deviceOnline') {
     var deviceId = data.deviceId;
+    if (devices[deviceId]) {
+      devices[deviceId].online = true;
+      if (data.supportsKeyClient !== undefined) {
+        devices[deviceId].supportsKeyClient = data.supportsKeyClient;
+      }
+    }
     var cell = findCellByDeviceId(deviceId);
     if (cell) {
       cell.classList.remove('offline');
