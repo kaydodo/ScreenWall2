@@ -977,10 +977,21 @@ function connectWS() {
                 updateCellElement(ci);
               }
             }
+            // 同时更新监控设置弹窗中的预览图
+            const monImg = document.querySelector(`.monitor-preview-img-wrapper[data-device-id="${devId}"] img`);
+            if (monImg) {
+              monImg.src = blobUrl;
+              monImg.style.display = 'block';
+            }
           } else if (frameType === 0x11) {
-            if (typeof previewDeviceId !== 'undefined' && previewDeviceId === devId && previewImgEl) {
-              if (previewImgEl._blobUrl) URL.revokeObjectURL(previewImgEl._blobUrl);
-              previewImgEl.src = blobUrl; previewImgEl._blobUrl = blobUrl;
+            if (typeof previewDeviceId !== 'undefined' && previewDeviceId === devId) {
+              const previewImg = document.getElementById('previewImg');
+              if (previewImg) {
+                if (previewImg._blobUrl) URL.revokeObjectURL(previewImg._blobUrl);
+                previewImg.src = blobUrl; previewImg._blobUrl = blobUrl;
+                previewImg.style.display = 'block';
+                previewImg.style.visibility = 'visible';
+              }
             }
           }
         }

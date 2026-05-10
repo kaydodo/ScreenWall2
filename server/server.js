@@ -265,7 +265,7 @@ function _flushWallBatch() {
   _wallBatchScheduled = false;
   if (_wallBatch.size === 0 || wallClients.size === 0) { _wallBatch.clear(); return; }
   try {
-    for (const wallWs of wallClients) {
+    for (const wallWs of wallClients.keys()) {
       if (wallWs.readyState !== 1) continue;
       for (const [deviceId, data] of _wallBatch) {
         if (data.buffer) sendBinaryScreenshot(wallWs, 0x12, deviceId, data.buffer, data.screenWidth || 0, data.screenHeight || 0, false);
