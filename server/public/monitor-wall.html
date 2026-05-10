@@ -847,11 +847,28 @@ function connectWebSocket() {
               el.src = blobUrl;
               el._blobUrl = blobUrl;
               el.classList.remove('wall-img-hidden');
+              el.classList.remove('grayscale');
               el.style.display = 'block';
               el.style.opacity = '1';
               // 更新左上角时间戳
               var tsEl = document.getElementById('ts_' + devId);
               if (tsEl) tsEl.textContent = formatDate(new Date());
+            }
+            // 自愈：收到帧累加计数，达到阈值才恢复离线格子
+            var dev = devices[devId];
+            if (dev && !dev.online) {
+              if (!frameHealCount.has(devId)) frameHealCount.set(devId, 0);
+              frameHealCount.set(devId, frameHealCount.get(devId) + 1);
+              if (frameHealCount.get(devId) >= WALL_FRAME_HEAL_THRESHOLD) {
+                dev.online = true;
+                var cell = document.querySelector('.wall-cell[data-device-id="' + devId + '"]') || findCellByDeviceId(devId);
+                if (cell) {
+                  cell.classList.remove('offline');
+                  var badge = cell.querySelector('.offline-badge');
+                  if (badge) { badge.textContent = ''; badge.style.display = 'none'; }
+                  updateUUButtonVisibility(cell, true);
+                }
+              }
             }
           } else {
             // 预览模式：不更新格子，但仍释放 blobUrl 防内存泄漏
@@ -890,7 +907,7 @@ function connectWebSocket() {
               previewImg._blobUrl = blobUrl;
               previewImg.style.display = 'block';
               previewImg.style.visibility = 'visible';
-              previewImg.style.filter = '';
+              previewImg.classList.remove('grayscale');
               // 隐藏离线水印
               var watermark = document.getElementById('wallPreviewOfflineWatermark');
               if (watermark) watermark.style.display = 'none';
@@ -935,6 +952,9 @@ function connectWebSocket() {
             }
             if (newDev.deviceName) {
               devices[newDev.deviceId].name = newDev.deviceName;
+            }
+            if (newDev.screenshot !== undefined) {
+              devices[newDev.deviceId].screenshot = newDev.screenshot;
             }
             if (newDev.uuDeviceId !== undefined) {
               devices[newDev.deviceId].uuDeviceId = newDev.uuDeviceId;
