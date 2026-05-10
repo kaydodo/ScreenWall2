@@ -1563,6 +1563,7 @@ wssClient.on('connection', (ws, req) => {
           dev.screenHeight = screenHeight;
           dev._frameCount = (dev._frameCount || 0) + 1;
           const now = Date.now();
+          dev.lastSeen = now;  // 必须更新，否则超时检测会误判离线
           if (!dev.online) { dev.online = true; broadcastToBrowsers({ type: 'deviceList', devices: getDeviceListPayload() }); }
           _browserBatch.set(deviceId, { buffer: webpBuffer, timestamp: now, isHQ, screenWidth, screenHeight });
           _scheduleBrowserBatch();
