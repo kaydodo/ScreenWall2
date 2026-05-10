@@ -685,7 +685,8 @@ function persistDevices() {
       macAddress: d.macAddress || null,
       lastSeen: d.lastSeen,
       groupId: d.groupId || null,
-      screenshot: d.screenshot || null,
+      // 持久化时 Buffer 转 base64（避免存成巨大数组），加载后直接可用
+      screenshot: d.screenshot ? (Buffer.isBuffer(d.screenshot) ? 'data:image/webp;base64,' + d.screenshot.toString('base64') : d.screenshot) : null,
     }));
     fs.writeFileSync(DEVICES_PERSIST_PATH, JSON.stringify(arr, null, 2), 'utf8');
   } catch (e) { serverError('[设备] 持久化失败:', e.message); }
