@@ -963,8 +963,20 @@ function connectWS() {
           const blob = new Blob([webpBuf], { type: 'image/webp' });
           const blobUrl = URL.createObjectURL(blob);
           if (frameType === 0x10) {
-            const el = document.querySelector('[data-device-id="' + devId + '"] .cell-img');
-            if (el) { if (el._blobUrl) URL.revokeObjectURL(el._blobUrl); el.src = blobUrl; el._blobUrl = blobUrl; }
+            const ci = Array.isArray(gridCells) ? gridCells.findIndex(c => c && c.deviceId === devId) : -1;
+            const el = ci >= 0 ? document.getElementById('img_' + ci) : null;
+            if (el) {
+              if (el._blobUrl) URL.revokeObjectURL(el._blobUrl);
+              el.src = blobUrl; el._blobUrl = blobUrl;
+              el.style.display = 'block';
+              const ns = document.getElementById('ns_' + ci);
+              if (ns) ns.style.display = 'none';
+              // 自愈：收到帧时恢复在线状态
+              if (gridCells[ci] && !gridCells[ci].online) {
+                gridCells[ci].online = true;
+                updateCellElement(ci);
+              }
+            }
           } else if (frameType === 0x11) {
             if (typeof previewDeviceId !== 'undefined' && previewDeviceId === devId && previewImgEl) {
               if (previewImgEl._blobUrl) URL.revokeObjectURL(previewImgEl._blobUrl);
