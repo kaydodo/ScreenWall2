@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -694,11 +694,8 @@ function connectWebSocket() {
     // console.error('WebSocket error:', err);
   };
 
-  // 追踪已收到二进制帧的设备，避免 JSON 静态图覆盖动态帧
-  const _binaryFrameDevices = new Set();
-
   ws.onmessage = function(e) {
-    // ── 二进制帧（server → 监控墙）──
+    // ── 二进制帧（server → 监控墙，单设备帧 0x12）──
     if (e.data instanceof ArrayBuffer) {
       try {
         const view = new DataView(e.data);
@@ -716,6 +713,7 @@ function connectWebSocket() {
           const webpBuf = e.data.slice(off);
           const blob = new Blob([webpBuf], { type: 'image/webp' });
           const blobUrl = URL.createObjectURL(blob);
+          // img 元素的 ID 是 'img_' + deviceId（使用设备ID）
           const el = document.getElementById('img_' + devId);
           if (el) {
             if (el._blobUrl) URL.revokeObjectURL(el._blobUrl);
@@ -724,7 +722,6 @@ function connectWebSocket() {
             el.classList.remove('wall-img-hidden');
             el.style.display = 'block';
             el.style.opacity = '1';
-            _binaryFrameDevices.add(devId);
           }
         }
       } catch(ex) {}
@@ -732,93 +729,9 @@ function connectWebSocket() {
     }
     // ── JSON 消息 ──
     try {
-      var data = JSON.parse(e.data);
-
-      if (data.type === 'wallScreenshot') {
-        stats.framesReceived++;
-        var deviceId = data.deviceId;
-        var screenshot = data.screenshot;
-        var timestamp = data.timestamp || Date.now();
-
-        // 保存截图用于离线显示
-        if (devices[deviceId]) {
-          devices[deviceId].screenshot = screenshot;
-        }
-
-        // 自愈：累加帧计数，只有连续收到多帧才恢复在线状态
-        var cell = findCellByDeviceId(deviceId);
-        if (cell && cell.classList.contains('offline')) {
-          if (!frameHealCount.has(deviceId)) frameHealCount.set(deviceId, 0);
-          frameHealCount.set(deviceId, frameHealCount.get(deviceId) + 1);
-          if (frameHealCount.get(deviceId) >= WALL_FRAME_HEAL_THRESHOLD) {
-            cell.classList.remove('offline');
-            cell.classList.remove('deleted');
-            var badge = cell.querySelector('.offline-badge');
-            if (badge) badge.style.display = 'none';
-            updateUUButtonVisibility(cell, true);
-            // 同步更新设备在线状态，让 MJPEG 流判断正确
-            if (devices[deviceId]) devices[deviceId].online = true;
-          }
-        } else if (cell) {
-          // 非离线格子，重置帧计数（下次离线会重新累加）
-          frameHealCount.delete(deviceId);
-        }
-
-        // ── Blob URL 更新（带 MD5 跳帧）────────
-        // 已收到二进制帧的设备，跳过 JSON 静态图，避免覆盖动态帧
-        if (!_binaryFrameDevices.has(deviceId)) {
-          updateWallCellScreenshot(deviceId, screenshot);
-        }
-
-        // ── 更新时间戳 ───────────────────────────────────
-        var ts = document.getElementById('ts_' + deviceId);
-        if (ts) {
-          var d = new Date(timestamp);
-          ts.textContent = formatDate(d);
-        }
-
-        // ── 更新看门狗 ─────────────────────────────────
-        watchdog.touch(deviceId);
-        stats.framesRendered++;
-      }
-
-
-      if (data.type === 'wallScreenshotBatch' && data.screenshots) {
-        var nowTs = Date.now();
-        for (var i = 0; i < data.screenshots.length; i++) {
-          var sc = data.screenshots[i];
-          if (devices[sc.deviceId]) devices[sc.deviceId].screenshot = sc.screenshot;
-          // 已收到二进制帧的设备，跳过 JSON 静态图
-          if (!_binaryFrameDevices.has(sc.deviceId)) {
-            updateWallCellScreenshot(sc.deviceId, sc.screenshot);
-          }
-          var ts = document.getElementById('ts_' + sc.deviceId);
-          if (ts && sc.timestamp) {
-            var d = new Date(sc.timestamp);
-            ts.textContent = formatDate(d);
-          }
-          watchdog.touch(sc.deviceId);
-
-          // 自愈：批量帧也走自愈逻辑（与单条 wallScreenshot 一致）
-          var batchCell = findCellByDeviceId(sc.deviceId);
-          if (batchCell && batchCell.classList.contains('offline')) {
-            if (!frameHealCount.has(sc.deviceId)) frameHealCount.set(sc.deviceId, 0);
-            frameHealCount.set(sc.deviceId, frameHealCount.get(sc.deviceId) + 1);
-            if (frameHealCount.get(sc.deviceId) >= WALL_FRAME_HEAL_THRESHOLD) {
-              batchCell.classList.remove('offline');
-              batchCell.classList.remove('deleted');
-              var badge = batchCell.querySelector('.offline-badge');
-              if (badge) badge.style.display = 'none';
-              updateUUButtonVisibility(batchCell, true);
-              if (devices[sc.deviceId]) devices[sc.deviceId].online = true;
-            }
-          } else if (batchCell) {
-            frameHealCount.delete(sc.deviceId);
-          }
-        }
-        stats.framesReceived += data.screenshots.length;
-        stats.framesRendered += data.screenshots.length;
-      }
+      var data = JSON.parse(e.data);      
+      // 二进制0x12帧已负责动态画面，跳过JSON静态图路径
+      if (data.type === 'wallScreenshot' || data.type === 'wallScreenshotBatch') return;
 
             if (data.type === 'wallStateUpdate') {
         handleWallStateUpdate(data);
@@ -1292,3 +1205,4 @@ function openUU(uuDeviceId) {
 </script>
 </body>
 </html>
+
