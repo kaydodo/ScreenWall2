@@ -594,20 +594,6 @@ var subscribedDevices = []; // 订阅的设备列表
 
 // ── Blob URL 管理（减少浏览器解码内存）────────────────────────────
 var _wallBlobs = {}; // deviceId -> blobUrl
-var _wallBlobMds = {}; // deviceId -> last md5
-
-function _md5Hex(base64) {
-  try {
-    var raw = atob(base64.replace(/^data:image\/\w+;base64,/, ''));
-    var bin = '';
-    for (var i = 0; i < raw.length; i++) {
-      var x = raw.charCodeAt(i) & 0xff;
-      bin += ('0' + x.toString(16)).slice(-2);
-    }
-    return bin;
-  } catch(e) { return null; }
-}
-
 
 function base64ToBlob(base64) {
   try {
@@ -619,36 +605,6 @@ function base64ToBlob(base64) {
     for (var i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
     return new Blob([arr], { type: mime });
   } catch(e) { return null; }
-}
-
-function updateWallCellScreenshot(deviceId, screenshot) {
-  var img = document.getElementById('img_' + deviceId);
-  var dev = devices[deviceId];
-  if (!img || !screenshot || !dev) return;
-
-  var md5 = _md5Hex(screenshot);
-  if (md5 && _wallBlobMds[deviceId] === md5) return; // 帧内容未变，跳过 DOM 更新
-  _wallBlobMds[deviceId] = md5;
-
-  // 释放旧 blob URL
-  if (_wallBlobs[deviceId]) {
-    URL.revokeObjectURL(_wallBlobs[deviceId]);
-    _wallBlobs[deviceId] = null;
-  }
-
-  var blob = base64ToBlob(screenshot);
-  if (!blob) return;
-  var blobUrl = URL.createObjectURL(blob);
-  _wallBlobs[deviceId] = blobUrl;
-
-  // 帧到达：恢复透明度（首次到达时 opacity:0→1 淡入）
-  if (img.style.opacity !== '1') img.style.opacity = '1';
-
-  img.src = blobUrl;
-  img.style.display = 'block';
-  var crop = dev.crop || { scale: 1, translateX: 0, translateY: 0 };
-  img.style.transform = 'scale(' + crop.scale + ') translate(' + (crop.translateX || 0) + 'px, ' + (crop.translateY || 0) + 'px)';
-  img.style.transformOrigin = 'center center';
 }
 
 // ── 性能统计 ────────────────────────────────────────────────
@@ -2149,7 +2105,6 @@ window.addEventListener('beforeunload', function() {
     if (_wallBlobs[id]) URL.revokeObjectURL(_wallBlobs[id]);
   }
   _wallBlobs = {};
-  _wallBlobMds = {};
   for (var zid in _zoomTimers) {
     if (_zoomTimers[zid]) clearTimeout(_zoomTimers[zid]);
   }
