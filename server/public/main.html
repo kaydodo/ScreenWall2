@@ -1003,11 +1003,15 @@ function connectWS() {
           } else if (frameType === 0x11) {
             if (typeof previewDeviceId !== 'undefined' && previewDeviceId === devId) {
               const previewImg = document.getElementById('previewImg');
-              if (previewImg) {
+              const currentDev = devices.find(d => d.deviceId === previewDeviceId);
+              const isOnline = currentDev ? currentDev.online : false;
+              if (previewImg && isOnline) {
                 if (previewImg._blobUrl) URL.revokeObjectURL(previewImg._blobUrl);
                 previewImg.src = blobUrl; previewImg._blobUrl = blobUrl;
                 previewImg.style.display = 'block';
                 previewImg.style.visibility = 'visible';
+              } else if (previewImg && !isOnline) {
+                URL.revokeObjectURL(blobUrl);
               }
             }
           }
