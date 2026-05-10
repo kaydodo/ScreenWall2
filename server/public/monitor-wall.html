@@ -227,6 +227,30 @@ html, body {
 }
 
 .wall-preview-btn {
+  background: #4a5568;
+  border: none;
+  color: #fff;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.wall-preview-btn:hover {
+  background: #2d3748;
+}
+.wall-preview-uu-btn {
+  background: #4f7ef7;
+}
+.wall-preview-uu-btn:hover {
+  background: #3c64e6;
+}
+.wall-preview-uu-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+.wall-preview-kb-btn {
   background: #2a2d3a;
   border: 1px solid #444;
   color: #fff;
@@ -234,22 +258,9 @@ html, body {
   padding: 4px 10px;
   font-size: 13px;
   cursor: pointer;
-  transition: background 0.2s;
 }
-.wall-preview-btn:hover {
+.wall-preview-kb-btn:hover {
   background: #3a3d4a;
-}
-.wall-preview-btn.uu-btn {
-  background: #4f7ef7;
-  border-color: #4f7ef7;
-}
-.wall-preview-btn.uu-btn:hover {
-  background: #3c64e6;
-}
-.wall-preview-btn.uu-btn:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
-  pointer-events: none;
 }
 .wall-preview-area {
   flex: 1;
@@ -292,6 +303,12 @@ html, body {
   display: none;
   color: #aaa;
   font-size: 13px;
+}
+
+@media (max-width: 768px) {
+  .wall-preview-kb-btn:not(.desktop-hide) {
+    display: none !important;
+  }
 }
 
 /* ── 远控设备列表弹窗 ──────────────────────── */
@@ -433,13 +450,14 @@ html, body {
         <button onclick="event.stopPropagation();wallToggleRemoteListModal()" title="远控设备列表" style="background:none;border:none;color:#888;font-size:14px;cursor:pointer;padding:2px;">🔍</button>
       </div>
     </div>
-    <div class="wall-preview-controls">
+    <div class="wall-preview-controls" style="padding-right:70px;">
       <div style="position:fixed;left:50%;transform:translateX(-50%);">
         <span class="wall-preview-mouse-hint" id="wallPreviewMouseHint" style="display:none;color:#aaa;font-size:13px;">📌 左键=点击/右键=菜单/滚轮=滚动</span>
-        <button class="wall-preview-btn" id="wallPreviewMonitorBtn" title="切换显示器" onclick="wallCycleMonitor()" style="display:none;">🖥️ 显示器 1</button>
-        <button class="wall-preview-btn" id="wallPreviewKBbtn" title="键盘控制" onclick="wallToggleKeyboard()">⌨️ 键盘</button>
+        <button class="wall-preview-kb-btn" id="wallPreviewMonitorBtn" title="切换显示器" onclick="wallCycleMonitor()" style="display:none;">🖥️ 显示器 1</button>
+        <button class="wall-preview-kb-btn" id="wallPreviewKBbtn" title="键盘控制" onclick="wallToggleKeyboard()">⌨️ 键盘</button>
       </div>
-      <button class="wall-preview-btn uu-btn" id="wallPreviewUUbtn" title="打开UU远程"> 🖱️ UU远程</button>
+      <button class="wall-preview-uu-btn" id="wallPreviewUUbtn" title="打开UU远程"> 🖱️ UU远程</button>
+      <button class="wall-preview-uu-btn" id="wallPreviewUUDownloadBtn" title="下载UU远程" style="display:none;" onclick="downloadUU()"> 📥 UU下载</button>
     </div>
   </div>
   <div class="wall-preview-area" id="wallPreviewArea">
