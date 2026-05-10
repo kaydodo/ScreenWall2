@@ -1623,8 +1623,8 @@ function connectWS() {
         previewImg.style.visibility = 'visible';
         const wrapper = document.getElementById('previewImgWrapper');
         if (wrapper) wrapper.style.backgroundImage = '';
+        previewImg.style.display = 'block';
       }
-      previewImg.style.display = 'block';
     }
 
     // 批量截图消息处理（服务端攒批推送，替代逐条 browserScreenshot）
