@@ -908,6 +908,75 @@ function connectWebSocket() {
         // console.log('[Wall] Subscribed devices:', data.devices);
       }
 
+      // 设备列表更新（包含 supportsKeyClient 状态等关键字段）
+      if (data.type === 'deviceList') {
+        var newDevices = data.devices || [];
+        newDevices.forEach(function(newDev) {
+          if (devices[newDev.deviceId]) {
+            if (newDev.supportsKeyClient !== undefined) {
+              devices[newDev.deviceId].supportsKeyClient = newDev.supportsKeyClient;
+            }
+            if (newDev.online !== undefined) {
+              devices[newDev.deviceId].online = newDev.online;
+            }
+            if (newDev.deviceName) {
+              devices[newDev.deviceId].name = newDev.deviceName;
+            }
+            if (newDev.uuDeviceId !== undefined) {
+              devices[newDev.deviceId].uuDeviceId = newDev.uuDeviceId;
+            }
+            if (newDev.monitorCount !== undefined) {
+              devices[newDev.deviceId].monitorCount = newDev.monitorCount;
+            }
+            if (newDev.monitorIndex !== undefined) {
+              devices[newDev.deviceId].monitorIndex = newDev.monitorIndex;
+            }
+          }
+        });
+
+        // 如果正在预览某个设备，更新鼠标提示、键盘按钮、远控状态
+        if (wallPreviewDeviceId) {
+          var previewDev = devices[wallPreviewDeviceId];
+          // 更新鼠标提示
+          wallUpdateMouseHint();
+          // 更新远控按钮
+          wallUpdateRemoteBtn();
+          // 更新键盘按钮
+          var kbBtn = document.getElementById('wallPreviewKBbtn');
+          if (kbBtn) kbBtn.style.display = (previewDev && previewDev.supportsKeyClient) ? 'inline-flex' : 'none';
+          // 更新多显示器按钮
+          var monBtn = document.getElementById('wallPreviewMonitorBtn');
+          if (monBtn && previewDev) {
+            if (previewDev.monitorCount > 1) {
+              monBtn.style.display = 'inline-flex';
+              monBtn.textContent = '🖥️ 显示器 ' + previewDev.monitorIndex;
+            } else {
+              monBtn.style.display = 'none';
+            }
+          }
+          // 更新UU按钮
+          var uuBtn = document.getElementById('wallPreviewUUbtn');
+          if (uuBtn && previewDev) {
+            if (previewDev.online) {
+              uuBtn.disabled = false;
+              uuBtn.style.opacity = '';
+              uuBtn.style.cursor = '';
+              uuBtn.style.pointerEvents = '';
+              if (previewDev.uuDeviceId) {
+                uuBtn.style.display = 'inline-flex';
+                uuBtn.onclick = function() { openUU(previewDev.uuDeviceId); };
+              }
+            } else {
+              uuBtn.style.display = 'inline-flex';
+              uuBtn.disabled = true;
+              uuBtn.style.opacity = '0.35';
+              uuBtn.style.cursor = 'not-allowed';
+              uuBtn.style.pointerEvents = 'none';
+            }
+          }
+        }
+      }
+
       // 键盘状态变更（远控开关状态变更广播）
       if (data.type === 'keyboardState') {
         var dev = devices[data.deviceId];
