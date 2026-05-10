@@ -588,15 +588,16 @@ function initWall() {
     cell.className = 'wall-cell';
     cell.id = 'cell_' + i;
 
-    if (i < wallData.devices.length) {
+      if (i < wallData.devices.length) {
       var dev = wallData.devices[i];
+      var devName = dev.name || dev.id || '未知设备';
       var uuBtnHTML = (dev.online !== false && dev.uuDeviceId) ? '<button class="uu-float-btn" onclick="openUU(\'' + dev.uuDeviceId + '\')">🖱️ UU远程</button>' : '';
       cell.innerHTML =
-        '<div class="img-wrapper"><img id="img_' + dev.id + '" alt="监控画面: ' + dev.name + '" src="" class="wall-img-hidden"></div>' +
+        '<div class="img-wrapper"><img id="img_' + dev.id + '" alt="监控画面: ' + devName + '" src="" class="wall-img-hidden"></div>' +
         '<div class="wall-zoom-level" id="zoom_' + dev.id + '">100%</div>' +
         '<div class="wall-timestamp" id="ts_' + dev.id + '">等待画面</div>' +
         '<div class="wall-info" id="info_' + dev.id + '">' +
-          '<div class="name">' + dev.name + '</div>' +
+          '<div class="name">' + devName + '</div>' +
           '<div class="detail">' + (dev.groupName || '未分组') + ' / 格' + getPositionLabel(dev.position - 1) + '</div>' +
         '</div>' +
         '<div class="offline-badge">设备已离线</div>' +
@@ -677,6 +678,7 @@ function connectWebSocket() {
   ws.binaryType = "arraybuffer";
 
   ws.onopen = function() {
+    console.log('[监控墙] WebSocket 连接成功，发送 subscribeWall', wallData.devices.map(function(d) { return d.id; }));
     // 连接成功，请求高清截图（客户端统一8fps，无需传interval）
     ws.send(JSON.stringify({
       type: 'subscribeWall',
@@ -722,6 +724,9 @@ function connectWebSocket() {
             el.classList.remove('wall-img-hidden');
             el.style.display = 'block';
             el.style.opacity = '1';
+            // 更新左上角时间戳
+            var tsEl = document.getElementById('ts_' + devId);
+            if (tsEl) tsEl.textContent = formatDate(new Date());
           }
         }
       } catch(ex) {}
