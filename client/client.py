@@ -23,26 +23,29 @@ CLIENT_VERSION = "1.7.12"
 
 
 def _get_mac_address():
-    """获取本机 MAC 地址"""
+    """获取本机 MAC 地址，返回 '-' 分隔的大写格式，如 '00-11-22-33-44-55'"""
+    mac_raw = ''
     try:
         import subprocess
+        # 优先使用 PowerShell Get-NetAdapter（wmic 已弃用）
         result = subprocess.run(
-            ['wmic', 'nic', 'where', 'NetConnectionStatus=2', 'get', 'MACAddress', '/value'],
+            ['powershell', '-Command',
+             'Get-NetAdapter -Physical | Where-Object Status -eq "Up" | Select-Object -First 1 -ExpandProperty MacAddress'],
             capture_output=True, text=True, timeout=10,
             creationflags=subprocess.CREATE_NO_WINDOW
         )
         if result.returncode == 0:
-            for line in result.stdout.split('\n'):
-                if 'MACAddress=' in line:
-                    mac = line.split('=')[1].strip()
-                    if mac and mac != '00:00:00:00:00:00':
-                        return mac.replace(':', '-')
+            mac_raw = result.stdout.strip()
+            if mac_raw and mac_raw != '00:00:00:00:00:00':
+                return mac_raw.upper().replace(':', '-')
     except Exception:
         pass
     try:
+        import uuid
         mac = uuid.getnode()
         if mac:
-            return ':'.join(['%02X' % ((mac >> (8 * i)) & 0xFF) for i in range(5, -1, -1)])
+            # 统一返回 '-' 分隔格式，与 wmic 分支一致
+            return '-'.join(['%02X' % ((mac >> (8 * i)) & 0xFF) for i in range(5, -1, -1)])
     except Exception:
         pass
     return ''
