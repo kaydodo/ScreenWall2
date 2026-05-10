@@ -1172,11 +1172,19 @@ function connectWS() {
       gridCells.forEach(c => {
         if (c.deviceId) {
           const dev = devices.find(d => d.deviceId === c.deviceId);
-          if (dev) { c.online = dev.online; c.deviceName = dev.deviceName; if (!dev.online) frameHealCount.delete(c.deviceId); }
-          else {
+          if (dev) {
+            c.online = dev.online;
+            c.deviceName = dev.deviceName;
+            if (!dev.online) {
+              frameHealCount.delete(c.deviceId);
+              // 清除待渲染帧，防止旧帧触发自愈把离线状态覆盖回在线
+              pendingFrames.delete(c.deviceId);
+            }
+          } else {
             // 设备已从服务端删除
             c.online = false;
             frameHealCount.delete(c.deviceId);
+            pendingFrames.delete(c.deviceId);
           }
         }
       });
