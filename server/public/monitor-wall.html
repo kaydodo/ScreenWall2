@@ -97,6 +97,10 @@ html, body {
   filter: grayscale(100%) blur(2px);
   opacity: 0.3;
 }
+/* 灰度滤镜 class（用于离线静态图） */
+.grayscale {
+  filter: grayscale(100%);
+}
 .wall-cell .offline-badge {
   position: absolute;
   top: 50%;
@@ -310,6 +314,9 @@ html, body {
   display: none;
   color: #aaa;
   font-size: 13px;
+}
+.wall-preview-img-wrapper img.grayscale {
+  filter: grayscale(100%);
 }
 
 @media (max-width: 768px) {
@@ -770,10 +777,10 @@ function initWall() {
     if (!img) return;
 
     if (dev.online === false) {
-      // 离线设备：显示静态图
+      // 离线设备：显示静态图（与main.html一致，使用.grayscale class）
       if (dev.screenshot) img.src = dev.screenshot;
       img.style.display = 'block';
-      img.style.opacity = '0.4';
+      img.classList.add('grayscale');
     } else {
       // 在线设备：初始 opacity:0，等待首帧时黑色背景透出
       img.style.display = 'block';
@@ -1032,7 +1039,7 @@ function connectWebSocket() {
               previewImg._blobUrl = blobUrl;
               previewImg.style.display = 'block';
               previewImg.style.visibility = 'visible';
-              previewImg.style.filter = '';
+              previewImg.classList.remove('grayscale');
               var watermark = document.getElementById('wallPreviewOfflineWatermark');
               if (watermark) watermark.style.display = 'none';
             }
@@ -1246,15 +1253,16 @@ function wallOpenPreview(deviceId) {
   var watermark = document.getElementById('wallPreviewOfflineWatermark');
   if (!isOnline) {
     if (watermark) watermark.style.display = 'block';
-    // 显示静态图
+    // 显示静态图（与main.html一致，使用.grayscale class）
     if (dev.screenshot) {
       previewImg.src = dev.screenshot;
       previewImg.style.display = 'block';
       previewImg.style.visibility = 'visible';
-      previewImg.style.filter = 'grayscale(100%) opacity(0.4)';
+      previewImg.classList.add('grayscale');
     }
   } else {
     if (watermark) watermark.style.display = 'none';
+    previewImg.classList.remove('grayscale');
   }
 
   // UU按钮：设备在线即显示，不判断uuDeviceId
@@ -1736,7 +1744,7 @@ function handleWallStateUpdate(data) {
         previewImg.src = dev.screenshot;
         previewImg.style.display = 'block';
         previewImg.style.visibility = 'visible';
-        previewImg.style.filter = 'grayscale(100%)';
+        previewImg.classList.add('grayscale');
       }
       var watermark = document.getElementById('wallPreviewOfflineWatermark');
       if (watermark) watermark.style.display = 'block';
@@ -1776,6 +1784,7 @@ function handleWallStateUpdate(data) {
       var img = document.getElementById('img_' + deviceId);
       if (img) {
         img.style.display = 'block';
+        img.classList.remove('grayscale');
       }
       // 重新开启HQ流
       if (ws && ws.readyState === WebSocket.OPEN) {
@@ -1787,7 +1796,7 @@ function handleWallStateUpdate(data) {
           var watermark = document.getElementById('wallPreviewOfflineWatermark');
           if (watermark) watermark.style.display = 'none';
           var previewImg = document.getElementById('wallPreviewImg');
-          if (previewImg) previewImg.style.filter = '';
+          if (previewImg) previewImg.classList.remove('grayscale');
           // 恢复UU按钮
           var previewUUbtn = document.getElementById('wallPreviewUUbtn');
           if (previewUUbtn) {
