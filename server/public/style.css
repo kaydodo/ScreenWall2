@@ -3,6 +3,16 @@
    主题: 亮色 · 圆润 · 专业监控标杆
    ===================================================== */
 
+/* 全局禁止文本选择（输入框除外），防止点击时出现光标闪烁 */
+body {
+  user-select: none;
+  -webkit-user-select: none;
+}
+input, textarea, select, [contenteditable="true"] {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
 :root {
   /* 色彩体系 */
   --bg-page:        #f0f2f8;

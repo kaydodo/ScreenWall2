@@ -1624,7 +1624,16 @@ function connectWS() {
             const dot = document.getElementById(`dot_${cell.index}`);
             const stxt = document.getElementById(`stxt_${cell.index}`);
             if (dot) { dot.className = 'status-dot online'; dot.style.backgroundColor = '#34d399'; }
-            if (stxt) stxt.textContent = '在线';
+            if (stxt) { stxt.textContent = '在线'; stxt.className = 'status-text online'; }
+            // 自愈：移除离线灰度样式、隐藏离线标签、恢复UU按钮
+            const healImg = document.getElementById(`img_${cell.index}`);
+            if (healImg) healImg.classList.remove('grayscale');
+            const healCellEl = document.querySelector(`.wall-cell[data-index="${cell.index}"]`);
+            if (healCellEl) healCellEl.classList.remove('offline-cell');
+            const healOfflineLabel = document.getElementById(`offline_${cell.index}`);
+            if (healOfflineLabel) healOfflineLabel.style.display = 'none';
+            const healUubtn = document.getElementById(`uubtn_${cell.index}`);
+            if (healUubtn) healUubtn.style.display = 'flex';
           }
         }
       }
