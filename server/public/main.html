@@ -699,7 +699,16 @@ function renderPendingFrames() {
               const dot = document.getElementById(`dot_${cell.index}`);
               const stxt = document.getElementById(`stxt_${cell.index}`);
               if (dot) { dot.className = 'status-dot online'; dot.style.backgroundColor = '#34d399'; }
-              if (stxt) stxt.textContent = '在线';
+              if (stxt) { stxt.textContent = '在线'; stxt.className = 'status-text online'; }
+              // 自愈：移除离线灰度样式、隐藏离线标签、恢复UU按钮
+              const img = document.getElementById(`img_${cell.index}`);
+              if (img) img.classList.remove('grayscale');
+              const cellEl = document.querySelector(`.wall-cell[data-index="${cell.index}"]`);
+              if (cellEl) cellEl.classList.remove('offline-cell');
+              const offlineLabel = document.getElementById(`offline_${cell.index}`);
+              if (offlineLabel) offlineLabel.style.display = 'none';
+              const uubtn = document.getElementById(`uubtn_${cell.index}`);
+              if (uubtn) uubtn.style.display = 'flex';
             }
           }
           if (cell) {
@@ -713,10 +722,6 @@ function renderPendingFrames() {
       const t1 = performance.now();
       if (cellCount > 0 && t1 - t0 > 5) {
 //         console.log(`[rAF] 格子渲染 ${cellCount}个, 耗时 ${(t1-t0).toFixed(1)}ms`);
-      }
-      // 渲染后重置帧计数（下次收到帧会重新累加）
-      for (const [deviceId] of pendingFrames) {
-        frameHealCount.delete(deviceId);
       }
       // 在清空之前更新监控上墙预览
       pendingFrames.clear();
@@ -1081,8 +1086,8 @@ function connectWS() {
       gridCells.forEach(c => {
         if (c && c.deviceId) {
           const dev = devices.find(d => d.deviceId === c.deviceId);
-          if (dev) { c.online = dev.online; c.deviceName = dev.deviceName; }
-          else c.online = false;
+          if (dev) { c.online = dev.online; c.deviceName = dev.deviceName; if (!dev.online) frameHealCount.delete(c.deviceId); }
+          else { c.online = false; frameHealCount.delete(c.deviceId); }
         }
       });
       // 恢复离线设备的 screenshot 到 gridCells
@@ -1167,10 +1172,11 @@ function connectWS() {
       gridCells.forEach(c => {
         if (c.deviceId) {
           const dev = devices.find(d => d.deviceId === c.deviceId);
-          if (dev) { c.online = dev.online; c.deviceName = dev.deviceName; }
+          if (dev) { c.online = dev.online; c.deviceName = dev.deviceName; if (!dev.online) frameHealCount.delete(c.deviceId); }
           else {
             // 设备已从服务端删除
             c.online = false;
+            frameHealCount.delete(c.deviceId);
           }
         }
       });
@@ -1187,6 +1193,10 @@ function connectWS() {
             }
           }
         }
+      });
+      // 状态变化后刷新格子 DOM（离线灰度、在线恢复等）
+      gridCells.forEach(function(c) {
+        if (c && c.deviceId) updateCellElement(c.index);
       });
       updateStats();
       requestRender();

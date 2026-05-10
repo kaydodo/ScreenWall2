@@ -880,6 +880,8 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
   background: var(--bg-page);
   overflow: hidden;
   flex: 1;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .cell-preview img,
@@ -1042,6 +1044,8 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
   /* 底部固定高度 */
   min-height: 52px;
   box-sizing: border-box;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .cell-name-row {
