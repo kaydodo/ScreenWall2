@@ -1607,14 +1607,15 @@ wssClient.on('connection', (ws, req) => {
       }
 
       // 如果没找到，尝试用 deviceName + MAC 地址查找（用于设备重装后识别同一设备）
-      const incomingMac = String(msg.macAddress || '').trim().toLowerCase();
+      // MAC 地址统一格式：去掉所有分隔符后比较（避免 ':' 与 '-' 差异）
+      const incomingMacRaw = String(msg.macAddress || '').replace(/[^0-9A-Fa-f]/g, '').toLowerCase();
       const incomingName = String(msg.deviceName || '').trim();
-      if (!existing && incomingMac && incomingName) {
+      if (!existing && incomingMacRaw && incomingName) {
         for (const [devId, devInfo] of devices) {
-          const devMac = String(devInfo.macAddress || '').trim().toLowerCase();
+          const devMacRaw = String(devInfo.macAddress || '').replace(/[^0-9A-Fa-f]/g, '').toLowerCase();
           const devName = String(devInfo.deviceName || '').trim();
           // MAC 地址匹配且设备名相同（或设备名包含关系）
-          if (devMac === incomingMac && (devName === incomingName || devName.includes(incomingName) || incomingName.includes(devName))) {
+          if (devMacRaw === incomingMacRaw && (devName === incomingName || devName.includes(incomingName) || incomingName.includes(devName))) {
             existing = devInfo;  // 继承旧设备的所有信息
             matchedOldDeviceId = devId;  // 记录旧设备ID，后面要删除
             serverLog(`[识别] 通过 MAC+设备名匹配到已有设备: ${devName} (${devId})，将更新为新的 deviceId: ${incomingDeviceId}`);
