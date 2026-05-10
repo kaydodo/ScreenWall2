@@ -214,22 +214,18 @@ html, body {
   border-bottom: 1px solid rgba(255,255,255,0.1);
   flex-shrink: 0;
 }
-.wall-preview-titlebar .title-left {
-  display: flex;
-  align-items: center;
-  gap: 30px;
-}
-.wall-preview-titlebar .device-name {
-  font-size: 15px;
-  font-weight: 700;
-  color: #e2e8f0;
-}
 .wall-preview-controls {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding-right: 70px;
 }
+
+#wallPreviewDeviceName {
+  font-size: 15px;
+  font-weight: 700;
+  color: #e2e8f0;
+}
+
 .wall-preview-btn {
   background: #2a2d3a;
   border: 1px solid #444;
@@ -437,8 +433,7 @@ html, body {
         <button onclick="event.stopPropagation();wallToggleRemoteListModal()" title="远控设备列表" style="background:none;border:none;color:#888;font-size:14px;cursor:pointer;padding:2px;">🔍</button>
       </div>
     </div>
-    <div class="wall-preview-controls" style="padding-right:70px;">
-      <!-- 鼠标提示、显示器、键盘 — 居中（照搬主页面） -->
+    <div class="wall-preview-controls">
       <div style="position:fixed;left:50%;transform:translateX(-50%);">
         <span class="wall-preview-mouse-hint" id="wallPreviewMouseHint" style="display:none;color:#aaa;font-size:13px;">📌 左键=点击/右键=菜单/滚轮=滚动</span>
         <button class="wall-preview-btn" id="wallPreviewMonitorBtn" title="切换显示器" onclick="wallCycleMonitor()" style="display:none;">🖥️ 显示器 1</button>
