@@ -976,10 +976,22 @@ function connectWS() {
               el.style.display = 'block';
               const ns = document.getElementById('ns_' + ci);
               if (ns) ns.style.display = 'none';
-              // 自愈：收到帧时恢复在线状态
+              // 自愈：收到帧时累加计数，达到阈值才恢复在线（与 renderPendingFrames/screenshotBatch 一致）
               if (gridCells[ci] && !gridCells[ci].online) {
-                gridCells[ci].online = true;
-                updateCellElement(ci);
+                if (!frameHealCount.has(devId)) frameHealCount.set(devId, 0);
+                frameHealCount.set(devId, frameHealCount.get(devId) + 1);
+                if (frameHealCount.get(devId) >= FRAME_HEAL_THRESHOLD) {
+                  gridCells[ci].online = true;
+                  // 移除离线灰度样式、隐藏离线标签、恢复UU按钮
+                  el.classList.remove('grayscale');
+                  const healCellEl = document.querySelector(`.wall-cell[data-index="${ci}"]`);
+                  if (healCellEl) healCellEl.classList.remove('offline-cell');
+                  const healOfflineLabel = document.getElementById(`offline_${ci}`);
+                  if (healOfflineLabel) healOfflineLabel.style.display = 'none';
+                  const healUubtn = document.getElementById(`uubtn_${ci}`);
+                  if (healUubtn) healUubtn.style.display = 'flex';
+                  updateCellElement(ci);
+                }
               }
             }
             // 同时更新监控设置弹窗中的预览图
@@ -2209,8 +2221,9 @@ function updateCellElement(index) {
         offlineLabel.style.display = 'flex';
       }
     } else {
-      // 在线设备：主动启动 MJPEG 流
+      // 在线设备：移除离线灰度样式、恢复UU按钮
       if (cellEl) cellEl.classList.remove('offline-cell');
+      img.classList.remove('grayscale');
       stxt.textContent = '在线';
       dot.className = 'status-dot online';
       stxt.className = 'status-text online';
