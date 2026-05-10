@@ -694,6 +694,9 @@ function connectWebSocket() {
     // console.error('WebSocket error:', err);
   };
 
+  // 追踪已收到二进制帧的设备，避免 JSON 静态图覆盖动态帧
+  const _binaryFrameDevices = new Set();
+
   ws.onmessage = function(e) {
     // ── 二进制帧（server → 监控墙）──
     if (e.data instanceof ArrayBuffer) {
@@ -721,6 +724,7 @@ function connectWebSocket() {
             el.classList.remove('wall-img-hidden');
             el.style.display = 'block';
             el.style.opacity = '1';
+            _binaryFrameDevices.add(devId);
           }
         }
       } catch(ex) {}
@@ -761,7 +765,10 @@ function connectWebSocket() {
         }
 
         // ── Blob URL 更新（带 MD5 跳帧）────────
-        updateWallCellScreenshot(deviceId, screenshot);
+        // 已收到二进制帧的设备，跳过 JSON 静态图，避免覆盖动态帧
+        if (!_binaryFrameDevices.has(deviceId)) {
+          updateWallCellScreenshot(deviceId, screenshot);
+        }
 
         // ── 更新时间戳 ───────────────────────────────────
         var ts = document.getElementById('ts_' + deviceId);
@@ -781,7 +788,10 @@ function connectWebSocket() {
         for (var i = 0; i < data.screenshots.length; i++) {
           var sc = data.screenshots[i];
           if (devices[sc.deviceId]) devices[sc.deviceId].screenshot = sc.screenshot;
-          updateWallCellScreenshot(sc.deviceId, sc.screenshot);
+          // 已收到二进制帧的设备，跳过 JSON 静态图
+          if (!_binaryFrameDevices.has(sc.deviceId)) {
+            updateWallCellScreenshot(sc.deviceId, sc.screenshot);
+          }
           var ts = document.getElementById('ts_' + sc.deviceId);
           if (ts && sc.timestamp) {
             var d = new Date(sc.timestamp);
