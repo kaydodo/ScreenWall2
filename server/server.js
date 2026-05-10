@@ -3260,6 +3260,7 @@ wssBrowser.on('connection', (ws) => {
       for (const deviceId of deviceList) {
         const isNewDevice = !existingDevices.has(deviceId); // 只对新增设备计数，避免重复订阅导致计数膨胀
         newDevices.add(deviceId);
+        addMonitorWall(deviceId); // 加入监控墙白名单，确保二进制帧进入 _wallBatch
         newHDChannels.add(deviceId); // 每个设备只开启一次高清通道
         wallDevices.set(deviceId, true); // 持久化追踪，设备重连后自动恢复
 
@@ -3328,6 +3329,7 @@ wssBrowser.on('connection', (ws) => {
         if (subscription) {
           for (const deviceId of devicesToUnsubscribe) {
             subscription.devices.delete(deviceId);
+            removeMonitorWall(deviceId); // 同步清理监控墙白名单
             if (hdChannels) hdChannels.delete(deviceId);
             if (hdRequests.has(deviceId)) {
               hdRequests.get(deviceId).delete(ws);
