@@ -1589,6 +1589,9 @@ function handleWallStateUpdate(data) {
       } else {
         devices[sd.deviceId].groupName = '未分组';
       }
+      if (sd.supportsKeyClient !== undefined) {
+        devices[sd.deviceId].supportsKeyClient = sd.supportsKeyClient;
+      }
     }
   });
 
