@@ -459,7 +459,7 @@ html, body {
     </div>
     <div class="wall-preview-controls" style="padding-right:70px;">
       <div style="position:fixed;left:50%;transform:translateX(-50%);">
-        <span class="wall-preview-mouse-hint" id="wallPreviewMouseHint" style="display:none;color:#aaa;font-size:13px;">📌 左键=点击/右键=菜单/滚轮=滚动</span>
+        <span class="wall-preview-mouse-hint" id="wallPreviewMouseHint" style="color:#aaa;font-size:13px;">📌 左键=点击/右键=菜单/滚轮=滚动</span>
         <button class="wall-preview-kb-btn" id="wallPreviewMonitorBtn" title="切换显示器" onclick="wallCycleMonitor()" style="display:none;">🖥️ 显示器 1</button>
         <button class="wall-preview-kb-btn" id="wallPreviewKBbtn" title="键盘控制" onclick="wallToggleKeyboard()">⌨️ 键盘</button>
       </div>
@@ -714,6 +714,13 @@ function initWall() {
 
       if (dev.online === false) {
         cell.classList.add('offline');
+      } else if (dev.uuDeviceId) {
+        // 页面加载时为在线设备创建 UU 按钮
+        var uuBtn = document.createElement('button');
+        uuBtn.className = 'uu-float-btn';
+        uuBtn.onclick = function(e) { e.stopPropagation(); openUU(dev.uuDeviceId); };
+        uuBtn.textContent = '🖱️ UU远程';
+        cell.appendChild(uuBtn);
       }
 
       // 保存设备ID用于点击预览
@@ -924,6 +931,20 @@ function connectWebSocket() {
             }
             if (newDev.uuDeviceId !== undefined) {
               devices[newDev.deviceId].uuDeviceId = newDev.uuDeviceId;
+              // 如果 uuDeviceId 有值且设备在线，为格子创建 UU 按钮
+              if (newDev.uuDeviceId && newDev.online !== false) {
+                var cellIndex = wallData.devices.findIndex(function(d) { return d.id === newDev.deviceId; });
+                if (cellIndex >= 0) {
+                  var cell = document.getElementById('cell_' + cellIndex);
+                  if (cell && !cell.querySelector('.uu-float-btn')) {
+                    var uuBtn = document.createElement('button');
+                    uuBtn.className = 'uu-float-btn';
+                    uuBtn.onclick = function(e) { e.stopPropagation(); openUU(newDev.uuDeviceId); };
+                    uuBtn.textContent = '🖱️ UU远程';
+                    cell.appendChild(uuBtn);
+                  }
+                }
+              }
             }
             if (newDev.monitorCount !== undefined) {
               devices[newDev.deviceId].monitorCount = newDev.monitorCount;
@@ -1047,13 +1068,24 @@ function wallUpdateMouseHint() {
   if (!hint) return;
   // 显示条件：非移动端 + 有键盘支持 + 预览打开
   var dev = wallPreviewDeviceId ? devices[wallPreviewDeviceId] : null;
-  var show = !isMobile() && dev && dev.supportsKeyClient;
+  var isMobileResult = isMobile();
+  var show = !isMobileResult && dev && dev.supportsKeyClient;
+  console.log('[Debug] wallUpdateMouseHint:', {
+    wallPreviewDeviceId: wallPreviewDeviceId,
+    dev: dev,
+    devSupportsKeyClient: dev ? dev.supportsKeyClient : 'N/A',
+    isMobile: isMobileResult,
+    show: show
+  });
   if (!show) {
     hint.style.display = 'none';
     return;
   }
   hint.textContent = '📌 左键=点击/右键=菜单/滚轮=滚动';
-  hint.style.display = '';
+  hint.style.display = 'inline';
+  console.log('[Debug] hint.style.display set to:', hint.style.display, 'hint.parentElement:', hint.parentElement.style.cssText);
+  console.log('[Debug] After show - offsetWidth:', hint.offsetWidth, 'offsetHeight:', hint.offsetHeight);
+  console.log('[Debug] ComputedStyle - display:', getComputedStyle(hint).display, 'visibility:', getComputedStyle(hint).visibility);
 }
 
 // ── 远控开关（照搬主页面）────────────────────────────────────
@@ -2107,32 +2139,24 @@ window.addEventListener('beforeunload', function() {
 // 初始化
 initWall();
 
-// 打开UU远程
+// 打开UU远程（与main.html一致，使用iframe方式）
 function openUU(uuDeviceId) {
   if (!uuDeviceId) { alert('该设备未设置UU设备ID'); return; }
-  var url = 'uuycmgr://' + uuDeviceId;
-
+  const url = `uuycmgr://${uuDeviceId}`;
+  
   try {
-    var opened = window.open(url);
-    if (opened && !opened.closed) return;
-  } catch(e) {}
-
-  try {
-    var iframe = document.createElement('iframe');
+    const iframe = document.createElement('iframe');
     iframe.style.display = 'none';
     iframe.src = url;
     document.body.appendChild(iframe);
-    setTimeout(function() { document.body.removeChild(iframe); }, 1000);
+    setTimeout(() => {
+      if (iframe.parentNode) document.body.removeChild(iframe);
+    }, 2000);
     return;
   } catch(e) {}
-
+  
   try {
-    var a = document.createElement('a');
-    a.href = url;
-    a.style.display = 'none';
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(function() { document.body.removeChild(a); }, 1000);
+    window.location.href = url;
     return;
   } catch(e) {}
 }
