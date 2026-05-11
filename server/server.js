@@ -3007,6 +3007,9 @@ wssBrowser.on('connection', (ws) => {
         // 记录预览订阅（interval 已废弃，客户端统一8fps）
         previewClients.set(ws, { deviceId });
 
+        // 立即发送完整设备列表（包含版本号等）
+        ws.send(JSON.stringify({ type: 'deviceList', devices: getDeviceListPayload() }));
+
         // startHQ 已由 openPreview 发送（确保立即开启），此处只推送最新截图
         const dev = devices.get(deviceId);
         if (dev && dev.hqScreenshot) {
