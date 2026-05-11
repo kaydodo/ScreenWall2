@@ -423,6 +423,7 @@ function initUI() {
   previewImg.style.display = 'none';
   previewImg.style.visibility = 'hidden';
   previewImg.style.filter = '';
+  previewImg.src = ''; // 强制清空 src
 
   var watermark = document.getElementById('previewOfflineWatermark');
   if (!isOnline) {
@@ -439,8 +440,10 @@ function initUI() {
       previewImg.src = screenshot;
       previewImg.style.display = 'block';
       previewImg.style.visibility = 'visible';
+    } else if (previewMode === 'normal') {
+      // 正常预览模式 + 在线设备：完全隐藏，等第一帧
+      previewImg.style.opacity = '0';
     }
-    // 正常预览模式 + 在线设备：不设置任何 src，完全空白，等实时帧
   }
 
   // UU按钮所有模式都显示
@@ -926,6 +929,7 @@ function connectWebSocket() {
                 previewImg._blobUrl = blobUrl;
                 previewImg.style.display = 'block';
                 previewImg.style.visibility = 'visible';
+                previewImg.style.opacity = '1'; // 恢复 opacity
                 var watermark = document.getElementById('previewOfflineWatermark');
                 if (watermark) watermark.style.display = 'none';
               }
