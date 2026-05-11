@@ -569,11 +569,19 @@ function toggleRemoteListModal() {
   }, 2000);
 }
 
-document.getElementById('remoteListOverlay').addEventListener('click', function() {
-  closeRemoteListModal();
-});
-document.getElementById('remoteListDialog').addEventListener('click', function(e) {
-  e.stopPropagation();
+document.addEventListener('DOMContentLoaded', function() {
+  var overlay = document.getElementById('remoteListOverlay');
+  var dialog = document.getElementById('remoteListDialog');
+  if (overlay) {
+    overlay.addEventListener('click', function() {
+      closeRemoteListModal();
+    });
+  }
+  if (dialog) {
+    dialog.addEventListener('click', function(e) {
+      e.stopPropagation();
+    });
+  }
 });
 
 function cycleMonitor() {
