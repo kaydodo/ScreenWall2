@@ -830,11 +830,6 @@ window.addEventListener('keyup', function(e) {
 });
 
 function closePreview() {
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'hq1080Off', deviceId: deviceId }));
-    ws.send(JSON.stringify({ type: 'stopHQ', deviceId: deviceId }));
-    ws.send(JSON.stringify({ type: 'unsubscribePreview', deviceId: deviceId }));
-  }
   if (keyboardOpen) closeKeyboard();
   window.parent.postMessage({ type: 'previewClose' }, '*');
 }
@@ -866,10 +861,6 @@ function setOnline() {
     uuBtn.style.pointerEvents = '';
     if (uuDeviceId) uuBtn.onclick = function() { openUU(uuDeviceId); };
   }
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'startHQ', deviceId: deviceId }));
-    ws.send(JSON.stringify({ type: 'hq1080On', deviceId: deviceId }));
-  }
   updateRemoteBtn();
   _pendingRemoteState = null;
 }
@@ -883,11 +874,7 @@ function connectWebSocket() {
   ws.binaryType = 'arraybuffer';
 
   ws.onopen = function() {
-    ws.send(JSON.stringify({ type: 'subscribePreview', deviceId: deviceId }));
-    if (isOnline) {
-      ws.send(JSON.stringify({ type: 'startHQ', deviceId: deviceId }));
-      ws.send(JSON.stringify({ type: 'hq1080On', deviceId: deviceId }));
-    }
+    // 使用与监控设置弹窗相同的源，无需发送 startHQ 等消息
   };
 
   ws.onclose = function() {
@@ -903,7 +890,8 @@ function connectWebSocket() {
         var data = new Uint8Array(e.data);
         var frameType = data[0];
 
-        if (frameType === 0x11) {
+        // 使用与监控设置弹窗相同的源：frameType 0x10 (browserScreenshot)
+        if (frameType === 0x10) {
           var devIdLen = data[1];
           var flags = data[2];
           var sw = view.getUint16(4);
@@ -946,16 +934,6 @@ function connectWebSocket() {
             if (sw > 0 && sh > 0) { screenWidth = sw; screenHeight = sh; }
           } else {
             URL.revokeObjectURL(blobUrl);
-          }
-        }
-
-        if (frameType === 0x12) {
-          var devIdLen2 = data[1];
-          var off2 = 8;
-          var devId2 = new TextDecoder().decode(new Uint8Array(e.data, off2, devIdLen2));
-          if (devId2 !== deviceId) {
-            var webpBuf2 = e.data.slice(off2 + devIdLen2);
-            URL.revokeObjectURL(URL.createObjectURL(new Blob([webpBuf2], { type: 'image/webp' })));
           }
         }
       } catch(ex) {}
