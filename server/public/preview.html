@@ -439,10 +439,8 @@ function initUI() {
       previewImg.src = screenshot;
       previewImg.style.display = 'block';
       previewImg.style.visibility = 'visible';
-    } else if (previewMode === 'normal') {
-      // 正常预览模式且在线时，保持空白等待实时帧，不加载任何静态图
-      previewImg.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
     }
+    // 正常预览模式 + 在线设备：不设置任何 src，完全空白，等实时帧
   }
 
   // UU按钮所有模式都显示
