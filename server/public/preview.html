@@ -617,8 +617,7 @@ document.addEventListener('DOMContentLoaded', function() {
     previewOverlay.addEventListener('click', function(e) {
       // 只有正常预览模式且有键盘支持的非移动端才禁止点击关闭
       if (previewMode === 'normal') {
-        const previewDev = allDevices[deviceId];
-        const currentDevHasKeyboard = previewDev && previewDev.supportsKeyClient;
+        const currentDevHasKeyboard = supportsKeyClient;
         if (!isMobile() && currentDevHasKeyboard) return;
       }
       // 其他情况都可以点击关闭
