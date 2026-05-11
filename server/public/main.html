@@ -299,49 +299,12 @@
 </style>
 
 <!-- ========== 预览浮层 ========== -->
-<!-- 浮动关闭按钮：移到 previewOverlay 外部，避免被 stacking context 限制，z-index 最高 -->
 <div id="previewFloatingClose" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999999;pointer-events:none;">
   <button id="previewClose" onclick="closePreview()" class="mobile-hide" style="position:absolute;top:12px;right:16px;color:#888;background:rgba(30,33,45,0.9);border:1px solid #444;font-size:14px;cursor:pointer;padding:6px 12px;border-radius:6px;pointer-events:auto;transition:all 0.2s;white-space:nowrap;">✕ 关闭</button>
 </div>
-<div class="preview-overlay" id="previewOverlay">
-  <div class="preview-titlebar" id="previewTitlebar">
-    <div style="display:flex;align-items:center;gap:30px;">
-      <span id="previewDeviceName">实时预览</span>
-      <!-- 远控开关和列表按钮，紧跟标题 -->
-      <div style="display:inline-flex;align-items:center;gap:4px;position:relative;z-index:10;" id="previewRemoteWrap">
-        <div id="previewRemoteSlider" role="button" tabindex="0" aria-label="远控开关" onclick="event.stopPropagation();togglePreviewRemote()" style="width:36px;height:18px;background:#555;border-radius:9px;position:relative;transition:background 0.2s;cursor:pointer;pointer-events:auto;">
-          <div id="previewRemoteKnob" style="width:14px;height:14px;background:#fff;border-radius:50%;position:absolute;top:2px;left:2px;transition:transform 0.2s;"></div>
-        </div>
-        <span style="font-size:12px;color:#888;">远控</span>
-        <button onclick="event.stopPropagation();toggleRemoteListModal()" title="远控设备列表" style="background:none;border:none;color:#888;font-size:14px;cursor:pointer;padding:2px;">🔍</button>
-      </div>
-    </div>
-    <div class="preview-controls" style="padding-right:70px;">
-      <div style="position:fixed;left:50%;transform:translateX(-50%);">
-        <span class="preview-mouse-hint" id="previewMouseHint" style="display:none;color:#aaa;font-size:13px;">📌 左键=点击/右键=菜单/滚轮=滚动</span>
-        <button class="preview-kb-btn" id="previewMonitorBtn" title="切换显示器" onclick="cycleMonitor()" style="display:none;background:#2a2d3a;border:1px solid #444;color:#fff;border-radius:6px;padding:4px 10px;font-size:13px;cursor:pointer;">🖥️ 显示器 1</button>
-        <button class="preview-kb-btn" id="previewKBbtn" title="键盘控制" onclick="togglePreviewKeyboard()">⌨️ 键盘</button>
-      </div>
-      <button class="preview-uu-btn" id="previewUUbtn" title="打开UU远程"> 🖱️ UU远程</button>
-      <button class="preview-uu-btn" id="previewUUDownloadBtn" title="下载UU远程" style="display:none;" onclick="downloadUU()"> 📥 UU下载</button>
-    </div>
-  </div>
-  <div class="preview-area" id="previewArea">
-    <div class="preview-img-wrapper" id="previewImgWrapper">
-      <img id="previewImg" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="实时预览" style="border-radius:0;box-shadow:none;border:none;" />
-    </div>
-  </div>
-  <!-- 移动端点击关闭提示 -->
-  <div class="preview-mobile-close mobile-hide" id="previewMobileClose">
-    <span>点击任意处关闭</span>
-  </div>
-  <div id="previewOfflineWatermark" style="display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-15deg) scale(3);font-size:52px;font-weight:300;color:rgba(160,160,160,0.7);pointer-events:none;white-space:nowrap;text-shadow:0 0 30px rgba(255,255,255,0.4);">设备已离线</div>
+<div class="preview-overlay" id="previewOverlay" style="display:none;">
+  <iframe id="previewIframe" src="about:blank" style="width:100%;height:100%;border:none;"></iframe>
 </div>
-
-<!-- 移动端键盘按钮（preview-overlay外部，使用fixed定位） -->
-<button id="previewKBbtnMobile" onclick="togglePreviewKeyboard()" title="键盘控制">⌨️ 键盘</button>
-<!-- 移动端显示器切换按钮（只在预览画面时显示） -->
-<button id="previewMonitorBtnMobile" onclick="cycleMonitor()" title="切换显示器">🖥️ 显示器 1</button>
 
 <!-- ========== Toast ========== -->
 <div class="toast" id="toast"></div>
@@ -2981,199 +2944,51 @@ function assignCell(cellIndex, deviceId) {
 function openPreview(cellIndex) {
   const cell = gridCells[cellIndex];
   if (!cell || !cell.deviceId) return;
-
-  // 1. 在线设备：等实时帧（previewScreenshot），不显示缓存旧帧；离线设备：显示静态图
   const dev = devices.find(d => d.deviceId === cell.deviceId);
-  const isOffline = dev ? !dev.online : true;
-  const previewImg = document.getElementById('previewImg');
-  const previewWrapper = document.getElementById('previewImgWrapper');
-  // 先彻底清除所有旧帧残留
-  previewWrapper.style.backgroundImage = '';
-  previewImg.removeAttribute('src');
-  previewImg.style.display = 'none';
-  previewImg.style.visibility = 'hidden';
-  previewImg.style.filter = '';
-
-  if (isOffline) {
-    // 离线：显示最新静态图
-    const staticImg = (dev && dev.screenshot) || cell.screenshot || '';
-    if (staticImg) {
-      previewImg.src = staticImg;
-      previewImg.style.display = 'block';
-      previewImg.style.visibility = 'visible';
-    }
-  }
-
-  // 2. 显示弹窗遮罩
-  document.getElementById('previewOverlay').classList.add('active');
-
-  // 3. 记住设备ID
   previewDeviceId = cell.deviceId;
   previewActive = true;
-
-  // 4. 从 devices 获取最新在线状态（gridCells 可能未及时更新）
-  const isOnline = dev ? dev.online : false;
-
-  // 5. 在线设备已在第1步清空旧帧，等 previewScreenshot 实时推送即可
-
-  const watermark = document.getElementById('previewOfflineWatermark');
-  const uubtn = document.getElementById('previewUUbtn');
-  if (!isOnline) {
-    // 离线：显示水印，UU按钮变灰，设置离线静态图
-    if (watermark) {
-      watermark.style.display = 'block';
-    }
-    if (uubtn) {
-      uubtn.style.display = 'inline-flex';
-      uubtn.disabled = true;
-      uubtn.style.opacity = '0.35';
-      uubtn.style.cursor = 'not-allowed';
-      uubtn.style.pointerEvents = 'none';
-    }
-    // 离线静态图已在第1步设置
-  }
-
-  document.getElementById('previewDeviceName').textContent = (cell.deviceName || (dev && dev.deviceName) || '未知') + ' - 实时预览' + ((dev && dev.monitorCount > 1) ? ' 🖥️' + (dev.monitorIndex || 1) : '');
-
-  // 5. 开启HQ高清流（仅在线设备）
-  previewHQMode = true;
-  preview1080Mode = true;
-  if (isOnline && ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'startHQ', deviceId: cell.deviceId }));
-    ws.send(JSON.stringify({ type: 'hq1080On', deviceId: cell.deviceId }));
-  }
-  // 显示浮动关闭按钮
-  const floatingClose = document.getElementById('previewFloatingClose');
+  var initData = {
+    deviceId: cell.deviceId,
+    deviceName: cell.deviceName || (dev && dev.deviceName) || '未知',
+    online: dev ? dev.online : false,
+    screenshot: (dev && dev.screenshot) || cell.screenshot || null,
+    supportsKeyClient: dev ? dev.supportsKeyClient : false,
+    uuDeviceId: (dev && dev.uuDeviceId) || cell.uuDeviceId || null,
+    monitorCount: dev ? (dev.monitorCount || 1) : 1,
+    monitorIndex: dev ? (dev.monitorIndex || 1) : 1,
+    screenWidth: dev ? (dev.screenWidth || 1920) : 1920,
+    screenHeight: dev ? (dev.screenHeight || 1080) : 1080
+  };
+  sessionStorage.setItem('previewInitData', JSON.stringify(initData));
+  var iframe = document.getElementById('previewIframe');
+  iframe.src = '/preview.html';
+  document.getElementById('previewOverlay').style.display = 'flex';
+  var floatingClose = document.getElementById('previewFloatingClose');
   if (floatingClose) floatingClose.style.display = 'block';
-  // 移动端关闭提示：2秒后淡出
-  var hint = document.getElementById('previewMobileClose');
-  if (hint) { hint.classList.remove('fade-out'); setTimeout(function() { hint.classList.add('fade-out'); }, 2000); }
-
-  // 初始化UU按钮（只有在线设备才能点击UU）
-  const uuId = cell.uuDeviceId || null;
-  if (uuId && isOnline) {
-    if (uubtn) { uubtn.style.display = 'inline-flex'; uubtn.disabled = false; uubtn.style.opacity = ''; uubtn.style.cursor = ''; uubtn.style.pointerEvents = ''; uubtn.onclick = () => { openUU(uuId); }; }
-  } else {
-    if (uubtn) { uubtn.style.display = 'inline-flex'; uubtn.disabled = true; uubtn.style.opacity = '0.35'; uubtn.style.cursor = 'not-allowed'; uubtn.style.pointerEvents = 'none'; }
-  }
-
-
-  // 正常预览时显示键盘按钮（报警预览不显示，只显示给当前设备）
-  const kbbtn = document.getElementById('previewKBbtn');
-  if (kbbtn) {
-    kbbtn.style.display = (dev && dev.supportsKeyClient) ? 'inline-flex' : 'none';
-  }
-  // 多显示器按钮
-  if (dev) {
-    dev._monitorCount = dev.monitorCount || 1;
-    updateMonitorBtn(dev.monitorIndex || 1);
-  }
-  // 重置鼠标提示（后续根据条件重新设置）
-  updateMouseHint();
-  // 移动端键盘按钮：根据设备是否支持键盘显示/隐藏
-  const kbbtnMobile = document.getElementById('previewKBbtnMobile');
-  if (kbbtnMobile) {
-    if (dev && dev.supportsKeyClient) {
-      kbbtnMobile.style.display = 'block';
-    } else {
-      kbbtnMobile.style.display = 'none';
-    }
-  }
-  // 鼠标提示：统一通过 updateMouseHint 处理
-  // 绑定预览图片点击事件（仅桌面端，移动端不支持鼠标点击）
-  if (previewImg && !isMobile) {
-    previewImg.onclick = handlePreviewImageClick;
-  }
-  // 预览大图时无条件禁用页面右键菜单和滚轮（全程禁用，不判定键盘状态）
-  const previewArea = document.getElementById("previewArea");
-  if (previewArea && !isMobile) {
-    previewArea.oncontextmenu = e => e.preventDefault();
-    previewArea.onwheel = e => {
-      e.preventDefault();
-      const previewDev = devices.find(d => d.deviceId === previewDeviceId);
-      if (previewDev && previewDev.supportsKeyClient) {
-        const delta = e.deltaY > 0 ? -120 : 120;
-        sendPreviewMouseScroll(delta);
-      }
-    };
-    previewArea.onmousedown = e => {
-      if (e.button === 2) {
-        e.preventDefault();
-        const previewDev = devices.find(d => d.deviceId === previewDeviceId);
-        if (previewDev && previewDev.supportsKeyClient) {
-          const pos = getPreviewImageClickPos(e);
-          if (pos) sendPreviewMouseRight(pos.x, pos.y);
-        }
-      }
-    };
-  }
-
-  // 订阅格子预览独立通道
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'subscribePreview', deviceId: cell.deviceId }));
-  }
 }
 
-// 统一绑定预览区鼠标事件：右键菜单禁用+滚轮远控
 function closePreview() {
-  // 关闭时隐藏键盘按钮
-  const kbbtn = document.getElementById('previewKBbtn');
-  if (kbbtn) kbbtn.style.display = 'none';
-  const kbbtnMobile = document.getElementById('previewKBbtnMobile');
-  if (kbbtnMobile) kbbtnMobile.style.display = 'none';
-  // 关闭时隐藏显示器切换按钮（移动端）
-  const monitorBtnMobile = document.getElementById('previewMonitorBtnMobile');
-  if (monitorBtnMobile) monitorBtnMobile.style.display = 'none';
-  // 关闭时隐藏鼠标提示（统一通过 updateMouseHint 处理）
-  updateMouseHint();
-  // 关闭时隐藏远控设备列表弹窗
-  closeRemoteListModal();
-  // 关闭时隐藏远控按钮
-  const remoteWrap = document.getElementById('previewRemoteWrap');
-  if (remoteWrap) remoteWrap.style.display = 'none';
-  // 关闭键盘弹窗（如果打开着）
   if (previewKeyboardOpen) closePreviewKeyboard();
-
-  // 先关闭1080p，再关闭HQ（与服务端逻辑保持一致）
-  if (previewDeviceId && ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'hq1080Off', deviceId: previewDeviceId }));
-    ws.send(JSON.stringify({ type: 'stopHQ', deviceId: previewDeviceId }));
-  }
-  // 取消订阅，由服务端统一协调：仅当没有其他浏览器需要时才关闭1080p和HQ
-  if (previewDeviceId && ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'unsubscribePreview', deviceId: previewDeviceId }));
-  }
   preview1080Mode = false;
   previewHQMode = false;
   previewDeviceId = null;
-  alarmPreviewDeviceId = null;  // 清除报警预览绑定的设备ID
-  previewActive = false;  // 恢复格子渲染
-
-  document.getElementById('previewOverlay').classList.remove('active');
-  // 隐藏浮动关闭按钮
-  const floatingClose = document.getElementById('previewFloatingClose');
+  alarmPreviewDeviceId = null;
+  previewActive = false;
+  document.getElementById('previewOverlay').style.display = 'none';
+  var iframe = document.getElementById('previewIframe');
+  iframe.src = 'about:blank';
+  var floatingClose = document.getElementById('previewFloatingClose');
   if (floatingClose) floatingClose.style.display = 'none';
-  document.getElementById('previewOfflineWatermark').style.display = 'none';
-  // 解绑预览图片点击事件
-  const previewImg = document.getElementById('previewImg');
-  if (previewImg) previewImg.onclick = null;
-  // 清理预览区事件（关闭大图时清除右键/滚轮禁用）
-  const pa2 = document.getElementById('previewArea');
-  if (pa2) { pa2.oncontextmenu = null; pa2.onwheel = null; pa2.onmousedown = null; }
-  // 先移除图片显示，再设置src，避免浏览器尝试加载base64作为URL
-  if (previewImg) { previewImg.style.display = 'none'; previewImg.style.filter = ''; previewImg.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'; }
-  // 重置预览 dedup 状态
-  _previewBlobMd5 = null;
-  // 清理格子 Blob URL
   for (const [idx, entry] of _cellBlobs) {
     try { URL.revokeObjectURL(entry.blobUrl); } catch(e) {}
   }
   _cellBlobs.clear();
 }
 
-// ─────────────────────────────────────────
-// 预览键盘控制
-// ─────────────────────────────────────────
+window.addEventListener('message', function(e) {
+  if (e.data && e.data.type === 'previewClose') closePreview();
+});
+
 var previewKeyboardOpen = false;
 var preview1080Mode = false;  // 1080p 预览模式（仅桌面端）
 // 物理 Shift 键状态：按住时点屏幕键盘发送大写/shifted字符
