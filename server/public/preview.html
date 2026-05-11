@@ -344,6 +344,15 @@ var monitorCount = initData.monitorCount || 1;
 var monitorIndex = initData.monitorIndex || 1;
 var screenWidth = initData.screenWidth || 1920;
 var screenHeight = initData.screenHeight || 1080;
+var allDevices = {};
+allDevices[deviceId] = {
+  name: deviceName,
+  online: isOnline,
+  supportsKeyClient: supportsKeyClient,
+  uuDeviceId: uuDeviceId,
+  version: initData.version || '',
+  uuVersion: initData.uuVersion || ''
+};
 
 var ws = null;
 var keyboardOpen = false;
@@ -567,8 +576,6 @@ function toggleRemoteListModal() {
     content.innerHTML = html;
   }, 2000);
 }
-
-var allDevices = {};
 
 function cycleMonitor() {
   if (!deviceId || !ws || ws.readyState !== WebSocket.OPEN) return;
