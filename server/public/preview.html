@@ -1,0 +1,993 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>预览</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.preview-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: rgba(10,12,20,0.88);
+  display: flex;
+  flex-direction: column;
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+.preview-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 24px;
+  background: rgba(255,255,255,0.06);
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  flex-shrink: 0;
+}
+.preview-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+#previewDeviceName {
+  font-size: 15px;
+  font-weight: 700;
+  color: #e2e8f0;
+}
+.preview-btn {
+  background: #4a5568;
+  border: none;
+  color: #fff;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.preview-btn:hover { background: #2d3748; }
+.preview-uu-btn {
+  background: #4f7ef7;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  display: none;
+}
+.preview-uu-btn:hover { background: #3c64e6; }
+.preview-uu-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+.preview-kb-btn {
+  background: #4a5568;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.preview-kb-btn:hover { background: #2d3748; }
+.preview-area {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  min-height: 0;
+  width: 100%;
+  background: #000;
+}
+.preview-img-wrapper {
+  position: absolute;
+  top: 16px;
+  left: 0;
+  right: 0;
+  bottom: 16px;
+}
+.preview-img-wrapper img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 0;
+  box-shadow: none;
+  border: none;
+}
+.preview-offline-watermark {
+  display: none;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-15deg) scale(3);
+  font-size: 52px;
+  font-weight: 300;
+  color: rgba(160,160,160,0.7);
+  pointer-events: none;
+  white-space: nowrap;
+  text-shadow: 0 0 30px rgba(255,255,255,0.4);
+}
+.preview-mouse-hint {
+  display: none;
+  color: #aaa;
+  font-size: 13px;
+}
+.close-btn {
+  color: #888;
+  background: rgba(30,33,45,0.9);
+  border: 1px solid #444;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: 6px;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.close-btn:hover {
+  color: #e2e8f0;
+  background: #3a3d4a;
+  border-color: #666;
+}
+.toggle-switch {
+  width: 36px;
+  height: 18px;
+  background: #555;
+  border-radius: 9px;
+  position: relative;
+  transition: background 0.2s;
+  cursor: pointer;
+}
+.toggle-switch.active { background: #22c55e; }
+.toggle-slider {
+  width: 14px;
+  height: 14px;
+  background: #fff;
+  border-radius: 50%;
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  transition: transform 0.2s;
+}
+.toggle-switch.active .toggle-slider { transform: translateX(18px); }
+
+.remote-list-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 10002;
+}
+.remote-list-dialog {
+  position: fixed;
+  background: #1a1d27;
+  border: 1px solid #3a3d45;
+  border-radius: 10px;
+  padding: 12px;
+  max-height: 60vh;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+  min-width: 200px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+}
+
+.keyboard-overlay {
+  position: fixed;
+  bottom: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10001;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+.keyboard-container {
+  background: #1a1d27;
+  border-radius: 12px;
+  padding: 12px;
+  max-width: 1200px;
+  width: 98%;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  user-select: none;
+}
+.keyboard-layout {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+}
+.keyboard-section {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.main-section {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.numpad-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 32px);
+  grid-template-rows: repeat(5, 32px);
+  grid-auto-rows: 32px;
+  gap: 3px;
+  justify-content: flex-start;
+  height: auto;
+}
+.kb-row {
+  display: flex;
+  gap: 3px;
+  align-items: flex-end;
+}
+.kb-keys {
+  display: flex;
+  gap: 3px;
+}
+.kb-key {
+  min-width: 32px;
+  height: 32px;
+  background: #2a2d35;
+  border: 1px solid #3a3d45;
+  border-radius: 4px;
+  color: #fff;
+  font-size: 11px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  align-self: stretch;
+  text-transform: uppercase;
+  transition: all 0.1s;
+}
+.numpad-grid .kb-key {
+  height: auto;
+  align-self: auto;
+}
+.kb-key:hover { background: #3a3d45; }
+.kb-key:active { background: #4a4d55; transform: scale(0.95); }
+.kb-key.shift-active { background: #5b8def !important; color: #fff !important; }
+.kb-spacer { min-width: 3px; height: 32px; }
+
+@media (max-width: 768px) {
+  .preview-kb-btn { display: none !important; }
+  .keyboard-layout {
+    flex-direction: column;
+    gap: 8px;
+  }
+  .numpad-section { display: none; }
+}
+</style>
+</head>
+<body>
+
+<div class="preview-overlay" id="previewOverlay">
+  <div class="preview-titlebar" id="previewTitlebar">
+    <div style="display:flex;align-items:center;gap:30px;">
+      <span id="previewDeviceName">实时预览</span>
+      <div style="display:inline-flex;align-items:center;gap:4px;position:relative;z-index:10;" id="previewRemoteWrap">
+        <div id="previewRemoteSlider" role="button" tabindex="0" aria-label="远控开关" onclick="event.stopPropagation();toggleRemote()" style="width:36px;height:18px;background:#555;border-radius:9px;position:relative;transition:background 0.2s;cursor:pointer;pointer-events:auto;">
+          <div id="previewRemoteKnob" style="width:14px;height:14px;background:#fff;border-radius:50%;position:absolute;top:2px;left:2px;transition:transform 0.2s;"></div>
+        </div>
+        <span style="font-size:12px;color:#888;">远控</span>
+        <button onclick="event.stopPropagation();toggleRemoteListModal()" title="远控设备列表" style="background:none;border:none;color:#888;font-size:14px;cursor:pointer;padding:2px;">🔍</button>
+      </div>
+    </div>
+    <div class="preview-controls" style="padding-right:70px;">
+      <div style="position:fixed;left:50%;transform:translateX(-50%);">
+        <span class="preview-mouse-hint" id="previewMouseHint" style="color:#aaa;font-size:13px;">📌 左键=点击/右键=菜单/滚轮=滚动</span>
+        <button class="preview-kb-btn" id="previewMonitorBtn" title="切换显示器" onclick="cycleMonitor()" style="display:none;">🖥️ 显示器 1</button>
+        <button class="preview-kb-btn" id="previewKBbtn" title="键盘控制" onclick="toggleKeyboard()">⌨️ 键盘</button>
+      </div>
+      <button class="preview-uu-btn" id="previewUUbtn" title="打开UU远程"> 🖱️ UU远程</button>
+      <button class="preview-uu-btn" id="previewUUDownloadBtn" title="下载UU远程" style="display:none;" onclick="downloadUU()"> 📥 UU下载</button>
+    </div>
+  </div>
+  <div class="preview-area" id="previewArea">
+    <div class="preview-img-wrapper" id="previewImgWrapper">
+      <img id="previewImg" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="实时预览" style="border-radius:0;box-shadow:none;border:none;" />
+    </div>
+  </div>
+  <div class="preview-offline-watermark" id="previewOfflineWatermark">设备已离线</div>
+</div>
+
+<div class="remote-list-overlay" id="remoteListOverlay">
+  <div class="remote-list-dialog" id="remoteListDialog"></div>
+</div>
+
+<div class="keyboard-overlay" id="keyboardOverlay" style="display:none;">
+  <div class="keyboard-container" id="keyboardContainer" style="background:#1a1d27;border-radius:12px;padding:12px;max-width:1200px;width:98%;box-shadow:0 8px 32px rgba(0,0,0,0.5);user-select:none;">
+    <div id="keyboardTitleBar" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;cursor:move;">
+      <span style="color:#fff;font-size:14px;">⌨️ 键盘控制</span>
+      <button onclick="closeKeyboard()" style="background:none;border:none;color:#888;cursor:pointer;font-size:18px;">✕</button>
+    </div>
+    <div id="keyboardContent"></div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+var initData = null;
+try {
+  var stored = sessionStorage.getItem('previewInitData');
+  if (stored) {
+    initData = JSON.parse(stored);
+    sessionStorage.removeItem('previewInitData');
+  }
+} catch(e) {}
+
+if (!initData || !initData.deviceId) {
+  document.body.innerHTML = '<div style="color:#fff;text-align:center;margin-top:40vh;font-size:16px;">未找到预览数据</div>';
+}
+
+var deviceId = initData.deviceId;
+var deviceName = initData.deviceName || '未知';
+var isOnline = initData.online !== false;
+var screenshot = initData.screenshot || null;
+var supportsKeyClient = initData.supportsKeyClient || false;
+var uuDeviceId = initData.uuDeviceId || null;
+var monitorCount = initData.monitorCount || 1;
+var monitorIndex = initData.monitorIndex || 1;
+var screenWidth = initData.screenWidth || 1920;
+var screenHeight = initData.screenHeight || 1080;
+
+var ws = null;
+var keyboardOpen = false;
+var physicalShiftDown = false;
+var _pendingRemoteState = null;
+var frameHealCount = 0;
+var FRAME_HEAL_THRESHOLD = 2;
+var serverConfig = {};
+
+var KEYBOARD_LAYOUT = {
+  main: [
+    [{label:'ESC'},{label:'F1'},{label:'F2'},{label:'F3'},{label:'F4'},{label:'F5'},{label:'F6'},{label:'F7'},{label:'F8'},{label:'F9'},{label:'F10'},{label:'F11'},{label:'F12'},{label:'PrtSc'},{label:'ScrLk'},{label:'Pause'}],
+    [{label:'\`'},{label:'1'},{label:'2'},{label:'3'},{label:'4'},{label:'5'},{label:'6'},{label:'7'},{label:'8'},{label:'9'},{label:'0'},{label:'-'},{label:'='},{label:'BS',w:1.42}],
+    [{label:'Tab',w:1.5},{label:'q'},{label:'w'},{label:'e'},{label:'r'},{label:'t'},{label:'y'},{label:'u'},{label:'i'},{label:'o'},{label:'p'},{label:'['},{label:']'},{label:'\\',w:1.15}],
+    [{label:'Caps',w:1.75},{label:'a'},{label:'s'},{label:'d'},{label:'f'},{label:'g'},{label:'h'},{label:'j'},{label:'k'},{label:'l'},{label:';'},{label:"'"},{label:'Enter',w:2.84},{label:'PgUp',w:1.25}],
+    [{label:'Shift',w:2.25},{label:'z'},{label:'x'},{label:'c'},{label:'v'},{label:'b'},{label:'n'},{label:'m'},{label:','},{label:'.'},{label:'/'},{label:'Shift',w:2.42}],
+    [{label:'Ctrl',w:1.5},{label:'Win'},{label:'Alt',w:1.5},{label:'Space',w:6.22,key:'SPACE'},{label:'Alt',w:1.5},{label:'Fn'},{label:'Ctrl',w:1.5}]
+  ],
+  edit: [[{label:'Ins'},{label:'Home'}],[{label:'Del'},{label:'End'}]],
+  arrows: [[{label:'↑',key:'UP'},{label:'PgDn'}],[{label:'←',key:'LEFT'},{label:'↓',key:'DOWN'},{label:'→',key:'RIGHT'}]],
+  numpad: [[{label:'Num'},{label:'/'},{label:'*'},{label:'-'},{label:'7'},{label:'8'},{label:'9'},{label:'+',h:2},{label:'4'},{label:'5'},{label:'6'},null,{label:'1'},{label:'2'},{label:'3'},{label:'Enter',h:2},{label:'0',w:2},{label:'.'},null]]
+};
+
+var SHIFT_DISPLAY_MAP = {
+  '`':'~','1':'!','2':'@','3':'#','4':'$','5':'%','6':'^','7':'&','8':'*','9':'(','0':')',
+  '-':'_','=':'+','[':'{',']':'}','\\':'|',';':':',"'":'"',',':'<','.':'>','/':'?'
+};
+
+async function loadServerConfig() {
+  try {
+    var res = await fetch('/config.json');
+    if (res.ok) serverConfig = await res.json();
+  } catch(err) {}
+}
+loadServerConfig();
+
+function downloadUU() {
+  if (serverConfig.uuDownloadUrl) {
+    var a = document.createElement('a');
+    a.href = serverConfig.uuDownloadUrl;
+    a.download = serverConfig.uuDownloadUrl.split('/').pop();
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
+}
+
+function openUU(id) {
+  if (!id) return;
+  var url = 'uuycmgr://' + id;
+  try {
+    var iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    iframe.src = url;
+    document.body.appendChild(iframe);
+    setTimeout(function() { if (iframe.parentNode) document.body.removeChild(iframe); }, 2000);
+    return;
+  } catch(e) {}
+  try { window.location.href = url; return; } catch(e) {}
+}
+
+function initUI() {
+  var monSuffix = monitorCount > 1 ? ' 🖥️' + monitorIndex : '';
+  document.getElementById('previewDeviceName').textContent = deviceName + ' - 实时预览' + monSuffix;
+
+  var previewImg = document.getElementById('previewImg');
+  previewImg.style.display = 'none';
+  previewImg.style.visibility = 'hidden';
+  previewImg.style.filter = '';
+
+  var watermark = document.getElementById('previewOfflineWatermark');
+  if (!isOnline) {
+    if (watermark) watermark.style.display = 'block';
+    if (screenshot) {
+      previewImg.src = screenshot;
+      previewImg.style.display = 'block';
+      previewImg.style.visibility = 'visible';
+    }
+  } else {
+    if (watermark) watermark.style.display = 'none';
+  }
+
+  var uuBtn = document.getElementById('previewUUbtn');
+  if (uuBtn) {
+    if (isOnline) {
+      uuBtn.style.display = 'inline-flex';
+      uuBtn.disabled = false;
+      uuBtn.style.opacity = '';
+      uuBtn.style.cursor = '';
+      uuBtn.style.pointerEvents = '';
+      if (uuDeviceId) uuBtn.onclick = function() { openUU(uuDeviceId); };
+    } else {
+      uuBtn.style.display = 'inline-flex';
+      uuBtn.disabled = true;
+      uuBtn.style.opacity = '0.35';
+      uuBtn.style.cursor = 'not-allowed';
+      uuBtn.style.pointerEvents = 'none';
+    }
+  }
+
+  var kbBtn = document.getElementById('previewKBbtn');
+  if (kbBtn) kbBtn.style.display = supportsKeyClient ? 'inline-flex' : 'none';
+
+  var monBtn = document.getElementById('previewMonitorBtn');
+  if (monBtn) {
+    if (monitorCount > 1) {
+      monBtn.style.display = 'inline-flex';
+      monBtn.textContent = '🖥️ 显示器 ' + monitorIndex;
+    } else {
+      monBtn.style.display = 'none';
+    }
+  }
+
+  var remoteWrap = document.getElementById('previewRemoteWrap');
+  if (remoteWrap) remoteWrap.style.display = isMobile() ? 'none' : 'inline-flex';
+  setTimeout(updateRemoteBtn, 100);
+
+  updateMouseHint();
+  bindPreviewEvents();
+}
+
+function isMobile() {
+  return window.matchMedia && window.matchMedia('(max-width: 768px)').matches;
+}
+
+function updateMouseHint() {
+  var hint = document.getElementById('previewMouseHint');
+  if (!hint) return;
+  var show = !isMobile() && supportsKeyClient;
+  if (!show) {
+    hint.style.display = 'none';
+    return;
+  }
+  hint.textContent = '📌 左键=点击/右键=菜单/滚轮=滚动';
+  hint.style.display = 'inline';
+}
+
+function updateRemoteBtn() {
+  var slider = document.getElementById('previewRemoteSlider');
+  var knob = document.getElementById('previewRemoteKnob');
+  if (!slider || !knob) return;
+  slider.style.opacity = '1';
+  slider.style.cursor = 'pointer';
+  if (!isOnline) return;
+  if (supportsKeyClient) {
+    slider.style.background = '#22c55e';
+    knob.style.transform = 'translateX(18px)';
+  } else {
+    slider.style.background = '#555';
+    knob.style.transform = 'translateX(0)';
+  }
+}
+
+function toggleRemote() {
+  if (!deviceId) return;
+  if (!isOnline) return;
+  var slider = document.getElementById('previewRemoteSlider');
+  var knob = document.getElementById('previewRemoteKnob');
+  if (!slider || !knob) return;
+  _pendingRemoteState = supportsKeyClient !== true;
+  if (_pendingRemoteState) {
+    slider.style.background = '#22c55e';
+    knob.style.transform = 'translateX(18px)';
+  } else {
+    slider.style.background = '#555';
+    knob.style.transform = 'translateX(0)';
+  }
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: _pendingRemoteState ? 'setKeyboardEnabled' : 'setKeyboardDisabled', deviceId: deviceId }));
+  }
+  if (!_pendingRemoteState && keyboardOpen) closeKeyboard();
+}
+
+function toggleRemoteListModal() {
+  var overlay = document.getElementById('remoteListOverlay');
+  if (overlay.style.display === 'block') {
+    overlay.style.display = 'none';
+    return;
+  }
+  var content = document.getElementById('remoteListDialog');
+  var html = '';
+  for (var id in allDevices) {
+    var dev = allDevices[id];
+    if (dev.online) {
+      var isEnabled = dev.supportsKeyClient;
+      var bgColor = isEnabled ? 'rgba(34,197,94,0.15)' : 'rgba(255,255,255,0.05)';
+      var borderColor = isEnabled ? 'rgba(34,197,94,0.4)' : 'rgba(255,255,255,0.1)';
+      var textColor = isEnabled ? '#22c55e' : '#888';
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;background:' + bgColor + ';border:1px solid ' + borderColor + ';border-radius:6px;padding:10px 16px;font-size:14px;color:' + textColor + ';white-space:nowrap;gap:12px;"><span>' + (dev.name || id) + '</span></div>';
+    }
+  }
+  content.innerHTML = html;
+  var searchBtn = document.querySelector('#previewRemoteWrap button');
+  if (searchBtn) {
+    var rect = searchBtn.getBoundingClientRect();
+    content.style.top = (rect.bottom + 8) + 'px';
+    content.style.left = rect.left + 'px';
+    content.style.transform = 'none';
+    content.style.maxWidth = '80vw';
+  }
+  overlay.style.display = 'block';
+}
+
+var allDevices = {};
+
+function cycleMonitor() {
+  if (!deviceId || !ws || ws.readyState !== WebSocket.OPEN) return;
+  if (monitorCount <= 1) return;
+  monitorIndex = monitorIndex >= monitorCount ? 1 : monitorIndex + 1;
+  ws.send(JSON.stringify({ type: 'switchMonitor', deviceId: deviceId, monitorIndex: monitorIndex }));
+  var monBtn = document.getElementById('previewMonitorBtn');
+  if (monBtn) monBtn.textContent = '🖥️ 显示器 ' + monitorIndex;
+  document.getElementById('previewDeviceName').textContent = deviceName + ' - 实时预览 🖥️' + monitorIndex;
+}
+
+function getClickPos(e) {
+  var img = document.getElementById('previewImg');
+  if (!img) return null;
+  var imgRect = img.getBoundingClientRect();
+  if (imgRect.width === 0 || imgRect.height === 0) return null;
+  var cw = imgRect.width;
+  var ch = imgRect.height;
+  var imgAspect = screenWidth / screenHeight;
+  var imgW, imgH, offsetX, offsetY;
+  if (cw / ch > imgAspect) {
+    imgH = ch; imgW = ch * imgAspect; offsetX = (cw - imgW) / 2; offsetY = 0;
+  } else {
+    imgW = cw; imgH = cw / imgAspect; offsetX = 0; offsetY = (ch - imgH) / 2;
+  }
+  var clickX = e.clientX - imgRect.left - offsetX;
+  var clickY = e.clientY - imgRect.top - offsetY;
+  if (clickX < 0 || clickY < 0 || clickX > imgW || clickY > imgH) return null;
+  return { x: Math.round((clickX / imgW) * screenWidth), y: Math.round((clickY / imgH) * screenHeight) };
+}
+
+function sendMouse(type, x, y, extra) {
+  if (!deviceId || !supportsKeyClient || !isOnline) return;
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    var payload = { type: type, deviceId: deviceId, x: x, y: y, previewWidth: screenWidth, previewHeight: screenHeight };
+    if (extra) Object.assign(payload, extra);
+    ws.send(JSON.stringify(payload));
+  }
+}
+
+function handlePreviewClick(e) {
+  var pos = getClickPos(e);
+  if (pos) sendMouse('mouseClick', pos.x, pos.y);
+}
+
+function bindPreviewEvents() {
+  var previewImg = document.getElementById('previewImg');
+  var previewArea = document.getElementById('previewArea');
+  if (!isMobile()) {
+    previewImg.onclick = handlePreviewClick;
+    if (previewArea) {
+      previewArea.oncontextmenu = function(e) { e.preventDefault(); };
+      previewArea.onwheel = function(e) {
+        e.preventDefault();
+        if (supportsKeyClient && isOnline) {
+          var delta = e.deltaY > 0 ? -120 : 120;
+          sendMouse('mouseScroll', 0, 0, { delta: delta });
+        }
+      };
+      previewArea.onmousedown = function(e) {
+        if (e.button === 2) {
+          e.preventDefault();
+          if (supportsKeyClient && isOnline) {
+            var pos = getClickPos(e);
+            if (pos) sendMouse('mouseRight', pos.x, pos.y);
+          }
+        }
+      };
+    }
+  }
+}
+
+function toggleKeyboard() {
+  if (keyboardOpen) closeKeyboard();
+  else openKeyboard();
+}
+
+function openKeyboard() {
+  if (!deviceId || !supportsKeyClient) return;
+  var container = document.getElementById('keyboardContent');
+  var overlay = document.getElementById('keyboardOverlay');
+
+  function renderKey(key) {
+    if (!key) return '<div class="kb-spacer"></div>';
+    var w = key.w ? 'style="min-width:' + (key.w * 32) + 'px"' : '';
+    var h = key.h ? 'style="height:' + (key.h * 32 + (key.h-1)*3) + 'px"' : '';
+    var k = (key.key || key.label).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    var label = key.label.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return '<button class="kb-key" ' + w + h + ' data-orig-label="' + label + '" onclick="sendKey(\'' + k + '\')">' + label + '</button>';
+  }
+
+  function renderRow(keys, extraKeys) {
+    var row = '<div class="kb-row">';
+    keys.forEach(function(k) { row += renderKey(k); });
+    if (extraKeys) extraKeys.forEach(function(k) { row += renderKey(k); });
+    return row + '</div>';
+  }
+
+  var html = '<div class="keyboard-layout">';
+  html += '<div class="keyboard-section main-section">';
+  html += renderRow(KEYBOARD_LAYOUT.main[0]);
+  html += renderRow(KEYBOARD_LAYOUT.main[1], KEYBOARD_LAYOUT.edit[0]);
+  html += renderRow(KEYBOARD_LAYOUT.main[2], KEYBOARD_LAYOUT.edit[1]);
+  html += renderRow(KEYBOARD_LAYOUT.main[3]);
+  html += '<div class="kb-row"><div class="kb-keys" style="display:flex;gap:3px;">';
+  KEYBOARD_LAYOUT.main[4].forEach(function(k) { html += renderKey(k); });
+  html += renderKey(KEYBOARD_LAYOUT.arrows[0][0]);
+  html += renderKey(KEYBOARD_LAYOUT.arrows[0][1]);
+  html += '</div></div>';
+  html += '<div class="kb-row"><div class="kb-keys" style="display:flex;gap:3px;">';
+  KEYBOARD_LAYOUT.main[5].forEach(function(k) { html += renderKey(k); });
+  KEYBOARD_LAYOUT.arrows[1].forEach(function(k) { html += renderKey(k); });
+  html += '</div></div>';
+  html += '</div>';
+  html += '<div class="numpad-section" style="padding-top:35px;">';
+  html += '<div class="numpad-grid">';
+  function np(label, col, row, colspan, rowspan, key) {
+    if (!label) return '';
+    var keyCode = (key || label).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    var labelEsc = label.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    var style = 'grid-column:' + col + ';grid-row:' + row + ';';
+    if (colspan > 1) style = 'grid-column:' + col + ' / span ' + colspan + ';grid-row:' + row + ';';
+    if (rowspan > 1) style = 'grid-column:' + col + ';grid-row:' + row + ' / span ' + rowspan + ';';
+    if (colspan > 1 && rowspan > 1) style = 'grid-column:' + col + ' / span ' + colspan + ';grid-row:' + row + ' / span ' + rowspan + ';';
+    return '<button class="kb-key" style="' + style + '" data-orig-label="' + labelEsc + '" onclick="sendKey(\'' + keyCode + '\')">' + labelEsc + '</button>';
+  }
+  html += np('Num',1,1)+np('/',2,1)+np('*',3,1)+np('-',4,1);
+  html += np('7',1,2)+np('8',2,2)+np('9',3,2)+np('+',4,2,1,2);
+  html += np('4',1,3)+np('5',2,3)+np('6',3,3);
+  html += np('1',1,4)+np('2',2,4)+np('3',3,4)+np('Enter',4,4,1,2);
+  html += np('0',1,5,2)+np('.',3,5);
+  html += '</div></div></div>';
+
+  container.innerHTML = html;
+  overlay.style.display = 'flex';
+  keyboardOpen = true;
+}
+
+function closeKeyboard() {
+  var overlay = document.getElementById('keyboardOverlay');
+  overlay.style.display = 'none';
+  keyboardOpen = false;
+}
+
+function sendKey(key) {
+  if (!deviceId || !supportsKeyClient || !isOnline) return;
+  var keyMap = {
+    '↑':'UP','↓':'DOWN','←':'LEFT','→':'RIGHT',
+    'Space':'SPACE','←':'BACKSPACE','Enter':'RETURN',
+    'Num':'NUMLOCK','ScrLk':'SCROLLLOCK','PrtSc':'PRINT_SCREEN',
+    'Caps':'CAPS_LOCK','ESC':'ESCAPE',
+    'Ins':'INSERT','Del':'DELETE','Home':'HOME','End':'END',
+    'PgUp':'PAGE_UP','PgDn':'PAGE_DOWN','Tab':'TAB','Win':'LWIN',
+    'Pause':'PAUSE','BS':'BACKSPACE'
+  };
+  if (key === 'SHIFT') return;
+  var actualKey = keyMap[key] || key;
+  var send = actualKey;
+  if (physicalShiftDown) {
+    if (SHIFT_DISPLAY_MAP[key]) send = SHIFT_DISPLAY_MAP[key];
+    else if (/^[a-z]$/.test(key)) send = 'Shift+' + key.toUpperCase();
+  }
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'keyClick', deviceId: deviceId, key: send }));
+  }
+}
+
+window.addEventListener('keydown', function(e) {
+  if (e.key === 'Shift' && !physicalShiftDown) {
+    if (supportsKeyClient) {
+      physicalShiftDown = true;
+      document.querySelectorAll('.kb-key').forEach(function(btn) {
+        var origLabel = btn.getAttribute('data-orig-label');
+        if (origLabel && SHIFT_DISPLAY_MAP[origLabel]) btn.textContent = SHIFT_DISPLAY_MAP[origLabel];
+      });
+    }
+  }
+  if (e.key === 'Escape') closePreview();
+});
+
+window.addEventListener('keyup', function(e) {
+  if (e.key === 'Shift') {
+    physicalShiftDown = false;
+    document.querySelectorAll('.kb-key').forEach(function(btn) {
+      var origLabel = btn.getAttribute('data-orig-label');
+      if (origLabel) btn.textContent = origLabel;
+    });
+  }
+});
+
+function closePreview() {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'hq1080Off', deviceId: deviceId }));
+    ws.send(JSON.stringify({ type: 'stopHQ', deviceId: deviceId }));
+    ws.send(JSON.stringify({ type: 'unsubscribePreview', deviceId: deviceId }));
+  }
+  if (keyboardOpen) closeKeyboard();
+  window.parent.postMessage({ type: 'previewClose' }, '*');
+}
+
+function setOffline(status) {
+  isOnline = false;
+  var watermark = document.getElementById('previewOfflineWatermark');
+  if (watermark) {
+    watermark.textContent = status === 'deleted' ? '设备已删除' : '设备已离线';
+    watermark.style.display = 'block';
+  }
+  var uuBtn = document.getElementById('previewUUbtn');
+  if (uuBtn) { uuBtn.disabled = true; uuBtn.style.opacity = '0.35'; uuBtn.style.cursor = 'not-allowed'; uuBtn.style.pointerEvents = 'none'; }
+  _pendingRemoteState = null;
+  frameHealCount = 0;
+}
+
+function setOnline() {
+  isOnline = true;
+  var watermark = document.getElementById('previewOfflineWatermark');
+  if (watermark) watermark.style.display = 'none';
+  var previewImg = document.getElementById('previewImg');
+  if (previewImg) previewImg.style.filter = '';
+  var uuBtn = document.getElementById('previewUUbtn');
+  if (uuBtn) {
+    uuBtn.disabled = false;
+    uuBtn.style.opacity = '';
+    uuBtn.style.cursor = '';
+    uuBtn.style.pointerEvents = '';
+    if (uuDeviceId) uuBtn.onclick = function() { openUU(uuDeviceId); };
+  }
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'startHQ', deviceId: deviceId }));
+    ws.send(JSON.stringify({ type: 'hq1080On', deviceId: deviceId }));
+  }
+  updateRemoteBtn();
+  _pendingRemoteState = null;
+}
+
+function connectWebSocket() {
+  var wsUrl = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws/browser';
+  ws = new WebSocket(wsUrl);
+  ws.binaryType = 'arraybuffer';
+
+  ws.onopen = function() {
+    ws.send(JSON.stringify({ type: 'subscribePreview', deviceId: deviceId }));
+    if (isOnline) {
+      ws.send(JSON.stringify({ type: 'startHQ', deviceId: deviceId }));
+      ws.send(JSON.stringify({ type: 'hq1080On', deviceId: deviceId }));
+    }
+  };
+
+  ws.onclose = function() {
+    setTimeout(connectWebSocket, 3000);
+  };
+
+  ws.onerror = function() {};
+
+  ws.onmessage = function(e) {
+    if (e.data instanceof ArrayBuffer) {
+      try {
+        var view = new DataView(e.data);
+        var data = new Uint8Array(e.data);
+        var frameType = data[0];
+
+        if (frameType === 0x11) {
+          var devIdLen = data[1];
+          var flags = data[2];
+          var sw = view.getUint16(4);
+          var sh = view.getUint16(6);
+          var off = 8;
+          var devId = new TextDecoder().decode(new Uint8Array(e.data, off, devIdLen));
+          off += devIdLen;
+          var webpBuf = e.data.slice(off);
+          var blob = new Blob([webpBuf], { type: 'image/webp' });
+          var blobUrl = URL.createObjectURL(blob);
+
+          if (devId === deviceId) {
+            if (isOnline) {
+              var previewImg = document.getElementById('previewImg');
+              if (previewImg) {
+                if (previewImg._blobUrl) URL.revokeObjectURL(previewImg._blobUrl);
+                previewImg.src = blobUrl;
+                previewImg._blobUrl = blobUrl;
+                previewImg.style.display = 'block';
+                previewImg.style.visibility = 'visible';
+                var watermark = document.getElementById('previewOfflineWatermark');
+                if (watermark) watermark.style.display = 'none';
+              }
+            } else {
+              frameHealCount++;
+              if (frameHealCount >= FRAME_HEAL_THRESHOLD) {
+                setOnline();
+                var previewImg2 = document.getElementById('previewImg');
+                if (previewImg2) {
+                  if (previewImg2._blobUrl) URL.revokeObjectURL(previewImg2._blobUrl);
+                  previewImg2.src = blobUrl;
+                  previewImg2._blobUrl = blobUrl;
+                  previewImg2.style.display = 'block';
+                  previewImg2.style.visibility = 'visible';
+                }
+              } else {
+                URL.revokeObjectURL(blobUrl);
+              }
+            }
+            if (sw > 0 && sh > 0) { screenWidth = sw; screenHeight = sh; }
+          } else {
+            URL.revokeObjectURL(blobUrl);
+          }
+        }
+
+        if (frameType === 0x12) {
+          var devIdLen2 = data[1];
+          var off2 = 8;
+          var devId2 = new TextDecoder().decode(new Uint8Array(e.data, off2, devIdLen2));
+          if (devId2 !== deviceId) {
+            var webpBuf2 = e.data.slice(off2 + devIdLen2);
+            URL.revokeObjectURL(URL.createObjectURL(new Blob([webpBuf2], { type: 'image/webp' })));
+          }
+        }
+      } catch(ex) {}
+      return;
+    }
+
+    try {
+      var msg = JSON.parse(e.data);
+
+      if (msg.type === 'deviceList') {
+        var devices = msg.devices || [];
+        devices.forEach(function(d) {
+          allDevices[d.deviceId] = {
+            name: d.deviceName || d.deviceId,
+            online: d.online,
+            supportsKeyClient: d.supportsKeyClient || false,
+            uuDeviceId: d.uuDeviceId || null
+          };
+          if (d.deviceId === deviceId) {
+            if (d.supportsKeyClient !== undefined) supportsKeyClient = d.supportsKeyClient;
+            if (d.online !== undefined) {
+              if (d.online && !isOnline) setOnline();
+              else if (!d.online && isOnline) setOffline('offline');
+            }
+            if (d.deviceName) deviceName = d.deviceName;
+            if (d.screenshot) screenshot = d.screenshot;
+            if (d.uuDeviceId !== undefined) uuDeviceId = d.uuDeviceId;
+            if (d.monitorCount !== undefined) monitorCount = d.monitorCount;
+            if (d.monitorIndex !== undefined) monitorIndex = d.monitorIndex;
+            updateMouseHint();
+            updateRemoteBtn();
+            var kbBtn = document.getElementById('previewKBbtn');
+            if (kbBtn) kbBtn.style.display = supportsKeyClient ? 'inline-flex' : 'none';
+            var monBtn = document.getElementById('previewMonitorBtn');
+            if (monBtn) {
+              if (monitorCount > 1) { monBtn.style.display = 'inline-flex'; monBtn.textContent = '🖥️ 显示器 ' + monitorIndex; }
+              else monBtn.style.display = 'none';
+            }
+            var uuBtn = document.getElementById('previewUUbtn');
+            if (uuBtn && isOnline && uuDeviceId) {
+              uuBtn.style.display = 'inline-flex';
+              uuBtn.disabled = false;
+              uuBtn.style.opacity = '';
+              uuBtn.style.cursor = '';
+              uuBtn.style.pointerEvents = '';
+              uuBtn.onclick = function() { openUU(uuDeviceId); };
+            }
+          }
+        });
+      }
+
+      if (msg.type === 'wallStateUpdate') {
+        var eventType = msg.eventType;
+        if (msg.deviceId === deviceId) {
+          if (eventType === 'deviceOffline') {
+            if (isOnline) {
+              setOffline('offline');
+              var dev = allDevices[deviceId];
+              if (dev && dev.screenshot) {
+                var pi = document.getElementById('previewImg');
+                if (pi) { pi.src = dev.screenshot; pi.style.display = 'block'; pi.style.visibility = 'visible'; }
+              } else if (screenshot) {
+                var pi2 = document.getElementById('previewImg');
+                if (pi2) { pi2.src = screenshot; pi2.style.display = 'block'; pi2.style.visibility = 'visible'; }
+              }
+            }
+          }
+          if (eventType === 'deviceOnline') {
+            if (!isOnline) setOnline();
+            if (msg.supportsKeyClient !== undefined) supportsKeyClient = msg.supportsKeyClient;
+            updateMouseHint();
+            updateRemoteBtn();
+          }
+        }
+        var serverDevices = msg.devices || [];
+        serverDevices.forEach(function(sd) {
+          if (allDevices[sd.deviceId]) {
+            allDevices[sd.deviceId].online = sd.online;
+            allDevices[sd.deviceId].supportsKeyClient = sd.supportsKeyClient || false;
+          }
+        });
+      }
+
+      if (msg.type === 'devicePreviewStatus' && msg.deviceId === deviceId) {
+        if (msg.status === 'offline' || msg.status === 'deleted') {
+          if (isOnline) {
+            setOffline(msg.status);
+            var offlineFrame = msg.screenshot || screenshot;
+            if (offlineFrame) {
+              var pi3 = document.getElementById('previewImg');
+              if (pi3) { pi3.src = offlineFrame; pi3.style.display = 'block'; pi3.style.visibility = 'visible'; }
+            }
+          }
+        } else if (msg.status === 'online') {
+          if (!isOnline) setOnline();
+        }
+      }
+
+      if (msg.type === 'keyboardState' && msg.deviceId === deviceId) {
+        supportsKeyClient = msg.supportsKeyClient || false;
+        updateMouseHint();
+        updateRemoteBtn();
+        var kbBtn2 = document.getElementById('previewKBbtn');
+        if (kbBtn2) kbBtn2.style.display = supportsKeyClient ? 'inline-flex' : 'none';
+        if (!supportsKeyClient && keyboardOpen) closeKeyboard();
+        _pendingRemoteState = null;
+      }
+
+      if ((msg.type === 'previewScreenshot' || msg.type === 'browserScreenshot') && msg.deviceId === deviceId && msg.image) {
+        if (isOnline) {
+          var previewImg3 = document.getElementById('previewImg');
+          if (previewImg3) {
+            previewImg3.src = msg.image;
+            previewImg3.style.display = 'block';
+            previewImg3.style.visibility = 'visible';
+            var watermark2 = document.getElementById('previewOfflineWatermark');
+            if (watermark2) watermark2.style.display = 'none';
+          }
+        }
+        if (msg.screenWidth && msg.screenHeight) { screenWidth = msg.screenWidth; screenHeight = msg.screenHeight; }
+      }
+    } catch(err) {}
+  };
+}
+
+initUI();
+connectWebSocket();
+</script>
+</body>
+</html>
