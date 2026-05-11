@@ -1495,6 +1495,9 @@ function handleWallStateUpdate(data) {
       if (sd.supportsKeyClient !== undefined) {
         devices[sd.deviceId].supportsKeyClient = sd.supportsKeyClient;
       }
+      if (sd.screenshot !== undefined) {
+        devices[sd.deviceId].screenshot = sd.screenshot;
+      }
     }
   });
 
@@ -1528,6 +1531,7 @@ function handleWallStateUpdate(data) {
           img.src = dev.screenshot;
         }
         img.style.display = 'block';
+        img.classList.add('grayscale');
       }
     }
     // 如果正在预览该设备，更新预览状态
