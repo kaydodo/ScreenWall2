@@ -3638,7 +3638,11 @@ httpServer.on('request', (req, res) => {
   };
   // HTML 页面需要 CSP 防止被嵌入 iframe
   if (!isStaticFile) {
-    securityHeaders['Content-Security-Policy'] = "frame-ancestors 'none'";
+    if (pathname === '/preview.html') {
+      securityHeaders['Content-Security-Policy'] = "frame-ancestors 'self'";
+    } else {
+      securityHeaders['Content-Security-Policy'] = "frame-ancestors 'none'";
+    }
   }
   const _origWriteHead = res.writeHead.bind(res);
   let _headersSent = false;
