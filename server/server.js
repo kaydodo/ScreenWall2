@@ -295,7 +295,7 @@ function _flushBrowserBatch() {
   }
   try {
     for (const browserWs of browserClients) {
-      if (browserWs.readyState !== 1 || wallClients.has(browserWs)) continue;
+      if (browserWs.readyState !== 1) continue;
       for (const [deviceId, data] of _browserBatch) {
         if (data.buffer) sendBinaryScreenshot(browserWs, 0x10, deviceId, data.buffer, data.screenWidth || 0, data.screenHeight || 0, data.isHQ || false);
       }

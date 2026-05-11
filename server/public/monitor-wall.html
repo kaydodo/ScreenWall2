@@ -728,8 +728,8 @@ function connectWebSocket() {
         const view = new DataView(e.data);
         const data = new Uint8Array(e.data);
         const frameType = data[0];
-        // 监控墙格子帧
-        if (frameType === 0x12) {
+        // 统一使用 0x10 帧
+        if (frameType === 0x10) {
           const devIdLen = data[1];
           const flags = data[2];
           const isHQ = (flags & 0x01) !== 0;
