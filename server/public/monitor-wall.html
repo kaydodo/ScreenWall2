@@ -440,63 +440,13 @@ html, body {
 <div class="stats-panel" id="statsPanel"></div>
 
 <!-- ═══════════════════════════════════════════════════════════════ -->
-<!-- 浮动关闭按钮：移到 previewOverlay 外部，z-index 最高 -->
-<!-- ═══════════════════════════════════════════════════════════════ -->
 <div id="wallPreviewFloatingClose" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999999;pointer-events:none;">
   <button onclick="wallClosePreview()" style="position:absolute;top:12px;right:16px;color:#888;background:rgba(30,33,45,0.9);border:1px solid #444;font-size:14px;cursor:pointer;padding:6px 12px;border-radius:6px;pointer-events:auto;transition:all 0.2s;white-space:nowrap;">✕ 关闭</button>
 </div>
 
-<!-- ═══════════════════════════════════════════════════════════════ -->
-<!-- 预览弹窗 — 完全照搬主页面布局 -->
-<!-- ═══════════════════════════════════════════════════════════════ -->
-<div class="wall-preview-overlay" id="wallPreviewOverlay">
-  <div class="wall-preview-titlebar" id="wallPreviewTitlebar">
-    <div style="display:flex;align-items:center;gap:30px;">
-      <span id="wallPreviewDeviceName">实时预览</span>
-      <!-- 远控开关和列表按钮，紧跟标题（和主页面完全一致） -->
-      <div style="display:inline-flex;align-items:center;gap:4px;position:relative;z-index:10;" id="wallPreviewRemoteWrap">
-        <div id="wallPreviewRemoteSlider" role="button" tabindex="0" aria-label="远控开关" onclick="event.stopPropagation();wallToggleRemote()" style="width:36px;height:18px;background:#555;border-radius:9px;position:relative;transition:background 0.2s;cursor:pointer;pointer-events:auto;">
-          <div id="wallPreviewRemoteKnob" style="width:14px;height:14px;background:#fff;border-radius:50%;position:absolute;top:2px;left:2px;transition:transform 0.2s;"></div>
-        </div>
-        <span style="font-size:12px;color:#888;">远控</span>
-        <button onclick="event.stopPropagation();wallToggleRemoteListModal()" title="远控设备列表" style="background:none;border:none;color:#888;font-size:14px;cursor:pointer;padding:2px;">🔍</button>
-      </div>
-    </div>
-    <div class="wall-preview-controls" style="padding-right:70px;">
-      <div style="position:fixed;left:50%;transform:translateX(-50%);">
-        <span class="wall-preview-mouse-hint" id="wallPreviewMouseHint" style="color:#aaa;font-size:13px;">📌 左键=点击/右键=菜单/滚轮=滚动</span>
-        <button class="wall-preview-kb-btn" id="wallPreviewMonitorBtn" title="切换显示器" onclick="wallCycleMonitor()" style="display:none;">🖥️ 显示器 1</button>
-        <button class="wall-preview-kb-btn" id="wallPreviewKBbtn" title="键盘控制" onclick="wallToggleKeyboard()">⌨️ 键盘</button>
-      </div>
-      <button class="wall-preview-uu-btn" id="wallPreviewUUbtn" title="打开UU远程"> 🖱️ UU远程</button>
-      <button class="wall-preview-uu-btn" id="wallPreviewUUDownloadBtn" title="下载UU远程" style="display:none;" onclick="downloadUU()"> 📥 UU下载</button>
-    </div>
-  </div>
-  <div class="wall-preview-area" id="wallPreviewArea">
-    <div class="wall-preview-img-wrapper" id="wallPreviewImgWrapper">
-      <img id="wallPreviewImg" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="实时预览" style="border-radius:0;box-shadow:none;border:none;" />
-    </div>
-  </div>
-  <div class="wall-preview-offline-watermark" id="wallPreviewOfflineWatermark">设备已离线</div>
+<div class="wall-preview-overlay" id="wallPreviewOverlay" style="display:none;">
+  <iframe id="wallPreviewIframe" src="about:blank" style="width:100%;height:100%;border:none;"></iframe>
 </div>
-
-<!-- ═══════════════════════════════════════════════════════════════ -->
-<!-- 远控设备列表弹窗 -->
-<!-- ═══════════════════════════════════════════════════════════════ -->
-<div class="remote-list-overlay" id="wallRemoteListOverlay">
-  <div class="remote-list-dialog" id="wallRemoteListDialog"></div>
-</div>
-
-<!-- ═══════════════════════════════════════════════════════════════ -->
-<!-- 键盘弹窗 — 照搬主页面 -->
-<!-- ═══════════════════════════════════════════════════════════════ -->
-<div class="keyboard-overlay" id="wallKeyboardOverlay" style="display:none;">
-  <div class="keyboard-container" id="wallKeyboardContainer" style="background:#1a1d27;border-radius:12px;padding:12px;max-width:1200px;width:98%;box-shadow:0 8px 32px rgba(0,0,0,0.5);user-select:none;">
-    <div id="wallKeyboardTitleBar" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;cursor:move;">
-      <span style="color:#fff;font-size:14px;">⌨️ 键盘控制</span>
-      <button onclick="wallCloseKeyboard()" style="background:none;border:none;color:#888;cursor:pointer;font-size:18px;">✕</button>
-    </div>
-    <div id="wallKeyboardContent"></div>
   </div>
 </div>
 
@@ -1205,197 +1155,50 @@ function wallToggleRemoteListModal() {
 function wallOpenPreview(deviceId) {
   var dev = devices[deviceId];
   if (!dev) return;
-
-  // 如果已有预览打开，先关闭旧的
-  if (wallPreviewDeviceId && wallPreviewDeviceId !== deviceId) {
-    wallClosePreview();
-  }
-
-  // 如果已经在预览同一设备，直接关闭
-  if (wallPreviewDeviceId === deviceId) {
-    wallClosePreview();
-    return;
-  }
+  if (wallPreviewDeviceId && wallPreviewDeviceId !== deviceId) wallClosePreview();
+  if (wallPreviewDeviceId === deviceId) { wallClosePreview(); return; }
 
   wallPreviewDeviceId = deviceId;
-  var isOnline = dev.online;
-
-  // ★ 激活预览模式：暂停格子渲染
   wallPreviewActive = true;
   wallPreviewActive1080 = true;
 
-  // 设置标题
-  var monSuffix = dev.monitorCount > 1 ? ' 🖥️' + dev.monitorIndex : '';
-  document.getElementById('wallPreviewDeviceName').textContent = (dev.name || '未知') + ' - 实时预览' + monSuffix;
-
-  // 清空旧帧
-  var previewImg = document.getElementById('wallPreviewImg');
-  var previewWrapper = document.getElementById('wallPreviewImgWrapper');
-  previewWrapper.style.backgroundImage = '';
-  if (previewImg._blobUrl) { URL.revokeObjectURL(previewImg._blobUrl); previewImg._blobUrl = null; }
-  previewImg.style.display = 'none';
-  previewImg.style.visibility = 'hidden';
-  previewImg.style.filter = '';
-  previewImg.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
-
-  // 显示弹窗
-  document.getElementById('wallPreviewOverlay').classList.add('active');
-
-  // 离线水印
-  var watermark = document.getElementById('wallPreviewOfflineWatermark');
-  if (!isOnline) {
-    if (watermark) watermark.style.display = 'block';
-    // 显示静态图（离线不添加灰度，保持原色）
-    if (dev.screenshot) {
-      previewImg.src = dev.screenshot;
-      previewImg.style.display = 'block';
-      previewImg.style.visibility = 'visible';
-    }
-  } else {
-    if (watermark) watermark.style.display = 'none';
-    previewImg.classList.remove('grayscale');
-  }
-
-  // UU按钮：设备在线即显示，不判断uuDeviceId
-  var uuBtn = document.getElementById('wallPreviewUUbtn');
-  if (uuBtn) {
-    if (isOnline) {
-      // 从设备列表获取uuDeviceId
-      var uuId = dev ? dev.uuDeviceId : null;
-      uuBtn.style.display = 'inline-flex';
-      uuBtn.disabled = false;
-      uuBtn.style.opacity = '';
-      uuBtn.style.cursor = '';
-      uuBtn.style.pointerEvents = '';
-      uuBtn.onclick = function() { if (uuId) openUU(uuId); };
-    } else {
-      // 离线：变灰不可点
-      uuBtn.style.display = 'inline-flex';
-      uuBtn.disabled = true;
-      uuBtn.style.opacity = '0.35';
-      uuBtn.style.cursor = 'not-allowed';
-      uuBtn.style.pointerEvents = 'none';
-    }
-  }
-
-  // 键盘按钮
-  var kbBtn = document.getElementById('wallPreviewKBbtn');
-  if (kbBtn) {
-    kbBtn.style.display = dev.supportsKeyClient ? 'inline-flex' : 'none';
-  }
-
-  // 多显示器按钮
-  var monBtn = document.getElementById('wallPreviewMonitorBtn');
-  if (monBtn) {
-    if (dev.monitorCount > 1) {
-      monBtn.style.display = 'inline-flex';
-      monBtn.textContent = '🖥️ 显示器 ' + dev.monitorIndex;
-    } else {
-      monBtn.style.display = 'none';
-    }
-  }
-
-  // 显示浮动关闭按钮
+  var initData = {
+    deviceId: deviceId,
+    deviceName: dev.name || '未知',
+    online: dev.online,
+    screenshot: dev.screenshot || null,
+    supportsKeyClient: dev.supportsKeyClient || false,
+    uuDeviceId: dev.uuDeviceId || null,
+    monitorCount: dev.monitorCount || 1,
+    monitorIndex: dev.monitorIndex || 1,
+    screenWidth: dev.screenWidth || 1920,
+    screenHeight: dev.screenHeight || 1080
+  };
+  sessionStorage.setItem('previewInitData', JSON.stringify(initData));
+  var iframe = document.getElementById('wallPreviewIframe');
+  iframe.src = '/preview.html';
+  document.getElementById('wallPreviewOverlay').style.display = 'flex';
   var floatingClose = document.getElementById('wallPreviewFloatingClose');
   if (floatingClose) floatingClose.style.display = 'block';
-
-  // 远控按钮：显示 + 更新状态
-  var remoteWrap = document.getElementById('wallPreviewRemoteWrap');
-  if (remoteWrap) remoteWrap.style.display = isMobile() ? 'none' : 'inline-flex';
-  setTimeout(wallUpdateRemoteBtn, 100);
-
-  // 在线设备：发送 hq1080On + 订阅预览通道（HQ流已由subscribeWall持有，无需再发startHQ）
-  if (isOnline && ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'hq1080On', deviceId: deviceId }));
-    ws.send(JSON.stringify({ type: 'subscribePreview', deviceId: deviceId }));
-  }
-
-  // 绑定预览图片点击事件（仅桌面端，用于远控鼠标点击）
-  if (!isMobile()) {
-    previewImg.onclick = wallHandlePreviewClick;
-    // 右键菜单禁用 + 滚轮远控
-    var previewArea = document.getElementById('wallPreviewArea');
-    if (previewArea) {
-      previewArea.oncontextmenu = function(e) { e.preventDefault(); };
-      previewArea.onwheel = function(e) {
-        e.preventDefault();
-        var d = devices[wallPreviewDeviceId];
-        if (d && d.supportsKeyClient && d.online) {
-          var delta = e.deltaY > 0 ? -120 : 120;
-          wallSendMouse('mouseScroll', 0, 0, { delta: delta });
-        }
-      };
-      previewArea.onmousedown = function(e) {
-        if (e.button === 2) {
-          e.preventDefault();
-          var d = devices[wallPreviewDeviceId];
-          if (d && d.supportsKeyClient && d.online) {
-            var pos = wallGetClickPos(e);
-            if (pos) wallSendMouse('mouseRight', pos.x, pos.y);
-          }
-        }
-      };
-    }
-  }
-
-  // 更新鼠标提示
-  wallUpdateMouseHint();
 }
 
 function wallClosePreview() {
   if (!wallPreviewDeviceId) return;
-
-  // 关闭1080p（HQ流保留，监控墙格子仍需要）
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'hq1080Off', deviceId: wallPreviewDeviceId }));
-    ws.send(JSON.stringify({ type: 'unsubscribePreview', deviceId: wallPreviewDeviceId }));
-  }
-
-  // 关闭键盘弹窗
   if (wallKeyboardOpen) wallCloseKeyboard();
-
-  // 关闭远控设备列表弹窗
-  wallCloseRemoteListModal();
-
-  // 隐藏远控按钮
-  var remoteWrap = document.getElementById('wallPreviewRemoteWrap');
-  if (remoteWrap) remoteWrap.style.display = 'none';
-
-  // 隐藏浮动关闭按钮
+  document.getElementById('wallPreviewOverlay').style.display = 'none';
+  var iframe = document.getElementById('wallPreviewIframe');
+  iframe.src = 'about:blank';
   var floatingClose = document.getElementById('wallPreviewFloatingClose');
   if (floatingClose) floatingClose.style.display = 'none';
-
-  // 隐藏弹窗
-  document.getElementById('wallPreviewOverlay').classList.remove('active');
-
-  // 清理预览图
-  var previewImg = document.getElementById('wallPreviewImg');
-  if (previewImg) {
-    if (previewImg._blobUrl) { URL.revokeObjectURL(previewImg._blobUrl); previewImg._blobUrl = null; }
-    previewImg.onclick = null;
-    previewImg.style.display = 'none';
-    previewImg.style.filter = '';
-    previewImg.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
-  }
-
-  // 清理事件
-  var previewArea = document.getElementById('wallPreviewArea');
-  if (previewArea) { previewArea.oncontextmenu = null; previewArea.onwheel = null; previewArea.onmousedown = null; }
-
-  // 隐藏水印
-  document.getElementById('wallPreviewOfflineWatermark').style.display = 'none';
-
-  // 隐藏鼠标提示
-  var hint = document.getElementById('wallPreviewMouseHint');
-  if (hint) hint.style.display = 'none';
-
-  // ★ 恢复格子渲染
   wallPreviewActive = false;
   wallPreviewActive1080 = false;
   wallPreviewDeviceId = null;
 }
 
-// ── 预览鼠标点击坐标映射 ────────────────────────────────────
+window.addEventListener('message', function(e) {
+  if (e.data && e.data.type === 'previewClose') wallClosePreview();
+});
+
 function wallGetClickPos(e) {
   var img = document.getElementById('wallPreviewImg');
   if (!img) return null;
