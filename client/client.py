@@ -2078,6 +2078,20 @@ class ScreenWallClient:
                         # 降级到 720p 高质量，不停止 HQ 模式，让截图循环继续发送 HQ 帧
                         # 下次截图时会自动用 hq_limit=720
 
+                    elif msg_type == "requestScreenshot":
+                        capt = ScreenCapturer(quality=30, resize_w=1280, resize_h=720, monitor_index=_current_monitor_index)
+                        try:
+                            img_bytes = capt.capture(hq=True, hq_limit=720, hq_quality=30)
+                        finally:
+                            capt.close()
+                        if img_bytes:
+                            off_x, off_y, off_w, off_h = _get_current_monitor_offset()
+                            device_id_bytes = cfg["deviceId"].encode('utf8')
+                            flags = 0x01
+                            header = struct.pack('>BBBBHH', 0x01, len(device_id_bytes), flags, 0, off_w, off_h)
+                            binary_frame = header + device_id_bytes + img_bytes
+                            await ws.send(binary_frame)
+
                     elif msg_type == "requestCollectionScreenshot":
                         device_ids = data.get("deviceIds", [])
                         timestamp = data.get("timestamp")

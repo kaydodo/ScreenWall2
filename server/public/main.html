@@ -1441,15 +1441,10 @@ function connectWS() {
       if (document.getElementById('monitorOverlay').style.display === 'flex') {
         var inMonitorGrid = monitorWallState.selectedDevices.includes(deviceId);
         if (inMonitorGrid && (status === 'offline' || status === 'deleted')) {
-          // 监控网格中的设备离线：发送 stopHQ 停止高清流（节省设备资源）
-          if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ type: 'stopHQ', deviceId: deviceId }));
-          }
           updateMonitorPreview();
         } else if (inMonitorGrid && status === 'online') {
-          // 监控网格中的设备上线：重新发送 startHQ 恢复高清流
           if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ type: 'startHQ', deviceId: deviceId }));
+            ws.send(JSON.stringify({ type: 'requestScreenshot', deviceId: deviceId }));
           }
           updateMonitorPreview();
         }
@@ -5738,13 +5733,6 @@ function openMonitorDialog() {
 }
 
 function closeMonitorDialog() {
-  // 关闭所有选中设备的HQ流
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    monitorWallState.selectedDevices.forEach(function(deviceId) {
-      ws.send(JSON.stringify({ type: 'stopHQ', deviceId: deviceId }));
-    });
-  }
-  // 清理缩放定时器，避免关闭后定时器触发访问已移除的DOM
   Object.keys(monitorZoomTimers).forEach(function(key) {
     clearTimeout(monitorZoomTimers[key]);
   });
@@ -5837,9 +5825,8 @@ function toggleMonitorDevice(cb) {
         return;
       }
       monitorWallState.selectedDevices.push(deviceId);
-      // 开启该设备的HQ高清流
       if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'startHQ', deviceId: deviceId }));
+        ws.send(JSON.stringify({ type: 'requestScreenshot', deviceId: deviceId }));
       }
     }
   } else {
@@ -5847,10 +5834,6 @@ function toggleMonitorDevice(cb) {
       monitorWallState.selectedDevices.splice(idx, 1);
       // 清除裁剪信息
       delete monitorWallState.crops[deviceId];
-      // 关闭该设备的HQ高清流
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'stopHQ', deviceId: deviceId }));
-      }
     }
   }
   updateMonitorPreview();
@@ -6020,11 +6003,6 @@ function removeMonitorPreview(deviceId) {
     monitorWallState.selectedDevices.splice(idx, 1);
     delete monitorWallState.crops[deviceId];
   }
-  // 关闭该设备的HQ流
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'stopHQ', deviceId: deviceId }));
-  }
-  // 更新复选框状态
   var checkbox = document.querySelector('#monitorDeviceList input[value="' + deviceId + '"]');
   if (checkbox) checkbox.checked = false;
   

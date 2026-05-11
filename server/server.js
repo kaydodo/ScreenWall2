@@ -3111,6 +3111,15 @@ wssBrowser.on('connection', (ws) => {
       }
     }
 
+    if (msg.type === 'requestScreenshot') {
+      for (const client of wssClient.clients) {
+        if (client._deviceId === msg.deviceId) {
+          client.send(JSON.stringify({ type: 'requestScreenshot' }));
+          break;
+        }
+      }
+    }
+
     // 视口更新：浏览器上报当前可见格子
     if (msg.type === 'viewportUpdate') {
       handleViewportUpdate(ws, msg.deviceIds || []);
