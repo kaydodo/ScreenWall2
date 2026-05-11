@@ -680,7 +680,7 @@ function renderPendingFrames() {
     const now = Date.now();
     let rendered = false;
 
-    // 预览激活时跳过格子渲染（性能优化）
+    // 预览激活时跳过格子渲染（性能优化），但自愈仍需执行
     if (!previewActive) {
       // 渲染格子帧
       const t0 = performance.now();
@@ -700,7 +700,6 @@ function renderPendingFrames() {
               const stxt = document.getElementById(`stxt_${cell.index}`);
               if (dot) { dot.className = 'status-dot online'; dot.style.backgroundColor = '#34d399'; }
               if (stxt) { stxt.textContent = '在线'; stxt.className = 'status-text online'; }
-              // 自愈：移除离线灰度样式、隐藏离线标签、恢复UU按钮
               const img = document.getElementById(`img_${cell.index}`);
               if (img) img.classList.remove('grayscale');
               const cellEl = document.querySelector(`.wall-cell[data-index="${cell.index}"]`);
@@ -709,6 +708,20 @@ function renderPendingFrames() {
               if (offlineLabel) offlineLabel.style.display = 'none';
               const uubtn = document.getElementById(`uubtn_${cell.index}`);
               if (uubtn) uubtn.style.display = 'flex';
+              // 自愈恢复预览弹窗状态
+              if (previewDeviceId === deviceId) {
+                const watermark = document.getElementById('previewOfflineWatermark');
+                if (watermark) watermark.style.display = 'none';
+                const previewImg = document.getElementById('previewImg');
+                if (previewImg) previewImg.style.filter = '';
+                const dev = devices.find(d => d.deviceId === deviceId);
+                if (dev) dev.online = true;
+                const uubtn2 = document.getElementById('previewUUbtn');
+                if (uubtn2 && dev && dev.uuDeviceId) {
+                  uubtn2.disabled = false; uubtn2.style.opacity = ''; uubtn2.style.cursor = ''; uubtn2.style.pointerEvents = '';
+                  uubtn2.onclick = () => { openUU(dev.uuDeviceId); };
+                }
+              }
             }
           }
           if (cell) {
@@ -727,6 +740,43 @@ function renderPendingFrames() {
       pendingFrames.clear();
     } else {
       // 预览模式：只保留预览设备的帧，其他全部丢弃
+      // 但仍需执行自愈逻辑
+      for (const [deviceId, frame] of pendingFrames) {
+        if (now - frame.timestamp < 1000 && deviceId === previewDeviceId) {
+          const cell = gridCells.find(c => c.deviceId === deviceId);
+          if (cell && !cell.online) {
+            if (!frameHealCount.has(deviceId)) frameHealCount.set(deviceId, 0);
+            frameHealCount.set(deviceId, frameHealCount.get(deviceId) + 1);
+            if (frameHealCount.get(deviceId) >= FRAME_HEAL_THRESHOLD) {
+              cell.online = true;
+              const dot = document.getElementById(`dot_${cell.index}`);
+              const stxt = document.getElementById(`stxt_${cell.index}`);
+              if (dot) { dot.className = 'status-dot online'; dot.style.backgroundColor = '#34d399'; }
+              if (stxt) { stxt.textContent = '在线'; stxt.className = 'status-text online'; }
+              const img = document.getElementById(`img_${cell.index}`);
+              if (img) img.classList.remove('grayscale');
+              const cellEl = document.querySelector(`.wall-cell[data-index="${cell.index}"]`);
+              if (cellEl) cellEl.classList.remove('offline-cell');
+              const offlineLabel = document.getElementById(`offline_${cell.index}`);
+              if (offlineLabel) offlineLabel.style.display = 'none';
+              const uubtn = document.getElementById(`uubtn_${cell.index}`);
+              if (uubtn) uubtn.style.display = 'flex';
+              // 自愈恢复预览弹窗状态
+              const watermark = document.getElementById('previewOfflineWatermark');
+              if (watermark) watermark.style.display = 'none';
+              const previewImg = document.getElementById('previewImg');
+              if (previewImg) previewImg.style.filter = '';
+              const dev = devices.find(d => d.deviceId === deviceId);
+              if (dev) dev.online = true;
+              const uubtn2 = document.getElementById('previewUUbtn');
+              if (uubtn2 && dev && dev.uuDeviceId) {
+                uubtn2.disabled = false; uubtn2.style.opacity = ''; uubtn2.style.cursor = ''; uubtn2.style.pointerEvents = '';
+                uubtn2.onclick = () => { openUU(dev.uuDeviceId); };
+              }
+            }
+          }
+        }
+      }
       // 收集要删除的 key，避免在 for...of 遍历中直接 delete 导致跳设备
       const toDelete = [];
       for (const [deviceId] of pendingFrames) {
@@ -1311,6 +1361,12 @@ function connectWS() {
     // 设备预览状态变更（上下线、删除时刷新预览大图）
     if (msg.type === 'devicePreviewStatus') {
       const { deviceId, status } = msg;
+      // 同步更新 devices 数组中的在线状态，防止残留帧覆盖离线静态图
+      const statusDev = devices.find(d => d.deviceId === deviceId);
+      if (statusDev) {
+        if (status === 'offline' || status === 'deleted') statusDev.online = false;
+        else if (status === 'online') statusDev.online = true;
+      }
       // 检查是否正在预览该设备（主预览）
       if (previewDeviceId === deviceId && document.getElementById('previewOverlay')) {
         const previewImg = document.getElementById('previewImg');
@@ -1332,7 +1388,8 @@ function connectWS() {
           const offlineFrame = msg.screenshot || (dev && dev.screenshot);
           if (offlineFrame) {
             previewImg.onload = null;
-            previewImg.src = offlineFrame; // 离线静态图直接用 base64（低频）
+            previewImg.src = offlineFrame;
+            previewImg.style.display = 'block';
             previewImg.style.visibility = 'visible';
           }
           // 更新标题（优先使用广播中的设备名，其次从devices获取）

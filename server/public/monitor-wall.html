@@ -279,13 +279,14 @@ html, body {
   overflow: hidden;
   min-height: 0;
   width: 100%;
+  background: #000;
 }
 .wall-preview-img-wrapper {
   position: absolute;
   top: 16px;
   left: 0;
   right: 0;
-  bottom: 0;
+  bottom: 16px;
 }
 .wall-preview-img-wrapper img {
   position: absolute;
@@ -314,9 +315,6 @@ html, body {
   display: none;
   color: #aaa;
   font-size: 13px;
-}
-.wall-preview-img-wrapper img.grayscale {
-  filter: grayscale(100%);
 }
 
 @media (max-width: 768px) {
@@ -810,25 +808,43 @@ function connectWebSocket() {
               var tsEl = document.getElementById('ts_' + devId);
               if (tsEl) tsEl.textContent = formatDate(new Date());
             }
-            // 自愈：收到帧累加计数，达到阈值才恢复离线格子
-            var dev = devices[devId];
-            if (dev && !dev.online) {
-              if (!frameHealCount.has(devId)) frameHealCount.set(devId, 0);
-              frameHealCount.set(devId, frameHealCount.get(devId) + 1);
-              if (frameHealCount.get(devId) >= WALL_FRAME_HEAL_THRESHOLD) {
-                dev.online = true;
-                var cell = document.querySelector('.wall-cell[data-device-id="' + devId + '"]') || findCellByDeviceId(devId);
-                if (cell) {
-                  cell.classList.remove('offline');
-                  var badge = cell.querySelector('.offline-badge');
-                  if (badge) { badge.textContent = ''; badge.style.display = 'none'; }
-                  updateUUButtonVisibility(cell, true);
-                }
-              }
-            }
           } else {
             // 预览模式：不更新格子，但仍释放 blobUrl 防内存泄漏
             URL.revokeObjectURL(blobUrl);
+          }
+
+          // 自愈：收到帧累加计数，达到阈值才恢复离线（预览模式下也需要自愈）
+          var dev = devices[devId];
+          if (dev && !dev.online) {
+            if (!frameHealCount.has(devId)) frameHealCount.set(devId, 0);
+            frameHealCount.set(devId, frameHealCount.get(devId) + 1);
+            if (frameHealCount.get(devId) >= WALL_FRAME_HEAL_THRESHOLD) {
+              dev.online = true;
+              var cell = document.querySelector('.wall-cell[data-device-id="' + devId + '"]') || findCellByDeviceId(devId);
+              if (cell) {
+                cell.classList.remove('offline');
+                var badge = cell.querySelector('.offline-badge');
+                if (badge) { badge.textContent = ''; badge.style.display = 'none'; }
+                updateUUButtonVisibility(cell, true);
+              }
+              // 自愈恢复预览弹窗状态
+              if (wallPreviewDeviceId === devId) {
+                var watermark = document.getElementById('wallPreviewOfflineWatermark');
+                if (watermark) watermark.style.display = 'none';
+                var previewUUbtn = document.getElementById('wallPreviewUUbtn');
+                if (previewUUbtn && dev.uuDeviceId) {
+                  previewUUbtn.disabled = false;
+                  previewUUbtn.style.opacity = '';
+                  previewUUbtn.style.cursor = '';
+                  previewUUbtn.style.pointerEvents = '';
+                  previewUUbtn.onclick = function() { openUU(dev.uuDeviceId); };
+                }
+                // 重新开启1080p
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                  ws.send(JSON.stringify({ type: 'hq1080On', deviceId: devId }));
+                }
+              }
+            }
           }
 
           // 同时更新预览弹窗（如果正在预览该设备）
@@ -1229,12 +1245,11 @@ function wallOpenPreview(deviceId) {
   var watermark = document.getElementById('wallPreviewOfflineWatermark');
   if (!isOnline) {
     if (watermark) watermark.style.display = 'block';
-    // 显示静态图（与main.html一致，使用.grayscale class）
+    // 显示静态图（离线不添加灰度，保持原色）
     if (dev.screenshot) {
       previewImg.src = dev.screenshot;
       previewImg.style.display = 'block';
       previewImg.style.visibility = 'visible';
-      previewImg.classList.add('grayscale');
     }
   } else {
     if (watermark) watermark.style.display = 'none';
@@ -1720,7 +1735,6 @@ function handleWallStateUpdate(data) {
         previewImg.src = dev.screenshot;
         previewImg.style.display = 'block';
         previewImg.style.visibility = 'visible';
-        previewImg.classList.add('grayscale');
       }
       var watermark = document.getElementById('wallPreviewOfflineWatermark');
       if (watermark) watermark.style.display = 'block';
