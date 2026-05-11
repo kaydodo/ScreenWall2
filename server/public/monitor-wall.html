@@ -1172,7 +1172,9 @@ function wallOpenPreview(deviceId) {
     monitorCount: dev.monitorCount || 1,
     monitorIndex: dev.monitorIndex || 1,
     screenWidth: dev.screenWidth || 1920,
-    screenHeight: dev.screenHeight || 1080
+    screenHeight: dev.screenHeight || 1080,
+    version: dev.version || '',
+    uuVersion: dev.uuVersion || ''
   };
   sessionStorage.setItem('previewInitData', JSON.stringify(initData));
   var iframe = document.getElementById('wallPreviewIframe');

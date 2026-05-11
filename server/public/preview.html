@@ -278,12 +278,12 @@ html, body {
   <div class="preview-titlebar" id="previewTitlebar">
     <div style="display:flex;align-items:center;gap:30px;">
       <span id="previewDeviceName">实时预览</span>
-      <div style="display:inline-flex;align-items:center;gap:4px;position:relative;z-index:10;" id="previewRemoteWrap">
+      <div style="display:inline-flex;align-items:center;gap:4px;position:relative;z-index:10003;" id="previewRemoteWrap" onclick="event.stopPropagation()">
         <div id="previewRemoteSlider" role="button" tabindex="0" aria-label="远控开关" onclick="event.stopPropagation();toggleRemote()" style="width:36px;height:18px;background:#555;border-radius:9px;position:relative;transition:background 0.2s;cursor:pointer;pointer-events:auto;">
           <div id="previewRemoteKnob" style="width:14px;height:14px;background:#fff;border-radius:50%;position:absolute;top:2px;left:2px;transition:transform 0.2s;"></div>
         </div>
         <span style="font-size:12px;color:#888;">远控</span>
-        <button onclick="event.stopPropagation();toggleRemoteListModal()" title="远控设备列表" style="background:none;border:none;color:#888;font-size:14px;cursor:pointer;padding:2px;">🔍</button>
+        <button onclick="toggleRemoteListModal()" title="远控设备列表" style="background:none;border:none;color:#888;font-size:14px;cursor:pointer;padding:2px;">🔍</button>
       </div>
     </div>
     <div class="preview-controls" style="padding-right:70px;">
@@ -304,7 +304,7 @@ html, body {
   <div class="preview-offline-watermark" id="previewOfflineWatermark">设备已离线</div>
 </div>
 
-<div class="remote-list-overlay" id="remoteListOverlay" onclick="closeRemoteListModal()">
+<div class="remote-list-overlay" id="remoteListOverlay" style="display:none;" onclick="closeRemoteListModal()">
   <div class="remote-list-dialog" id="remoteListDialog" onclick="event.stopPropagation()"></div>
 </div>
 
