@@ -830,6 +830,11 @@ window.addEventListener('keyup', function(e) {
 });
 
 function closePreview() {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'hq1080Off', deviceId: deviceId }));
+    ws.send(JSON.stringify({ type: 'stopHQ', deviceId: deviceId }));
+    ws.send(JSON.stringify({ type: 'unsubscribePreview', deviceId: deviceId }));
+  }
   if (keyboardOpen) closeKeyboard();
   window.parent.postMessage({ type: 'previewClose' }, '*');
 }
@@ -861,6 +866,10 @@ function setOnline() {
     uuBtn.style.pointerEvents = '';
     if (uuDeviceId) uuBtn.onclick = function() { openUU(uuDeviceId); };
   }
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'startHQ', deviceId: deviceId }));
+    ws.send(JSON.stringify({ type: 'hq1080On', deviceId: deviceId }));
+  }
   updateRemoteBtn();
   _pendingRemoteState = null;
 }
@@ -874,7 +883,11 @@ function connectWebSocket() {
   ws.binaryType = 'arraybuffer';
 
   ws.onopen = function() {
-    // 使用与监控设置弹窗相同的源，无需发送 startHQ 等消息
+    ws.send(JSON.stringify({ type: 'subscribePreview', deviceId: deviceId }));
+    if (isOnline) {
+      ws.send(JSON.stringify({ type: 'startHQ', deviceId: deviceId }));
+      ws.send(JSON.stringify({ type: 'hq1080On', deviceId: deviceId }));
+    }
   };
 
   ws.onclose = function() {
