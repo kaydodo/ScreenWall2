@@ -1443,9 +1443,6 @@ function connectWS() {
         if (inMonitorGrid && (status === 'offline' || status === 'deleted')) {
           updateMonitorPreview();
         } else if (inMonitorGrid && status === 'online') {
-          if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ type: 'requestScreenshot', deviceId: deviceId }));
-          }
           updateMonitorPreview();
         }
       }
@@ -5825,9 +5822,6 @@ function toggleMonitorDevice(cb) {
         return;
       }
       monitorWallState.selectedDevices.push(deviceId);
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'requestScreenshot', deviceId: deviceId }));
-      }
     }
   } else {
     if (idx >= 0) {
