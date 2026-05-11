@@ -550,12 +550,22 @@ function toggleRemote() {
   if (!_pendingRemoteState && keyboardOpen) closeKeyboard();
 }
 
+function closeRemoteListModal() {
+  var overlay = document.getElementById('remoteListOverlay');
+  if (overlay) {
+    var content = document.getElementById('remoteListDialog');
+    if (content && content._refreshInterval) { 
+      clearInterval(content._refreshInterval); 
+      content._refreshInterval = null; 
+    }
+    overlay.style.display = 'none';
+  }
+}
+
 function toggleRemoteListModal() {
   var overlay = document.getElementById('remoteListOverlay');
   if (overlay.style.display === 'block') {
-    var content = document.getElementById('remoteListDialog');
-    if (content._refreshInterval) { clearInterval(content._refreshInterval); content._refreshInterval = null; }
-    overlay.style.display = 'none';
+    closeRemoteListModal();
     return;
   }
   var content = document.getElementById('remoteListDialog');

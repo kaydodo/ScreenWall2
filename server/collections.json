@@ -65,7 +65,8 @@
       "cellIndex": 0,
       "online": true,
       "deleted": false,
-      "timestamp": 1778524459674
+      "timestamp": 1778524459674,
+      "groupId": ""
     }
   ],
   "1778524474930": [
@@ -78,7 +79,8 @@
       "cellIndex": 0,
       "online": true,
       "deleted": false,
-      "timestamp": 1778524474930
+      "timestamp": 1778524474930,
+      "groupId": ""
     }
   ],
   "1778524709009": [
@@ -91,7 +93,8 @@
       "cellIndex": 0,
       "online": true,
       "deleted": false,
-      "timestamp": 1778524709009
+      "timestamp": 1778524709009,
+      "groupId": ""
     }
   ],
   "1778524712125": [
@@ -104,7 +107,8 @@
       "cellIndex": 0,
       "online": true,
       "deleted": false,
-      "timestamp": 1778524712125
+      "timestamp": 1778524712125,
+      "groupId": ""
     }
   ]
 }

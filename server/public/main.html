@@ -3870,14 +3870,8 @@ document.getElementById('dialogClear').onclick = () => {
 };
 document.getElementById('deviceSearch').oninput = (e) => renderDeviceList(e.target.value);
 
-// 预览浮层关闭按钮（已内联onclick，这里只控制浮动容器显示）
-// 点击预览区域或背景关闭
+// 预览浮层点击关闭（所有模式、所有设备都支持）
 document.getElementById('previewOverlay').onclick = (e) => {
-  // 关闭按钮在任何时候都可以点击关闭，无需排除
-  // 电脑端+当前设备有键盘时，禁止点击关闭（需要远程控制）
-  const previewDev = devices.find(d => d.deviceId === previewDeviceId);
-  const currentDevHasKeyboard = previewDev && previewDev.supportsKeyClient;
-  if (!isMobile && currentDevHasKeyboard) return;
   closePreview();
 };
 

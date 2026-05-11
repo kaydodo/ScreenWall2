@@ -1154,6 +1154,11 @@ function wallClosePreview() {
   wallPreviewDeviceId = null;
 }
 
+// 监控墙预览浮层点击关闭
+document.getElementById('wallPreviewOverlay').onclick = (e) => {
+  wallClosePreview();
+};
+
 window.addEventListener('message', function(e) {
   if (e.data && e.data.type === 'previewClose') wallClosePreview();
 });
