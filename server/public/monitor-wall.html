@@ -447,7 +447,12 @@ html, body {
 <div class="wall-preview-overlay" id="wallPreviewOverlay" style="display:none;">
   <iframe id="wallPreviewIframe" src="about:blank" style="width:100%;height:100%;border:none;"></iframe>
 </div>
-  </div>
+
+<!-- 远控设备列表弹窗 -->
+<div class="remote-list-overlay" id="wallRemoteListOverlay" style="display:none;">
+  <div class="remote-list-dialog" id="wallRemoteListDialog"></div>
+</div>
+</div>
 </div>
 
 <script>
@@ -1411,6 +1416,22 @@ window.addEventListener('keyup', function(e) {
     document.querySelectorAll('.kb-key').forEach(function(btn) {
       var origLabel = btn.getAttribute('data-orig-label');
       if (origLabel) btn.textContent = origLabel;
+    });
+  }
+});
+
+// 远控列表点击关闭事件绑定
+document.addEventListener('DOMContentLoaded', function() {
+  var wallRemoteListOverlay = document.getElementById('wallRemoteListOverlay');
+  var wallRemoteListDialog = document.getElementById('wallRemoteListDialog');
+  if (wallRemoteListOverlay) {
+    wallRemoteListOverlay.addEventListener('click', function() {
+      wallCloseRemoteListModal();
+    });
+  }
+  if (wallRemoteListDialog) {
+    wallRemoteListDialog.addEventListener('click', function(e) {
+      e.stopPropagation();
     });
   }
 });

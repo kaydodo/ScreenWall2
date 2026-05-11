@@ -615,16 +615,10 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  // 点击预览遮罩关闭预览
+  // 点击预览遮罩关闭预览（所有模式都可以）
   var previewOverlay = document.getElementById('previewOverlay');
   if (previewOverlay) {
     previewOverlay.addEventListener('click', function(e) {
-      // 只有正常预览模式且有键盘支持的非移动端才禁止点击关闭
-      if (previewMode === 'normal') {
-        const currentDevHasKeyboard = supportsKeyClient;
-        if (!isMobile() && currentDevHasKeyboard) return;
-      }
-      // 其他情况都可以点击关闭
       closePreview();
     });
   }
