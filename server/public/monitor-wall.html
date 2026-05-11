@@ -728,8 +728,8 @@ function connectWebSocket() {
         const view = new DataView(e.data);
         const data = new Uint8Array(e.data);
         const frameType = data[0];
-        // 0x12 = 监控墙格子帧（wall frame）
-        if (frameType === 0x12) {
+        // 统一使用 0x10（browserScreenshot）帧源
+        if (frameType === 0x10) {
           const devIdLen = data[1];
           const flags = data[2];
           const isHQ = (flags & 0x01) !== 0;
@@ -798,29 +798,6 @@ function connectWebSocket() {
           }
 
           // 同时更新预览弹窗（如果正在预览该设备）
-          // ★ 即使格子不渲染，0x12 帧仍可作为预览画面（没有 0x11 时作为备选）★
-          if (wallPreviewDeviceId === devId && !wallPreviewActive1080) {
-            var previewImg = document.getElementById('wallPreviewImg');
-            if (previewImg && devices[devId] && devices[devId].online) {
-              // 0x12 帧只有在不走 0x11 通道时才用于预览
-              // 如果已订阅了 0x11（1080p），则忽略 0x12 帧的预览更新
-            }
-          }
-        }
-        // 0x11 = 预览帧（1080p HQ preview）
-        if (frameType === 0x11) {
-          const devIdLen = data[1];
-          const flags = data[2];
-          const screenWidth = view.getUint16(4);
-          const screenHeight = view.getUint16(6);
-          let off = 8;
-          const devId = new TextDecoder().decode(new Uint8Array(e.data, off, devIdLen));
-          off += devIdLen;
-          const webpBuf = e.data.slice(off);
-          const blob = new Blob([webpBuf], { type: 'image/webp' });
-          const blobUrl = URL.createObjectURL(blob);
-
-          // 更新预览弹窗（如果正在预览该设备）
           if (wallPreviewDeviceId === devId) {
             var previewImg = document.getElementById('wallPreviewImg');
             if (previewImg && devices[devId] && devices[devId].online) {
@@ -829,19 +806,9 @@ function connectWebSocket() {
               previewImg._blobUrl = blobUrl;
               previewImg.style.display = 'block';
               previewImg.style.visibility = 'visible';
-              previewImg.classList.remove('grayscale');
-              // 隐藏离线水印
               var watermark = document.getElementById('wallPreviewOfflineWatermark');
               if (watermark) watermark.style.display = 'none';
             }
-            // 保存设备分辨率用于鼠标点击映射
-            if (screenWidth > 0 && screenHeight > 0) {
-              wallPreviewScreenWidth = screenWidth;
-              wallPreviewScreenHeight = screenHeight;
-            }
-          } else {
-            // 不是当前预览设备，释放 blobUrl
-            URL.revokeObjectURL(blobUrl);
           }
         }
       } catch(ex) {}
