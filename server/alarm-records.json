@@ -1,1 +1,29 @@
-[]
+[
+  {
+    "id": "3edad52c-0a0a-406f-a8b4-76e0bd1f2458",
+    "deviceId": "aeawtmgwtiau3yfl",
+    "deviceName": "9UXW",
+    "uuDeviceId": "441947603",
+    "screenshot": "/alarm-screenshots/e440e226-cba8-4723-9d51-2ef78e67b1b2.png",
+    "screenshotId": "e440e226-cba8-4723-9d51-2ef78e67b1b2",
+    "screenshotPath": "D:\\ScreenWall2\\server\\alarm-screenshots\\e440e226-cba8-4723-9d51-2ef78e67b1b2.png",
+    "timestamp": 1778493928469,
+    "groupName": "",
+    "cellStr": "",
+    "occurrenceCount": 1,
+    "status": "confirmed",
+    "matchedKeyword": "网络错",
+    "region": {
+      "x1": 234,
+      "y1": 97,
+      "x2": 407,
+      "y2": 257
+    },
+    "regionSize": {
+      "w": 173,
+      "h": 160
+    },
+    "isFullScreenshot": true,
+    "viewed": true
+  }
+]

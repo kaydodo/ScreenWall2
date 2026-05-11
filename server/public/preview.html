@@ -263,7 +263,6 @@ html, body {
 .kb-spacer { min-width: 3px; height: 32px; }
 
 @media (max-width: 768px) {
-  .preview-kb-btn { display: none !important; }
   .keyboard-layout {
     flex-direction: column;
     gap: 8px;
@@ -345,6 +344,7 @@ var monitorIndex = initData.monitorIndex || 1;
 var screenWidth = initData.screenWidth || 1920;
 var screenHeight = initData.screenHeight || 1080;
 var allDevices = {};
+var previewMode = initData.mode || 'normal'; // 'normal' | 'collection' | 'alarm'
 
 var ws = null;
 var keyboardOpen = false;
@@ -407,8 +407,17 @@ function openUU(id) {
 }
 
 function initUI() {
+  // 根据预览模式设置标题
   var monSuffix = monitorCount > 1 ? ' 🖥️' + monitorIndex : '';
-  document.getElementById('previewDeviceName').textContent = deviceName + ' - 实时预览' + monSuffix;
+  var titleText = '';
+  if (previewMode === 'normal') {
+    titleText = deviceName + ' - 实时预览' + monSuffix;
+  } else if (previewMode === 'collection') {
+    titleText = deviceName + ' - 收藏截图';
+  } else if (previewMode === 'alarm') {
+    titleText = deviceName + ' - 报警截图';
+  }
+  document.getElementById('previewDeviceName').textContent = titleText;
 
   var previewImg = document.getElementById('previewImg');
   previewImg.style.display = 'none';
@@ -425,8 +434,15 @@ function initUI() {
     }
   } else {
     if (watermark) watermark.style.display = 'none';
+    // 如果是静态模式（收藏/报警）且有截图，显示截图
+    if ((previewMode === 'collection' || previewMode === 'alarm') && screenshot) {
+      previewImg.src = screenshot;
+      previewImg.style.display = 'block';
+      previewImg.style.visibility = 'visible';
+    }
   }
 
+  // UU按钮所有模式都显示
   var uuBtn = document.getElementById('previewUUbtn');
   if (uuBtn) {
     if (isOnline) {
@@ -445,25 +461,37 @@ function initUI() {
     }
   }
 
-  var kbBtn = document.getElementById('previewKBbtn');
-  if (kbBtn) kbBtn.style.display = supportsKeyClient ? 'inline-flex' : 'none';
-
-  var monBtn = document.getElementById('previewMonitorBtn');
-  if (monBtn) {
-    if (monitorCount > 1) {
-      monBtn.style.display = 'inline-flex';
-      monBtn.textContent = '🖥️ 显示器 ' + monitorIndex;
-    } else {
-      monBtn.style.display = 'none';
-    }
-  }
-
+  // 只有正常预览模式才显示以下元素
   var remoteWrap = document.getElementById('previewRemoteWrap');
-  if (remoteWrap) remoteWrap.style.display = isMobile() ? 'none' : 'inline-flex';
-  setTimeout(updateRemoteBtn, 100);
+  var kbBtn = document.getElementById('previewKBbtn');
+  var monBtn = document.getElementById('previewMonitorBtn');
+  var mouseHint = document.getElementById('previewMouseHint');
 
-  updateMouseHint();
-  bindPreviewEvents();
+  if (previewMode === 'normal') {
+    // 正常预览模式
+    if (remoteWrap) remoteWrap.style.display = 'inline-flex';
+    
+    if (kbBtn) kbBtn.style.display = supportsKeyClient ? 'inline-flex' : 'none';
+
+    if (monBtn) {
+      if (monitorCount > 1) {
+        monBtn.style.display = 'inline-flex';
+        monBtn.textContent = '🖥️ 显示器 ' + monitorIndex;
+      } else {
+        monBtn.style.display = 'none';
+      }
+    }
+
+    setTimeout(updateRemoteBtn, 100);
+    updateMouseHint();
+    bindPreviewEvents();
+  } else {
+    // 收藏/报警预览模式，隐藏这些元素
+    if (remoteWrap) remoteWrap.style.display = 'none';
+    if (kbBtn) kbBtn.style.display = 'none';
+    if (monBtn) monBtn.style.display = 'none';
+    if (mouseHint) mouseHint.style.display = 'none';
+  }
 }
 
 function isMobile() {
@@ -570,15 +598,44 @@ function toggleRemoteListModal() {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-  var overlay = document.getElementById('remoteListOverlay');
-  var dialog = document.getElementById('remoteListDialog');
-  if (overlay) {
-    overlay.addEventListener('click', function() {
+  var remoteListOverlay = document.getElementById('remoteListOverlay');
+  var remoteListDialog = document.getElementById('remoteListDialog');
+  if (remoteListOverlay) {
+    remoteListOverlay.addEventListener('click', function() {
       closeRemoteListModal();
     });
   }
-  if (dialog) {
-    dialog.addEventListener('click', function(e) {
+  if (remoteListDialog) {
+    remoteListDialog.addEventListener('click', function(e) {
+      e.stopPropagation();
+    });
+  }
+
+  // 点击预览遮罩关闭预览
+  var previewOverlay = document.getElementById('previewOverlay');
+  if (previewOverlay) {
+    previewOverlay.addEventListener('click', function(e) {
+      // 只有正常预览模式且有键盘支持的非移动端才禁止点击关闭
+      if (previewMode === 'normal') {
+        const previewDev = allDevices[deviceId];
+        const currentDevHasKeyboard = previewDev && previewDev.supportsKeyClient;
+        if (!isMobile() && currentDevHasKeyboard) return;
+      }
+      // 其他情况都可以点击关闭
+      closePreview();
+    });
+  }
+
+  // 阻止标题栏和预览区域的点击事件冒泡
+  var previewTitlebar = document.getElementById('previewTitlebar');
+  if (previewTitlebar) {
+    previewTitlebar.addEventListener('click', function(e) {
+      e.stopPropagation();
+    });
+  }
+  var previewArea = document.getElementById('previewArea');
+  if (previewArea) {
+    previewArea.addEventListener('click', function(e) {
       e.stopPropagation();
     });
   }
@@ -819,6 +876,9 @@ function setOnline() {
 }
 
 function connectWebSocket() {
+  // 只有正常预览模式才连接WebSocket
+  if (previewMode !== 'normal') return;
+
   var wsUrl = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws/browser';
   ws = new WebSocket(wsUrl);
   ws.binaryType = 'arraybuffer';

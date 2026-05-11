@@ -2683,8 +2683,29 @@ function openCollectionPreview(timestamp, deviceId) {
   const item = group.items.find(i => i.deviceId === deviceId);
   if (!item) return;
   
-  // 复用预览弹窗
-  openPreviewImage(item.hdScreenshot || item.screenshot, item.deviceName, item.deviceId, item.online);
+  // 使用统一的预览页面
+  const dev = devices.find(d => d.deviceId === deviceId);
+  previewDeviceId = deviceId;
+  previewActive = true;
+  const initData = {
+    mode: 'collection',
+    deviceId: deviceId,
+    deviceName: item.deviceName,
+    online: item.online,
+    screenshot: item.hdScreenshot || item.screenshot,
+    supportsKeyClient: dev ? dev.supportsKeyClient : false,
+    uuDeviceId: dev ? dev.uuDeviceId : null,
+    monitorCount: dev ? (dev.monitorCount || 1) : 1,
+    monitorIndex: dev ? (dev.monitorIndex || 1) : 1,
+    screenWidth: dev ? (dev.screenWidth || 1920) : 1920,
+    screenHeight: dev ? (dev.screenHeight || 1080) : 1080
+  };
+  sessionStorage.setItem('previewInitData', JSON.stringify(initData));
+  var iframe = document.getElementById('previewIframe');
+  iframe.src = '/preview.html';
+  document.getElementById('previewOverlay').style.display = 'flex';
+  var floatingClose = document.getElementById('previewFloatingClose');
+  if (floatingClose) floatingClose.style.display = 'block';
 }
 
 function openPreviewImage(imgSrc, deviceName, deviceId, online) {
@@ -2940,6 +2961,7 @@ function openPreview(cellIndex) {
   previewDeviceId = cell.deviceId;
   previewActive = true;
   var initData = {
+    mode: 'normal',
     deviceId: cell.deviceId,
     deviceName: cell.deviceName || (dev && dev.deviceName) || '未知',
     online: dev ? dev.online : false,
@@ -5347,86 +5369,33 @@ function openAlarmPreview(alarmId) {
     ws.send(JSON.stringify({ type: 'viewAlarm', alarmId }));
   }
   
-  // 【修复】设置为特殊值，阻止实时截图覆盖报警图片
-  previewDeviceId = '__ALARM__' + alarmId;
-  previewActive = false;  // 暂停格子渲染
-  // 保存真实设备ID，用于接收上下线广播
-  alarmPreviewDeviceId = rec.deviceId;
-  
-  // 复用预览浮层显示报警截图
-  document.getElementById('previewDeviceName').textContent = (rec.deviceName || '未知') + ' - 报警截图';
-  var previewImg = document.getElementById('previewImg');
-  // 清除可能残留的状态
-  previewImg.style.filter = '';  // 清除可能残留的灰度滤镜
-  previewImg.onload = null;
-
-  // 直接设置 URL（URL 加载方式）
-  previewImg.src = rec.screenshot;
-  previewImg.style.display = 'block';
-  previewImg.style.opacity = '1';  // 直接显示
-  // 暂停实时截图更新：同时检查 previewDeviceId 和 alarmPreviewDeviceId
-  previewDeviceId = '__ALARM__' + alarmId;
-  previewActive = false;
-  document.getElementById('previewOverlay').classList.add('active');
-  // 显示浮动关闭按钮
-  const floatingClose = document.getElementById('previewFloatingClose');
-  if (floatingClose) floatingClose.style.display = 'block';
-  
-  // 报警预览不显示键盘按钮
-  const kbbtn = document.getElementById('previewKBbtn');
-  if (kbbtn) kbbtn.style.display = 'none';
-  // 报警预览不显示 1080p 按钮
-  const btn1080Container = document.getElementById('preview1080Container');
-  if (btn1080Container) btn1080Container.style.display = 'none';
-  // 报警预览不显示鼠标提示（统一通过 updateMouseHint 处理，它会根据 deviceId 判断）
-  updateMouseHint();
-  // 报警预览不显示远控按钮（默认隐藏，这里确保不显示）
-  const remoteWrap = document.getElementById('previewRemoteWrap');
-  if (remoteWrap) remoteWrap.style.display = 'none';
-  // 报警预览时解绑点击事件（不允许点击操作）
-  previewImg.onclick = null;
-
-
-  // 移动端关闭提示：2秒后淡出
-  var phint = document.getElementById('previewMobileClose');
-  if (phint) { phint.classList.remove('fade-out'); setTimeout(function() { phint.classList.add('fade-out'); }, 2000); }
-
-  // UU按钮：设备在线即显示，不判断uuDeviceId
-  var uubtn = document.getElementById('previewUUbtn');
+  // 使用统一的预览页面
+  const dev = devices.find(d => d.deviceId === rec.deviceId);
+  previewDeviceId = rec.deviceId;
+  previewActive = true;
   var isOnline = rec.online;
   if (!isOnline && rec.deviceId) {
-    var dev = devices.find(function(d) { return d.deviceId === rec.deviceId; });
     isOnline = dev ? dev.online : false;
   }
-  if (uubtn) {
-    if (isOnline) {
-      // 从设备列表获取uuDeviceId
-      var uuId = null;
-      if (rec.deviceId) {
-        var dev = devices.find(function(d) { return d.deviceId === rec.deviceId; });
-        uuId = dev ? dev.uuDeviceId : null;
-      }
-      uubtn.style.display = 'inline-flex';
-      uubtn.disabled = false;
-      uubtn.style.opacity = '';
-      uubtn.style.cursor = '';
-      uubtn.style.pointerEvents = '';
-      uubtn.onclick = function() { if (uuId) openUU(uuId); };
-    } else {
-      // 离线：变灰不可点
-      uubtn.style.display = 'inline-flex';
-      uubtn.disabled = true;
-      uubtn.style.opacity = '0.35';
-      uubtn.style.cursor = 'not-allowed';
-      uubtn.style.pointerEvents = 'none';
-    }
-  }
-
-  // 离线设备显示水印
-  var watermark = document.getElementById('previewOfflineWatermark');
-  if (watermark) {
-    watermark.style.display = isOnline ? 'none' : 'block';
-  }
+  const initData = {
+    mode: 'alarm',
+    deviceId: rec.deviceId,
+    deviceName: rec.deviceName,
+    online: isOnline,
+    screenshot: rec.screenshot,
+    supportsKeyClient: dev ? dev.supportsKeyClient : false,
+    uuDeviceId: dev ? dev.uuDeviceId : null,
+    monitorCount: dev ? (dev.monitorCount || 1) : 1,
+    monitorIndex: dev ? (dev.monitorIndex || 1) : 1,
+    screenWidth: dev ? (dev.screenWidth || 1920) : 1920,
+    screenHeight: dev ? (dev.screenHeight || 1080) : 1080
+  };
+  sessionStorage.setItem('previewInitData', JSON.stringify(initData));
+  var iframe = document.getElementById('previewIframe');
+  iframe.src = '/preview.html';
+  document.getElementById('previewOverlay').style.display = 'flex';
+  var floatingClose = document.getElementById('previewFloatingClose');
+  if (floatingClose) floatingClose.style.display = 'block';
 }
 
 function clearAllAlarms() {
