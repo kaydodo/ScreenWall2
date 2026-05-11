@@ -2949,9 +2949,7 @@ function openPreview(cellIndex) {
     monitorCount: dev ? (dev.monitorCount || 1) : 1,
     monitorIndex: dev ? (dev.monitorIndex || 1) : 1,
     screenWidth: dev ? (dev.screenWidth || 1920) : 1920,
-    screenHeight: dev ? (dev.screenHeight || 1080) : 1080,
-    version: dev ? (dev.version || '') : '',
-    uuVersion: dev ? (dev.uuVersion || '') : ''
+    screenHeight: dev ? (dev.screenHeight || 1080) : 1080
   };
   sessionStorage.setItem('previewInitData', JSON.stringify(initData));
   var iframe = document.getElementById('previewIframe');
