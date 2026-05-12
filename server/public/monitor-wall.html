@@ -1127,6 +1127,11 @@ function wallOpenPreview(deviceId) {
   wallPreviewActive = true;
   wallPreviewActive1080 = true;
 
+  // 发送 hq1080On 开启 1080p 模式（由监控墙自己的 WebSocket 连接发送）
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'hq1080On', deviceId: deviceId }));
+  }
+
   var initData = {
     mode: 'normal',
     fromWall: true,
@@ -1152,6 +1157,12 @@ function wallOpenPreview(deviceId) {
 function wallClosePreview() {
   if (!wallPreviewDeviceId) return;
   if (wallKeyboardOpen) wallCloseKeyboard();
+
+  // 发送 hq1080Off 关闭 1080p 模式（由监控墙自己的 WebSocket 连接发送）
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'hq1080Off', deviceId: wallPreviewDeviceId }));
+  }
+
   document.getElementById('wallPreviewOverlay').style.display = 'none';
   var iframe = document.getElementById('wallPreviewIframe');
   iframe.src = 'about:blank';
