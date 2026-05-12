@@ -268,7 +268,7 @@ function _flushWallBatch() {
     for (const wallWs of wallClients.keys()) {
       if (wallWs.readyState !== 1) continue;
       for (const [deviceId, data] of _wallBatch) {
-        if (data.buffer) sendBinaryScreenshot(wallWs, 0x12, deviceId, data.buffer, data.screenWidth || 0, data.screenHeight || 0, false);
+        if (data.buffer) sendBinaryScreenshot(wallWs, 0x10, deviceId, data.buffer, data.screenWidth || 0, data.screenHeight || 0, false);
       }
     }
   } catch(e) { log('error', 'wall二进制批量推送失败:', e.message); }

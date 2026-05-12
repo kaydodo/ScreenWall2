@@ -815,7 +815,7 @@ function connectWS() {
         const view = new DataView(e.data);
         const data = new Uint8Array(e.data);
         const frameType = data[0];
-        if (frameType === 0x10 || frameType === 0x11) {
+        if (frameType === 0x10) {
           const devIdLen = data[1];
           const flags = data[2];
           const isHQ = (flags & 0x01) !== 0;
@@ -859,20 +859,6 @@ function connectWS() {
             if (monImg) {
               monImg.src = blobUrl;
               monImg.style.display = 'block';
-            }
-          } else if (frameType === 0x11) {
-            if (typeof previewDeviceId !== 'undefined' && previewDeviceId === devId) {
-              const previewImg = document.getElementById('previewImg');
-              const currentDev = devices.find(d => d.deviceId === previewDeviceId);
-              const isOnline = currentDev ? currentDev.online : false;
-              if (previewImg && isOnline) {
-                if (previewImg._blobUrl) URL.revokeObjectURL(previewImg._blobUrl);
-                previewImg.src = blobUrl; previewImg._blobUrl = blobUrl;
-                previewImg.style.display = 'block';
-                previewImg.style.visibility = 'visible';
-              } else if (previewImg && !isOnline) {
-                URL.revokeObjectURL(blobUrl);
-              }
             }
           }
         }

@@ -815,7 +815,7 @@ function connectWebSocket() {
     // ── JSON 消息 ──
     try {
       var data = JSON.parse(e.data);
-      // 二进制0x12帧已负责动态画面，跳过JSON静态图路径
+      // 二进制0x10帧已负责动态画面，跳过JSON静态图路径
       if (data.type === 'wallScreenshot' || data.type === 'wallScreenshotBatch') return;
 
       if (data.type === 'wallStateUpdate') {
