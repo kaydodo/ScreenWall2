@@ -1539,6 +1539,9 @@ function handleWallStateUpdate(data) {
       if (data.supportsKeyClient !== undefined) {
         devices[deviceId].supportsKeyClient = data.supportsKeyClient;
       }
+      if (data.deviceName) {
+        devices[deviceId].name = data.deviceName;
+      }
     }
     var cell = findCellByDeviceId(deviceId);
     if (cell) {
@@ -1565,29 +1568,26 @@ function handleWallStateUpdate(data) {
         img.classList.remove('grayscale');
       }
       // 如果正在预览，恢复预览UI
-        if (wallPreviewDeviceId === deviceId) {
-          // 恢复预览UI
-          var watermark = document.getElementById('wallPreviewOfflineWatermark');
-          if (watermark) watermark.style.display = 'none';
-          var previewImg = document.getElementById('wallPreviewImg');
-          if (previewImg) previewImg.classList.remove('grayscale');
-          // 恢复UU按钮
-          var previewUUbtn = document.getElementById('wallPreviewUUbtn');
-          if (previewUUbtn) {
-            previewUUbtn.disabled = false;
-            previewUUbtn.style.opacity = '';
-            previewUUbtn.style.cursor = '';
-            previewUUbtn.style.pointerEvents = '';
-            if (dev && dev.uuDeviceId) {
-              previewUUbtn.onclick = function() { openUU(dev.uuDeviceId); };
-            }
+      if (wallPreviewDeviceId === deviceId) {
+        // 恢复预览UI
+        var watermark = document.getElementById('wallPreviewOfflineWatermark');
+        if (watermark) watermark.style.display = 'none';
+        var previewImg = document.getElementById('wallPreviewImg');
+        if (previewImg) previewImg.classList.remove('grayscale');
+        // 恢复UU按钮
+        var previewUUbtn = document.getElementById('wallPreviewUUbtn');
+        if (previewUUbtn) {
+          previewUUbtn.disabled = false;
+          previewUUbtn.style.opacity = '';
+          previewUUbtn.style.cursor = '';
+          previewUUbtn.style.pointerEvents = '';
+          if (dev && dev.uuDeviceId) {
+            previewUUbtn.onclick = function() { openUU(dev.uuDeviceId); };
           }
         }
       }
     }
     if (data.deviceName) {
-      var dev = devices[deviceId];
-      if (dev) dev.name = data.deviceName;
       updateDeviceInfo(deviceId, data.deviceName, null);
     }
   }
