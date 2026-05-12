@@ -1884,6 +1884,7 @@ class ScreenWallClient:
                 "monitorOffsetY":  off_y,
                 "uuInstalled":     self._is_uu_installed(),
                 "uuVersion":       self._get_uu_version(),
+                "macAddress":      _get_mac_address(),
             }
             await ws.send(json.dumps(payload))
             self.registered = True
@@ -1925,7 +1926,9 @@ class ScreenWallClient:
                         "screenHeight":    off_h,
                         "monitorOffsetX":  off_x,
                         "monitorOffsetY":  off_y,
+                        "uuInstalled":     self._is_uu_installed(),
                         "uuVersion":       self._get_uu_version(),
+                        "macAddress":      _get_mac_address(),
                     }
                     await ws.send(json.dumps(payload))
                 except Exception:
