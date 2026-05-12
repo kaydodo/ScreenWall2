@@ -1114,7 +1114,8 @@ function connectWS() {
         }
       });
       // 更新普通预览标题
-      if (previewDeviceId === msg.deviceId && document.getElementById('previewOverlay').classList.contains('active') && !previewDeviceId.startsWith('__ALARM__')) {
+      const previewOverlay = document.getElementById('previewOverlay');
+      if (previewDeviceId === msg.deviceId && previewOverlay && previewOverlay.classList.contains('active') && !previewDeviceId.startsWith('__ALARM__')) {
         const previewNameEl = document.getElementById('previewDeviceName');
         if (previewNameEl) {
           const dev = devices.find(function(dev) { return dev.deviceId === msg.deviceId; });
@@ -1305,10 +1306,10 @@ function connectWS() {
       const isOnline = currentDev ? currentDev.online : false;
       if (watermark && watermark.style.display !== 'none' && isOnline) {
         watermark.style.display = 'none';
-        previewImg.style.filter = '';
+        if (previewImg) previewImg.style.filter = '';
       }
       // WebSocket 方案：Blob URL 方案 + 内容相同跳过
-      if (isOnline && msg.image) {
+      if (isOnline && msg.image && previewImg) {
         setPreviewBlobSrc(previewImg, msg.image);
         previewImg.style.visibility = 'visible';
         const wrapper = document.getElementById('previewImgWrapper');
@@ -2586,12 +2587,15 @@ window.addEventListener('keydown', function(e) {
       return;
     }
     physicalShiftDown = true;
-    document.querySelectorAll('.kb-key').forEach(btn => {
-      const origLabel = btn.getAttribute('data-orig-label');
-      if (origLabel && SHIFT_DISPLAY_MAP[origLabel]) {
-        btn.textContent = SHIFT_DISPLAY_MAP[origLabel];
-      }
-    });
+    const btns = document.querySelectorAll('.kb-key');
+    if (btns.length) {
+      btns.forEach(btn => {
+        const origLabel = btn.getAttribute('data-orig-label');
+        if (origLabel && SHIFT_DISPLAY_MAP[origLabel]) {
+          btn.textContent = SHIFT_DISPLAY_MAP[origLabel];
+        }
+      });
+    }
   }
 });
 window.addEventListener('keyup', function(e) {
@@ -2604,12 +2608,15 @@ window.addEventListener('keyup', function(e) {
       return;
     }
     physicalShiftDown = false;
-    document.querySelectorAll('.kb-key').forEach(btn => {
-      const origLabel = btn.getAttribute('data-orig-label');
-      if (origLabel) {
-        btn.textContent = origLabel;
-      }
-    });
+    const btns = document.querySelectorAll('.kb-key');
+    if (btns.length) {
+      btns.forEach(btn => {
+        const origLabel = btn.getAttribute('data-orig-label');
+        if (origLabel) {
+          btn.textContent = origLabel;
+        }
+      });
+    }
   }
 });
 
@@ -2622,6 +2629,8 @@ function initKeyboardDrag() {
   const container = document.getElementById('previewKeyboardContainer');
   const overlay = document.getElementById('previewKeyboardOverlay');
   const titleBar = document.getElementById('previewKeyboardTitleBar');
+
+  if (!container || !overlay || !titleBar) return;
 
   // 只让标题栏可拖拽
   titleBar.addEventListener('mousedown', function(e) {
@@ -2767,6 +2776,8 @@ function updatePreviewRemoteBtn() {
   const dev = devices.find(d => d.deviceId === previewDeviceId);
   const slider = document.getElementById('previewRemoteSlider');
   const knob = document.getElementById('previewRemoteKnob');
+
+  if (!slider || !knob) return;
 
   // 始终显示
   slider.style.opacity = '1';
@@ -2999,6 +3010,8 @@ function openPreviewKeyboard() {
   
   const overlay = document.getElementById('previewKeyboardOverlay');
   const container = document.getElementById('previewKeyboardContent');
+  
+  if (!overlay || !container) return;
 
   // 生成键盘（标准104键布局）
   let html = '<div class="keyboard-layout">';
@@ -3098,14 +3111,18 @@ function closePreviewKeyboard() {
   previewKeyboardOpen = false;
   const overlay = document.getElementById('previewKeyboardOverlay');
   const container = document.getElementById('previewKeyboardContainer');
-  overlay.style.display = 'none';
+  if (overlay) overlay.style.display = 'none';
   // 重置位置到默认底部居中
-  overlay.style.alignItems = 'flex-end';
-  overlay.style.justifyContent = 'center';
-  container.style.position = '';
-  container.style.left = '';
-  container.style.top = '';
-  container.style.margin = '';
+  if (overlay) {
+    overlay.style.alignItems = 'flex-end';
+    overlay.style.justifyContent = 'center';
+  }
+  if (container) {
+    container.style.position = '';
+    container.style.left = '';
+    container.style.top = '';
+    container.style.margin = '';
+  }
   // 键盘弹窗关闭时重新绑定预览区事件（恢复 openPreview 的内联事件）
   if (previewDeviceId) openPreview({ deviceId: previewDeviceId });
 }
@@ -3176,6 +3193,7 @@ function getPreviewImageClickPos(e) {
   const img = document.getElementById('previewImg');
   if (!img || img.tagName !== 'IMG') return null;
   const container = document.getElementById('previewArea');
+  if (!container) return null;
   const containerRect = container.getBoundingClientRect();
   const imgRect = img.getBoundingClientRect();
   if (imgRect.width === 0 || imgRect.height === 0) return null;
@@ -3239,6 +3257,7 @@ function handlePreviewImageClick(e) {
   if (!img || img.tagName !== 'IMG') return;
 
   const container = document.getElementById('previewArea');
+  if (!container) return;
   const containerRect = container.getBoundingClientRect();
   const imgRect = img.getBoundingClientRect();
 
