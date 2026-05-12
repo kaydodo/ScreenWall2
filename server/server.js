@@ -1569,7 +1569,7 @@ wssClient.on('connection', (ws, req) => {
           _browserBatch.set(deviceId, { buffer: webpBuffer, timestamp: now, isHQ, screenWidth, screenHeight });
           _scheduleBrowserBatch();
           if (monitorWallDevices.has(deviceId)) { _wallBatch.set(deviceId, { buffer: webpBuffer, timestamp: now, screenWidth, screenHeight }); _scheduleWallBatch(); }
-          for (const [pw, pi] of previewClients) { if (pi.deviceId === deviceId && pw.readyState === 1) sendBinaryScreenshot(pw, 0x11, deviceId, webpBuffer, screenWidth, screenHeight, isHQ); }
+          for (const [pw, pi] of previewClients) { if (pi.deviceId === deviceId && pw.readyState === 1) sendBinaryScreenshot(pw, 0x10, deviceId, webpBuffer, screenWidth, screenHeight, isHQ); }
         } catch(e) { serverError('[二进制帧] 解析失败:', e.message); }
         return;
       }
