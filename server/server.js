@@ -146,17 +146,29 @@ const {
   client: CLIENT_CFG
 } = config;
 
-// ========== 全局追踪（高效计数器） ==========
+// ========== 全局追踪（从 deviceSubscribers 动态计算，单一数据源） ==========
 // 1080p追踪：deviceId → count
 const global1080p = new Map();
-
 // HQ高清流追踪：deviceId → count
 const globalHQ = new Map();
 
-// ========== 辅助函数（已被全局计数器替代，保留兼容） ==========
+function _recalcGlobalCounters() {
+  globalHQ.clear();
+  global1080p.clear();
+  for (const [deviceId, subs] of deviceSubscribers) {
+    let hq = 0, p1080 = 0;
+    for (const level of subs.values()) {
+      if (level >= 1) hq++;
+      if (level >= 2) p1080++;
+    }
+    if (hq > 0) globalHQ.set(deviceId, hq);
+    if (p1080 > 0) global1080p.set(deviceId, p1080);
+  }
+}
+
+// ========== 辅助函数 ==========
 function hasOtherPreview(deviceId, excludeWs) {
-  // 使用全局计数器替代
-  return globalHQ.has(deviceId) && globalHQ.get(deviceId) > 0;
+  return deviceMaxLevel.has(deviceId) && deviceMaxLevel.get(deviceId) >= 1;
 }
 
 function hasOtherWallSubscription(deviceId, excludeWs) {
@@ -339,12 +351,14 @@ function subscribeLevel(deviceId, ws, level) {
   }
   deviceSubscribers.get(deviceId).set(ws, level);
   updateLevel(deviceId);
+  _recalcGlobalCounters();
 }
 
 function unsubscribeLevel(deviceId, ws) {
   if (!deviceSubscribers.has(deviceId)) return;
   deviceSubscribers.get(deviceId).delete(ws);
   updateLevel(deviceId);
+  _recalcGlobalCounters();
 }
 
 function unsubscribeAllLevel(ws) {
@@ -353,6 +367,7 @@ function unsubscribeAllLevel(ws) {
       updateLevel(deviceId);
     }
   }
+  _recalcGlobalCounters();
 }
 
 // ========== wallScreenshot 批量推送（监控墙，同优化）==========
@@ -374,9 +389,12 @@ function sendBinaryScreenshot(ws, frameType, deviceId, webpBuffer, screenWidth, 
   } catch(e) {}
 }
 
+let _wallFlushing = false;
 async function _flushWallBatch() {
+  if (_wallFlushing) return;
+  _wallFlushing = true;
   _wallBatchScheduled = false;
-  if (_wallBatch.size === 0 || wallClients.size === 0) { _wallBatch.clear(); return; }
+  if (_wallBatch.size === 0 || wallClients.size === 0) { _wallBatch.clear(); _wallFlushing = false; return; }
   try {
     for (const wallWs of wallClients.keys()) {
       if (wallWs.readyState !== 1) continue;
@@ -414,6 +432,7 @@ async function _flushWallBatch() {
     }
   } catch(e) { log('error', 'wall二进制批量推送失败:', e.message); }
   _wallBatch.clear();
+  _wallFlushing = false;
 }
 function _scheduleWallBatch() {
   if (!_wallBatchScheduled) {
@@ -428,10 +447,14 @@ const frameCache = new Map(); // deviceId -> { md5, time }
 // 200设备×8fps = 1600条/秒 → 合并为 8条/秒，Browser进程 IPC 压力降200倍
 const _browserBatch = new Map(); // deviceId -> { image, timestamp }
 let _browserBatchScheduled = false;
+let _browserFlushing = false;
 async function _flushBrowserBatch() {
+  if (_browserFlushing) return;
+  _browserFlushing = true;
   _browserBatchScheduled = false;
   if (_browserBatch.size === 0 || browserClients.size === 0) {
     _browserBatch.clear();
+    _browserFlushing = false;
     return;
   }
   try {
@@ -472,6 +495,7 @@ async function _flushBrowserBatch() {
     }
   } catch(e) { log('error', '二进制批量推送失败:', e.message); }
   _browserBatch.clear();
+  _browserFlushing = false;
 }
 function _scheduleBrowserBatch() {
   if (!_browserBatchScheduled) {
@@ -2510,8 +2534,6 @@ wssBrowser.on('connection', (ws) => {
         // 追踪该浏览器的 1080p 设备
         if (!browser1080p.has(ws)) browser1080p.set(ws, new Set());
         browser1080p.get(ws).add(deviceId);
-        // 更新全局追踪（每开启一次加1，与globalHQ保持一致）
-        global1080p.set(deviceId, (global1080p.get(deviceId) || 0) + 1);
         // 转发给设备客户端
         for (const client of wssClient.clients) {
           if (client._deviceId === deviceId && client.readyState === 1) {
@@ -2529,40 +2551,26 @@ wssBrowser.on('connection', (ws) => {
       if (msg.deviceId) {
         // 从浏览器追踪Map中移除
         if (my1080pDevices) my1080pDevices.delete(msg.deviceId);
-        // 从全局追踪中减1
-        if (global1080p.has(msg.deviceId)) {
-          const newCount = global1080p.get(msg.deviceId) - 1;
-          if (newCount <= 0) {
-            global1080p.delete(msg.deviceId);
-            // 所有浏览器都没有使用1080p，通知设备关闭
-            for (const client of wssClient.clients) {
-              if (client._deviceId === msg.deviceId && client.readyState === 1) {
-                client.send(JSON.stringify({ type: 'hq1080Off' }));
-                break;
-              }
+        // Step 1: 自动同步，无剩余订阅时关闭设备 1080p
+        if (!global1080p.has(msg.deviceId)) {
+          for (const client of wssClient.clients) {
+            if (client._deviceId === msg.deviceId && client.readyState === 1) {
+              client.send(JSON.stringify({ type: 'hq1080Off' }));
+              break;
             }
-          } else {
-            global1080p.set(msg.deviceId, newCount);
           }
         }
       } else {
         // 关闭所有追踪的设备
         if (my1080pDevices) {
           for (const deviceId of my1080pDevices) {
-            // 从全局追踪中减1
-            if (global1080p.has(deviceId)) {
-              const newCount = global1080p.get(deviceId) - 1;
-              if (newCount <= 0) {
-                global1080p.delete(deviceId);
-                // 所有浏览器都没有使用1080p，通知设备关闭
-                for (const client of wssClient.clients) {
-                  if (client._deviceId === deviceId && client.readyState === 1) {
-                    client.send(JSON.stringify({ type: 'hq1080Off' }));
-                    break;
-                  }
+            // Step 1: 自动同步，无剩余订阅时关闭设备 1080p
+            if (!global1080p.has(deviceId)) {
+              for (const client of wssClient.clients) {
+                if (client._deviceId === deviceId && client.readyState === 1) {
+                  client.send(JSON.stringify({ type: 'hq1080Off' }));
+                  break;
                 }
-              } else {
-                global1080p.set(deviceId, newCount);
               }
             }
           }
@@ -3184,50 +3192,36 @@ wssBrowser.on('connection', (ws) => {
       // 检查是否是监控墙的连接
       const isWallClient = wallClients.has(ws) || ws._wallUnsubscribing;
 
-      // 1. 清理 1080p 追踪（从 browser1080p 和 global1080p 中移除）
+      // 1. 清理 1080p 追踪（计数自动由 _recalcGlobalCounters 维护）
       const my1080p = browser1080p.get(ws);
       if (msg.deviceId && !isWallClient) {
         if (my1080p) my1080p.delete(msg.deviceId);
-        if (global1080p.has(msg.deviceId)) {
-          const new1080Count = global1080p.get(msg.deviceId) - 1;
-          if (new1080Count <= 0) {
-            global1080p.delete(msg.deviceId);
-            // 所有浏览器都没有使用1080p，通知设备关闭
-            for (const client of wssClient.clients) {
-              if (client._deviceId === msg.deviceId && client.readyState === 1) {
-                client.send(JSON.stringify({ type: 'hq1080Off' }));
-                break;
-              }
+        if (!global1080p.has(msg.deviceId)) {
+          for (const client of wssClient.clients) {
+            if (client._deviceId === msg.deviceId && client.readyState === 1) {
+              client.send(JSON.stringify({ type: 'hq1080Off' }));
+              break;
             }
-          } else {
-            global1080p.set(msg.deviceId, new1080Count);
           }
         }
       }
 
-      // 2. 清理 startHQ 追踪（从 browserPreviewHD 和 globalHQ 中移除）
+      // 2. 清理 startHQ 追踪（计数自动由 _recalcGlobalCounters 维护）
       const myHD = browserPreviewHD.get(ws);
       if (msg.deviceId && !isWallClient) {
         if (myHD) myHD.delete(msg.deviceId);
-        if (globalHQ.has(msg.deviceId)) {
-          const newCount = globalHQ.get(msg.deviceId) - 1;
-          if (newCount <= 0) {
-            globalHQ.delete(msg.deviceId);
-            // 没有其他浏览器需要，检查墙上是否有人需要
-            let needHQ = false;
-            for (const [wallWs, hdChannels] of wallHDChannels) {
-              if (hdChannels.has(msg.deviceId)) { needHQ = true; break; }
-            }
-            if (!needHQ) {
-              for (const client of wssClient.clients) {
-                if (client._deviceId === msg.deviceId) {
-                  client.send(JSON.stringify({ type: 'stopHQ' }));
-                  break;
-                }
+        if (!globalHQ.has(msg.deviceId)) {
+          let needHQ = false;
+          for (const [wallWs, hdChannels] of wallHDChannels) {
+            if (hdChannels.has(msg.deviceId)) { needHQ = true; break; }
+          }
+          if (!needHQ) {
+            for (const client of wssClient.clients) {
+              if (client._deviceId === msg.deviceId) {
+                client.send(JSON.stringify({ type: 'stopHQ' }));
+                break;
               }
             }
-          } else {
-            globalHQ.set(msg.deviceId, newCount);
           }
         }
       }
@@ -3301,43 +3295,28 @@ wssBrowser.on('connection', (ws) => {
         browserPreviewHD.get(ws).delete(msg.deviceId);
       }
 
-      // 监控墙的 globalHQ 由 subscribeWall/close 延迟清理管理，stopHQ 消息不减
+      // 监控墙的 HQ 由 subscribeWall/close 延迟清理管理
       const isWallClient = wallClients.has(ws) || ws._wallUnsubscribing;
-      if (isWallClient) {
-
-      } else {
-        // 主页面：从全局计数器中减1
-        if (globalHQ.has(msg.deviceId)) {
-          const newCount = globalHQ.get(msg.deviceId) - 1;
-          if (newCount <= 0) {
-            globalHQ.delete(msg.deviceId);
-            // 检查是否还有其他窗口在使用该设备的HQ
-            let stillNeedsHQ = false;
-            for (const [wallWs, hdChannels] of wallHDChannels) {
-              if (hdChannels.has(msg.deviceId)) { stillNeedsHQ = true; break; }
-            }
-            for (const [otherWs, otherDevices] of browserPreviewHD) {
-              if (otherDevices.has(msg.deviceId)) { stillNeedsHQ = true; break; }
-            }
-            if (!stillNeedsHQ) {
-              hdRequests.delete(msg.deviceId);
-              wallDevices.delete(msg.deviceId);
-              for (const client of wssClient.clients) {
-                if (client._deviceId === msg.deviceId) {
-                  client.send(JSON.stringify({ type: 'stopHQ' }));
-
-                  break;
-                }
-              }
-            } else {
-
-            }
-          } else {
-            globalHQ.set(msg.deviceId, newCount);
-
+      if (!isWallClient) {
+        // 主页面：检查是否已无HQ订阅（计数由 _recalcGlobalCounters 自动维护）
+        if (!globalHQ.has(msg.deviceId)) {
+          let stillNeedsHQ = false;
+          for (const [wallWs, hdChannels] of wallHDChannels) {
+            if (hdChannels.has(msg.deviceId)) { stillNeedsHQ = true; break; }
           }
-        } else {
-
+          for (const [otherWs, otherDevices] of browserPreviewHD) {
+            if (otherDevices.has(msg.deviceId)) { stillNeedsHQ = true; break; }
+          }
+          if (!stillNeedsHQ) {
+            hdRequests.delete(msg.deviceId);
+            wallDevices.delete(msg.deviceId);
+            for (const client of wssClient.clients) {
+              if (client._deviceId === msg.deviceId) {
+                client.send(JSON.stringify({ type: 'stopHQ' }));
+                break;
+              }
+            }
+          }
         }
       }
     }
@@ -3505,29 +3484,23 @@ wssBrowser.on('connection', (ws) => {
             if (hdRequests.has(deviceId)) {
               hdRequests.get(deviceId).delete(ws);
             }
-            if (globalHQ.has(deviceId)) {
-              const newCount = globalHQ.get(deviceId) - 1;
-              if (newCount <= 0) {
-                globalHQ.delete(deviceId);
-                let wallStillNeedsHQ = false;
-                for (const [wWs, wHd] of wallHDChannels) {
-                  if (wWs !== ws && wHd.has(deviceId)) { wallStillNeedsHQ = true; break; }
-                }
-                for (const [oWs, oDev] of browserPreviewHD) {
-                  if (oWs !== ws && oDev.has(deviceId)) { wallStillNeedsHQ = true; break; }
-                }
-                if (!wallStillNeedsHQ) {
-                  hdRequests.delete(deviceId);
-                  wallDevices.delete(deviceId);
-                  for (const client of wssClient.clients) {
-                    if (client._deviceId === deviceId) {
-                      client.send(JSON.stringify({ type: 'stopHQ' }));
-                      break;
-                    }
+            if (!globalHQ.has(deviceId)) {
+              let wallStillNeedsHQ = false;
+              for (const [wWs, wHd] of wallHDChannels) {
+                if (wWs !== ws && wHd.has(deviceId)) { wallStillNeedsHQ = true; break; }
+              }
+              for (const [oWs, oDev] of browserPreviewHD) {
+                if (oWs !== ws && oDev.has(deviceId)) { wallStillNeedsHQ = true; break; }
+              }
+              if (!wallStillNeedsHQ) {
+                hdRequests.delete(deviceId);
+                wallDevices.delete(deviceId);
+                for (const client of wssClient.clients) {
+                  if (client._deviceId === deviceId) {
+                    client.send(JSON.stringify({ type: 'stopHQ' }));
+                    break;
                   }
                 }
-              } else {
-                globalHQ.set(deviceId, newCount);
               }
             }
           }
@@ -3626,18 +3599,12 @@ wssBrowser.on('connection', (ws) => {
 
       if (devices1080pToClean.length > 0) {
         for (const deviceId of devices1080pToClean) {
-          if (global1080p.has(deviceId)) {
-            const newCount = global1080p.get(deviceId) - 1;
-            if (newCount <= 0) {
-              global1080p.delete(deviceId);
-              for (const client of wssClient.clients) {
-                if (client._deviceId === deviceId && client.readyState === 1) {
-                  client.send(JSON.stringify({ type: 'hq1080Off' }));
-                  break;
-                }
+          if (!global1080p.has(deviceId)) {
+            for (const client of wssClient.clients) {
+              if (client._deviceId === deviceId && client.readyState === 1) {
+                client.send(JSON.stringify({ type: 'hq1080Off' }));
+                break;
               }
-            } else {
-              global1080p.set(deviceId, newCount);
             }
           }
         }
@@ -3670,20 +3637,14 @@ wssBrowser.on('connection', (ws) => {
               if (otherDev.has(deviceId)) { stillInUse = true; break; }
             }
 
-            if (!stillInUse && globalHQ.has(deviceId)) {
-              const newCount = globalHQ.get(deviceId) - 1;
-              if (newCount <= 0) {
-                globalHQ.delete(deviceId);
-                hdRequests.delete(deviceId);
-                wallDevices.delete(deviceId);
-                for (const client of wssClient.clients) {
-                  if (client._deviceId === deviceId && client.readyState === 1) {
-                    client.send(JSON.stringify({ type: 'stopHQ' }));
-                    break;
-                  }
+            if (!stillInUse && !globalHQ.has(deviceId)) {
+              hdRequests.delete(deviceId);
+              wallDevices.delete(deviceId);
+              for (const client of wssClient.clients) {
+                if (client._deviceId === deviceId && client.readyState === 1) {
+                  client.send(JSON.stringify({ type: 'stopHQ' }));
+                  break;
                 }
-              } else {
-                globalHQ.set(deviceId, newCount);
               }
             }
           }
@@ -3699,58 +3660,43 @@ wssBrowser.on('connection', (ws) => {
       // 如果已发，browser1080p/browserPreviewHD 的 Set 里对应的 deviceId 已被删除，
       // 这里不会再重复减计数。如果 beforeunload 消息丢了，这里补上。
 
-      // 清理 1080p
+      // 清理 1080p（计数由 _recalcGlobalCounters 自动维护）
       if (my1080pDevices && my1080pDevices.size > 0) {
         for (const deviceId of my1080pDevices) {
-          if (global1080p.has(deviceId)) {
-            const newCount = global1080p.get(deviceId) - 1;
-            if (newCount <= 0) {
-              global1080p.delete(deviceId);
-              for (const client of wssClient.clients) {
-                if (client._deviceId === deviceId && client.readyState === 1) {
-                  client.send(JSON.stringify({ type: 'hq1080Off' }));
-
-                  break;
-                }
+          if (!global1080p.has(deviceId)) {
+            for (const client of wssClient.clients) {
+              if (client._deviceId === deviceId && client.readyState === 1) {
+                client.send(JSON.stringify({ type: 'hq1080Off' }));
+                break;
               }
-            } else {
-              global1080p.set(deviceId, newCount);
             }
           }
         }
       }
 
-      // 清理 HQ（720p）
+      // 清理 HQ/720p（计数由 _recalcGlobalCounters 自动维护）
       if (myPreviewHD && myPreviewHD.size > 0) {
         for (const deviceId of myPreviewHD) {
-          if (globalHQ.has(deviceId)) {
-            const newCount = globalHQ.get(deviceId) - 1;
-            if (newCount <= 0) {
-              globalHQ.delete(deviceId);
-              // 检查是否还有其他窗口在使用
-              let stillNeedsHQ = false;
-              for (const [wWs, wHd] of wallHDChannels) {
-                if (wHd.has(deviceId)) { stillNeedsHQ = true; break; }
-              }
-              for (const [oWs, oSub] of wallClients) {
-                if (oSub.devices.has(deviceId)) { stillNeedsHQ = true; break; }
-              }
-              for (const [oWs, oDev] of browserPreviewHD) {
-                if (oDev.has(deviceId)) { stillNeedsHQ = true; break; }
-              }
-              if (!stillNeedsHQ) {
-                hdRequests.delete(deviceId);
-                wallDevices.delete(deviceId);
-                for (const client of wssClient.clients) {
-                  if (client._deviceId === deviceId && client.readyState === 1) {
-                    client.send(JSON.stringify({ type: 'stopHQ' }));
-
-                    break;
-                  }
+          if (!globalHQ.has(deviceId)) {
+            let stillNeedsHQ = false;
+            for (const [wWs, wHd] of wallHDChannels) {
+              if (wHd.has(deviceId)) { stillNeedsHQ = true; break; }
+            }
+            for (const [oWs, oSub] of wallClients) {
+              if (oSub.devices.has(deviceId)) { stillNeedsHQ = true; break; }
+            }
+            for (const [oWs, oDev] of browserPreviewHD) {
+              if (oDev.has(deviceId)) { stillNeedsHQ = true; break; }
+            }
+            if (!stillNeedsHQ) {
+              hdRequests.delete(deviceId);
+              wallDevices.delete(deviceId);
+              for (const client of wssClient.clients) {
+                if (client._deviceId === deviceId && client.readyState === 1) {
+                  client.send(JSON.stringify({ type: 'stopHQ' }));
+                  break;
                 }
               }
-            } else {
-              globalHQ.set(deviceId, newCount);
             }
           }
         }
