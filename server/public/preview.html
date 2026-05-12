@@ -879,7 +879,7 @@ function setOnline() {
     uuBtn.style.pointerEvents = '';
     if (uuDeviceId) uuBtn.onclick = function() { openUU(uuDeviceId); };
   }
-  if (ws && ws.readyState === WebSocket.OPEN) {
+  if (ws && ws.readyState === WebSocket.OPEN && !fromWall) {
     ws.send(JSON.stringify({ type: 'startHQ', deviceId: deviceId }));
     ws.send(JSON.stringify({ type: 'hq1080On', deviceId: deviceId }));
   }
@@ -897,7 +897,7 @@ function connectWebSocket() {
 
   ws.onopen = function() {
     ws.send(JSON.stringify({ type: 'subscribePreview', deviceId: deviceId }));
-    if (isOnline) {
+    if (isOnline && !fromWall) {
       ws.send(JSON.stringify({ type: 'startHQ', deviceId: deviceId }));
       ws.send(JSON.stringify({ type: 'hq1080On', deviceId: deviceId }));
     }
