@@ -436,178 +436,15 @@
 // 页面初始化：加载配置
 loadServerConfig();
 
-// ─────────────────────────────────────────
-// 帧缓冲系统：只显示最新帧，丢弃过时帧
-// ─────────────────────────────────────────
-const pendingFrames = new Map(); // deviceId -> {image, timestamp, frameCount}
-const pendingPreviewFrame = { deviceId: null, image: null, timestamp: 0 };
-let renderScheduled = false;
-
 // Blob URL 系统：避免 base64 每帧解码导致位图缓存堆积
 // Map<cellIndex, { blobUrl: string, md5: string, timestamp: number }>
 const _cellBlobs = new Map();
-let _previewBlobMd5 = null;
 
 // 自愈帧计数：deviceId -> 收到的新鲜帧数量（超过阈值才算真正在线）
 const frameHealCount = new Map(); // deviceId -> count
 const FRAME_HEAL_THRESHOLD = 2;   // 至少收到2帧才恢复离线格子
 
-// Tab 切换时清理积压帧，避免切回时一次性处理大量帧
-let _wasHidden = false;
-let _hiddenStartTime = 0;
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden') {
-    _wasHidden = true;
-    _hiddenStartTime = Date.now();
-    // Tab 进入后台时，停止 rAF 调度，避免积压
-    renderScheduled = false;
-  } else if (document.visibilityState === 'visible' && _wasHidden) {
-    _wasHidden = false;
-    const hiddenDuration = Date.now() - _hiddenStartTime;
-    // 延迟一帧处理，让浏览器完成渲染管线重建
-    requestAnimationFrame(() => {
-      const pendingCount = pendingFrames.size;
-//       console.log(`[TAB] 切回前台，后台时长 ${hiddenDuration}ms，积压帧 ${pendingCount} 个`);
-      pendingFrames.clear();
-      pendingPreviewFrame.image = null;
-      // 重置心跳计时器，避免误报
-      _lastBeat = performance.now();
-    });
-  }
-});
 
-function scheduleRender() {
-  if (renderScheduled) return;
-  renderScheduled = true;
-  requestAnimationFrame(() => {
-    renderPendingFrames();
-    renderScheduled = false;  // ← 回调结束后才重置，防止 rAF 执行期间重复排队
-  });
-}
-
-function renderPendingFrames() {
-  // ── 异常隔离：任何渲染错误都不能让 renderScheduled 卡死 ──
-  try {
-    renderScheduled = false;
-    const now = Date.now();
-    let rendered = false;
-
-    // 预览激活时跳过格子渲染（性能优化），但自愈仍需执行
-    if (!previewActive) {
-      // 渲染格子帧
-      const t0 = performance.now();
-      let cellCount = 0;
-      for (const [deviceId, frame] of pendingFrames) {
-        // 只渲染最近1秒内的帧（超时丢弃）
-        if (now - frame.timestamp < 1000) {
-          const cell = gridCells.find(c => c.deviceId === deviceId);
-          // 自愈：增加帧计数，只有连续收到多帧才恢复在线状态
-          if (cell) {
-            if (!frameHealCount.has(deviceId)) frameHealCount.set(deviceId, 0);
-            frameHealCount.set(deviceId, frameHealCount.get(deviceId) + 1);
-            // 帧计数达到阈值才恢复在线（防止单帧缓存误判）
-            if (!cell.online && frameHealCount.get(deviceId) >= FRAME_HEAL_THRESHOLD) {
-              cell.online = true;
-              const dot = document.getElementById(`dot_${cell.index}`);
-              const stxt = document.getElementById(`stxt_${cell.index}`);
-              if (dot) { dot.className = 'status-dot online'; dot.style.backgroundColor = '#34d399'; }
-              if (stxt) { stxt.textContent = '在线'; stxt.className = 'status-text online'; }
-              const img = document.getElementById(`img_${cell.index}`);
-              if (img) img.classList.remove('grayscale');
-              const cellEl = document.querySelector(`.wall-cell[data-index="${cell.index}"]`);
-              if (cellEl) cellEl.classList.remove('offline-cell');
-              const offlineLabel = document.getElementById(`offline_${cell.index}`);
-              if (offlineLabel) offlineLabel.style.display = 'none';
-              const uubtn = document.getElementById(`uubtn_${cell.index}`);
-              if (uubtn) uubtn.style.display = 'flex';
-              // 自愈恢复预览弹窗状态
-              if (previewDeviceId === deviceId) {
-                const watermark = document.getElementById('previewOfflineWatermark');
-                if (watermark) watermark.style.display = 'none';
-                const previewImg = document.getElementById('previewImg');
-                if (previewImg) previewImg.style.filter = '';
-                const dev = devices.find(d => d.deviceId === deviceId);
-                if (dev) dev.online = true;
-                const uubtn2 = document.getElementById('previewUUbtn');
-                if (uubtn2 && dev && dev.uuDeviceId) {
-                  uubtn2.disabled = false; uubtn2.style.opacity = ''; uubtn2.style.cursor = ''; uubtn2.style.pointerEvents = '';
-                  uubtn2.onclick = () => { openUU(dev.uuDeviceId); };
-                }
-              }
-            }
-          }
-          if (cell) {
-            cell.screenshot = frame.image;
-            updateCellScreenshot(cell.index, frame.image);
-            rendered = true;
-            cellCount++;
-          }
-        }
-      }
-      const t1 = performance.now();
-      if (cellCount > 0 && t1 - t0 > 5) {
-//         console.log(`[rAF] 格子渲染 ${cellCount}个, 耗时 ${(t1-t0).toFixed(1)}ms`);
-      }
-      // 在清空之前更新监控上墙预览
-      pendingFrames.clear();
-    } else {
-      // 预览模式：只保留预览设备的帧，其他全部丢弃
-      // 但仍需执行自愈逻辑
-      for (const [deviceId, frame] of pendingFrames) {
-        if (now - frame.timestamp < 1000 && deviceId === previewDeviceId) {
-          const cell = gridCells.find(c => c.deviceId === deviceId);
-          if (cell && !cell.online) {
-            if (!frameHealCount.has(deviceId)) frameHealCount.set(deviceId, 0);
-            frameHealCount.set(deviceId, frameHealCount.get(deviceId) + 1);
-            if (frameHealCount.get(deviceId) >= FRAME_HEAL_THRESHOLD) {
-              cell.online = true;
-              const dot = document.getElementById(`dot_${cell.index}`);
-              const stxt = document.getElementById(`stxt_${cell.index}`);
-              if (dot) { dot.className = 'status-dot online'; dot.style.backgroundColor = '#34d399'; }
-              if (stxt) { stxt.textContent = '在线'; stxt.className = 'status-text online'; }
-              const img = document.getElementById(`img_${cell.index}`);
-              if (img) img.classList.remove('grayscale');
-              const cellEl = document.querySelector(`.wall-cell[data-index="${cell.index}"]`);
-              if (cellEl) cellEl.classList.remove('offline-cell');
-              const offlineLabel = document.getElementById(`offline_${cell.index}`);
-              if (offlineLabel) offlineLabel.style.display = 'none';
-              const uubtn = document.getElementById(`uubtn_${cell.index}`);
-              if (uubtn) uubtn.style.display = 'flex';
-              // 自愈恢复预览弹窗状态
-              const watermark = document.getElementById('previewOfflineWatermark');
-              if (watermark) watermark.style.display = 'none';
-              const previewImg = document.getElementById('previewImg');
-              if (previewImg) previewImg.style.filter = '';
-              const dev = devices.find(d => d.deviceId === deviceId);
-              if (dev) dev.online = true;
-              const uubtn2 = document.getElementById('previewUUbtn');
-              if (uubtn2 && dev && dev.uuDeviceId) {
-                uubtn2.disabled = false; uubtn2.style.opacity = ''; uubtn2.style.cursor = ''; uubtn2.style.pointerEvents = '';
-                uubtn2.onclick = () => { openUU(dev.uuDeviceId); };
-              }
-            }
-          }
-        }
-      }
-      // 收集要删除的 key，避免在 for...of 遍历中直接 delete 导致跳设备
-      const toDelete = [];
-      for (const [deviceId] of pendingFrames) {
-        if (deviceId !== previewDeviceId) {
-          toDelete.push(deviceId);
-        }
-      }
-      for (const id of toDelete) pendingFrames.delete(id);
-    }
-
-    // 预览帧走独立通道（previewScreenshot消息），不在这里渲染
-
-    // 更新刷新时间
-    if (rendered) updateRefreshTime();
-  } catch (err) {
-//     console.error('[ScreenWall] 渲染异常，已恢复:', err.message);
-    renderScheduled = false; // 确保渲染循环不被卡死
-  }
-}
 
 // ─────────────────────────────────────────
 // Base64 转 Blob URL（避免 431 错误）
@@ -836,7 +673,7 @@ function connectWS() {
               el.style.display = 'block';
               const ns = document.getElementById('ns_' + ci);
               if (ns) ns.style.display = 'none';
-              // 自愈：收到帧时累加计数，达到阈值才恢复在线（与 renderPendingFrames/screenshotBatch 一致）
+              // 自愈：收到帧时累加计数，达到阈值才恢复在线
               if (gridCells[ci] && !gridCells[ci].online) {
                 if (!frameHealCount.has(devId)) frameHealCount.set(devId, 0);
                 frameHealCount.set(devId, frameHealCount.get(devId) + 1);
@@ -1039,14 +876,11 @@ function connectWS() {
             c.deviceName = dev.deviceName;
             if (!dev.online) {
               frameHealCount.delete(c.deviceId);
-              // 清除待渲染帧，防止旧帧触发自愈把离线状态覆盖回在线
-              pendingFrames.delete(c.deviceId);
             }
           } else {
             // 设备已从服务端删除
             c.online = false;
             frameHealCount.delete(c.deviceId);
-            pendingFrames.delete(c.deviceId);
           }
         }
       });
@@ -1222,124 +1056,7 @@ function connectWS() {
       }
     }
 
-    if (msg.type === 'screenshot') {
-      const t0 = performance.now();
 
-      // 丢包/空帧：跳过这一帧，不渲染
-      if (!msg.image || msg.image.length < 100) {
-        return;
-      }
-
-      // 防止极端情况下帧堆积失控
-      if (pendingFrames.size >= 200) {
-        const oldest = pendingFrames.keys().next().value;
-        pendingFrames.delete(oldest);
-      }
-
-      const frameData = { image: msg.image, hqImage: msg.hqImage || null, timestamp: Date.now() };
-      pendingFrames.set(msg.deviceId, frameData);
-      const t1 = performance.now();
-      scheduleRender();
-      const t2 = performance.now();
-      if (t2 - t0 > 2) {
-//         console.log(`[WS] screenshot ${msg.deviceId} 接收耗时 ${(t2-t0).toFixed(1)}ms (set:${(t1-t0).toFixed(1)}ms, sched:${(t2-t1).toFixed(1)}ms)`);
-      }
-
-      // 预览帧走独立通道（previewScreenshot消息），不在这里处理
-      // 消息频率监控
-      if (!window._msgCount) window._msgCount = { count: 0, last: performance.now() };
-      window._msgCount.count++;
-      const now2 = performance.now();
-      if (now2 - window._msgCount.last > 2000) {
-//         console.log(`[MON] ${window._msgCount.count}条消息 / ${((now2 - window._msgCount.last)/1000).toFixed(1)}s`);
-        window._msgCount = { count: 0, last: now2 };
-      }
-    }
-
-    // ── WebSocket 推送截图（新方案：替代MJPEG HTTP连接）──────
-    if (msg.type === 'browserScreenshot' && msg.deviceId && msg.image) {
-      // 防止极端情况下帧堆积失控
-      if (pendingFrames.size >= 200) {
-        const oldest = pendingFrames.keys().next().value;
-        pendingFrames.delete(oldest);
-      }
-      // 存入帧缓冲，由 scheduleRender 统一渲染（格子页面）
-      const frameData = { image: msg.image, hqImage: null, timestamp: Date.now() };
-      pendingFrames.set(msg.deviceId, frameData);
-      scheduleRender();
-
-      // 同时更新监控预览弹窗中的图片（如果有）
-      const monitorImg = document.querySelector(`.monitor-preview-img-wrapper[data-device-id="${msg.deviceId}"] img`);
-      if (monitorImg) {
-        monitorImg.src = msg.image;
-        monitorImg.style.display = 'block';
-      }
-    }
-
-    // ── 格子预览独立通道消息（不受帧缓存去重影响，不受预览激活停止格子渲染影响）──────
-    // 低清图优先到达时也能立即显示，避免黑屏等待HQ帧
-    if ((msg.type === 'previewScreenshot' || msg.type === 'browserScreenshot') && msg.deviceId && previewDeviceId === msg.deviceId) {
-      const previewImg = document.getElementById('previewImg');
-      const watermark = document.getElementById('previewOfflineWatermark');
-      // 保存设备分辨率用于鼠标点击映射
-      if (msg.screenWidth && msg.screenHeight) {
-        previewScreenWidth = msg.screenWidth;
-        previewScreenHeight = msg.screenHeight;
-      }
-      // 自愈：收到预览帧证明设备在线，若当前显示离线水印则自动隐藏
-      // 但必须检查设备确实在线（不能仅凭收到截图就认为在线，可能收到旧帧）
-      const currentDev = devices.find(d => d.deviceId === previewDeviceId);
-      const isOnline = currentDev ? currentDev.online : false;
-      if (watermark && watermark.style.display !== 'none' && isOnline) {
-        watermark.style.display = 'none';
-        if (previewImg) previewImg.style.filter = '';
-      }
-      // WebSocket 方案：Blob URL 方案 + 内容相同跳过
-      if (isOnline && msg.image && previewImg) {
-        setPreviewBlobSrc(previewImg, msg.image);
-        previewImg.style.visibility = 'visible';
-        const wrapper = document.getElementById('previewImgWrapper');
-        if (wrapper) wrapper.style.backgroundImage = '';
-        previewImg.style.display = 'block';
-      }
-    }
-
-    // 批量截图消息处理（服务端攒批推送，替代逐条 browserScreenshot）
-    if (msg.type === 'screenshotBatch' && msg.screenshots) {
-      for (const sc of msg.screenshots) {
-        const frameData = { image: sc.image, hqImage: sc.hqImage || null, timestamp: Date.now() };
-        pendingFrames.set(sc.deviceId, frameData);
-        // 同时更新监控预览弹窗中的图片（如果有）
-        const monitorImg = document.querySelector(`.monitor-preview-img-wrapper[data-device-id="${sc.deviceId}"] img`);
-        if (monitorImg) {
-          monitorImg.src = sc.image;
-          monitorImg.style.display = 'block';
-        }
-        // 自愈：批量截图也累加帧计数，达到阈值才恢复
-        const cell = gridCells.find(c => c && c.deviceId === sc.deviceId);
-        if (cell && !cell.online) {
-          if (!frameHealCount.has(sc.deviceId)) frameHealCount.set(sc.deviceId, 0);
-          frameHealCount.set(sc.deviceId, frameHealCount.get(sc.deviceId) + 1);
-          if (frameHealCount.get(sc.deviceId) >= FRAME_HEAL_THRESHOLD) {
-            cell.online = true;
-            const dot = document.getElementById(`dot_${cell.index}`);
-            const stxt = document.getElementById(`stxt_${cell.index}`);
-            if (dot) { dot.className = 'status-dot online'; dot.style.backgroundColor = '#34d399'; }
-            if (stxt) { stxt.textContent = '在线'; stxt.className = 'status-text online'; }
-            // 自愈：移除离线灰度样式、隐藏离线标签、恢复UU按钮
-            const healImg = document.getElementById(`img_${cell.index}`);
-            if (healImg) healImg.classList.remove('grayscale');
-            const healCellEl = document.querySelector(`.wall-cell[data-index="${cell.index}"]`);
-            if (healCellEl) healCellEl.classList.remove('offline-cell');
-            const healOfflineLabel = document.getElementById(`offline_${cell.index}`);
-            if (healOfflineLabel) healOfflineLabel.style.display = 'none';
-            const healUubtn = document.getElementById(`uubtn_${cell.index}`);
-            if (healUubtn) healUubtn.style.display = 'flex';
-          }
-        }
-      }
-      scheduleRender();
-    }
 
     // 【修复】视口刷新：收到此消息时重新上报当前视口，服务端会根据新视口重新推送截图
     if (msg.type === 'viewportRefresh') {
@@ -2041,14 +1758,6 @@ function base64ToBlob(base64, mimeType) {
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
   return new Blob([bytes], { type: mimeType });
-}
-
-// 预览图：直接赋值 base64，无 blob 开销，MD5 去重避免重复 DOM 更新
-function setPreviewBlobSrc(imgEl, base64) {
-  const md5 = base64.slice(-32, -1); // 用末尾32字符近似md5
-  if (_previewBlobMd5 === md5) return; // 内容未变，跳过
-  _previewBlobMd5 = md5;
-  imgEl.src = base64; // 直接赋值，无 blob 开销
 }
 
 // 格子位置标签 A1, A2, ... B1, B2, ...
@@ -6076,7 +5785,6 @@ window.addEventListener('beforeunload', function() {
   });
   monitorZoomTimers = {};
   // 清理积压帧
-  pendingFrames.clear();
   frameHealCount.clear();
 });
 

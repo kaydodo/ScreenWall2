@@ -192,27 +192,11 @@ async function cropFrame(frameBuffer, compressedWidth, compressedHeight, targetW
 
 // ========== Step 3: 视口懒加载 - 按布局裁剪函数 ==========
 async function cropToLayout(frameBuffer, level, targetW, targetH) {
-  if (level === 0) {
-    // Level 0: 480x270 小图，直接 resize
-    return sharp(frameBuffer)
-      .resize(targetW, targetH, { fit: 'fill' })
-      .webp({ quality: 30 })
-      .toBuffer();
-  }
-
-  // Level 1/2: 压缩帧按比例居中裁剪
-  const compressedW = level === 1 ? 853 : 1280;
-  const compressedH = level === 1 ? 720 : 1080;
-  const origW = level === 1 ? 1280 : 1920;
-  const ratio = compressedW / origW;
-  const cropW = Math.floor(targetW * ratio);
-  const cropH = Math.floor(targetH * ratio);
-  // 居中裁剪，而非从 (0,0) 左上角取
-  const cropX = Math.floor((compressedW - cropW) / 2);
-  const cropY = Math.floor((compressedH - cropH) / 2);
-
+  // 整帧等比缩放（不裁剪）
+  // 原理：压缩帧水平压缩 2/3，fit:fill 两个方向独立缩放，
+  // 宽缩放因子 (targetW/compressedW) 是高缩放因子 (targetH/compressedH) 的 1.5 倍，
+  // 恰好抵消水平压缩，输出 16:9 画面色彩正确，CSS object-fit:cover 完美填充格子
   return sharp(frameBuffer)
-    .extract({ left: cropX, top: cropY, width: cropW, height: cropH })
     .resize(targetW, targetH, { fit: 'fill' })
     .webp({ quality: 30 })
     .toBuffer();
@@ -441,7 +425,7 @@ async function _flushWallBatch() {
 function _scheduleWallBatch() {
   if (!_wallBatchScheduled) {
     _wallBatchScheduled = true;
-    setTimeout(_flushWallBatch, 125);
+    setTimeout(_flushWallBatch, 166);
   }
 }
 const frameCache = new Map(); // deviceId -> { md5, time }
@@ -504,7 +488,7 @@ async function _flushBrowserBatch() {
 function _scheduleBrowserBatch() {
   if (!_browserBatchScheduled) {
     _browserBatchScheduled = true;
-    setTimeout(_flushBrowserBatch, 125); // 125ms ≈ 8fps，与客户端帧率对齐
+    setTimeout(_flushBrowserBatch, 166); // 166ms ≈ 6fps，与客户端帧率对齐
   }
 }
 // 截图路径统计（用于诊断 JPEG 快速路径 vs sharp 慢速路径）
@@ -2118,7 +2102,7 @@ wssClient.on('connection', (ws, req) => {
         }
 
         // ── wallScreenshot：批量攒批推送（减少 Browser 进程 IPC 压力）────
-        // 不再逐条发送，改为攒入 _wallBatch，125ms 定时器统一发送 wallScreenshotBatch
+        // 不再逐条发送，改为攒入 _wallBatch，166ms 定时器统一发送
         let shouldSendWall = true;
         if (!msg.hq) {
           if (dev._lastWallPush && now - dev._lastWallPush <= 200) {
@@ -2193,15 +2177,11 @@ wssClient.on('connection', (ws, req) => {
           dev.screenHeight = msg.screenHeight;
         }
         
-        // 【修复】心跳时推送截图给监控墙（解决静止画面不刷新问题）
-        // 优先使用心跳中的截图（客户端实时截取的），否则用存储的
+        // 心跳截图存储（供离线设备显示静态图，不再推流到监控墙——二进制流已覆盖）
         const heartbeatScreenshot = msg.screenshot;
         const latestScreenshot = heartbeatScreenshot || dev.screenshot;
         if (latestScreenshot) {
-          dev.screenshot = latestScreenshot; // 心跳截图也要存，让离线广播有最新截图
-          // 入 wallBatch 攒批（心跳触发的截图同样走批量通道）
-          _wallBatch.set(msg.deviceId, { screenshot: latestScreenshot, timestamp: now });
-          _scheduleWallBatch();
+          dev.screenshot = latestScreenshot;
         }
 
         // 心跳响应：告诉客户端是否有新版本（只在有升级时打日志）
