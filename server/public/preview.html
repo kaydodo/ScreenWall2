@@ -1087,6 +1087,15 @@ function connectWebSocket() {
   };
 }
 
+// 页面关闭时清理 Blob URL
+window.addEventListener('beforeunload', function() {
+  var previewImg = document.getElementById('previewImg');
+  if (previewImg) {
+    if (previewImg._blobUrl) { URL.revokeObjectURL(previewImg._blobUrl); previewImg._blobUrl = null; }
+    previewImg.src = '';
+  }
+});
+
 initUI();
 connectWebSocket();
 </script>

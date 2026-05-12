@@ -6049,13 +6049,27 @@ function renderAllTaskBadges() {
 
 // 页面关闭时清理所有 Blob URL，避免长时间挂机内存累积
 window.addEventListener('beforeunload', function() {
-  // 清理格子 Blob URL
+  // 断开 IntersectionObserver
+  if (cellObserver) { cellObserver.disconnect(); cellObserver = null; }
+  // 清理格子 Blob URL（Map 跟踪 + DOM 元素上的 _blobUrl）
+  const grid = document.getElementById('mainGrid');
+  if (grid) {
+    for (let i = 0; i < grid.children.length; i++) {
+      const img = document.getElementById('img_' + i);
+      if (img && img._blobUrl) {
+        try { URL.revokeObjectURL(img._blobUrl); } catch(e) {}
+        img._blobUrl = null;
+      }
+    }
+  }
   for (const [idx, entry] of _cellBlobs) {
     try { URL.revokeObjectURL(entry.blobUrl); } catch(e) {}
   }
   _cellBlobs.clear();
   // 清理预览 Blob URL
-
+  if (typeof previewImg !== 'undefined' && previewImg && previewImg._blobUrl) {
+    try { URL.revokeObjectURL(previewImg._blobUrl); } catch(e) {}
+  }
   // 清理监控弹窗缩放定时器
   Object.keys(monitorZoomTimers).forEach(function(key) {
     clearTimeout(monitorZoomTimers[key]);

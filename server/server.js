@@ -200,16 +200,19 @@ async function cropToLayout(frameBuffer, level, targetW, targetH) {
       .toBuffer();
   }
 
-  // Level 1/2: 压缩帧按比例裁剪
+  // Level 1/2: 压缩帧按比例居中裁剪
   const compressedW = level === 1 ? 853 : 1280;
   const compressedH = level === 1 ? 720 : 1080;
   const origW = level === 1 ? 1280 : 1920;
   const ratio = compressedW / origW;
   const cropW = Math.floor(targetW * ratio);
   const cropH = Math.floor(targetH * ratio);
+  // 居中裁剪，而非从 (0,0) 左上角取
+  const cropX = Math.floor((compressedW - cropW) / 2);
+  const cropY = Math.floor((compressedH - cropH) / 2);
 
   return sharp(frameBuffer)
-    .extract({ left: 0, top: 0, width: cropW, height: cropH })
+    .extract({ left: cropX, top: cropY, width: cropW, height: cropH })
     .resize(targetW, targetH, { fit: 'fill' })
     .webp({ quality: 30 })
     .toBuffer();
@@ -418,8 +421,9 @@ async function _flushWallBatch() {
               );
               sendBinaryScreenshot(wallWs, 0x10, deviceId, croppedBuffer, layout.cellW, layout.cellH, false);
             } catch(e) {
-              // 裁剪失败，直接发送原图
-              sendBinaryScreenshot(wallWs, 0x10, deviceId, data.buffer, data.screenWidth || 0, data.screenHeight || 0, false);
+              // 裁剪失败，按布局 cell 尺寸标记 header，避免宽高比不一致导致黑边闪烁
+              log('error', '[cropFrame] 裁剪失败 deviceId=' + deviceId + ': ' + e.message);
+              sendBinaryScreenshot(wallWs, 0x10, deviceId, data.buffer, layout.cellW, layout.cellH, false);
             }
           }
         }

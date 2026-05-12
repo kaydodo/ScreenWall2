@@ -545,9 +545,6 @@ if (!wallData) {
 var ws = null;
 var subscribedDevices = []; // 订阅的设备列表
 
-// ── Blob URL 管理（减少浏览器解码内存）────────────────────────────
-var _wallBlobs = {}; // deviceId -> blobUrl
-
 function base64ToBlob(base64) {
   try {
     var mime = base64.match(/^data:image\/(\w+);base64,/);
@@ -722,8 +719,8 @@ function connectWebSocket() {
     var rows = cfg ? cfg.rows : Math.sqrt(wallData.layout);
     var cols = cfg ? cfg.cols : Math.sqrt(wallData.layout);
     
-    // 计算单个格子的目标尺寸（假设853x720压缩）
-    var cellW = Math.floor(853 / cols);
+    // 计算单个格子的目标尺寸（用原始 1280×720 做基准，非压缩后的 853×720）
+    var cellW = Math.floor(1280 / cols);
     var cellH = Math.floor(720 / rows);
     
     // 连接成功，请求高清截图并上报布局信息
@@ -1916,11 +1913,6 @@ window.addEventListener('beforeunload', function() {
     }
   }
   watchdog.stop();
-  // 清理所有 Blob URL
-  for (var id in _wallBlobs) {
-    if (_wallBlobs[id]) URL.revokeObjectURL(_wallBlobs[id]);
-  }
-  _wallBlobs = {};
   for (var zid in _zoomTimers) {
     if (_zoomTimers[zid]) clearTimeout(_zoomTimers[zid]);
   }
