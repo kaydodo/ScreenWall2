@@ -1560,6 +1560,9 @@ wssClient.on('connection', (ws, req) => {
           let dev = devices.get(deviceId);
           if (!dev) return;
           dev.screenshot = webpBuffer;
+          if (isHQ) {
+            dev.hqScreenshot = webpBuffer;
+          }
           dev.screenWidth = screenWidth;
           dev.screenHeight = screenHeight;
           dev._frameCount = (dev._frameCount || 0) + 1;

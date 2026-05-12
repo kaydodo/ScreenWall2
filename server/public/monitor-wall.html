@@ -1140,7 +1140,7 @@ function wallOpenPreview(deviceId) {
     deviceId: deviceId,
     deviceName: dev.name || '未知',
     online: dev.online,
-    screenshot: dev ? (dev.hqScreenshot || dev.screenshot) : null,
+    screenshot: dev ? (dev.screenshot || dev.hqScreenshot) : null,
     supportsKeyClient: dev.supportsKeyClient || false,
     uuDeviceId: dev.uuDeviceId || null,
     monitorCount: dev.monitorCount || 1,
