@@ -704,9 +704,6 @@ function initWall() {
       // 在线设备：初始 opacity:0，等待首帧时黑色背景透出
       img.style.display = 'block';
       img.style.opacity = '0';
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'startHQ', deviceId: dev.id }));
-      }
     }
   });
 
@@ -1507,13 +1504,6 @@ function handleWallStateUpdate(data) {
       var badge = cell.querySelector('.offline-badge');
       if (badge) { badge.textContent = '设备已离线'; badge.style.display = 'block'; }
       updateUUButtonVisibility(cell, false);
-      // 关闭1080p
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        if (wallPreviewDeviceId === deviceId) {
-          ws.send(JSON.stringify({ type: 'hq1080Off', deviceId: deviceId }));
-        }
-        ws.send(JSON.stringify({ type: 'stopHQ', deviceId: deviceId }));
-      }
       // 离线显示静态图
       var img = document.getElementById('img_' + deviceId);
       if (img) {
@@ -1574,12 +1564,8 @@ function handleWallStateUpdate(data) {
         img.style.display = 'block';
         img.classList.remove('grayscale');
       }
-      // 重新开启HQ流
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'startHQ', deviceId: deviceId }));
-        // 如果正在预览，也开启1080p
+      // 如果正在预览，恢复预览UI
         if (wallPreviewDeviceId === deviceId) {
-          ws.send(JSON.stringify({ type: 'hq1080On', deviceId: deviceId }));
           // 恢复预览UI
           var watermark = document.getElementById('wallPreviewOfflineWatermark');
           if (watermark) watermark.style.display = 'none';
@@ -1896,18 +1882,11 @@ window.addEventListener('beforeunload', function() {
 
   if (ws && ws.readyState === WebSocket.OPEN) {
     if (wallData && wallData.devices) {
-      // 关闭所有1080p
+      // 关闭预览订阅
       if (wallPreviewDeviceId) {
-        ws.send(JSON.stringify({ type: 'hq1080Off', deviceId: wallPreviewDeviceId }));
-        ws.send(JSON.stringify({ type: 'stopHQ', deviceId: wallPreviewDeviceId }));
         ws.send(JSON.stringify({ type: 'unsubscribePreview', deviceId: wallPreviewDeviceId }));
       }
-      wallData.devices.forEach(function(dev) {
-        ws.send(JSON.stringify({ type: 'hq1080Off', deviceId: dev.id }));
-      });
-      wallData.devices.forEach(function(dev) {
-        ws.send(JSON.stringify({ type: 'stopHQ', deviceId: dev.id }));
-      });
+      // 发送 unsubscribeWall，其他清理由服务器 ws.on('close') 处理
       ws.send(JSON.stringify({ type: 'unsubscribeWall', devices: wallData.devices.map(function(d) { return d.id; }), pageClosing: true }));
     }
   }
