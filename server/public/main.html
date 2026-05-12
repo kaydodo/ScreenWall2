@@ -1694,6 +1694,14 @@ function renderGrid() {
   }
 }
 
+// 按列数确定裁剪尺寸
+const LAYOUT_CROP_SIZES = {
+  4:  { w: 480, h: 270 },
+  6:  { w: 320, h: 180 },
+  8:  { w: 240, h: 135 },
+  10: { w: 192, h: 108 }
+};
+
 // 视口更新：检测可见格子并上报服务器
 let _viewportTimer = null;
 function updateViewport() {
@@ -1721,8 +1729,17 @@ function updateViewport() {
       }
     }
 
+    // 添加 buffer 区域：可见区域上下各一行
+    const currentCols = parseInt(document.getElementById('selGrid').value) || 4;
+    const cropSize = LAYOUT_CROP_SIZES[currentCols] || { w: 480, h: 270 };
+
     if (visibleDevices.length > 0) {
-      ws.send(JSON.stringify({ type: 'viewportUpdate', deviceIds: visibleDevices }));
+      ws.send(JSON.stringify({ 
+        type: 'setViewport', 
+        deviceIds: visibleDevices,
+        cropCols: currentCols,
+        cropSize: cropSize
+      }));
     }
   }, 100);
 }

@@ -178,6 +178,31 @@ async function cropFrame(frameBuffer, compressedWidth, compressedHeight, targetW
     .toBuffer();
 }
 
+// ========== Step 3: 视口懒加载 - 按布局裁剪函数 ==========
+async function cropToLayout(frameBuffer, level, targetW, targetH) {
+  if (level === 0) {
+    // Level 0: 480x270 小图，直接 resize
+    return sharp(frameBuffer)
+      .resize(targetW, targetH, { fit: 'fill' })
+      .webp({ quality: 30 })
+      .toBuffer();
+  }
+
+  // Level 1/2: 压缩帧按比例裁剪
+  const compressedW = level === 1 ? 853 : 1280;
+  const compressedH = level === 1 ? 720 : 1080;
+  const origW = level === 1 ? 1280 : 1920;
+  const ratio = compressedW / origW;
+  const cropW = Math.floor(targetW * ratio);
+  const cropH = Math.floor(targetH * ratio);
+
+  return sharp(frameBuffer)
+    .extract({ left: 0, top: 0, width: cropW, height: cropH })
+    .resize(targetW, targetH, { fit: 'fill' })
+    .webp({ quality: 30 })
+    .toBuffer();
+}
+
 // ========== MJPEG 流服务（已禁用，新架构使用 WebSocket 三通道推送）==========
 /*
 const deviceFrames = new Map();
@@ -258,6 +283,8 @@ let gridLayout = {};
 let gridSizeSetting = 4;  // 默认布局大小
 // Step 2: 监控墙裁剪 - 每个监控墙连接的布局信息
 const wallLayouts = new Map(); // ws -> { cols, rows, cellW, cellH, deviceIds }
+// Step 3: 视口懒加载 - 每个浏览器连接的视口订阅
+const viewportSubscriptions = new Map(); // ws -> { deviceIds: Set, cropCols: number, cropSize: { w, h } }
 
 // ========== Step 1: 流级别系统 - 全局变量 ==========
 const deviceMaxLevel = new Map(); // deviceId -> 0|1|2 (0=480x270, 1=853x720, 2=1280x1080)
@@ -401,7 +428,7 @@ const frameCache = new Map(); // deviceId -> { md5, time }
 // 200设备×8fps = 1600条/秒 → 合并为 8条/秒，Browser进程 IPC 压力降200倍
 const _browserBatch = new Map(); // deviceId -> { image, timestamp }
 let _browserBatchScheduled = false;
-function _flushBrowserBatch() {
+async function _flushBrowserBatch() {
   _browserBatchScheduled = false;
   if (_browserBatch.size === 0 || browserClients.size === 0) {
     _browserBatch.clear();
@@ -410,8 +437,37 @@ function _flushBrowserBatch() {
   try {
     for (const browserWs of browserClients) {
       if (browserWs.readyState !== 1) continue;
-      for (const [deviceId, data] of _browserBatch) {
-        if (data.buffer) sendBinaryScreenshot(browserWs, 0x10, deviceId, data.buffer, data.screenWidth || 0, data.screenHeight || 0, data.isHQ || false);
+
+      const vpData = viewportSubscriptions.get(browserWs);
+      if (vpData) {
+        // Step 3: 视口懒加载，只推送可见设备的帧
+        for (const [deviceId, data] of _browserBatch) {
+          if (!vpData.deviceIds.has(deviceId)) continue;
+          if (!data.buffer) continue;
+
+          try {
+            if (vpData.cropSize) {
+              // 按布局裁剪
+              const level = deviceMaxLevel.get(deviceId) || 0;
+              const croppedBuffer = await cropToLayout(
+                data.buffer, level,
+                vpData.cropSize.w, vpData.cropSize.h
+              );
+              sendBinaryScreenshot(browserWs, 0x10, deviceId, croppedBuffer, vpData.cropSize.w, vpData.cropSize.h, data.isHQ || false);
+            } else {
+              // 不裁剪直接发
+              sendBinaryScreenshot(browserWs, 0x10, deviceId, data.buffer, data.screenWidth || 0, data.screenHeight || 0, data.isHQ || false);
+            }
+          } catch(e) {
+            // 裁剪失败，直接发送原图
+            sendBinaryScreenshot(browserWs, 0x10, deviceId, data.buffer, data.screenWidth || 0, data.screenHeight || 0, data.isHQ || false);
+          }
+        }
+      } else {
+        // 无视口信息，使用旧逻辑发送所有帧
+        for (const [deviceId, data] of _browserBatch) {
+          if (data.buffer) sendBinaryScreenshot(browserWs, 0x10, deviceId, data.buffer, data.screenWidth || 0, data.screenHeight || 0, data.isHQ || false);
+        }
       }
     }
   } catch(e) { log('error', '二进制批量推送失败:', e.message); }
@@ -3215,6 +3271,15 @@ wssBrowser.on('connection', (ws) => {
       }
     }
 
+    // Step 3: 视口懒加载 - 浏览器上报当前可见格子和裁剪参数
+    if (msg.type === 'setViewport') {
+      viewportSubscriptions.set(ws, {
+        deviceIds: new Set(msg.deviceIds || []),
+        cropCols: msg.cropCols || 4,
+        cropSize: msg.cropSize || { w: 480, h: 270 }
+      });
+    }
+
     // 视口更新：浏览器上报当前可见格子
     if (msg.type === 'viewportUpdate') {
       handleViewportUpdate(ws, msg.deviceIds || []);
@@ -3511,6 +3576,7 @@ wssBrowser.on('connection', (ws) => {
     browserViewport.delete(ws);
     previewClients.delete(ws);
     wallLayouts.delete(ws); // Step 2: 清理监控墙布局信息
+    viewportSubscriptions.delete(ws); // Step 3: 清理视口订阅
     unsubscribeAllLevel(ws); // Step 1: 清理该 ws 的所有 level 订阅
 
     const my1080pDevices = browser1080p.get(ws);
