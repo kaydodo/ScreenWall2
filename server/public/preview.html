@@ -442,8 +442,16 @@ function initUI() {
       previewImg.style.display = 'block';
       previewImg.style.visibility = 'visible';
     } else if (previewMode === 'normal') {
-      // 正常预览模式 + 在线设备：完全隐藏，等第一帧
-      previewImg.style.opacity = '0';
+      // 正常预览模式 + 在线设备：显示初始截图作为缓冲，避免闪黑
+      if (screenshot) {
+        previewImg.src = screenshot;
+        previewImg.style.display = 'block';
+        previewImg.style.visibility = 'visible';
+        previewImg.style.opacity = '1';
+      } else {
+        // 没有截图时保持透明，等第一帧
+        previewImg.style.opacity = '0';
+      }
     }
   }
 

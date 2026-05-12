@@ -2533,7 +2533,7 @@ function openPreview(cellIndex) {
     deviceId: cell.deviceId,
     deviceName: cell.deviceName || (dev && dev.deviceName) || '未知',
     online: dev ? dev.online : false,
-    screenshot: null,
+    screenshot: dev ? (dev.hqScreenshot || dev.screenshot) : null,
     supportsKeyClient: dev ? dev.supportsKeyClient : false,
     uuDeviceId: (dev && dev.uuDeviceId) || cell.uuDeviceId || null,
     monitorCount: dev ? (dev.monitorCount || 1) : 1,

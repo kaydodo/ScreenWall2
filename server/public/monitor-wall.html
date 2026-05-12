@@ -529,6 +529,7 @@ try {
         crop: d.crop,
         groupId: null,
         screenshot: d.screenshot || null,  // 保存截图用于离线显示
+        hqScreenshot: d.hqScreenshot || null,  // 高清截图用于预览缓冲
         supportsKeyClient: d.supportsKeyClient || false,
         monitorCount: d.monitorCount || 1,
         monitorIndex: d.monitorIndex || 1
@@ -846,6 +847,9 @@ function connectWebSocket() {
             if (newDev.screenshot !== undefined) {
               devices[newDev.deviceId].screenshot = newDev.screenshot;
             }
+            if (newDev.hqScreenshot !== undefined) {
+              devices[newDev.deviceId].hqScreenshot = newDev.hqScreenshot;
+            }
             if (newDev.uuDeviceId !== undefined) {
               devices[newDev.deviceId].uuDeviceId = newDev.uuDeviceId;
               // 如果 uuDeviceId 有值且设备在线，为格子创建 UU 按钮
@@ -1136,7 +1140,7 @@ function wallOpenPreview(deviceId) {
     deviceId: deviceId,
     deviceName: dev.name || '未知',
     online: dev.online,
-    screenshot: null,
+    screenshot: dev ? (dev.hqScreenshot || dev.screenshot) : null,
     supportsKeyClient: dev.supportsKeyClient || false,
     uuDeviceId: dev.uuDeviceId || null,
     monitorCount: dev.monitorCount || 1,
