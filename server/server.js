@@ -1352,7 +1352,6 @@ function getDeviceListPayload() {
       online: d.online,
       lastSeen: d.lastSeen,
       screenshot: d.screenshot ? (Buffer.isBuffer(d.screenshot) ? 'data:image/webp;base64,' + d.screenshot.toString('base64') : d.screenshot) : null,
-      hqScreenshot: d.hqScreenshot ? (Buffer.isBuffer(d.hqScreenshot) ? 'data:image/webp;base64,' + d.hqScreenshot.toString('base64') : d.hqScreenshot) : null,
       groupId: d.groupId || null,
       supportsKeyClient: d.supportsKeyClient || false,
       monitorIndex: d.monitorIndex || 1,
@@ -1560,9 +1559,6 @@ wssClient.on('connection', (ws, req) => {
           let dev = devices.get(deviceId);
           if (!dev) return;
           dev.screenshot = webpBuffer;
-          if (isHQ) {
-            dev.hqScreenshot = webpBuffer;
-          }
           dev.screenWidth = screenWidth;
           dev.screenHeight = screenHeight;
           dev._frameCount = (dev._frameCount || 0) + 1;
@@ -1882,13 +1878,7 @@ wssClient.on('connection', (ws, req) => {
 
         // ===== 统一截图推送（HQ/标准 共用）=====
         // 更新设备状态
-        if (msg.hq) {
-          dev.hqScreenshot = msg.image;
-          dev.screenshot = msg.image;
-        } else {
-          dev.screenshot = msg.image;
-          // 注意：不清空 hqScreenshot，保留缓存供预览使用
-        }
+        dev.screenshot = msg.image;
 
         const now = Date.now();
 
@@ -2008,7 +1998,7 @@ wssClient.on('connection', (ws, req) => {
         // 【修复】心跳时推送截图给监控墙（解决静止画面不刷新问题）
         // 优先使用心跳中的截图（客户端实时截取的），否则用存储的
         const heartbeatScreenshot = msg.screenshot;
-        const latestScreenshot = heartbeatScreenshot || dev.hqScreenshot || dev.screenshot;
+        const latestScreenshot = heartbeatScreenshot || dev.screenshot;
         if (latestScreenshot) {
           dev.screenshot = latestScreenshot; // 心跳截图也要存，让离线广播有最新截图
           // 入 wallBatch 攒批（心跳触发的截图同样走批量通道）
@@ -3013,19 +3003,7 @@ wssBrowser.on('connection', (ws) => {
         // 立即发送完整设备列表（包含版本号等）
         ws.send(JSON.stringify({ type: 'deviceList', devices: getDeviceListPayload() }));
 
-        // startHQ 已由 openPreview 发送（确保立即开启），此处只推送最新截图
-        const dev = devices.get(deviceId);
-        const latestScreenshot = dev ? (dev.screenshot || dev.hqScreenshot) : null;
-        if (dev && latestScreenshot) {
-          ws.send(JSON.stringify({
-            type: 'previewScreenshot',
-            deviceId: deviceId,
-            image: latestScreenshot,
-            timestamp: Date.now(),
-            screenWidth: dev.screenWidth || 1920,
-            screenHeight: dev.screenHeight || 1080
-          }));
-        }
+
       }
     }
 
@@ -3096,24 +3074,8 @@ wssBrowser.on('connection', (ws) => {
 
       for (const client of wssClient.clients) {
         if (client._deviceId === msg.deviceId) {
-
           client.send(JSON.stringify({ type: 'startHQ' }));
           break;
-        }
-      }
-      // 【修复】立即推送设备最新截图给预览浏览器（格子预览无画面问题）
-      const dev = devices.get(msg.deviceId);
-      if (dev) {
-        // 优先推送 HQ 截图，其次普通截图
-        const latestScreenshot = dev.hqScreenshot || dev.screenshot;
-        if (latestScreenshot) {
-          ws.send(JSON.stringify({
-            type: 'previewScreenshot',
-            deviceId: msg.deviceId,
-            image: latestScreenshot,
-            hq: !!dev.hqScreenshot,
-            hqImage: dev.hqScreenshot || null
-          }));
         }
       }
     }
@@ -3302,7 +3264,7 @@ wssBrowser.on('connection', (ws) => {
       for (const deviceId of deviceList) {
         const dev = devices.get(deviceId);
         if (dev) {
-          const latestScreenshot = dev.hqScreenshot || dev.screenshot;
+          const latestScreenshot = dev.screenshot;
           if (latestScreenshot) {
             ws.send(JSON.stringify({
               type: 'wallScreenshot',

@@ -529,7 +529,6 @@ try {
         crop: d.crop,
         groupId: null,
         screenshot: d.screenshot || null,  // 保存截图用于离线显示
-        hqScreenshot: d.hqScreenshot || null,  // 高清截图用于预览缓冲
         supportsKeyClient: d.supportsKeyClient || false,
         monitorCount: d.monitorCount || 1,
         monitorIndex: d.monitorIndex || 1
@@ -846,9 +845,6 @@ function connectWebSocket() {
             }
             if (newDev.screenshot !== undefined) {
               devices[newDev.deviceId].screenshot = newDev.screenshot;
-            }
-            if (newDev.hqScreenshot !== undefined) {
-              devices[newDev.deviceId].hqScreenshot = newDev.hqScreenshot;
             }
             if (newDev.uuDeviceId !== undefined) {
               devices[newDev.deviceId].uuDeviceId = newDev.uuDeviceId;
