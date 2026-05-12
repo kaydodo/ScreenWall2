@@ -3015,11 +3015,12 @@ wssBrowser.on('connection', (ws) => {
 
         // startHQ 已由 openPreview 发送（确保立即开启），此处只推送最新截图
         const dev = devices.get(deviceId);
-        if (dev && dev.hqScreenshot) {
+        const latestScreenshot = dev ? (dev.screenshot || dev.hqScreenshot) : null;
+        if (dev && latestScreenshot) {
           ws.send(JSON.stringify({
             type: 'previewScreenshot',
             deviceId: deviceId,
-            image: dev.hqScreenshot,
+            image: latestScreenshot,
             timestamp: Date.now(),
             screenWidth: dev.screenWidth || 1920,
             screenHeight: dev.screenHeight || 1080
