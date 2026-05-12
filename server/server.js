@@ -3011,9 +3011,12 @@ wssBrowser.on('connection', (ws) => {
     if (msg.type === 'unsubscribePreview') {
       previewClients.delete(ws);
 
+      // 检查是否是监控墙的连接
+      const isWallClient = wallClients.has(ws) || ws._wallUnsubscribing;
+
       // 1. 清理 1080p 追踪（从 browser1080p 和 global1080p 中移除）
       const my1080p = browser1080p.get(ws);
-      if (msg.deviceId) {
+      if (msg.deviceId && !isWallClient) {
         if (my1080p) my1080p.delete(msg.deviceId);
         if (global1080p.has(msg.deviceId)) {
           const new1080Count = global1080p.get(msg.deviceId) - 1;
@@ -3034,7 +3037,7 @@ wssBrowser.on('connection', (ws) => {
 
       // 2. 清理 startHQ 追踪（从 browserPreviewHD 和 globalHQ 中移除）
       const myHD = browserPreviewHD.get(ws);
-      if (msg.deviceId) {
+      if (msg.deviceId && !isWallClient) {
         if (myHD) myHD.delete(msg.deviceId);
         if (globalHQ.has(msg.deviceId)) {
           const newCount = globalHQ.get(msg.deviceId) - 1;
