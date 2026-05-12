@@ -3395,11 +3395,9 @@ wssBrowser.on('connection', (ws) => {
     const isWallBrowser = wallClients.has(ws) || ws._wallUnsubscribing;
 
     if (isWallBrowser) {
-      // ── 监控墙浏览器：延迟清理 ────────────────────────────────
       const subscription = wallClients.get(ws);
       const hdChannels = wallHDChannels.get(ws);
 
-      // 立即从 Map 移除（但数据保留在闭包中供延迟清理使用）
       wallClients.delete(ws);
       wallHDChannels.delete(ws);
 
@@ -3407,48 +3405,43 @@ wssBrowser.on('connection', (ws) => {
       const hdDevicesToClean = hdChannels ? Array.from(hdChannels) : [];
       const devices1080pToClean = my1080pDevices ? Array.from(my1080pDevices) : [];
 
-      if (devicesToClean.length + hdDevicesToClean.length + devices1080pToClean.length > 0) {
+      if (devices1080pToClean.length > 0) {
+        for (const deviceId of devices1080pToClean) {
+          if (global1080p.has(deviceId)) {
+            const newCount = global1080p.get(deviceId) - 1;
+            if (newCount <= 0) {
+              global1080p.delete(deviceId);
+              for (const client of wssClient.clients) {
+                if (client._deviceId === deviceId && client.readyState === 1) {
+                  client.send(JSON.stringify({ type: 'hq1080Off' }));
+                  break;
+                }
+              }
+            } else {
+              global1080p.set(deviceId, newCount);
+            }
+          }
+        }
+      }
+
+      if (devicesToClean.length + hdDevicesToClean.length > 0) {
         if (_wallCloseTimers.has(ws)) clearTimeout(_wallCloseTimers.get(ws));
 
-        const deviceFingerprint = [...new Set([...devicesToClean, ...hdDevicesToClean, ...devices1080pToClean])].sort().join(',');
+        const deviceFingerprint = [...new Set([...devicesToClean, ...hdDevicesToClean])].sort().join(',');
 
         const timerId = setTimeout(() => {
           _wallCloseTimers.delete(ws);
 
-          // 检查是否同一浏览器已重新连接
           if (_wallBrowserSessions.has(deviceFingerprint) && _wallBrowserSessions.get(deviceFingerprint).ws !== ws) {
-    
             _wallBrowserSessions.delete(deviceFingerprint);
             return;
           }
 
-
           _wallBrowserSessions.delete(deviceFingerprint);
 
-          const allDevices = new Set([...devicesToClean, ...hdDevicesToClean, ...devices1080pToClean]);
+          const allDevices = new Set([...devicesToClean, ...hdDevicesToClean]);
 
-          // 第1步：关闭 1080p
           for (const deviceId of allDevices) {
-            if (global1080p.has(deviceId)) {
-              const newCount = global1080p.get(deviceId) - 1;
-              if (newCount <= 0) {
-                global1080p.delete(deviceId);
-                for (const client of wssClient.clients) {
-                  if (client._deviceId === deviceId && client.readyState === 1) {
-                    client.send(JSON.stringify({ type: 'hq1080Off' }));
-
-                    break;
-                  }
-                }
-              } else {
-                global1080p.set(deviceId, newCount);
-              }
-            }
-          }
-
-          // 第2步：关闭 HQ（720p）
-          for (const deviceId of allDevices) {
-            // 检查是否还有其他监控墙窗口在使用
             let stillInUse = false;
             for (const [otherWs, otherHd] of wallHDChannels) {
               if (otherHd.has(deviceId)) { stillInUse = true; break; }
@@ -3456,7 +3449,6 @@ wssBrowser.on('connection', (ws) => {
             for (const [otherWs, otherSub] of wallClients) {
               if (otherSub.devices.has(deviceId)) { stillInUse = true; break; }
             }
-            // 也检查主页面浏览器
             for (const [otherWs, otherDev] of browserPreviewHD) {
               if (otherDev.has(deviceId)) { stillInUse = true; break; }
             }
@@ -3470,7 +3462,6 @@ wssBrowser.on('connection', (ws) => {
                 for (const client of wssClient.clients) {
                   if (client._deviceId === deviceId && client.readyState === 1) {
                     client.send(JSON.stringify({ type: 'stopHQ' }));
-
                     break;
                   }
                 }
