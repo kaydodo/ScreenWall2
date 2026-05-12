@@ -1366,15 +1366,13 @@ class ScreenWallClient:
                 self._uu_install_triggered = False
                 return
 
-            # 静默安装：/S /mode=7 /bgstartup=yes /launchapp=no /autorun=yes
+            # 静默安装：/S /mode=7 /launchapp=yes /autorun=yes
             install_cmd = [
                 tmp_path,
                 "/S",
                 "/mode=7",
-                "/bgstartup=yes",
-                "/launchapp=no",
+                "/launchapp=yes",
                 "/autorun=yes",
-                r'/D=C:\Program Files\Netease\GameViewer',
             ]
             subprocess.Popen(
                 install_cmd,
