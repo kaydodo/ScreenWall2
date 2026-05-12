@@ -343,6 +343,7 @@ var monitorCount = initData.monitorCount || 1;
 var monitorIndex = initData.monitorIndex || 1;
 var screenWidth = initData.screenWidth || 1920;
 var screenHeight = initData.screenHeight || 1080;
+var fromWall = initData.fromWall === true; // 是否从监控墙打开
 var allDevices = {};
 var previewMode = initData.mode || 'normal'; // 'normal' | 'collection' | 'alarm'
 
@@ -838,9 +839,13 @@ window.addEventListener('keyup', function(e) {
 });
 
 function closePreview() {
-  if (ws && ws.readyState === WebSocket.OPEN) {
+  // 只有不是从监控墙打开时才发送 hq1080Off/stopHQ
+  if (!fromWall && ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'hq1080Off', deviceId: deviceId }));
     ws.send(JSON.stringify({ type: 'stopHQ', deviceId: deviceId }));
+  }
+  // 始终发送 unsubscribePreview（用于清理浏览器端订阅）
+  if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'unsubscribePreview', deviceId: deviceId }));
   }
   if (keyboardOpen) closeKeyboard();

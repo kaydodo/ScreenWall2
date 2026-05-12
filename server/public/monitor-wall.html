@@ -685,6 +685,16 @@ function initWall() {
     var img = document.getElementById('img_' + dev.id);
     if (!img) return;
 
+    // 应用 crop（缩放和位置）
+    var crop = dev.crop || { scale: 1, translateX: 0, translateY: 0 };
+    if (crop.scale !== 1 || crop.translateX !== 0 || crop.translateY !== 0) {
+      img.style.transform = 'scale(' + crop.scale + ') translate(' + crop.translateX + 'px, ' + crop.translateY + 'px)';
+      img.style.transformOrigin = 'center center';
+      if (crop.scale !== 1) {
+        _showZoom(dev.id, crop.scale);
+      }
+    }
+
     if (dev.online === false) {
       // 离线设备：显示静态图（与main.html一致，使用.grayscale class）
       if (dev.screenshot) img.src = dev.screenshot;
@@ -1122,6 +1132,7 @@ function wallOpenPreview(deviceId) {
 
   var initData = {
     mode: 'normal',
+    fromWall: true,
     deviceId: deviceId,
     deviceName: dev.name || '未知',
     online: dev.online,
