@@ -3222,6 +3222,16 @@ wssBrowser.on('connection', (ws) => {
           serverLog(`[监控墙] 重连恢复 1080p 计数: ${Array.from(oldSession._1080pDevices).join(', ')}`);
         }
         
+        if (oldSession.devices && oldSession.devices.size > 0) {
+          for (const deviceId of oldSession.devices) {
+            const isNewDevice = !existingDevices.has(deviceId);
+            if (isNewDevice) {
+              globalHQ.set(deviceId, (globalHQ.get(deviceId) || 0) + 1);
+              serverLog(`[监控墙] 重连恢复 HQ 计数: ${deviceId}`);
+            }
+          }
+        }
+        
         _wallBrowserSessions.delete(deviceFingerprint);
       }
       
