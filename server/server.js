@@ -3245,24 +3245,19 @@ wssBrowser.on('connection', (ws) => {
       const newDevices = new Set(existingDevices);
       
       for (const deviceId of deviceList) {
-        const isNewDevice = !existingDevices.has(deviceId); // 只对新增设备计数，避免重复订阅导致计数膨胀
+        const isNewDevice = !existingDevices.has(deviceId);
         newDevices.add(deviceId);
-        addMonitorWall(deviceId); // 加入监控墙白名单，确保二进制帧进入 _wallBatch
-        newHDChannels.add(deviceId); // 每个设备只开启一次高清通道
-        wallDevices.set(deviceId, true); // 持久化追踪，设备重连后自动恢复
+        addMonitorWall(deviceId);
+        newHDChannels.add(deviceId);
+        wallDevices.set(deviceId, true);
 
-        // 每次订阅都尝试发送 startHQ（幂等，设备客户端会处理重复）
-        // 记录高清请求引用（用于 unsubscribe 时计数）
         if (!hdRequests.has(deviceId)) hdRequests.set(deviceId, new Set());
         hdRequests.get(deviceId).add(ws);
 
-        // subscribeWall 增加 globalHQ 计数（监控墙的计数入口，与主页面的 startHQ 消息对应）
-        // 只对新增设备计数，避免重复订阅导致计数膨胀
-        if (isNewDevice) {
+        if (isNewDevice && !globalHQ.has(deviceId)) {
           globalHQ.set(deviceId, (globalHQ.get(deviceId) || 0) + 1);
         }
 
-        // 遍历设备客户端，找到对应设备并发送 startHQ
         for (const client of wssClient.clients) {
           if (client._deviceId === deviceId) {
             client.send(JSON.stringify({ type: 'startHQ' }));
