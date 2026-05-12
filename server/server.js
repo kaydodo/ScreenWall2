@@ -163,6 +163,21 @@ function hasOtherWallSubscription(deviceId, excludeWs) {
   return hdRequests.has(deviceId) && hdRequests.get(deviceId).size > 0;
 }
 
+// ========== Step 2: 监控墙裁剪 - 裁剪压缩帧函数 ==========
+async function cropFrame(frameBuffer, compressedWidth, compressedHeight, targetW, targetH, col, row, cols, rows) {
+  // 直接使用压缩坐标裁剪，浏览器会自动还原比例
+  const cellCompW = Math.floor(compressedWidth / cols);
+  const cellCompH = Math.floor(compressedHeight / rows);
+  const left = col * cellCompW;
+  const top = row * cellCompH;
+
+  return sharp(frameBuffer)
+    .extract({ left, top, width: cellCompW, height: cellCompH })
+    .resize(targetW, targetH, { fit: 'fill' })
+    .webp({ quality: 30 })
+    .toBuffer();
+}
+
 // ========== MJPEG 流服务（已禁用，新架构使用 WebSocket 三通道推送）==========
 /*
 const deviceFrames = new Map();
@@ -241,6 +256,8 @@ const lastPushTime = new Map(); // deviceId -> timestamp(ms)
 // Grid 布局
 let gridLayout = {};
 let gridSizeSetting = 4;  // 默认布局大小
+// Step 2: 监控墙裁剪 - 每个监控墙连接的布局信息
+const wallLayouts = new Map(); // ws -> { cols, rows, cellW, cellH, deviceIds }
 
 // ========== wallScreenshot 批量推送（监控墙，同优化）==========
 const _wallBatch = new Map();
@@ -261,14 +278,42 @@ function sendBinaryScreenshot(ws, frameType, deviceId, webpBuffer, screenWidth, 
   } catch(e) {}
 }
 
-function _flushWallBatch() {
+async function _flushWallBatch() {
   _wallBatchScheduled = false;
   if (_wallBatch.size === 0 || wallClients.size === 0) { _wallBatch.clear(); return; }
   try {
     for (const wallWs of wallClients.keys()) {
       if (wallWs.readyState !== 1) continue;
-      for (const [deviceId, data] of _wallBatch) {
-        if (data.buffer) sendBinaryScreenshot(wallWs, 0x10, deviceId, data.buffer, data.screenWidth || 0, data.screenHeight || 0, false);
+      
+      const layout = wallLayouts.get(wallWs);
+      if (layout) {
+        // Step 2: 监控墙裁剪，按布局裁剪后发送
+        for (let row = 0; row < layout.rows; row++) {
+          for (let col = 0; col < layout.cols; col++) {
+            const deviceId = layout.deviceIds[row * layout.cols + col];
+            if (!deviceId) continue;
+            
+            const data = _wallBatch.get(deviceId);
+            if (!data || !data.buffer) continue;
+            
+            try {
+              const croppedBuffer = await cropFrame(
+                data.buffer, 853, 720,
+                layout.cellW, layout.cellH,
+                col, row, layout.cols, layout.rows
+              );
+              sendBinaryScreenshot(wallWs, 0x10, deviceId, croppedBuffer, layout.cellW, layout.cellH, false);
+            } catch(e) {
+              // 裁剪失败，直接发送原图
+              sendBinaryScreenshot(wallWs, 0x10, deviceId, data.buffer, data.screenWidth || 0, data.screenHeight || 0, false);
+            }
+          }
+        }
+      } else {
+        // 无布局信息，使用旧逻辑
+        for (const [deviceId, data] of _wallBatch) {
+          if (data.buffer) sendBinaryScreenshot(wallWs, 0x10, deviceId, data.buffer, data.screenWidth || 0, data.screenHeight || 0, false);
+        }
       }
     }
   } catch(e) { log('error', 'wall二进制批量推送失败:', e.message); }
@@ -3206,6 +3251,15 @@ wssBrowser.on('connection', (ws) => {
     if (msg.type === 'subscribeWall') {
       const deviceList = msg.devices || [];
       
+      // Step 2: 保存布局信息用于裁剪
+      wallLayouts.set(ws, {
+        cols: msg.cols || 4,
+        rows: msg.rows || 4,
+        cellW: msg.cellW || 320,
+        cellH: msg.cellH || 180,
+        deviceIds: deviceList
+      });
+      
       const deviceFingerprint = deviceList.slice().sort().join(',');
       if (_wallBrowserSessions.has(deviceFingerprint)) {
         const oldSession = _wallBrowserSessions.get(deviceFingerprint);
@@ -3386,6 +3440,7 @@ wssBrowser.on('connection', (ws) => {
     browserClients.delete(ws);
     browserViewport.delete(ws);
     previewClients.delete(ws);
+    wallLayouts.delete(ws); // Step 2: 清理监控墙布局信息
 
     const my1080pDevices = browser1080p.get(ws);
     browser1080p.delete(ws);
