@@ -259,6 +259,75 @@ let gridSizeSetting = 4;  // 默认布局大小
 // Step 2: 监控墙裁剪 - 每个监控墙连接的布局信息
 const wallLayouts = new Map(); // ws -> { cols, rows, cellW, cellH, deviceIds }
 
+// ========== Step 1: 流级别系统 - 全局变量 ==========
+const deviceMaxLevel = new Map(); // deviceId -> 0|1|2 (0=480x270, 1=853x720, 2=1280x1080)
+const deviceSubscribers = new Map(); // deviceId -> Map(ws -> level)
+
+// ========== Step 1: 流级别系统 - 函数 ==========
+function updateLevel(deviceId) {
+  if (!deviceSubscribers.has(deviceId)) {
+    const oldLevel = deviceMaxLevel.get(deviceId);
+    deviceMaxLevel.delete(deviceId);
+    if (oldLevel !== undefined) {
+      notifyDeviceLevel(deviceId, 0);
+    }
+    return;
+  }
+
+  const subs = deviceSubscribers.get(deviceId);
+  if (subs.size === 0) {
+    const oldLevel = deviceMaxLevel.get(deviceId);
+    deviceMaxLevel.delete(deviceId);
+    if (oldLevel !== undefined) {
+      notifyDeviceLevel(deviceId, 0);
+    }
+    return;
+  }
+
+  let maxLevel = 0;
+  for (const level of subs.values()) {
+    if (level > maxLevel) maxLevel = level;
+  }
+
+  const oldLevel = deviceMaxLevel.get(deviceId);
+  deviceMaxLevel.set(deviceId, maxLevel);
+
+  if (maxLevel !== oldLevel) {
+    notifyDeviceLevel(deviceId, maxLevel);
+  }
+}
+
+function notifyDeviceLevel(deviceId, level) {
+  for (const client of wssClient.clients) {
+    if (client._deviceId === deviceId && client.readyState === 1) {
+      client.send(JSON.stringify({ type: 'setLevel', level: level }));
+      break;
+    }
+  }
+}
+
+function subscribeLevel(deviceId, ws, level) {
+  if (!deviceSubscribers.has(deviceId)) {
+    deviceSubscribers.set(deviceId, new Map());
+  }
+  deviceSubscribers.get(deviceId).set(ws, level);
+  updateLevel(deviceId);
+}
+
+function unsubscribeLevel(deviceId, ws) {
+  if (!deviceSubscribers.has(deviceId)) return;
+  deviceSubscribers.get(deviceId).delete(ws);
+  updateLevel(deviceId);
+}
+
+function unsubscribeAllLevel(ws) {
+  for (const [deviceId, subs] of deviceSubscribers) {
+    if (subs.delete(ws)) {
+      updateLevel(deviceId);
+    }
+  }
+}
+
 // ========== wallScreenshot 批量推送（监控墙，同优化）==========
 const _wallBatch = new Map();
 let _wallBatchScheduled = false;
@@ -3108,22 +3177,40 @@ wssBrowser.on('connection', (ws) => {
       }
     }
 
-    if (msg.type === 'startHQ') {
-      // 追踪浏览器预览高清通道
-      if (!browserPreviewHD.has(ws)) browserPreviewHD.set(ws, new Set());
-      browserPreviewHD.get(ws).add(msg.deviceId);
-      // globalHQ 计数：主页面走 startHQ 消息 +1，监控墙走 subscribeWall +1
-      // 监控墙前端也会发 startHQ 消息，但 subscribeWall 已经加了计数，这里跳过避免双重计数
-      const isWallClient = wallClients.has(ws);
-      if (!isWallClient) {
-        globalHQ.set(msg.deviceId, (globalHQ.get(msg.deviceId) || 0) + 1);
+    // Step 1: 流级别系统 - 统一使用 setLevel
+    if (msg.type === 'setLevel') {
+      if (msg.deviceId && msg.level !== undefined) {
+        subscribeLevel(msg.deviceId, ws, msg.level);
       }
+    }
 
-
-      for (const client of wssClient.clients) {
-        if (client._deviceId === msg.deviceId) {
-          client.send(JSON.stringify({ type: 'startHQ' }));
-          break;
+    // Step 1: 兼容性处理 - 旧消息映射到 setLevel
+    if (msg.type === 'startHQ') {
+      // 旧 startHQ 消息 -> level 1 (853x720)
+      if (msg.deviceId) {
+        subscribeLevel(msg.deviceId, ws, 1);
+      }
+    }
+    if (msg.type === 'stopHQ') {
+      // 旧 stopHQ 消息 -> 取消订阅
+      if (msg.deviceId) {
+        unsubscribeLevel(msg.deviceId, ws);
+      }
+    }
+    if (msg.type === 'hq1080On') {
+      // 旧 hq1080On 消息 -> level 2 (1280x1080)
+      if (msg.deviceId) {
+        subscribeLevel(msg.deviceId, ws, 2);
+      }
+    }
+    if (msg.type === 'hq1080Off') {
+      // 旧 hq1080Off 消息 -> 回退到 level 1 (监控墙) 或 0 (主页面)
+      if (msg.deviceId) {
+        const isWallClient = wallClients.has(ws) || ws._wallUnsubscribing;
+        if (isWallClient) {
+          subscribeLevel(msg.deviceId, ws, 1);
+        } else {
+          unsubscribeLevel(msg.deviceId, ws);
         }
       }
     }
@@ -3269,21 +3356,12 @@ wssBrowser.on('connection', (ws) => {
           serverLog(`[监控墙] 检测到同一浏览器重新连接，取消清理定时器`);
         }
         
-        if (oldSession._1080pDevices && oldSession._1080pDevices.size > 0) {
-          for (const deviceId of oldSession._1080pDevices) {
-            global1080p.set(deviceId, (global1080p.get(deviceId) || 0) + 1);
+        // Step 1: 恢复 level 订阅（包括预览的 level 2）
+        if (oldSession._levelSubscriptions) {
+          for (const [deviceId, level] of oldSession._levelSubscriptions) {
+            subscribeLevel(deviceId, ws, level);
           }
-          serverLog(`[监控墙] 重连恢复 1080p 计数: ${Array.from(oldSession._1080pDevices).join(', ')}`);
-        }
-        
-        if (oldSession.devices && oldSession.devices.size > 0) {
-          for (const deviceId of oldSession.devices) {
-            const isNewDevice = !existingDevices.has(deviceId);
-            if (isNewDevice) {
-              globalHQ.set(deviceId, (globalHQ.get(deviceId) || 0) + 1);
-              serverLog(`[监控墙] 重连恢复 HQ 计数: ${deviceId}`);
-            }
-          }
+          serverLog(`[监控墙] 重连恢复 level 订阅`);
         }
         
         _wallBrowserSessions.delete(deviceFingerprint);
@@ -3308,16 +3386,8 @@ wssBrowser.on('connection', (ws) => {
         if (!hdRequests.has(deviceId)) hdRequests.set(deviceId, new Set());
         hdRequests.get(deviceId).add(ws);
 
-        if (isNewDevice && !globalHQ.has(deviceId)) {
-          globalHQ.set(deviceId, (globalHQ.get(deviceId) || 0) + 1);
-        }
-
-        for (const client of wssClient.clients) {
-          if (client._deviceId === deviceId) {
-            client.send(JSON.stringify({ type: 'startHQ' }));
-            break;
-          }
-        }
+        // Step 1: 监控墙使用 level 1 (853x720)
+        subscribeLevel(deviceId, ws, 1);
       }
       
       wallClients.set(ws, { devices: newDevices });
@@ -3441,6 +3511,7 @@ wssBrowser.on('connection', (ws) => {
     browserViewport.delete(ws);
     previewClients.delete(ws);
     wallLayouts.delete(ws); // Step 2: 清理监控墙布局信息
+    unsubscribeAllLevel(ws); // Step 1: 清理该 ws 的所有 level 订阅
 
     const my1080pDevices = browser1080p.get(ws);
     browser1080p.delete(ws);
@@ -3471,11 +3542,20 @@ wssBrowser.on('connection', (ws) => {
 
       const deviceFingerprint = [...new Set([...devicesToClean, ...hdDevicesToClean])].sort().join(',');
 
+      // Step 1: 保存该 ws 的所有 level 订阅信息，用于重连恢复
+      const levelSubscriptions = new Map();
+      for (const [deviceId, subs] of deviceSubscribers) {
+        if (subs.has(ws)) {
+          levelSubscriptions.set(deviceId, subs.get(ws));
+        }
+      }
+
       _wallBrowserSessions.set(deviceFingerprint, {
         ws,
         devices: new Set(devicesToClean),
         hdDevices: new Set(hdDevicesToClean),
-        _1080pDevices: new Set(devices1080pToClean)
+        _1080pDevices: new Set(devices1080pToClean),
+        _levelSubscriptions: levelSubscriptions
       });
 
       if (devices1080pToClean.length > 0) {

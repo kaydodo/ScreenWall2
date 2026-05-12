@@ -815,9 +815,9 @@ function connectWebSocket() {
                   previewUUbtn.style.pointerEvents = '';
                   previewUUbtn.onclick = function() { openUU(dev.uuDeviceId); };
                 }
-                // 重新开启1080p
+                // 重新开启1080p (level 2)
                 if (ws && ws.readyState === WebSocket.OPEN) {
-                  ws.send(JSON.stringify({ type: 'hq1080On', deviceId: devId }));
+                  ws.send(JSON.stringify({ type: 'setLevel', deviceId: devId, level: 2 }));
                 }
               }
             }
@@ -1141,9 +1141,9 @@ function wallOpenPreview(deviceId) {
   wallPreviewActive = true;
   wallPreviewActive1080 = true;
 
-  // 发送 hq1080On 开启 1080p 模式（由监控墙自己的 WebSocket 连接发送）
+  // 发送 setLevel 2 开启 1080p 模式（由监控墙自己的 WebSocket 连接发送）
   if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'hq1080On', deviceId: deviceId }));
+    ws.send(JSON.stringify({ type: 'setLevel', deviceId: deviceId, level: 2 }));
   }
 
   var initData = {
@@ -1172,9 +1172,9 @@ function wallClosePreview() {
   if (!wallPreviewDeviceId) return;
   if (wallKeyboardOpen) wallCloseKeyboard();
 
-  // 发送 hq1080Off 关闭 1080p 模式（由监控墙自己的 WebSocket 连接发送）
+  // 发送 setLevel 1 回退到监控墙级别（由监控墙自己的 WebSocket 连接发送）
   if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'hq1080Off', deviceId: wallPreviewDeviceId }));
+    ws.send(JSON.stringify({ type: 'setLevel', deviceId: wallPreviewDeviceId, level: 1 }));
   }
 
   document.getElementById('wallPreviewOverlay').style.display = 'none';

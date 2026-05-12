@@ -1231,6 +1231,8 @@ class ScreenWallClient:
         self.hq_mode = False
         self.hq_streaming = False
         self.hq_1080 = False  # 1080p 预览模式（临时开启，不受 720p 上限限制）
+        self.target_width = 480
+        self.target_height = 270
         self._tasks = []
         self._last_cfg_hash = ""
         self._migrating = False  # 收到 serverMigrate 后标记，run() 检测到后重新连接
@@ -2060,24 +2062,50 @@ class ScreenWallClient:
                             print(f"[注册响应] 收到installUU=true, uuDownloadUrl={data.get('uuDownloadUrl')}")
                             uu_download_url = data.get("uuDownloadUrl", "")
                             asyncio.create_task(self._do_install_uu(cfg, uu_download_url))
+                    elif msg_type == "setLevel":
+                        level = data.get("level", 0)
+                        if level == 0:
+                            self.hq_mode = False
+                            self.hq_streaming = False
+                            self.hq_1080 = False
+                            self.target_width = 480
+                            self.target_height = 270
+                        elif level == 1:
+                            self.hq_mode = True
+                            self.hq_streaming = True
+                            self.hq_1080 = False
+                            self.target_width = 853
+                            self.target_height = 720
+                        elif level == 2:
+                            self.hq_mode = True
+                            self.hq_streaming = True
+                            self.hq_1080 = True
+                            self.target_width = 1280
+                            self.target_height = 1080
                     elif msg_type == "startHQ":
+                        # 兼容旧消息 - 相当于 level=1
                         self.hq_mode = True
                         self.hq_streaming = True
-                        # 不再接收 interval，客户端统一用 6fps（~166.7ms）
+                        self.target_width = 853
+                        self.target_height = 720
                     elif msg_type == "stopHQ":
-                        # 直接关闭 HQ 模式，不再捕获静态帧
+                        # 兼容旧消息 - 相当于 level=0
                         self.hq_mode = False
                         self.hq_streaming = False
-                        self.hq_1080 = False  # 同时关闭 1080p 模式
+                        self.hq_1080 = False
                         self._last_msg_time = time.time()
 
                     elif msg_type == "hq1080On":
+                        # 兼容旧消息 - 相当于 level=2
                         self.hq_1080 = True
+                        self.target_width = 1280
+                        self.target_height = 1080
 
                     elif msg_type == "hq1080Off":
+                        # 兼容旧消息 - 相当于回退到 level=1
                         self.hq_1080 = False
-                        # 降级到 720p 高质量，不停止 HQ 模式，让截图循环继续发送 HQ 帧
-                        # 下次截图时会自动用 hq_limit=720
+                        self.target_width = 853
+                        self.target_height = 720
 
                     elif msg_type == "requestCollectionScreenshot":
                         device_ids = data.get("deviceIds", [])

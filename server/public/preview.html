@@ -839,10 +839,10 @@ window.addEventListener('keyup', function(e) {
 });
 
 function closePreview() {
-  // 只有不是从监控墙打开时才发送 hq1080Off/stopHQ
+  // 只有不是从监控墙打开时才发送 setLevel 取消订阅
   if (!fromWall && ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'hq1080Off', deviceId: deviceId }));
-    ws.send(JSON.stringify({ type: 'stopHQ', deviceId: deviceId }));
+    // 从 level 2 回退到 level 0
+    ws.send(JSON.stringify({ type: 'setLevel', deviceId: deviceId, level: 0 }));
   }
   // 始终发送 unsubscribePreview（用于清理浏览器端订阅）
   if (ws && ws.readyState === WebSocket.OPEN) {
@@ -880,8 +880,7 @@ function setOnline() {
     if (uuDeviceId) uuBtn.onclick = function() { openUU(uuDeviceId); };
   }
   if (ws && ws.readyState === WebSocket.OPEN && !fromWall) {
-    ws.send(JSON.stringify({ type: 'startHQ', deviceId: deviceId }));
-    ws.send(JSON.stringify({ type: 'hq1080On', deviceId: deviceId }));
+    ws.send(JSON.stringify({ type: 'setLevel', deviceId: deviceId, level: 2 }));
   }
   updateRemoteBtn();
   _pendingRemoteState = null;
@@ -898,8 +897,7 @@ function connectWebSocket() {
   ws.onopen = function() {
     ws.send(JSON.stringify({ type: 'subscribePreview', deviceId: deviceId }));
     if (isOnline && !fromWall) {
-      ws.send(JSON.stringify({ type: 'startHQ', deviceId: deviceId }));
-      ws.send(JSON.stringify({ type: 'hq1080On', deviceId: deviceId }));
+      ws.send(JSON.stringify({ type: 'setLevel', deviceId: deviceId, level: 2 }));
     }
   };
 
