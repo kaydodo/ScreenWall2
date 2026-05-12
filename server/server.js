@@ -3204,20 +3204,24 @@ wssBrowser.on('connection', (ws) => {
     }
 
     if (msg.type === 'subscribeWall') {
-      // 监控墙订阅高清截图（每个窗口独立通道）
       const deviceList = msg.devices || [];
       
-      // 【修复】检查是否是同一浏览器重新连接（通过设备列表指纹）
       const deviceFingerprint = deviceList.slice().sort().join(',');
       if (_wallBrowserSessions.has(deviceFingerprint)) {
         const oldSession = _wallBrowserSessions.get(deviceFingerprint);
-        // 取消之前的清理定时器
         if (_wallCloseTimers.has(oldSession.ws)) {
           clearTimeout(_wallCloseTimers.get(oldSession.ws));
           _wallCloseTimers.delete(oldSession.ws);
           serverLog(`[监控墙] 检测到同一浏览器重新连接，取消清理定时器`);
         }
-        // 清理旧会话记录
+        
+        if (oldSession._1080pDevices && oldSession._1080pDevices.size > 0) {
+          for (const deviceId of oldSession._1080pDevices) {
+            global1080p.set(deviceId, (global1080p.get(deviceId) || 0) + 1);
+          }
+          serverLog(`[监控墙] 重连恢复 1080p 计数: ${Array.from(oldSession._1080pDevices).join(', ')}`);
+        }
+        
         _wallBrowserSessions.delete(deviceFingerprint);
       }
       
@@ -3405,6 +3409,15 @@ wssBrowser.on('connection', (ws) => {
       const hdDevicesToClean = hdChannels ? Array.from(hdChannels) : [];
       const devices1080pToClean = my1080pDevices ? Array.from(my1080pDevices) : [];
 
+      const deviceFingerprint = [...new Set([...devicesToClean, ...hdDevicesToClean])].sort().join(',');
+
+      _wallBrowserSessions.set(deviceFingerprint, {
+        ws,
+        devices: new Set(devicesToClean),
+        hdDevices: new Set(hdDevicesToClean),
+        _1080pDevices: new Set(devices1080pToClean)
+      });
+
       if (devices1080pToClean.length > 0) {
         for (const deviceId of devices1080pToClean) {
           if (global1080p.has(deviceId)) {
@@ -3426,8 +3439,6 @@ wssBrowser.on('connection', (ws) => {
 
       if (devicesToClean.length + hdDevicesToClean.length > 0) {
         if (_wallCloseTimers.has(ws)) clearTimeout(_wallCloseTimers.get(ws));
-
-        const deviceFingerprint = [...new Set([...devicesToClean, ...hdDevicesToClean])].sort().join(',');
 
         const timerId = setTimeout(() => {
           _wallCloseTimers.delete(ws);
