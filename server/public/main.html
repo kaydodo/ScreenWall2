@@ -750,13 +750,6 @@ function connectWS() {
         var vEl = document.getElementById('topbarVersion');
         if (vEl) vEl.textContent = 'v' + msg.serverVersion;
       }
-
-    // 动态更新服务端版本号（config.json 变化时触发）
-    if (msg.type === 'serverVersionUpdate' && msg.serverVersion) {
-      serverVersion = msg.serverVersion;
-      var vEl = document.getElementById('topbarVersion');
-      if (vEl) vEl.textContent = 'v' + msg.serverVersion;
-    }
       devices = msg.devices || [];
       if (msg.groups) {
         groups = msg.groups;
@@ -803,7 +796,7 @@ function connectWS() {
       if (msg.cells) {
         gridCells = msg.cells;
       }
-      // 同步离线状态到 gridCells
+      // 同步在线状态到 gridCells（从 devices 数组获取最新状态）
       gridCells.forEach(c => {
         if (c && c.deviceId) {
           const dev = devices.find(d => d.deviceId === c.deviceId);
@@ -833,6 +826,13 @@ function connectWS() {
       keyClientExists = devices.some(function(d) { return d.supportsKeyClient === true; });
       // 同步更新鼠标提示文字（电脑端+有键盘时显示）
       updateMouseHint();
+    }
+
+    // 动态更新服务端版本号（config.json 变化时触发）
+    if (msg.type === 'serverVersionUpdate' && msg.serverVersion) {
+      serverVersion = msg.serverVersion;
+      var vEl = document.getElementById('topbarVersion');
+      if (vEl) vEl.textContent = 'v' + msg.serverVersion;
     }
 
     if (msg.type === 'deviceList') {
