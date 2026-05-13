@@ -802,6 +802,14 @@ function connectWebSocket() {
         // console.log('[Wall] Subscribed devices:', data.devices);
       }
 
+      // 设备预览状态更新（包含离线截图）
+      if (data.type === 'devicePreviewStatus') {
+        var deviceId = data.deviceId;
+        if (deviceId && devices[deviceId] && data.screenshot) {
+          devices[deviceId].screenshot = data.screenshot;
+        }
+      }
+
       // 设备列表更新（包含 supportsKeyClient 状态等关键字段）
       if (data.type === 'deviceList') {
         var newDevices = data.devices || [];
