@@ -1671,9 +1671,12 @@ function updateCellElement(index) {
       let offlineLabel = document.getElementById(`offline_${index}`);
       if (offlineLabel) offlineLabel.style.display = 'none';
 
-      // 如果当前显示的是离线截图（非blob），先隐藏等帧到达
-      if (img.src && !img.src.startsWith('blob:')) {
-        img.style.opacity = '0';
+      // 如果有截图，先显示截图，等二进制帧到达后自动切换
+      const dev = devices.find(d => d.deviceId === cell.deviceId);
+      if (dev && dev.screenshot && !img.src.startsWith('blob:')) {
+        img.src = dev.screenshot;
+        img.style.display = 'block';
+        img.style.opacity = '1';
       }
     }
   } else {
