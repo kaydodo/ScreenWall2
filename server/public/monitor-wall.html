@@ -815,12 +815,23 @@ function connectWebSocket() {
       // 设备预览状态更新（包含离线截图）
       if (data.type === 'devicePreviewStatus') {
         var deviceId = data.deviceId;
-        if (deviceId && devices[deviceId]) {
-          if (data.screenshot) {
-            devices[deviceId].screenshot = data.screenshot;
-          }
+        // 设备可能不在 devices 对象中（监控墙只订阅了部分设备）
+        if (deviceId) {
           // 清除帧计数，防止自愈逻辑被缓存帧触发
           frameHealCount.delete(deviceId);
+          
+          // 更新 devices 对象
+          if (devices[deviceId]) {
+            if (data.screenshot) {
+              devices[deviceId].screenshot = data.screenshot;
+            }
+            if (data.status === 'offline' || data.status === 'deleted') {
+              devices[deviceId].online = false;
+            } else if (data.status === 'online') {
+              devices[deviceId].online = true;
+            }
+          }
+          
           // 更新格子 DOM（离线标签、UU 按钮等）
           var cellIndex = wallData.devices.findIndex(function(d) { return d.id === deviceId; });
           if (cellIndex >= 0) {
@@ -831,7 +842,6 @@ function connectWebSocket() {
               
               if (data.status === 'offline' || data.status === 'deleted') {
                 // 设备离线
-                devices[deviceId].online = false;
                 cell.classList.add('offline');
                 if (badge) { badge.textContent = '设备已离线'; badge.style.display = 'block'; }
                 // 移除 UU 按钮
@@ -847,7 +857,6 @@ function connectWebSocket() {
                 }
               } else if (data.status === 'online') {
                 // 设备在线
-                devices[deviceId].online = true;
                 cell.classList.remove('offline');
                 if (badge) badge.style.display = 'none';
                 // 创建 UU 按钮（如果有 uuDeviceId）
