@@ -33,7 +33,7 @@ html, body {
   min-height: 0;
   cursor: pointer;
 }
-/* 双层结构：外层 img-wrapper 用 cover 切掉多余，内层 img 用 contain 完整显示 */
+/* 监控墙格子图像：使用 cover 填充格子，避免留黑闪烁 */
 .wall-cell .img-wrapper {
   position: absolute;
   top: 0; left: 0; right: 0; bottom: 0;
@@ -42,9 +42,8 @@ html, body {
 .wall-cell .img-wrapper img {
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: cover;
   background: #000;
-  margin: auto;
 }
 .wall-cell.empty {
   display: flex;
