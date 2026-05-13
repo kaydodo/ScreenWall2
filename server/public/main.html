@@ -1219,6 +1219,19 @@ function connectWS() {
     if (msg.type === 'grid') {
       // 格子信息完全从服务器获取
       gridCells = msg.cells;
+      // 同步在线状态到 devices 数组
+      gridCells.forEach(function(c) {
+        if (c && c.deviceId) {
+          var dev = devices.find(function(d) { return d.deviceId === c.deviceId; });
+          if (dev && c.online !== undefined) {
+            dev.online = c.online;
+          }
+        }
+      });
+      // 刷新格子 DOM
+      gridCells.forEach(function(c) {
+        if (c && c.deviceId) updateCellElement(c.index);
+      });
       requestRender();
       renderAlarmPanel();  // 格子变更时刷新报警面板的格位置显示
       // 如果开关机弹窗打开，刷新显示（格位置变化）
