@@ -1069,6 +1069,10 @@ function connectWebSocket() {
               allDevices[sd.deviceId].screenshot = sd.screenshot;
             }
           }
+          // 同步更新当前设备的在线状态
+          if (sd.deviceId === deviceId && sd.online && !isOnline) {
+            setOnline();
+          }
         });
       }
 

@@ -1595,7 +1595,9 @@ function updateCellElement(index) {
         nameEl.style.borderRadius = '';
       }
     }
-    const isOffline = !cell.online;
+    // 从 devices 数组获取最新的在线状态（而不是 gridCells）
+    var dev = devices.find(function(d) { return d.deviceId === cell.deviceId; });
+    const isOffline = dev ? !dev.online : !cell.online;
     const img = document.getElementById(`img_${index}`);
     const ns = document.getElementById(`ns_${index}`);
     const dot = document.getElementById(`dot_${index}`);
