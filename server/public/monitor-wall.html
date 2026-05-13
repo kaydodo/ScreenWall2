@@ -732,6 +732,16 @@ function connectWebSocket() {
           // ★ 预览激活时停止格子渲染（和主页面一样）★★★
           // ★ 设备离线时也停止格子渲染，避免覆盖离线图 ★★★
           const dev = devices[devId];
+          
+          // 更新设备的截图（用于离线时显示）
+          if (dev) {
+            const reader = new FileReader();
+            reader.onload = function() {
+              dev.screenshot = reader.result;
+            };
+            reader.readAsDataURL(blob);
+          }
+          
           if (!wallPreviewActive && (!dev || dev.online !== false)) {
             // 正常渲染格子（仅当设备在线时）
             const el = document.getElementById('img_' + devId);
