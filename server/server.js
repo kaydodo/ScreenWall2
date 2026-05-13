@@ -1976,79 +1976,59 @@ wssClient.on('connection', (ws, req) => {
       ws.send(JSON.stringify({ type: 'deviceNameSync', deviceName: newDev.deviceName }));
     }
 
-    if (msg.type === 'screenshot' && msg.deviceId) {
-      const receiveTime = Date.now();
+    // 收藏截图（独立消息类型）
+    if (msg.type === 'collectionScreenshot' && msg.deviceId && msg.image) {
       const dev = devices.get(msg.deviceId);
       if (dev) {
-        dev.lastSeen = receiveTime;
-        dev.online = true;
-
-        // 实时同步分辨率（防止人工修改后坐标映射错误）
-        if (msg.screenWidth && msg.screenHeight) {
-          dev.screenWidth = msg.screenWidth;
-          dev.screenHeight = msg.screenHeight;
+        const { timestamp, deviceId, image } = msg;
+        const fav = favorites.find(f => f.deviceId === deviceId);
+        if (!fav) {
+          serverLog(`[收藏] 收到未收藏设备 ${deviceId} 的截图，忽略`);
+        } else if (image && image.length >= 100) {
+          const groupName = getGroupNameForDevice(deviceId);
+          const cellIndex = getCellIndexForDevice(deviceId);
+          const online = dev.online;
+          
+          (async () => {
+            try {
+              const base64Data = image.replace(/^data:image\/\w+;base64,/, '');
+              const buffer = Buffer.from(base64Data, 'base64');
+              const compressed = await sharp(buffer)
+                .resize(480, 270, { fit: 'cover' })
+                .webp({ quality: 30, effort: 4 })
+                .toBuffer();
+              const thumbnail = 'data:image/webp;base64,' + compressed.toString('base64');
+              if (!collections.has(timestamp)) {
+                collections.set(timestamp, []);
+              }
+              const items = collections.get(timestamp);
+              const existingIdx = items.findIndex(item => item.deviceId === deviceId);
+              const newItem = {
+                deviceId,
+                screenshot: thumbnail || image,
+                hdScreenshot: image,
+                deviceName: dev.deviceName,
+                groupName,
+                cellIndex,
+                online,
+                deleted: false,
+                timestamp: timestamp
+              };
+              if (existingIdx >= 0) {
+                items[existingIdx] = newItem;
+              } else {
+                items.push(newItem);
+              }
+              saveCollections();
+              const collectionsArr = [];
+              collections.forEach((its, ts) => {
+                collectionsArr.push({ timestamp: ts, items: its });
+              });
+              collectionsArr.sort((a, b) => b.timestamp - a.timestamp);
+              broadcastToBrowsers({ type: 'collectionsUpdate', collections: collectionsArr });
+            } catch (e) {}
+          })();
         }
-
-        // ========== 收藏截图处理（不受 667ms 延迟限制）==========
-        if (msg.collectionTimestamp) {
-          // 收到收藏截图请求的响应
-          const { collectionTimestamp, deviceId, image } = msg;
-          // 检查设备是否真的在收藏列表中
-          const fav = favorites.find(f => f.deviceId === deviceId);
-          if (!fav) {
-            serverLog(`[收藏] 收到未收藏设备 ${deviceId} 的截图，忽略`);
-          } else if (image && image.length >= 100) {
-            // 检查截图是否有效
-            const groupName = getGroupNameForDevice(deviceId);
-            const cellIndex = getCellIndexForDevice(deviceId);
-            const online = dev.online;
-            
-            // 生成缩略图（压缩成 480x270 webp）
-            (async () => {
-              try {
-                const base64Data = image.replace(/^data:image\/\w+;base64,/, '');
-                const buffer = Buffer.from(base64Data, 'base64');
-                const compressed = await sharp(buffer)
-                  .resize(480, 270, { fit: 'cover' })
-                  .webp({ quality: 30, effort: 4 })
-                  .toBuffer();
-                const thumbnail = 'data:image/webp;base64,' + compressed.toString('base64');
-                if (!collections.has(collectionTimestamp)) {
-                  collections.set(collectionTimestamp, []);
-                }
-                const items = collections.get(collectionTimestamp);
-                const existingIdx = items.findIndex(item => item.deviceId === deviceId);
-                const newItem = {
-                  deviceId,
-                  screenshot: thumbnail || image,
-                  hdScreenshot: image,
-                  deviceName: dev.deviceName,
-                  groupName,
-                  cellIndex,
-                  online,
-                  deleted: false,
-                  timestamp: collectionTimestamp
-                };
-                if (existingIdx >= 0) {
-                  items[existingIdx] = newItem;
-                } else {
-                  items.push(newItem);
-                }
-                saveCollections();
-                // 广播更新后的截图集合给所有浏览器
-                const collectionsArr = [];
-                collections.forEach((its, ts) => {
-                  collectionsArr.push({ timestamp: ts, items: its });
-                });
-                collectionsArr.sort((a, b) => b.timestamp - a.timestamp);
-                broadcastToBrowsers({ type: 'collectionsUpdate', collections: collectionsArr });
-              } catch (e) {}
-            })();
-          }
-        }
-
-        // JSON screenshot 只用于收藏截图（有 collectionTimestamp）
-        // 不更新 dev.screenshot，离线图由二进制帧负责
       }
     }
 
