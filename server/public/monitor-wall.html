@@ -682,9 +682,10 @@ function connectWebSocket() {
     var rows = cfg ? cfg.rows : Math.sqrt(wallData.layout);
     var cols = cfg ? cfg.cols : Math.sqrt(wallData.layout);
     
-    // 计算单个格子的目标尺寸（用原始 1280×720 做基准，非压缩后的 853×720）
-    var cellW = Math.floor(1280 / cols);
-    var cellH = Math.floor(720 / rows);
+    // 计算单个格子的目标尺寸（保持 16:9 比例）
+    // 监控墙使用 720p 画质，帧尺寸固定为 1280x720 (16:9)
+    var cellW = 1280;
+    var cellH = 720;
     
     // 连接成功，请求高清截图并上报布局信息
     ws.send(JSON.stringify({
