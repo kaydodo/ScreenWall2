@@ -1771,12 +1771,6 @@ wssClient.on('connection', (ws, req) => {
     
     try {
     
-    // 调试：打印截图消息的接收情况
-    if (msg.type === 'screenshot') {
-      const imgLen = msg.image ? msg.image.length : 0;
-      
-    }
-
     if (msg.type === 'register') {
       const incomingUU = String(msg.uuDeviceId || '');
       const incomingDeviceId = String(msg.deviceId || '');
