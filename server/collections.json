@@ -7,7 +7,7 @@
       "deviceName": "9UXW",
       "groupName": "",
       "cellIndex": 0,
-      "online": true,
+      "online": false,
       "deleted": false,
       "timestamp": 1778520811785,
       "groupId": ""
@@ -21,7 +21,7 @@
       "deviceName": "9UXW",
       "groupName": "",
       "cellIndex": 0,
-      "online": true,
+      "online": false,
       "deleted": false,
       "timestamp": 1778523936720,
       "groupId": ""
@@ -35,7 +35,7 @@
       "deviceName": "9UXW",
       "groupName": "",
       "cellIndex": 0,
-      "online": true,
+      "online": false,
       "deleted": false,
       "timestamp": 1778524197635,
       "groupId": ""
@@ -49,7 +49,7 @@
       "deviceName": "9UXW",
       "groupName": "",
       "cellIndex": 0,
-      "online": true,
+      "online": false,
       "deleted": false,
       "timestamp": 1778635486837,
       "groupId": ""

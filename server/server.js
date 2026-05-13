@@ -277,13 +277,6 @@ const browser1080p = new Map(); // ws -> Set<deviceId>
 // 全局1080p追踪：deviceId -> 使用该设备的浏览器数量（只有所有浏览器都不用时才通知设备关闭）
 // 每个浏览器独立管理已上墙设备，同一浏览器的不同窗口共享 localStorage 同步
 
-// ========== 监控墙连接延迟清理机制 ==========
-// 防止页面刷新/短暂断开时误关 HQ 流
-const _wallCloseTimers = new Map(); // ws -> timeoutId
-const _wallCloseDelayMs = 5000; // 延迟5秒确认断开
-// 浏览器会话追踪：通过设备列表指纹识别同一浏览器重新连接
-const _wallBrowserSessions = new Map(); // deviceFingerprint -> { ws, devices, hdDevices }
-
 // ========== 渲染优化 ==========
 // 视口追踪：浏览器上报当前可见格子
 const browserViewport = new Map(); // ws -> Set<deviceId>
@@ -3294,26 +3287,6 @@ wssBrowser.on('connection', (ws) => {
         deviceIds: deviceList
       });
       
-      const deviceFingerprint = deviceList.slice().sort().join(',');
-      if (_wallBrowserSessions.has(deviceFingerprint)) {
-        const oldSession = _wallBrowserSessions.get(deviceFingerprint);
-        if (_wallCloseTimers.has(oldSession.ws)) {
-          clearTimeout(_wallCloseTimers.get(oldSession.ws));
-          _wallCloseTimers.delete(oldSession.ws);
-          serverLog(`[监控墙] 检测到同一浏览器重新连接，取消清理定时器`);
-        }
-        
-        // Step 1: 恢复 level 订阅（包括预览的 level 2）
-        if (oldSession._levelSubscriptions) {
-          for (const [deviceId, level] of oldSession._levelSubscriptions) {
-            subscribeLevel(deviceId, ws, level);
-          }
-          serverLog(`[监控墙] 重连恢复 level 订阅`);
-        }
-        
-        _wallBrowserSessions.delete(deviceFingerprint);
-      }
-      
       // 获取该窗口当前的高清通道
       const existingHD = wallHDChannels.get(ws) || new Set();
       const newHDChannels = new Set(existingHD);
@@ -3333,20 +3306,15 @@ wssBrowser.on('connection', (ws) => {
         if (!hdRequests.has(deviceId)) hdRequests.set(deviceId, new Set());
         hdRequests.get(deviceId).add(ws);
 
-        // Step 1: 监控墙使用 level 1 (853x720)
+        // 监控墙使用 level 1 (853x720)
         subscribeLevel(deviceId, ws, 1);
       }
       
       wallClients.set(ws, { devices: newDevices });
       wallHDChannels.set(ws, newHDChannels);
       
-      // 记录会话信息用于后续识别重新连接
-      _wallBrowserSessions.set(deviceFingerprint, { ws, devices: new Set(newDevices), hdDevices: new Set(newHDChannels) });
-      
       // 返回该浏览器已上墙设备列表（仅自己）
       ws.send(JSON.stringify({ type: 'walledDevices', devices: Array.from(newDevices) }));
-      
-      // serverLog(`[监控墙] 订阅 ${newDevices.size} 设备`);
     }
 
     if (msg.type === 'unsubscribeWall') {
@@ -3466,24 +3434,7 @@ wssBrowser.on('connection', (ws) => {
       const hdDevicesToClean = hdChannels ? Array.from(hdChannels) : [];
       const devices1080pToClean = my1080pDevices ? Array.from(my1080pDevices) : [];
 
-      const deviceFingerprint = [...new Set([...devicesToClean, ...hdDevicesToClean])].sort().join(',');
-
-      // Step 1: 保存该 ws 的所有 level 订阅信息，用于重连恢复
-      const levelSubscriptions = new Map();
-      for (const [deviceId, subs] of deviceSubscribers) {
-        if (subs.has(ws)) {
-          levelSubscriptions.set(deviceId, subs.get(ws));
-        }
-      }
-
-      _wallBrowserSessions.set(deviceFingerprint, {
-        ws,
-        devices: new Set(devicesToClean),
-        hdDevices: new Set(hdDevicesToClean),
-        _1080pDevices: new Set(devices1080pToClean),
-        _levelSubscriptions: levelSubscriptions
-      });
-
+      // 清理 1080p
       if (devices1080pToClean.length > 0) {
         for (const deviceId of devices1080pToClean) {
           if (!global1080p.has(deviceId)) {
@@ -3497,47 +3448,30 @@ wssBrowser.on('connection', (ws) => {
         }
       }
 
-      if (devicesToClean.length + hdDevicesToClean.length > 0) {
-        if (_wallCloseTimers.has(ws)) clearTimeout(_wallCloseTimers.get(ws));
+      // 清理 HQ
+      const allDevices = new Set([...devicesToClean, ...hdDevicesToClean]);
+      for (const deviceId of allDevices) {
+        let stillInUse = false;
+        for (const [otherWs, otherHd] of wallHDChannels) {
+          if (otherHd.has(deviceId)) { stillInUse = true; break; }
+        }
+        for (const [otherWs, otherSub] of wallClients) {
+          if (otherSub.devices.has(deviceId)) { stillInUse = true; break; }
+        }
+        for (const [otherWs, otherDev] of browserPreviewHD) {
+          if (otherDev.has(deviceId)) { stillInUse = true; break; }
+        }
 
-        const timerId = setTimeout(() => {
-          _wallCloseTimers.delete(ws);
-
-          if (_wallBrowserSessions.has(deviceFingerprint) && _wallBrowserSessions.get(deviceFingerprint).ws !== ws) {
-            _wallBrowserSessions.delete(deviceFingerprint);
-            return;
-          }
-
-          _wallBrowserSessions.delete(deviceFingerprint);
-
-          const allDevices = new Set([...devicesToClean, ...hdDevicesToClean]);
-
-          for (const deviceId of allDevices) {
-            let stillInUse = false;
-            for (const [otherWs, otherHd] of wallHDChannels) {
-              if (otherHd.has(deviceId)) { stillInUse = true; break; }
-            }
-            for (const [otherWs, otherSub] of wallClients) {
-              if (otherSub.devices.has(deviceId)) { stillInUse = true; break; }
-            }
-            for (const [otherWs, otherDev] of browserPreviewHD) {
-              if (otherDev.has(deviceId)) { stillInUse = true; break; }
-            }
-
-            if (!stillInUse && !globalHQ.has(deviceId)) {
-              hdRequests.delete(deviceId);
-              wallDevices.delete(deviceId);
-              for (const client of wssClient.clients) {
-                if (client._deviceId === deviceId && client.readyState === 1) {
-                  client.send(JSON.stringify({ type: 'stopHQ' }));
-                  break;
-                }
-              }
+        if (!stillInUse && !globalHQ.has(deviceId)) {
+          hdRequests.delete(deviceId);
+          wallDevices.delete(deviceId);
+          for (const client of wssClient.clients) {
+            if (client._deviceId === deviceId && client.readyState === 1) {
+              client.send(JSON.stringify({ type: 'stopHQ' }));
+              break;
             }
           }
-        }, _wallCloseDelayMs);
-
-        _wallCloseTimers.set(ws, timerId);
+        }
       }
 
     } else {
