@@ -1075,12 +1075,19 @@ function connectWebSocket() {
       }
 
       if (msg.type === 'devicePreviewStatus' && msg.deviceId === deviceId) {
-        // 只有当服务端明确说在线时才更新为在线
-        if (msg.status === 'online') {
+        if (msg.status === 'offline' || msg.status === 'deleted') {
+          // 设备真正离线
+          if (isOnline) {
+            setOffline(msg.status);
+            var offlineFrame = msg.screenshot || screenshot;
+            if (offlineFrame) {
+              var pi = document.getElementById('previewImg');
+              if (pi) { pi.src = offlineFrame; pi.style.display = 'block'; pi.style.visibility = 'visible'; }
+            }
+          }
+        } else if (msg.status === 'online') {
           if (!isOnline) setOnline();
         }
-        // 服务端说离线或删除时，保持当前状态（等设备客户端重连）
-        // 不再主动设置为离线
       }
 
       if (msg.type === 'keyboardState' && msg.deviceId === deviceId) {
