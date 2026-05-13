@@ -581,6 +581,17 @@ function initWall() {
 
       if (dev.online === false) {
         cell.classList.add('offline');
+        // 离线设备显示截图
+        var img = cell.querySelector('img');
+        if (img && dev.screenshot) {
+          img.src = dev.screenshot;
+          img.classList.remove('wall-img-hidden');
+          img.classList.add('grayscale');
+          img.style.display = 'block';
+          img.style.opacity = '1';
+        }
+        var badge = cell.querySelector('.offline-badge');
+        if (badge) { badge.textContent = '设备已离线'; badge.style.display = 'block'; }
       } else if (dev.uuDeviceId) {
         // 页面加载时为在线设备创建 UU 按钮
         var uuBtn = document.createElement('button');

@@ -2121,7 +2121,13 @@ wssClient.on('connection', (ws, req) => {
         }
         if (shouldSendWall) {
           // 入批（覆盖旧帧，每设备只保留最新一帧）
-          _wallBatch.set(msg.deviceId, { screenshot: msg.image, timestamp: now });
+          // 保留 buffer 字段（二进制帧），screenshot 字段（JSON帧）单独存储
+          const existing = _wallBatch.get(msg.deviceId);
+          _wallBatch.set(msg.deviceId, { 
+            buffer: existing ? existing.buffer : undefined, 
+            screenshot: msg.image, 
+            timestamp: now 
+          });
           _scheduleWallBatch();
         }
 
