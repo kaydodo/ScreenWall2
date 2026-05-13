@@ -815,8 +815,51 @@ function connectWebSocket() {
       // 设备预览状态更新（包含离线截图）
       if (data.type === 'devicePreviewStatus') {
         var deviceId = data.deviceId;
-        if (deviceId && devices[deviceId] && data.screenshot) {
-          devices[deviceId].screenshot = data.screenshot;
+        if (deviceId && devices[deviceId]) {
+          if (data.screenshot) {
+            devices[deviceId].screenshot = data.screenshot;
+          }
+          // 更新格子 DOM（离线标签、UU 按钮等）
+          var cellIndex = wallData.devices.findIndex(function(d) { return d.id === deviceId; });
+          if (cellIndex >= 0) {
+            var cell = document.getElementById('cell_' + cellIndex);
+            if (cell) {
+              var badge = cell.querySelector('.offline-badge');
+              var uuBtn = cell.querySelector('.uu-float-btn');
+              
+              if (data.status === 'offline' || data.status === 'deleted') {
+                // 设备离线
+                devices[deviceId].online = false;
+                cell.classList.add('offline');
+                if (badge) { badge.textContent = '设备已离线'; badge.style.display = 'block'; }
+                // 移除 UU 按钮
+                if (uuBtn) uuBtn.remove();
+                // 显示灰度截图
+                var img = cell.querySelector('img');
+                if (img && data.screenshot) {
+                  img.src = data.screenshot;
+                  img.classList.remove('wall-img-hidden');
+                  img.classList.add('grayscale');
+                  img.style.display = 'block';
+                  img.style.opacity = '1';
+                }
+              } else if (data.status === 'online') {
+                // 设备在线
+                devices[deviceId].online = true;
+                cell.classList.remove('offline');
+                if (badge) badge.style.display = 'none';
+                // 创建 UU 按钮（如果有 uuDeviceId）
+                var dev = devices[deviceId];
+                if (dev && dev.uuDeviceId && !uuBtn) {
+                  var newUuBtn = document.createElement('button');
+                  newUuBtn.className = 'uu-float-btn';
+                  newUuBtn.onclick = function(e) { e.stopPropagation(); openUU(dev.uuDeviceId); };
+                  newUuBtn.textContent = '🖱️ UU远程';
+                  cell.appendChild(newUuBtn);
+                }
+              }
+            }
+          }
         }
       }
 
@@ -825,6 +868,7 @@ function connectWebSocket() {
         var newDevices = data.devices || [];
         newDevices.forEach(function(newDev) {
           if (devices[newDev.deviceId]) {
+            var prevOnline = devices[newDev.deviceId].online;
             if (newDev.supportsKeyClient !== undefined) {
               devices[newDev.deviceId].supportsKeyClient = newDev.supportsKeyClient;
             }
@@ -839,26 +883,51 @@ function connectWebSocket() {
             }
             if (newDev.uuDeviceId !== undefined) {
               devices[newDev.deviceId].uuDeviceId = newDev.uuDeviceId;
-              // 如果 uuDeviceId 有值且设备在线，为格子创建 UU 按钮
-              if (newDev.uuDeviceId && newDev.online !== false) {
-                var cellIndex = wallData.devices.findIndex(function(d) { return d.id === newDev.deviceId; });
-                if (cellIndex >= 0) {
-                  var cell = document.getElementById('cell_' + cellIndex);
-                  if (cell && !cell.querySelector('.uu-float-btn')) {
-                    var uuBtn = document.createElement('button');
-                    uuBtn.className = 'uu-float-btn';
-                    uuBtn.onclick = function(e) { e.stopPropagation(); openUU(newDev.uuDeviceId); };
-                    uuBtn.textContent = '🖱️ UU远程';
-                    cell.appendChild(uuBtn);
-                  }
-                }
-              }
             }
             if (newDev.monitorCount !== undefined) {
               devices[newDev.deviceId].monitorCount = newDev.monitorCount;
             }
             if (newDev.monitorIndex !== undefined) {
               devices[newDev.deviceId].monitorIndex = newDev.monitorIndex;
+            }
+            
+            // 更新格子 DOM（离线标签、UU 按钮等）
+            var cellIndex = wallData.devices.findIndex(function(d) { return d.id === newDev.deviceId; });
+            if (cellIndex >= 0) {
+              var cell = document.getElementById('cell_' + cellIndex);
+              if (cell) {
+                var badge = cell.querySelector('.offline-badge');
+                var uuBtn = cell.querySelector('.uu-float-btn');
+                
+                if (newDev.online === false) {
+                  // 设备离线
+                  cell.classList.add('offline');
+                  if (badge) { badge.textContent = '设备已离线'; badge.style.display = 'block'; }
+                  // 移除 UU 按钮
+                  if (uuBtn) uuBtn.remove();
+                  // 显示灰度截图
+                  var img = cell.querySelector('img');
+                  if (img && newDev.screenshot) {
+                    img.src = newDev.screenshot;
+                    img.classList.remove('wall-img-hidden');
+                    img.classList.add('grayscale');
+                    img.style.display = 'block';
+                    img.style.opacity = '1';
+                  }
+                } else if (newDev.online === true) {
+                  // 设备在线
+                  cell.classList.remove('offline');
+                  if (badge) badge.style.display = 'none';
+                  // 创建 UU 按钮（如果有 uuDeviceId）
+                  if (newDev.uuDeviceId && !uuBtn) {
+                    var newUuBtn = document.createElement('button');
+                    newUuBtn.className = 'uu-float-btn';
+                    newUuBtn.onclick = function(e) { e.stopPropagation(); openUU(newDev.uuDeviceId); };
+                    newUuBtn.textContent = '🖱️ UU远程';
+                    cell.appendChild(newUuBtn);
+                  }
+                }
+              }
             }
           }
         });
