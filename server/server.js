@@ -209,10 +209,12 @@ async function cropFrame(frameBuffer, compressedWidth, compressedHeight, targetW
 
 // ========== Step 3: 视口懒加载 - 按布局裁剪函数 ==========
 async function cropToLayout(frameBuffer, level, targetW, targetH) {
-  // 监控墙：使用 cover 填充目标尺寸，保持比例，裁剪多余部分
-  // 这样可以避免不同分辨率设备帧尺寸变化导致的闪烁
+  // 整帧等比缩放（不裁剪）
+  // 原理：压缩帧水平压缩 2/3，fit:fill 两个方向独立缩放，
+  // 宽缩放因子 (targetW/compressedW) 是高缩放因子 (targetH/compressedH) 的 1.5 倍，
+  // 恰好抵消水平压缩，输出 16:9 画面色彩正确，CSS object-fit:cover 完美填充格子
   return sharp(frameBuffer)
-    .resize(targetW, targetH, { fit: 'cover', position: 'center' })
+    .resize(targetW, targetH, { fit: 'fill' })
     .webp({ quality: 30 })
     .toBuffer();
 }

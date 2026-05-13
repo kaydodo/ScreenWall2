@@ -33,7 +33,7 @@ html, body {
   min-height: 0;
   cursor: pointer;
 }
-/* 监控墙格子图像：使用 cover 填充格子，避免留黑闪烁 */
+/* 监控墙格子图像：contain 保持比例，强制居中 */
 .wall-cell .img-wrapper {
   position: absolute;
   top: 0; left: 0; right: 0; bottom: 0;
@@ -42,7 +42,8 @@ html, body {
 .wall-cell .img-wrapper img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  object-position: center;
   background: #000;
 }
 .wall-cell.empty {
