@@ -750,6 +750,12 @@ function connectWS() {
         var vEl = document.getElementById('topbarVersion');
         if (vEl) vEl.textContent = 'v' + msg.serverVersion;
       }
+      // 保存之前的设备在线状态（用于服务端重启后保持状态）
+      const prevOnlineStatus = new Map();
+      devices.forEach(function(d) {
+        prevOnlineStatus.set(d.deviceId, d.online);
+      });
+      
       devices = msg.devices || [];
       if (msg.groups) {
         groups = msg.groups;
@@ -796,11 +802,21 @@ function connectWS() {
       if (msg.cells) {
         gridCells = msg.cells;
       }
-      // 同步在线状态到 gridCells（从 devices 数组获取最新状态）
+      // 同步在线状态到 gridCells（服务端重启后保持之前的在线状态）
       gridCells.forEach(c => {
         if (c && c.deviceId) {
           const dev = devices.find(d => d.deviceId === c.deviceId);
-          if (dev) { c.online = dev.online; c.deviceName = dev.deviceName; if (!dev.online) frameHealCount.delete(c.deviceId); }
+          if (dev) {
+            // 如果服务端说离线，但之前是在线的，保持在线状态（等设备客户端重连）
+            if (dev.online === false && prevOnlineStatus.get(c.deviceId) === true) {
+              dev.online = true;
+              c.online = true;
+            } else {
+              c.online = dev.online;
+            }
+            c.deviceName = dev.deviceName;
+            if (!dev.online) frameHealCount.delete(c.deviceId);
+          }
           else { c.online = false; frameHealCount.delete(c.deviceId); }
         }
       });
@@ -1293,6 +1309,8 @@ function connectWS() {
       latencyEl.textContent = '离线';
       latencyEl.style.color = '#f87171';  // 红色
     }
+    // 服务器断开时，保持设备状态不变，等重连后服务端会发送最新状态
+    // 不再将设备标记为离线
     reconnectTimer = setTimeout(connectWS, 3000);
   };
 

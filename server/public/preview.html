@@ -1070,25 +1070,22 @@ function connectWebSocket() {
             }
           }
           // 同步更新当前设备的在线状态
+          // 如果服务端说在线，则更新为在线
           if (sd.deviceId === deviceId && sd.online && !isOnline) {
             setOnline();
           }
+          // 如果服务端说离线，但之前是在线的，保持在线状态（等设备客户端重连）
+          // 不处理，保持当前状态
         });
       }
 
       if (msg.type === 'devicePreviewStatus' && msg.deviceId === deviceId) {
-        if (msg.status === 'offline' || msg.status === 'deleted') {
-          if (isOnline) {
-            setOffline(msg.status);
-            var offlineFrame = msg.screenshot || screenshot;
-            if (offlineFrame) {
-              var pi3 = document.getElementById('previewImg');
-              if (pi3) { pi3.src = offlineFrame; pi3.style.display = 'block'; pi3.style.visibility = 'visible'; }
-            }
-          }
-        } else if (msg.status === 'online') {
+        // 只有当服务端明确说在线时才更新为在线
+        if (msg.status === 'online') {
           if (!isOnline) setOnline();
         }
+        // 服务端说离线或删除时，保持当前状态（等设备客户端重连）
+        // 不再主动设置为离线
       }
 
       if (msg.type === 'keyboardState' && msg.deviceId === deviceId) {
