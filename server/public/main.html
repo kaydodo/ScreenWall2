@@ -667,28 +667,41 @@ function connectWS() {
           if (frameType === 0x10) {
             const ci = Array.isArray(gridCells) ? gridCells.findIndex(c => c && c.deviceId === devId) : -1;
             const el = ci >= 0 ? document.getElementById('img_' + ci) : null;
-            if (el) {
-              if (el._blobUrl) URL.revokeObjectURL(el._blobUrl);
-              el.src = blobUrl; el._blobUrl = blobUrl;
-              el.style.display = 'block';
-              const ns = document.getElementById('ns_' + ci);
-              if (ns) ns.style.display = 'none';
-              // 自愈：收到帧时累加计数，达到阈值才恢复在线
-              if (gridCells[ci] && !gridCells[ci].online) {
-                if (!frameHealCount.has(devId)) frameHealCount.set(devId, 0);
-                frameHealCount.set(devId, frameHealCount.get(devId) + 1);
-                if (frameHealCount.get(devId) >= FRAME_HEAL_THRESHOLD) {
-                  gridCells[ci].online = true;
-                  // 移除离线灰度样式、隐藏离线标签、恢复UU按钮
+            // 自愈：收到帧时累加计数，达到阈值才恢复在线
+            if (gridCells[ci] && !gridCells[ci].online) {
+              if (!frameHealCount.has(devId)) frameHealCount.set(devId, 0);
+              frameHealCount.set(devId, frameHealCount.get(devId) + 1);
+              if (frameHealCount.get(devId) >= FRAME_HEAL_THRESHOLD) {
+                gridCells[ci].online = true;
+                // 达到阈值后才更新画面并移除离线样式
+                if (el) {
+                  if (el._blobUrl) URL.revokeObjectURL(el._blobUrl);
+                  el.src = blobUrl; el._blobUrl = blobUrl;
+                  el.style.display = 'block';
                   el.classList.remove('grayscale');
-                  const healCellEl = document.querySelector(`.wall-cell[data-index="${ci}"]`);
-                  if (healCellEl) healCellEl.classList.remove('offline-cell');
-                  const healOfflineLabel = document.getElementById(`offline_${ci}`);
-                  if (healOfflineLabel) healOfflineLabel.style.display = 'none';
-                  const healUubtn = document.getElementById(`uubtn_${ci}`);
-                  if (healUubtn) healUubtn.style.display = 'flex';
-                  updateCellElement(ci);
+                  const ns = document.getElementById('ns_' + ci);
+                  if (ns) ns.style.display = 'none';
                 }
+                // 移除离线灰度样式、隐藏离线标签、恢复UU按钮
+                const healCellEl = document.querySelector(`.wall-cell[data-index="${ci}"]`);
+                if (healCellEl) healCellEl.classList.remove('offline-cell');
+                const healOfflineLabel = document.getElementById(`offline_${ci}`);
+                if (healOfflineLabel) healOfflineLabel.style.display = 'none';
+                const healUubtn = document.getElementById(`uubtn_${ci}`);
+                if (healUubtn) healUubtn.style.display = 'flex';
+                updateCellElement(ci);
+              } else {
+                // 未达到阈值，不更新画面，释放 blobUrl
+                URL.revokeObjectURL(blobUrl);
+              }
+            } else {
+              // 在线设备正常更新画面
+              if (el) {
+                if (el._blobUrl) URL.revokeObjectURL(el._blobUrl);
+                el.src = blobUrl; el._blobUrl = blobUrl;
+                el.style.display = 'block';
+                const ns = document.getElementById('ns_' + ci);
+                if (ns) ns.style.display = 'none';
               }
             }
             // 同时更新监控设置弹窗中的预览图
