@@ -1544,8 +1544,7 @@ function getDeviceListPayload() {
 }
 
 function getGridPayload(gridSize) {
-  // 统一存储：所有布局共用同一套 01-100 格子，gridSize 只影响显示列数
-  const total = 100;
+  const total = 200;
   const cells = [];
   for (let i = 0; i < total; i++) {
     const deviceId = gridLayout[i] || null;
