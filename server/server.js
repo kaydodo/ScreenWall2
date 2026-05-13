@@ -406,21 +406,20 @@ async function _flushWallBatch() {
       const layout = wallLayouts.get(wallWs);
       if (layout) {
         // 监控墙：每个格子是不同设备的完整画面，只需 resize，不需要裁剪
-        for (let row = 0; row < layout.rows; row++) {
-          for (let col = 0; col < layout.cols; col++) {
-            const deviceId = layout.deviceIds[row * layout.cols + col];
-            if (!deviceId) continue;
-            
-            const data = _wallBatch.get(deviceId);
-            if (!data || !data.buffer) continue;
-            
-            try {
-              const resizedBuffer = await cropToLayout(data.buffer, 0, layout.cellW, layout.cellH);
-              sendBinaryScreenshot(wallWs, 0x10, deviceId, resizedBuffer, layout.cellW, layout.cellH, false);
-            } catch(e) {
-              serverLog('[wallResize] 缩放失败 deviceId=' + deviceId + ': ' + e.message);
-              continue;
-            }
+        // 直接按 deviceIds 顺序遍历，不做行列索引
+        for (let i = 0; i < layout.deviceIds.length; i++) {
+          const deviceId = layout.deviceIds[i];
+          if (!deviceId) continue;
+          
+          const data = _wallBatch.get(deviceId);
+          if (!data || !data.buffer) continue;
+          
+          try {
+            const resizedBuffer = await cropToLayout(data.buffer, 0, layout.cellW, layout.cellH);
+            sendBinaryScreenshot(wallWs, 0x10, deviceId, resizedBuffer, layout.cellW, layout.cellH, false);
+          } catch(e) {
+            serverLog('[wallResize] 缩放失败 deviceId=' + deviceId + ': ' + e.message);
+            continue;
           }
         }
       } else {

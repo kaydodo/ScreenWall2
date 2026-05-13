@@ -804,7 +804,7 @@ function connectWebSocket() {
             if (newDev.deviceName) {
               devices[newDev.deviceId].name = newDev.deviceName;
             }
-            if (newDev.screenshot !== undefined) {
+            if (newDev.screenshot) {
               devices[newDev.deviceId].screenshot = newDev.screenshot;
             }
             if (newDev.uuDeviceId !== undefined) {
@@ -1160,6 +1160,11 @@ document.getElementById('wallPreviewOverlay').onclick = (e) => {
 
 window.addEventListener('message', function(e) {
   if (e.data && e.data.type === 'previewClose') wallClosePreview();
+  if (e.data && e.data.type === 'previewOnline' && e.data.deviceId) {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'setLevel', deviceId: e.data.deviceId, level: 2 }));
+    }
+  }
 });
 
 function wallGetClickPos(e) {
@@ -1474,7 +1479,7 @@ function handleWallStateUpdate(data) {
       if (sd.supportsKeyClient !== undefined) {
         devices[sd.deviceId].supportsKeyClient = sd.supportsKeyClient;
       }
-      if (sd.screenshot !== undefined) {
+      if (sd.screenshot) {
         devices[sd.deviceId].screenshot = sd.screenshot;
       }
     }
