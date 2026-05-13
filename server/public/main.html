@@ -437,7 +437,7 @@
 loadServerConfig();
 
 // Blob URL 系统：避免 base64 每帧解码导致位图缓存堆积
-// Map<cellIndex, { blobUrl: string, md5: string, timestamp: number }>
+// Map<cellIndex, { blobUrl: string, timestamp: number }>
 const _cellBlobs = new Map();
 
 // 自愈帧计数：deviceId -> 收到的新鲜帧数量（超过阈值才算真正在线）
@@ -1717,18 +1717,7 @@ function updateCellScreenshot(index, imgData) {
   }
 
   // 在线设备：Blob URL 方案
-  // 计算 md5 判断内容是否变化
-  let md5 = '';
-  try {
-    md5 = btoa(imgData.slice(-32, -1)).slice(0, 16); // 用末尾32字符作为近似md5（性能优先）
-  } catch(e) { md5 = imgData.slice(0, 32); }
-
   const existing = _cellBlobs.get(index);
-  if (existing && existing.md5 === md5) {
-    // 内容未变，引用同一个 blob URL，跳过 DOM 更新
-    return;
-  }
-
   // 内容变化：先释放旧 blob URL，再创建新的
   if (existing) {
     try { URL.revokeObjectURL(existing.blobUrl); } catch(e) {}
@@ -1737,7 +1726,7 @@ function updateCellScreenshot(index, imgData) {
   try {
     const blob = base64ToBlob(imgData, 'image/webp');
     const blobUrl = URL.createObjectURL(blob);
-    _cellBlobs.set(index, { blobUrl, md5, timestamp: Date.now() });
+    _cellBlobs.set(index, { blobUrl, timestamp: Date.now() });
     img.src = blobUrl;
     img.style.display = 'block';
     img.classList.remove('grayscale');
@@ -2240,12 +2229,23 @@ function openPreview(cellIndex) {
   const dev = devices.find(d => d.deviceId === cell.deviceId);
   previewDeviceId = cell.deviceId;
   previewActive = true;
+  // 获取当前格子的截图（优先使用 blob URL 对应的截图，否则使用设备截图）
+  var currentScreenshot = null;
+  const img = document.getElementById(`img_${cellIndex}`);
+  if (img && img.src && img.src.startsWith('blob:')) {
+    // blob URL 无法传递给 iframe，使用设备截图
+    currentScreenshot = dev ? (dev.hdScreenshot || dev.screenshot) : null;
+  } else if (img && img.src && img.src.startsWith('data:')) {
+    currentScreenshot = img.src;
+  } else {
+    currentScreenshot = dev ? (dev.hdScreenshot || dev.screenshot) : null;
+  }
   var initData = {
     mode: 'normal',
     deviceId: cell.deviceId,
     deviceName: cell.deviceName || (dev && dev.deviceName) || '未知',
     online: dev ? dev.online : false,
-    screenshot: null,
+    screenshot: currentScreenshot,
     supportsKeyClient: dev ? dev.supportsKeyClient : false,
     uuDeviceId: (dev && dev.uuDeviceId) || cell.uuDeviceId || null,
     monitorCount: dev ? (dev.monitorCount || 1) : 1,

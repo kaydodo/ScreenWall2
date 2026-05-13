@@ -2365,7 +2365,8 @@ wssClient.on('connection', (ws, req) => {
         broadcastToBrowsers({ type: 'deviceList', devices: getDeviceListPayload() });
         // 广播设备预览状态变更（让所有浏览器刷新预览大图），带上最新截图避免批次延迟问题
         broadcastToBrowsers({ type: 'devicePreviewStatus', deviceId, status: 'offline', screenshot: dev.screenshot || null });
-        notifyWallClients('deviceOffline', { deviceId });
+        // 通知监控墙设备离线，带上截图
+        notifyWallClients('deviceOffline', { deviceId, screenshot: dev.screenshot || null, supportsKeyClient: dev.supportsKeyClient || false });
         updateCollectionsDeviceStatus(deviceId, {});
       }
     } catch (err) {

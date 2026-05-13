@@ -1465,10 +1465,16 @@ function handleWallStateUpdate(data) {
 
   if (eventType === 'deviceOffline') {
     var deviceId = data.deviceId;
+    // 优先使用服务器发送的截图，否则使用本地缓存
+    var offlineScreenshot = data.screenshot || (devices[deviceId] ? devices[deviceId].screenshot : null);
     if (devices[deviceId]) {
       devices[deviceId].online = false;
       if (data.supportsKeyClient !== undefined) {
         devices[deviceId].supportsKeyClient = data.supportsKeyClient;
+      }
+      // 更新本地截图缓存
+      if (offlineScreenshot) {
+        devices[deviceId].screenshot = offlineScreenshot;
       }
     }
     var cell = findCellByDeviceId(deviceId);
@@ -1481,9 +1487,8 @@ function handleWallStateUpdate(data) {
       // 离线显示静态图
       var img = document.getElementById('img_' + deviceId);
       if (img) {
-        var dev = devices[deviceId];
-        if (dev && dev.screenshot) {
-          img.src = dev.screenshot;
+        if (offlineScreenshot) {
+          img.src = offlineScreenshot;
         }
         img.style.display = 'block';
         img.classList.add('grayscale');
@@ -1492,9 +1497,8 @@ function handleWallStateUpdate(data) {
     // 如果正在预览该设备，更新预览状态
     if (wallPreviewDeviceId === deviceId) {
       var previewImg = document.getElementById('wallPreviewImg');
-      var dev = devices[deviceId];
-      if (previewImg && dev && dev.screenshot) {
-        previewImg.src = dev.screenshot;
+      if (previewImg && offlineScreenshot) {
+        previewImg.src = offlineScreenshot;
         previewImg.style.display = 'block';
         previewImg.style.visibility = 'visible';
       }
