@@ -2054,21 +2054,8 @@ wssClient.on('connection', (ws, req) => {
           }
         }
 
-        // 注：移除 667ms 延迟检查，因为客户端时间戳与服务端不同步会导致误判
-        // 帧缓存去重（MD5）已经能保证不重复渲染相同内容
-
-        // MJPEG 帧缓冲区更新已禁用（新架构使用 WebSocket 三通道推送）
-
-        // ===== JSON 截图只用于收藏截图，不推送实时流（二进制帧负责实时流）=====
-        // 更新设备离线图（用于设备离线时显示）
-        // 统一存储为 Buffer，与其他路径保持一致
-        if (msg.image) {
-          const base64Data = msg.image.replace(/^data:image\/\w+;base64,/, '');
-          dev.screenshot = Buffer.from(base64Data, 'base64');
-        }
-
-        // JSON 帧只处理收藏截图，不推送到 _browserBatch/_wallBatch/previewClients
-        // 实时流由二进制帧负责，避免冲突
+        // JSON screenshot 只用于收藏截图（有 collectionTimestamp）
+        // 不更新 dev.screenshot，离线图由二进制帧负责
       }
     }
 
@@ -2114,13 +2101,6 @@ wssClient.on('connection', (ws, req) => {
           dev.screenHeight = msg.screenHeight;
         }
         
-        // 心跳截图存储（供离线设备显示静态图，不再推流到监控墙——二进制流已覆盖）
-        // 统一存储为 Buffer，与其他路径保持一致
-        if (msg.screenshot) {
-          const base64Data = msg.screenshot.replace(/^data:image\/\w+;base64,/, '');
-          dev.screenshot = Buffer.from(base64Data, 'base64');
-        }
-
         // 心跳响应：告诉客户端是否有新版本（只在有升级时打日志）
         const clientVersion = dev.version || '0.0.0';
         const [cMajor, cMinor, cPatch] = clientVersion.split('.').map(Number);
