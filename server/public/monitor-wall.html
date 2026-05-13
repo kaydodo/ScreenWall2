@@ -718,8 +718,10 @@ function connectWebSocket() {
           const blobUrl = URL.createObjectURL(blob);
 
           // ★ 预览激活时停止格子渲染（和主页面一样）★★★
-          if (!wallPreviewActive) {
-            // 正常渲染格子
+          // ★ 设备离线时也停止格子渲染，避免覆盖离线图 ★★★
+          const dev = devices[devId];
+          if (!wallPreviewActive && (!dev || dev.online !== false)) {
+            // 正常渲染格子（仅当设备在线时）
             const el = document.getElementById('img_' + devId);
             if (el) {
               if (el._blobUrl) URL.revokeObjectURL(el._blobUrl);
@@ -734,12 +736,11 @@ function connectWebSocket() {
               if (tsEl) tsEl.textContent = formatDate(new Date());
             }
           } else {
-            // 预览模式：不更新格子，但仍释放 blobUrl 防内存泄漏
+            // 预览模式 或 设备离线：不更新格子，但仍释放 blobUrl 防内存泄漏
             URL.revokeObjectURL(blobUrl);
           }
 
           // 自愈：收到帧累加计数，达到阈值才恢复离线（预览模式下也需要自愈）
-          var dev = devices[devId];
           if (dev && !dev.online) {
             if (!frameHealCount.has(devId)) frameHealCount.set(devId, 0);
             frameHealCount.set(devId, frameHealCount.get(devId) + 1);
@@ -1101,7 +1102,7 @@ function wallOpenPreview(deviceId) {
     deviceId: deviceId,
     deviceName: dev.name || '未知',
     online: dev.online,
-    screenshot: null,
+    screenshot: dev.screenshot || null,
     supportsKeyClient: dev.supportsKeyClient || false,
     uuDeviceId: dev.uuDeviceId || null,
     monitorCount: dev.monitorCount || 1,
@@ -1131,9 +1132,25 @@ function wallClosePreview() {
   iframe.src = 'about:blank';
   var floatingClose = document.getElementById('wallPreviewFloatingClose');
   if (floatingClose) floatingClose.style.display = 'none';
+  var devId = wallPreviewDeviceId;
   wallPreviewActive = false;
   wallPreviewActive1080 = false;
   wallPreviewDeviceId = null;
+
+  // 关闭预览后，检查设备是否离线，若是则重新显示离线图
+  var dev = devices[devId];
+  if (dev && dev.online === false) {
+    var cell = findCellByDeviceId(devId);
+    if (cell) {
+      var img = document.getElementById('img_' + devId);
+      if (img && dev.screenshot) {
+        img.src = dev.screenshot;
+        img.style.display = 'block';
+        img.classList.add('grayscale');
+        img.style.opacity = '1';
+      }
+    }
+  }
 }
 
 // 监控墙预览浮层点击关闭
