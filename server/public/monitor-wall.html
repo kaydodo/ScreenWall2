@@ -683,10 +683,9 @@ function connectWebSocket() {
     var cols = cfg ? cfg.cols : Math.sqrt(wallData.layout);
     
     // 计算单个格子的目标尺寸
-    // 原始帧 1280x720，横向压缩 2/3 后为 853x720
-    // 然后根据布局计算每个格子的尺寸
-    var cellW = Math.floor(853 / cols);
-    var cellH = Math.floor(720 / rows);
+    // 原始帧 1280x720，乘以2后除以布局数
+    var cellW = Math.floor((1280 * 2) / cols);
+    var cellH = Math.floor((720 * 2) / rows);
     
     // 连接成功，请求高清截图并上报布局信息
     ws.send(JSON.stringify({
