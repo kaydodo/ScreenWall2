@@ -406,8 +406,9 @@ async function _flushWallBatch() {
               sendBinaryScreenshot(wallWs, 0x10, deviceId, croppedBuffer, layout.cellW, layout.cellH, false);
             } catch(e) {
               // 裁剪失败，按布局 cell 尺寸标记 header，避免宽高比不一致导致黑边闪烁
-              log('error', '[cropFrame] 裁剪失败 deviceId=' + deviceId + ': ' + e.message);
-              sendBinaryScreenshot(wallWs, 0x10, deviceId, data.buffer, layout.cellW, layout.cellH, false);
+              serverLog('[cropFrame] 裁剪失败 deviceId=' + deviceId + ': ' + e.message);
+              // 裁剪失败时跳过此设备，下一批次重试（不发送错误比例的帧）
+              continue;
             }
           }
         }
@@ -418,7 +419,7 @@ async function _flushWallBatch() {
         }
       }
     }
-  } catch(e) { log('error', 'wall二进制批量推送失败:', e.message); }
+  } catch(e) { serverLog('[wallBatch] 批量推送失败:', e.message); }
   _wallBatch.clear();
   _wallFlushing = false;
 }
@@ -481,7 +482,7 @@ async function _flushBrowserBatch() {
         }
       }
     }
-  } catch(e) { log('error', '二进制批量推送失败:', e.message); }
+  } catch(e) { serverLog('[browserBatch] 批量推送失败:', e.message); }
   _browserBatch.clear();
   _browserFlushing = false;
 }

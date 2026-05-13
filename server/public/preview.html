@@ -974,6 +974,7 @@ function connectWebSocket() {
           allDevices[d.deviceId] = {
             name: d.deviceName || d.deviceId,
             online: d.online,
+            screenshot: d.screenshot || null,
             supportsKeyClient: d.supportsKeyClient || false,
             uuDeviceId: d.uuDeviceId || null,
             version: d.version || '',
