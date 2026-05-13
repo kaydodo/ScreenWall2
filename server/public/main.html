@@ -1219,12 +1219,13 @@ function connectWS() {
     if (msg.type === 'grid') {
       // 格子信息完全从服务器获取
       gridCells = msg.cells;
-      // 同步在线状态到 devices 数组
+      // 从 devices 数组同步在线状态到 gridCells（而不是反过来）
       gridCells.forEach(function(c) {
         if (c && c.deviceId) {
           var dev = devices.find(function(d) { return d.deviceId === c.deviceId; });
-          if (dev && c.online !== undefined) {
-            dev.online = c.online;
+          if (dev) {
+            c.online = dev.online;
+            c.deviceName = dev.deviceName;
           }
         }
       });
