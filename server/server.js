@@ -1959,16 +1959,15 @@ wssClient.on('connection', (ws, req) => {
       broadcastToBrowsers({ type: 'collectionsUpdate', collections: _migCollectionsArr });
       broadcastToBrowsers({ type: 'favorites', favorites });
 
-      // 如果设备在监控墙上（之前被订阅过），自动恢复高清流
-      if (wallDevices.has(deviceId)) {
-        ws.send(JSON.stringify({ type: 'startHQ' }));
-      }
-
-      // 检查是否有浏览器正在预览该设备，如果有则自动恢复高清流
-      for (const [browserWs, previewDevices] of browserPreviewHD) {
-        if (previewDevices.has(deviceId)) {
-          ws.send(JSON.stringify({ type: 'startHQ' }));
-          break;
+      // 设备上线时，根据 deviceSubscribers 中保存的订阅关系恢复正确的 level
+      if (deviceSubscribers.has(deviceId)) {
+        const subs = deviceSubscribers.get(deviceId);
+        let maxLevel = 0;
+        for (const level of subs.values()) {
+          if (level > maxLevel) maxLevel = level;
+        }
+        if (maxLevel > 0) {
+          notifyDeviceLevel(deviceId, maxLevel);
         }
       }
 
