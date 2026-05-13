@@ -1088,32 +1088,6 @@ function connectWebSocket() {
         if (!supportsKeyClient && keyboardOpen) closeKeyboard();
         _pendingRemoteState = null;
       }
-
-      if ((msg.type === 'previewScreenshot' || msg.type === 'browserScreenshot') && msg.deviceId === deviceId && msg.image) {
-        if (!isOnline) {
-          frameHealCount++;
-          if (frameHealCount >= FRAME_HEAL_THRESHOLD) {
-            isOnline = true;
-            setOnline();
-            var previewImg3 = document.getElementById('previewImg');
-            if (previewImg3) {
-              previewImg3.src = msg.image;
-              previewImg3.style.display = 'block';
-              previewImg3.style.visibility = 'visible';
-              previewImg3.style.opacity = '1';
-            }
-          }
-        } else {
-          var previewImg3 = document.getElementById('previewImg');
-          if (previewImg3) {
-            previewImg3.src = msg.image;
-            previewImg3.style.display = 'block';
-            previewImg3.style.visibility = 'visible';
-            previewImg3.style.opacity = '1';
-          }
-        }
-        if (msg.screenWidth && msg.screenHeight) { screenWidth = msg.screenWidth; screenHeight = msg.screenHeight; }
-      }
     } catch(err) {}
   };
 }

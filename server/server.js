@@ -484,8 +484,11 @@ async function _flushBrowserBatch() {
         }
       } else {
         // 无视口信息，使用旧逻辑发送所有帧
-        for (const [deviceId, data] of _browserBatch) {
-          if (data.buffer) sendBinaryScreenshot(browserWs, 0x10, deviceId, data.buffer, data.screenWidth || 0, data.screenHeight || 0, data.isHQ || false);
+        // 但跳过预览客户端（它们已通过 previewClients 直接收到帧）
+        if (!previewClients.has(browserWs)) {
+          for (const [deviceId, data] of _browserBatch) {
+            if (data.buffer) sendBinaryScreenshot(browserWs, 0x10, deviceId, data.buffer, data.screenWidth || 0, data.screenHeight || 0, data.isHQ || false);
+          }
         }
       }
     }

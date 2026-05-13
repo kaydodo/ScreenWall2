@@ -908,31 +908,6 @@ function connectWebSocket() {
           }
         }
       }
-
-      // previewScreenshot 和 browserScreenshot JSON 消息也更新预览弹窗
-      if ((data.type === 'previewScreenshot' || data.type === 'browserScreenshot') && data.deviceId && data.image) {
-        if (wallPreviewDeviceId === data.deviceId && devices[data.deviceId] && devices[data.deviceId].online) {
-          var previewImg = document.getElementById('wallPreviewImg');
-          if (previewImg) {
-            var blob = base64ToBlob(data.image);
-            if (blob) {
-              var blobUrl = URL.createObjectURL(blob);
-              if (previewImg._blobUrl) URL.revokeObjectURL(previewImg._blobUrl);
-              previewImg.src = blobUrl;
-              previewImg._blobUrl = blobUrl;
-              previewImg.style.display = 'block';
-              previewImg.style.visibility = 'visible';
-              previewImg.classList.remove('grayscale');
-              var watermark = document.getElementById('wallPreviewOfflineWatermark');
-              if (watermark) watermark.style.display = 'none';
-            }
-          }
-        }
-        if (data.screenWidth && data.screenHeight) {
-          wallPreviewScreenWidth = data.screenWidth;
-          wallPreviewScreenHeight = data.screenHeight;
-        }
-      }
     } catch(err) {
       // console.error('Parse error:', err);
     }
