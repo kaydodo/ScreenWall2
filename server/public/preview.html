@@ -917,9 +917,8 @@ function connectWebSocket() {
 
   ws.onopen = function() {
     ws.send(JSON.stringify({ type: 'subscribePreview', deviceId: deviceId }));
-    // 只有非监控墙预览才在这里发送 setLevel
-    // 监控墙预览由 setOnline 函数通过 postMessage 通知父页面发送
-    if (isOnline && !fromWall) {
+    // 重连后恢复 L2 流（无论是否 fromWall）
+    if (isOnline) {
       ws.send(JSON.stringify({ type: 'setLevel', deviceId: deviceId, level: 2 }));
     }
   };
