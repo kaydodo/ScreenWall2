@@ -2260,17 +2260,8 @@ function openPreview(cellIndex) {
   const dev = devices.find(d => d.deviceId === cell.deviceId);
   previewDeviceId = cell.deviceId;
   previewActive = true;
-  // 获取当前格子的截图（优先使用 blob URL 对应的截图，否则使用设备截图）
-  var currentScreenshot = null;
-  const img = document.getElementById(`img_${cellIndex}`);
-  if (img && img.src && img.src.startsWith('blob:')) {
-    // blob URL 无法传递给 iframe，使用设备截图
-    currentScreenshot = dev ? (dev.hdScreenshot || dev.screenshot) : null;
-  } else if (img && img.src && img.src.startsWith('data:')) {
-    currentScreenshot = img.src;
-  } else {
-    currentScreenshot = dev ? (dev.hdScreenshot || dev.screenshot) : null;
-  }
+  // 获取当前格子的截图
+  var currentScreenshot = dev ? dev.screenshot : null;
   var initData = {
     mode: 'normal',
     deviceId: cell.deviceId,
