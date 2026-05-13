@@ -2072,7 +2072,11 @@ wssClient.on('connection', (ws, req) => {
 
         // ===== JSON 截图只用于收藏截图，不推送实时流（二进制帧负责实时流）=====
         // 更新设备离线图（用于设备离线时显示）
-        dev.screenshot = msg.image;
+        // 统一存储为 Buffer，与其他路径保持一致
+        if (msg.image) {
+          const base64Data = msg.image.replace(/^data:image\/\w+;base64,/, '');
+          dev.screenshot = Buffer.from(base64Data, 'base64');
+        }
 
         // JSON 帧只处理收藏截图，不推送到 _browserBatch/_wallBatch/previewClients
         // 实时流由二进制帧负责，避免冲突
@@ -2122,10 +2126,10 @@ wssClient.on('connection', (ws, req) => {
         }
         
         // 心跳截图存储（供离线设备显示静态图，不再推流到监控墙——二进制流已覆盖）
-        const heartbeatScreenshot = msg.screenshot;
-        const latestScreenshot = heartbeatScreenshot || dev.screenshot;
-        if (latestScreenshot) {
-          dev.screenshot = latestScreenshot;
+        // 统一存储为 Buffer，与其他路径保持一致
+        if (msg.screenshot) {
+          const base64Data = msg.screenshot.replace(/^data:image\/\w+;base64,/, '');
+          dev.screenshot = Buffer.from(base64Data, 'base64');
         }
 
         // 心跳响应：告诉客户端是否有新版本（只在有升级时打日志）
@@ -3369,22 +3373,6 @@ wssBrowser.on('connection', (ws) => {
       
       // 记录会话信息用于后续识别重新连接
       _wallBrowserSessions.set(deviceFingerprint, { ws, devices: new Set(newDevices), hdDevices: new Set(newHDChannels) });
-      
-      // 【修复】立即推送所有设备的最新截图给监控墙（监控上墙无画面问题）
-      for (const deviceId of deviceList) {
-        const dev = devices.get(deviceId);
-        if (dev) {
-          const latestScreenshot = dev.screenshot;
-          if (latestScreenshot) {
-            ws.send(JSON.stringify({
-              type: 'wallScreenshot',
-              deviceId: deviceId,
-              screenshot: latestScreenshot,
-              timestamp: Date.now()
-            }));
-          }
-        }
-      }
       
       // 返回该浏览器已上墙设备列表（仅自己）
       ws.send(JSON.stringify({ type: 'walledDevices', devices: Array.from(newDevices) }));
