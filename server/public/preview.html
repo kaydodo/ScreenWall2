@@ -1011,10 +1011,9 @@ function connectWebSocket() {
             if (d.deviceName) deviceName = d.deviceName;
             // 先更新截图，再设置在线/离线状态（setOffline需要最新截图）
             if (d.screenshot) screenshot = d.screenshot;
-            if (d.online !== undefined) {
-              if (d.online && !isOnline) setOnline();
-              else if (!d.online && isOnline) setOffline('offline');
-            }
+            // 只有当服务端说在线时才更新为在线
+            // 服务端说离线时保持当前状态（等设备客户端重连）
+            if (d.online && !isOnline) setOnline();
             if (d.uuDeviceId !== undefined) uuDeviceId = d.uuDeviceId;
             if (d.monitorCount !== undefined) monitorCount = d.monitorCount;
             if (d.monitorIndex !== undefined) monitorIndex = d.monitorIndex;
@@ -1043,16 +1042,8 @@ function connectWebSocket() {
       if (msg.type === 'wallStateUpdate') {
         var eventType = msg.eventType;
         if (msg.deviceId === deviceId) {
-          if (eventType === 'deviceOffline') {
-            if (isOnline) {
-              setOffline('offline');
-              var offlineFrame = msg.screenshot;
-              if (offlineFrame) {
-                var pi = document.getElementById('previewImg');
-                if (pi) { pi.src = offlineFrame; pi.style.display = 'block'; pi.style.visibility = 'visible'; }
-              }
-            }
-          }
+          // 只有当服务端说在线时才更新为在线
+          // 服务端说离线时保持当前状态（等设备客户端重连）
           if (eventType === 'deviceOnline') {
             if (!isOnline) setOnline();
             if (msg.supportsKeyClient !== undefined) supportsKeyClient = msg.supportsKeyClient;
