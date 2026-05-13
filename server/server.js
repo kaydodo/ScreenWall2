@@ -436,7 +436,6 @@ function _scheduleWallBatch() {
     setTimeout(_flushWallBatch, 166);
   }
 }
-const frameCache = new Map(); // deviceId -> { md5, time }
 
 // ========== browserScreenshot 批量推送（减少 Browser 进程内存压力）==========
 // 不再逐条推送，改为攒批后统一发送 screenshotBatch
@@ -502,13 +501,6 @@ function _scheduleBrowserBatch() {
     setTimeout(_flushBrowserBatch, 166); // 166ms ≈ 6fps，与客户端帧率对齐
   }
 }
-// 截图路径统计（用于诊断 JPEG 快速路径 vs sharp 慢速路径）
-let screenshotPathStats = null; // { fast, slow, lastLog }
-// deviceFrames 写入统计
-let updateFrameLogCache = null; // { last, interval }
-// 333ms内相同 MD5 的帧不重复推送（约3fps，减少重复传输）
-const FRAME_CACHE_TTL = 333;
-
 // 报警截图查重缓存（存储最近一张 640×360 截图）
 const alarmPrevCache = new Map(); // deviceId -> { md5, time }
 const GRID_PERSIST_PATH = path.join(__dirname, 'grid-layout.json');
