@@ -763,11 +763,12 @@ function connectWebSocket() {
           }
 
           // 自愈：收到帧累加计数，达到阈值才恢复离线（预览模式下也需要自愈）
-          if (dev && !dev.online) {
-            if (!frameHealCount.has(devId)) frameHealCount.set(devId, 0);
+          // 只有当帧计数存在时才累加（如果已被删除，表示设备已确认离线，不再自愈）
+          if (dev && !dev.online && frameHealCount.has(devId)) {
             frameHealCount.set(devId, frameHealCount.get(devId) + 1);
             if (frameHealCount.get(devId) >= WALL_FRAME_HEAL_THRESHOLD) {
               dev.online = true;
+              frameHealCount.delete(devId);  // 清除帧计数
               var cell = document.querySelector('.wall-cell[data-device-id="' + devId + '"]') || findCellByDeviceId(devId);
               if (cell) {
                 cell.classList.remove('offline');
