@@ -1393,7 +1393,7 @@ async function processAlarmImage(deviceId, imageBuffer, deviceInfo) {
   if (dev) {
     for (const client of wssClient.clients) {
       if (client._deviceId === deviceId && client.readyState === 1) {
-        client.send(JSON.stringify({ type: 'requestAlarmFullScreenshot', alarmTimestamp: now }));
+        client.send(JSON.stringify({ type: 'requestHdScreenshot', purpose: 'alarm', timestamp: now }));
         break;
       }
     }
@@ -1976,11 +1976,15 @@ wssClient.on('connection', (ws, req) => {
       ws.send(JSON.stringify({ type: 'deviceNameSync', deviceName: newDev.deviceName }));
     }
 
-    // 收藏截图（独立消息类型）
-    if (msg.type === 'collectionScreenshot' && msg.deviceId && msg.image) {
+    // 高清截图（统一消息类型，根据 purpose 分发）
+    if (msg.type === 'hdScreenshot' && msg.deviceId && msg.image) {
       const dev = devices.get(msg.deviceId);
-      if (dev) {
-        const { timestamp, deviceId, image } = msg;
+      if (!dev) return;
+      
+      const { purpose, timestamp, deviceId, image } = msg;
+      
+      if (purpose === 'collection') {
+        // 收藏截图
         const fav = favorites.find(f => f.deviceId === deviceId);
         if (!fav) {
           serverLog(`[收藏] 收到未收藏设备 ${deviceId} 的截图，忽略`);
@@ -2028,6 +2032,36 @@ wssClient.on('connection', (ws, req) => {
               broadcastToBrowsers({ type: 'collectionsUpdate', collections: collectionsArr });
             } catch (e) {}
           })();
+        }
+      } else if (purpose === 'alarm') {
+        // 高清报警截图
+        const imageData = image;
+        let matchedRecord = alarmRecords.find(r =>
+          r.deviceId === deviceId && r.timestamp === timestamp
+        );
+        
+        if (matchedRecord) {
+          const imgBuffer = Buffer.from(imageData.replace(/^data:image\/\w+;base64,/, ''), 'base64');
+          fs.writeFileSync(matchedRecord.screenshotPath, imgBuffer);
+          matchedRecord.isFullScreenshot = true;
+          serverLog(`[报警] ${matchedRecord.deviceName} 1080P截图已保存`);
+        } else {
+          matchedRecord = alarmRecords.find(r =>
+            r.deviceId === deviceId && !r.isFullScreenshot
+          );
+          
+          if (matchedRecord) {
+            const imgBuffer = Buffer.from(imageData.replace(/^data:image\/\w+;base64,/, ''), 'base64');
+            fs.writeFileSync(matchedRecord.screenshotPath, imgBuffer);
+            matchedRecord.isFullScreenshot = true;
+            serverLog(`[报警] ${matchedRecord.deviceName} 1080P截图已保存（延迟到达）`);
+          } else {
+            const screenshotId = crypto.randomUUID();
+            const screenshotPath = path.join(ALARM_SCREENSHOTS_DIR, `${screenshotId}.png`);
+            const imgBuffer = Buffer.from(imageData.replace(/^data:image\/\w+;base64,/, ''), 'base64');
+            fs.writeFileSync(screenshotPath, imgBuffer);
+            serverLog(`[报警] ${deviceId} 1080P截图保存失败（无匹配记录），独立保存为 ${screenshotId}.png`);
+          }
         }
       }
     }
@@ -2129,52 +2163,6 @@ wssClient.on('connection', (ws, req) => {
           uuDownloadUrl: needsInstallUU ? SERVER_CONFIG.uuDownloadUrl : undefined,
           uuFileName: needsInstallUU ? (SERVER_CONFIG.uuDownloadUrl || '').replace(/^\//, '') : undefined,
         }));
-      }
-    }
-
-    // 处理客户端返回的 1080P 报警截图（用于保存）
-    if (msg.type === 'alarmFullScreenshot' && msg.deviceId && msg.image) {
-      const alarmTimestamp = msg.alarmTimestamp;
-      const deviceId = msg.deviceId;
-      const imageData = msg.image;
-
-      // 实时同步分辨率
-      const dev = devices.get(deviceId);
-      if (dev && msg.screenWidth && msg.screenHeight) {
-        dev.screenWidth = msg.screenWidth;
-        dev.screenHeight = msg.screenHeight;
-      }
-
-      // 方法1：查找 30 秒窗口内的记录
-      let matchedRecord = alarmRecords.find(r =>
-        r.deviceId === deviceId && Math.abs(r.timestamp - alarmTimestamp) < 30000 && !r.isFullScreenshot
-      );
-
-      if (matchedRecord) {
-        // 更新报警记录的截图
-        const imgBuffer = Buffer.from(imageData.replace(/^data:image\/\w+;base64,/, ''), 'base64');
-        fs.writeFileSync(matchedRecord.screenshotPath, imgBuffer);
-        matchedRecord.isFullScreenshot = true;
-        serverLog(`[报警] ${matchedRecord.deviceName} 1080P截图已保存`);
-      } else {
-        // 方法2：查找最近一个未完成1080P的记录
-        matchedRecord = alarmRecords.find(r =>
-          r.deviceId === deviceId && !r.isFullScreenshot
-        );
-        
-        if (matchedRecord) {
-          const imgBuffer = Buffer.from(imageData.replace(/^data:image\/\w+;base64,/, ''), 'base64');
-          fs.writeFileSync(matchedRecord.screenshotPath, imgBuffer);
-          matchedRecord.isFullScreenshot = true;
-          serverLog(`[报警] ${matchedRecord.deviceName} 1080P截图已保存（延迟到达）`);
-        } else {
-          // 没有匹配到记录，保存为独立文件
-          const screenshotId = crypto.randomUUID();
-          const screenshotPath = path.join(ALARM_SCREENSHOTS_DIR, `${screenshotId}.png`);
-          const imgBuffer = Buffer.from(imageData.replace(/^data:image\/\w+;base64,/, ''), 'base64');
-          fs.writeFileSync(screenshotPath, imgBuffer);
-          serverLog(`[报警] ${deviceId} 1080P截图保存失败（无匹配记录），独立保存为 ${screenshotId}.png`);
-        }
       }
     }
 
@@ -2753,17 +2741,12 @@ wssBrowser.on('connection', (ws) => {
           }
         }
       } else if (msg.path === '/api/collections/screenshot') {
-        // 生成时间戳（不立即创建空分组，等收到截图后再创建）
         const timestamp = Date.now();
-        // 不在这里创建空分组，只发送请求给客户端
-        // 广播截图请求给所有客户端（只有被收藏的在线设备会响应）
         const favoriteDeviceIds = favorites.map(f => f.deviceId);
-        // 如果没有收藏设备，直接返回失败
         if (favoriteDeviceIds.length === 0) {
           ws.send(JSON.stringify({ ok: false, error: '没有收藏的设备' }));
           return;
         }
-        // 检查是否有在线的收藏设备
         const onlineFavoriteDeviceIds = favoriteDeviceIds.filter(deviceId => {
           for (const client of wssClient.clients) {
             if (client.readyState === 1 && client._deviceId === deviceId) {
@@ -2776,18 +2759,16 @@ wssBrowser.on('connection', (ws) => {
           ws.send(JSON.stringify({ ok: false, error: '所有收藏设备都离线' }));
           return;
         }
-        // 只发送给在线的收藏设备
         for (const client of wssClient.clients) {
           if (client.readyState === 1 && onlineFavoriteDeviceIds.includes(client._deviceId)) {
             client.send(JSON.stringify({
-              type: 'requestCollectionScreenshot',
-              timestamp,
-              deviceIds: onlineFavoriteDeviceIds
+              type: 'requestHdScreenshot',
+              purpose: 'collection',
+              timestamp
             }));
           }
         }
         ws.send(JSON.stringify({ ok: true, timestamp }));
-        // 不广播空分组，等收到截图再广播
       }
     }
 

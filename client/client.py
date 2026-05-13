@@ -2107,10 +2107,10 @@ class ScreenWallClient:
                         self.target_width = 853
                         self.target_height = 720
 
-                    elif msg_type == "requestCollectionScreenshot":
-                        device_ids = data.get("deviceIds", [])
+                    elif msg_type == "requestHdScreenshot":
+                        purpose = data.get("purpose", "collection")
                         timestamp = data.get("timestamp")
-                        if cfg["deviceId"] in device_ids and timestamp:
+                        if timestamp:
                             capt = ScreenCapturer(quality=30, resize_w=1920, resize_h=1080, monitor_index=_current_monitor_index)
                             try:
                                 img_bytes = capt.capture(hq=False, is_static=True)
@@ -2119,9 +2119,10 @@ class ScreenWallClient:
                             if img_bytes:
                                 off_x, off_y, off_w, off_h = _get_current_monitor_offset()
                                 await ws.send(json.dumps({
-                                    "type": "collectionScreenshot",
+                                    "type": "hdScreenshot",
                                     "deviceId": cfg["deviceId"],
                                     "image": "data:image/webp;base64," + base64.b64encode(img_bytes).decode("ascii"),
+                                    "purpose": purpose,
                                     "timestamp": timestamp,
                                     "screenWidth": off_w,
                                     "screenHeight": off_h,
@@ -2201,28 +2202,6 @@ class ScreenWallClient:
                         # 滚轮指令：delta > 0 上, delta < 0 下
                         delta = data.get("delta", 120)
                         self._send_mouse_to_keyclient(0, 0, action='scroll', delta=delta)
-
-                    elif msg_type == "requestAlarmFullScreenshot":
-                        # 服务端请求 1080P 报警截图
-                        try:
-                            capt = ScreenCapturer(quality=80, resize_w=1920, resize_h=1080, monitor_index=_current_monitor_index)
-                            try:
-                                full_img = capt.capture(hq=True, hq_limit=1080, is_static=True)
-                                if full_img:
-                                    alarm_full_b64 = "data:image/webp;base64," + base64.b64encode(full_img).decode("ascii")
-                                    off_x, off_y, off_w, off_h = _get_current_monitor_offset()
-                                    await ws.send(json.dumps({
-                                        "type": "alarmFullScreenshot",
-                                        "deviceId": cfg["deviceId"],
-                                        "alarmTimestamp": data.get("alarmTimestamp", 0),
-                                        "image": alarm_full_b64,
-                                        "screenWidth": off_w,
-                                        "screenHeight": off_h,
-                                    }))
-                            finally:
-                                capt.close()
-                        except Exception:
-                            pass
 
                     elif msg_type == "deviceNameSync":
                         # 服务器同步设备名到本地配置
