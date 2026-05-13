@@ -859,13 +859,14 @@ function setOffline(status) {
     watermark.textContent = status === 'deleted' ? '设备已删除' : '设备已离线';
     watermark.style.display = 'block';
   }
-  // 离线时显示保存的截图（来自initData），不只显示水印
-  if (screenshot) {
-    previewImg.src = screenshot;
-    previewImg.style.display = 'block';
-    previewImg.style.visibility = 'visible';
-  } else {
-    previewImg.style.display = 'none';
+  // 离线时显示保存的截图（来自initData或deviceList），不只显示水印
+  var pi = document.getElementById('previewImg');
+  if (screenshot && pi) {
+    pi.src = screenshot;
+    pi.style.display = 'block';
+    pi.style.visibility = 'visible';
+  } else if (pi) {
+    pi.style.display = 'none';
   }
   var uuBtn = document.getElementById('previewUUbtn');
   if (uuBtn) { uuBtn.disabled = true; uuBtn.style.opacity = '0.35'; uuBtn.style.cursor = 'not-allowed'; uuBtn.style.pointerEvents = 'none'; }
