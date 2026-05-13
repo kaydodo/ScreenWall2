@@ -879,14 +879,7 @@ function setOnline() {
   var watermark = document.getElementById('previewOfflineWatermark');
   if (watermark) watermark.style.display = 'none';
   var previewImg = document.getElementById('previewImg');
-  if (previewImg) {
-    previewImg.style.filter = '';
-    // 在线设备：隐藏图片等二进制帧到达（和监控墙一致）
-    if (!previewImg.src.startsWith('blob:')) {
-      previewImg.style.display = 'none';
-      previewImg.style.visibility = 'hidden';
-    }
-  }
+  if (previewImg) previewImg.style.filter = '';
   var uuBtn = document.getElementById('previewUUbtn');
   if (uuBtn) {
     uuBtn.disabled = false;
@@ -946,28 +939,41 @@ function connectWebSocket() {
           var blobUrl = URL.createObjectURL(blob);
 
           if (devId === deviceId) {
-            // 收到帧即更新画面
-            var previewImg = document.getElementById('previewImg');
-            if (previewImg) {
-              if (previewImg._blobUrl) URL.revokeObjectURL(previewImg._blobUrl);
-              previewImg.src = blobUrl;
-              previewImg._blobUrl = blobUrl;
-              previewImg.style.display = 'block';
-              previewImg.style.visibility = 'visible';
-              previewImg.style.opacity = '1';
-              var watermark = document.getElementById('previewOfflineWatermark');
-              if (watermark) watermark.style.display = 'none';
-            }
-            
-            // 自愈：收到帧时累加计数，达到阈值才更新在线状态
+            // 离线时收到帧，仅做自愈计数，不更新画面避免覆盖离线图
             if (!isOnline) {
               frameHealCount++;
               if (frameHealCount >= FRAME_HEAL_THRESHOLD) {
                 isOnline = true;
                 setOnline();
+                // 恢复在线后才显示帧
+                var previewImg = document.getElementById('previewImg');
+                if (previewImg) {
+                  if (previewImg._blobUrl) URL.revokeObjectURL(previewImg._blobUrl);
+                  previewImg.src = blobUrl;
+                  previewImg._blobUrl = blobUrl;
+                  previewImg.style.display = 'block';
+                  previewImg.style.visibility = 'visible';
+                  previewImg.style.opacity = '1';
+                  var watermark = document.getElementById('previewOfflineWatermark');
+                  if (watermark) watermark.style.display = 'none';
+                }
+              } else {
+                URL.revokeObjectURL(blobUrl);
               }
             } else {
+              // 在线时正常显示帧
               frameHealCount = 0;
+              var previewImg = document.getElementById('previewImg');
+              if (previewImg) {
+                if (previewImg._blobUrl) URL.revokeObjectURL(previewImg._blobUrl);
+                previewImg.src = blobUrl;
+                previewImg._blobUrl = blobUrl;
+                previewImg.style.display = 'block';
+                previewImg.style.visibility = 'visible';
+                previewImg.style.opacity = '1';
+                var watermark = document.getElementById('previewOfflineWatermark');
+                if (watermark) watermark.style.display = 'none';
+              }
             }
             if (sw > 0 && sh > 0) { screenWidth = sw; screenHeight = sh; }
           } else {
