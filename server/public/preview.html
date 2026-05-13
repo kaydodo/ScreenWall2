@@ -1060,6 +1060,9 @@ function connectWebSocket() {
           if (allDevices[sd.deviceId]) {
             allDevices[sd.deviceId].online = sd.online;
             allDevices[sd.deviceId].supportsKeyClient = sd.supportsKeyClient || false;
+            if (sd.screenshot) {
+              allDevices[sd.deviceId].screenshot = sd.screenshot;
+            }
           }
         });
       }

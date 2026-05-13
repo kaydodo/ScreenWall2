@@ -817,8 +817,7 @@ function connectWS() {
           if (dev) {
             c.online = dev.online;
             c.deviceName = dev.deviceName;
-            // 如果服务器有 screenshot 且本地没有，恢复
-            if (dev.screenshot && !c.screenshot) {
+            if (dev.screenshot) {
               c.screenshot = dev.screenshot;
             }
           }
@@ -912,8 +911,7 @@ function connectWS() {
           if (dev) {
             c.online = dev.online;
             c.deviceName = dev.deviceName;
-            // 如果服务器有 screenshot 且本地没有，恢复
-            if (dev.screenshot && !c.screenshot) {
+            if (dev.screenshot) {
               c.screenshot = dev.screenshot;
             }
           }
