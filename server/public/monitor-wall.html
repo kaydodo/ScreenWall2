@@ -1498,16 +1498,11 @@ function handleWallStateUpdate(data) {
 
   if (eventType === 'deviceOffline') {
     var deviceId = data.deviceId;
-    // 优先使用服务器发送的截图，否则使用本地缓存
-    var offlineScreenshot = data.screenshot || (devices[deviceId] ? devices[deviceId].screenshot : null);
+    var offlineScreenshot = data.screenshot;
     if (devices[deviceId]) {
       devices[deviceId].online = false;
       if (data.supportsKeyClient !== undefined) {
         devices[deviceId].supportsKeyClient = data.supportsKeyClient;
-      }
-      // 更新本地截图缓存
-      if (offlineScreenshot) {
-        devices[deviceId].screenshot = offlineScreenshot;
       }
     }
     var cell = findCellByDeviceId(deviceId);

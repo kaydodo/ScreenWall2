@@ -1,27 +1,34 @@
 # 离线图与自愈逻辑统一规范
 
-## 一、Screenshot 缓存更新规则
+## 一、Screenshot 来源
 
 ### 统一规则
-所有页面在接收 `deviceList`、`wallStateUpdate`、`state` 等消息时，**只有当 screenshot 有值时才更新本地缓存**，避免 `null` 覆盖已有截图。
+**所有离线图都来自服务端，不使用前端本地缓存。**
 
-### 代码模式
+服务端存储：
+- `dev.screenshot`：设备最后一帧（二进制 webp Buffer）
+- 持久化到 `devices.json`（base64 格式）
+
+服务端发送：
+- `state` 消息：`cells[].screenshot` 和 `devices[].screenshot`
+- `deviceList` 消息：`devices[].screenshot`
+- `devicePreviewStatus` 消息：`screenshot` 字段
+- `wallStateUpdate` 消息（deviceOffline）：`screenshot` 字段
+
+### Buffer -> base64 转换
+服务端发送给前端时，需要将 Buffer 转为 base64 字符串：
 ```javascript
-// 正确
-if (dev.screenshot) {
-  localCache.screenshot = dev.screenshot;
+// getDeviceListPayload() 中
+screenshot: d.screenshot ? (Buffer.isBuffer(d.screenshot) ? 'data:image/webp;base64,' + d.screenshot.toString('base64') : d.screenshot) : null
+
+// notifyWallClients() 中
+if (processedData.screenshot && Buffer.isBuffer(processedData.screenshot)) {
+  processedData.screenshot = 'data:image/webp;base64,' + processedData.screenshot.toString('base64');
 }
 
-// 错误（会被 null 覆盖）
-if (dev.screenshot !== undefined) {
-  localCache.screenshot = dev.screenshot;
-}
+// devicePreviewStatus 中
+const offlineScreenshot = dev.screenshot ? (Buffer.isBuffer(dev.screenshot) ? 'data:image/webp;base64,' + dev.screenshot.toString('base64') : dev.screenshot) : null;
 ```
-
-### 涉及文件
-- `main.html`：`gridCells[c].screenshot`
-- `monitor-wall.html`：`devices[deviceId].screenshot`
-- `preview.html`：`screenshot` 变量、`allDevices[deviceId].screenshot`
 
 ---
 
@@ -42,11 +49,13 @@ const FRAME_HEAL_THRESHOLD = 2;
 - **预览页面**（preview.html）：简单变量 `frameHealCount`（单设备）
 
 ### 涉及场景
-| 场景 | 二进制帧 | JSON帧 |
-|------|----------|--------|
-| main.html 格子 | ✅ 自愈 | N/A |
-| monitor-wall.html 格子 | ✅ 自愈 | N/A |
-| preview.html | ✅ 自愈 | ✅ 自愈 |
+| 场景 | 二进制帧 |
+|------|----------|
+| main.html 格子 | ✅ 自愈 |
+| monitor-wall.html 格子 | ✅ 自愈 |
+| preview.html | ✅ 自愈 |
+
+**注意：前端只接收二进制帧（0x01/0x10），不存在 JSON 帧用于实时画面。**
 
 ---
 
@@ -98,16 +107,15 @@ window.addEventListener('message', function(e) {
 #### 格子模式（main.html, monitor-wall.html）
 - 灰度：`.grayscale` class 或 `filter: grayscale(100%)`
 - 中央文字："设备已离线"
-- 数据来源：`devices[deviceId].screenshot` 或 `gridCells[c].screenshot`
+- 数据来源：服务端发送的 `screenshot` 字段
 
 #### 预览模式（preview.html）
 - 灰度：CSS `filter`
 - 水印文字：旋转大字"设备已离线"
-- 数据来源：`screenshot` 变量
+- 数据来源：服务端发送的 `screenshot` 字段
 
-### 离线图优先级
-1. 服务器发送的截图（`data.screenshot`）
-2. 本地缓存的截图（`devices[deviceId].screenshot`）
+### 离线图来源优先级
+**只有一个来源：服务端发送的 `screenshot` 字段。**
 
 ---
 
@@ -130,7 +138,7 @@ window.addEventListener('message', function(e) {
 
 新增显示设备画面的页面时，需确保：
 
-- [ ] **Screenshot 缓存**：使用 `if (screenshot)` 而非 `if (screenshot !== undefined)`
+- [ ] **Screenshot 来源**：只从服务端获取，不使用本地缓存
 - [ ] **自愈机制**：离线时不更新画面，达到阈值才恢复
 - [ ] **Level 管理**：根据场景选择正确的 level
 - [ ] **离线图显示**：使用灰度 + 离线提示
@@ -144,3 +152,19 @@ window.addEventListener('message', function(e) {
 - `server/public/monitor-wall.html`：监控墙
 - `server/public/preview.html`：预览页面
 - `server/server.js`：服务端帧推送和 level 管理
+
+---
+
+## 八、帧类型说明
+
+### 二进制帧（实时画面）
+- `0x01`：设备发送给服务端的帧
+- `0x10`：服务端发送给浏览器的帧（browserScreenshot/wallScreenshot）
+
+### JSON 消息（非实时画面）
+- `state`：初始化状态，包含 `screenshot`（最后一帧）
+- `deviceList`：设备列表，包含 `screenshot`
+- `devicePreviewStatus`：设备状态变更，包含 `screenshot`
+- `wallStateUpdate`：监控墙状态更新，包含 `screenshot`
+
+**实时画面只通过二进制帧传输，JSON 消息中的 screenshot 只用于离线图显示。**

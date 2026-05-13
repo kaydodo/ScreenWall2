@@ -1038,13 +1038,10 @@ function connectWebSocket() {
           if (eventType === 'deviceOffline') {
             if (isOnline) {
               setOffline('offline');
-              // 优先使用服务器发送的截图，然后是 allDevices 缓存，最后是初始截图
-              var offlineFrame = msg.screenshot || (allDevices[deviceId] ? allDevices[deviceId].screenshot : null) || screenshot;
+              var offlineFrame = msg.screenshot;
               if (offlineFrame) {
                 var pi = document.getElementById('previewImg');
                 if (pi) { pi.src = offlineFrame; pi.style.display = 'block'; pi.style.visibility = 'visible'; }
-                // 更新本地缓存
-                screenshot = offlineFrame;
               }
             }
           }

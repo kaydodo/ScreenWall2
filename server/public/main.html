@@ -798,20 +798,9 @@ function connectWS() {
       } else {
         tasks = [];
       }
-      // 格子信息完全从服务器获取，但保留本地 screenshot 缓存
+      // 格子信息完全从服务器获取
       if (msg.cells) {
-        const oldScreenshots = new Map();
-        gridCells.forEach(c => {
-          if (c && c.deviceId && c.screenshot) {
-            oldScreenshots.set(c.deviceId, c.screenshot);
-          }
-        });
         gridCells = msg.cells;
-        gridCells.forEach(c => {
-          if (c && c.deviceId && !c.screenshot && oldScreenshots.has(c.deviceId)) {
-            c.screenshot = oldScreenshots.get(c.deviceId);
-          }
-        });
       }
       // 同步离线状态到 gridCells
       gridCells.forEach(c => {

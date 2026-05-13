@@ -1696,9 +1696,14 @@ function sendToClient(deviceId, data) {
 
 // 通知所有监控墙窗口状态变化
 function notifyWallClients(eventType, data) {
+  // 处理 screenshot Buffer -> base64
+  const processedData = { ...data };
+  if (processedData.screenshot && Buffer.isBuffer(processedData.screenshot)) {
+    processedData.screenshot = 'data:image/webp;base64,' + processedData.screenshot.toString('base64');
+  }
   let msg;
   try {
-    msg = JSON.stringify({ type: 'wallStateUpdate', eventType, ...data, devices: getDeviceListPayload(), groups: groups });
+    msg = JSON.stringify({ type: 'wallStateUpdate', eventType, ...processedData, devices: getDeviceListPayload(), groups: groups });
   } catch (e) {
     logger.error(`[Wall] notifyWallClients stringify failed: ${e.message}`);
     return;
@@ -2369,7 +2374,8 @@ wssClient.on('connection', (ws, req) => {
         persistDevices();  // 设备离线时持久化
         broadcastToBrowsers({ type: 'deviceList', devices: getDeviceListPayload() });
         // 广播设备预览状态变更（让所有浏览器刷新预览大图），带上最新截图避免批次延迟问题
-        broadcastToBrowsers({ type: 'devicePreviewStatus', deviceId, status: 'offline', screenshot: dev.screenshot || null });
+        const offlineScreenshot = dev.screenshot ? (Buffer.isBuffer(dev.screenshot) ? 'data:image/webp;base64,' + dev.screenshot.toString('base64') : dev.screenshot) : null;
+        broadcastToBrowsers({ type: 'devicePreviewStatus', deviceId, status: 'offline', screenshot: offlineScreenshot });
         // 通知监控墙设备离线，带上截图
         notifyWallClients('deviceOffline', { deviceId, screenshot: dev.screenshot || null, supportsKeyClient: dev.supportsKeyClient || false });
         updateCollectionsDeviceStatus(deviceId, {});
