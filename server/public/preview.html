@@ -936,33 +936,27 @@ function connectWebSocket() {
           var blobUrl = URL.createObjectURL(blob);
 
           if (devId === deviceId) {
-            if (isOnline) {
-              var previewImg = document.getElementById('previewImg');
-              if (previewImg) {
-                if (previewImg._blobUrl) URL.revokeObjectURL(previewImg._blobUrl);
-                previewImg.src = blobUrl;
-                previewImg._blobUrl = blobUrl;
-                previewImg.style.display = 'block';
-                previewImg.style.visibility = 'visible';
-                previewImg.style.opacity = '1'; // 恢复 opacity
-                var watermark = document.getElementById('previewOfflineWatermark');
-                if (watermark) watermark.style.display = 'none';
-              }
-            } else {
+            // 无论在线与否，都显示收到的帧
+            var previewImg = document.getElementById('previewImg');
+            if (previewImg) {
+              if (previewImg._blobUrl) URL.revokeObjectURL(previewImg._blobUrl);
+              previewImg.src = blobUrl;
+              previewImg._blobUrl = blobUrl;
+              previewImg.style.display = 'block';
+              previewImg.style.visibility = 'visible';
+              previewImg.style.opacity = '1';
+              var watermark = document.getElementById('previewOfflineWatermark');
+              if (watermark) watermark.style.display = 'none';
+            }
+            // 离线时收到帧，说明设备已恢复在线
+            if (!isOnline) {
+              isOnline = true;
               frameHealCount++;
               if (frameHealCount >= FRAME_HEAL_THRESHOLD) {
                 setOnline();
-                var previewImg2 = document.getElementById('previewImg');
-                if (previewImg2) {
-                  if (previewImg2._blobUrl) URL.revokeObjectURL(previewImg2._blobUrl);
-                  previewImg2.src = blobUrl;
-                  previewImg2._blobUrl = blobUrl;
-                  previewImg2.style.display = 'block';
-                  previewImg2.style.visibility = 'visible';
-                }
-              } else {
-                URL.revokeObjectURL(blobUrl);
               }
+            } else {
+              frameHealCount = 0;
             }
             if (sw > 0 && sh > 0) { screenWidth = sw; screenHeight = sh; }
           } else {
@@ -990,12 +984,13 @@ function connectWebSocket() {
           };
           if (d.deviceId === deviceId) {
             if (d.supportsKeyClient !== undefined) supportsKeyClient = d.supportsKeyClient;
+            if (d.deviceName) deviceName = d.deviceName;
+            // 先更新截图，再设置在线/离线状态（setOffline需要最新截图）
+            if (d.screenshot) screenshot = d.screenshot;
             if (d.online !== undefined) {
               if (d.online && !isOnline) setOnline();
               else if (!d.online && isOnline) setOffline('offline');
             }
-            if (d.deviceName) deviceName = d.deviceName;
-            if (d.screenshot) screenshot = d.screenshot;
             if (d.uuDeviceId !== undefined) uuDeviceId = d.uuDeviceId;
             if (d.monitorCount !== undefined) monitorCount = d.monitorCount;
             if (d.monitorIndex !== undefined) monitorIndex = d.monitorIndex;
@@ -1079,16 +1074,21 @@ function connectWebSocket() {
       }
 
       if ((msg.type === 'previewScreenshot' || msg.type === 'browserScreenshot') && msg.deviceId === deviceId && msg.image) {
-        if (isOnline) {
-          var previewImg3 = document.getElementById('previewImg');
-          if (previewImg3) {
-            previewImg3.src = msg.image;
-            previewImg3.style.display = 'block';
-            previewImg3.style.visibility = 'visible';
-            previewImg3.style.opacity = '1';
-            var watermark2 = document.getElementById('previewOfflineWatermark');
-            if (watermark2) watermark2.style.display = 'none';
-          }
+        // 无论在线与否，都显示收到的帧
+        var previewImg3 = document.getElementById('previewImg');
+        if (previewImg3) {
+          previewImg3.src = msg.image;
+          previewImg3.style.display = 'block';
+          previewImg3.style.visibility = 'visible';
+          previewImg3.style.opacity = '1';
+          var watermark2 = document.getElementById('previewOfflineWatermark');
+          if (watermark2) watermark2.style.display = 'none';
+        }
+        // 离线时收到帧，说明设备已恢复在线
+        if (!isOnline) {
+          isOnline = true;
+          var uuBtn2 = document.getElementById('previewUUbtn');
+          if (uuBtn2) { uuBtn2.disabled = false; uuBtn2.style.opacity = ''; uuBtn2.style.cursor = ''; uuBtn2.style.pointerEvents = ''; }
         }
         if (msg.screenWidth && msg.screenHeight) { screenWidth = msg.screenWidth; screenHeight = msg.screenHeight; }
       }

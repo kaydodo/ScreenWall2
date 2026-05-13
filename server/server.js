@@ -177,14 +177,31 @@ function hasOtherWallSubscription(deviceId, excludeWs) {
 
 // ========== Step 2: 监控墙裁剪 - 裁剪压缩帧函数 ==========
 async function cropFrame(frameBuffer, compressedWidth, compressedHeight, targetW, targetH, col, row, cols, rows) {
-  // 直接使用压缩坐标裁剪，浏览器会自动还原比例
-  const cellCompW = Math.floor(compressedWidth / cols);
-  const cellCompH = Math.floor(compressedHeight / rows);
-  const left = col * cellCompW;
-  const top = row * cellCompH;
+  // 先获取实际帧尺寸，防止越界
+  const metadata = await sharp(frameBuffer).metadata();
+  const actualW = metadata.width || compressedWidth;
+  const actualH = metadata.height || compressedHeight;
+
+  // 计算每个格子的尺寸，确保不越界
+  const cellCompW = Math.floor(actualW / cols);
+  const cellCompH = Math.floor(actualH / rows);
+  const left = Math.min(col * cellCompW, actualW - 1);
+  const top = Math.min(row * cellCompH, actualH - 1);
+
+  // 确保裁剪区域有效
+  const extractW = Math.min(cellCompW, actualW - left);
+  const extractH = Math.min(cellCompH, actualH - top);
+
+  if (extractW <= 0 || extractH <= 0) {
+    // 裁剪区域无效，直接 resize
+    return sharp(frameBuffer)
+      .resize(targetW, targetH, { fit: 'fill' })
+      .webp({ quality: 30 })
+      .toBuffer();
+  }
 
   return sharp(frameBuffer)
-    .extract({ left, top, width: cellCompW, height: cellCompH })
+    .extract({ left, top, width: extractW, height: extractH })
     .resize(targetW, targetH, { fit: 'fill' })
     .webp({ quality: 30 })
     .toBuffer();
@@ -388,7 +405,7 @@ async function _flushWallBatch() {
       
       const layout = wallLayouts.get(wallWs);
       if (layout) {
-        // Step 2: 监控墙裁剪，按布局裁剪后发送
+        // 监控墙：每个格子是不同设备的完整画面，只需 resize，不需要裁剪
         for (let row = 0; row < layout.rows; row++) {
           for (let col = 0; col < layout.cols; col++) {
             const deviceId = layout.deviceIds[row * layout.cols + col];
@@ -398,27 +415,16 @@ async function _flushWallBatch() {
             if (!data || !data.buffer) continue;
             
             try {
-              // 用实际帧尺寸而非硬编码 853×720
-              const srcW = data.screenWidth || 853;
-              const srcH = data.screenHeight || 720;
-              const croppedBuffer = await cropFrame(
-                data.buffer, srcW, srcH,
-                layout.cellW, layout.cellH,
-                col, row, layout.cols, layout.rows
-              );
-              sendBinaryScreenshot(wallWs, 0x10, deviceId, croppedBuffer, layout.cellW, layout.cellH, false);
+              const resizedBuffer = await cropToLayout(data.buffer, 0, layout.cellW, layout.cellH);
+              sendBinaryScreenshot(wallWs, 0x10, deviceId, resizedBuffer, layout.cellW, layout.cellH, false);
             } catch(e) {
-              // 裁剪失败时跳过此设备，下一批次重试
-              serverLog('[cropFrame] 裁剪失败 deviceId=' + deviceId + ': ' + e.message);
+              serverLog('[wallResize] 缩放失败 deviceId=' + deviceId + ': ' + e.message);
               continue;
             }
           }
         }
       } else {
-        // 无布局信息，使用旧逻辑
-        for (const [deviceId, data] of _wallBatch) {
-          if (data.buffer) sendBinaryScreenshot(wallWs, 0x10, deviceId, data.buffer, data.screenWidth || 0, data.screenHeight || 0, false);
-        }
+        // 无布局信息，跳过（等待 subscribeWall 上报布局后再推送）
       }
     }
   } catch(e) { serverLog('[wallBatch] 批量推送失败:', e.message); }

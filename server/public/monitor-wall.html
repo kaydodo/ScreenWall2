@@ -459,52 +459,6 @@ html, body {
 'use strict';
 
 // ═══════════════════════════════════════════════════════════════
-// 性能优化模块
-// ═══════════════════════════════════════════════════════════════
-
-// ── 5. 看门狗（增强版）───────────────────────────────────────
-const watchdog = (function() {
-  let _interval = null;
-  let _lastUpdate = {};
-  const TIMEOUT_MS = 3000;
-
-  function start() {
-    if (_interval) clearInterval(_interval);
-    _interval = setInterval(check, 2000);
-  }
-
-  function touch(deviceId) {
-    _lastUpdate[deviceId] = Date.now();
-  }
-
-  function check() {
-    const now = Date.now();
-    const expired = [];
-    for (const deviceId in _lastUpdate) {
-      if (now - _lastUpdate[deviceId] > TIMEOUT_MS) {
-        const img = document.getElementById('img_' + deviceId);
-        if (img && img.src) {
-          const currentSrc = img.src;
-          img.src = '';
-          img.src = currentSrc;
-        }
-        expired.push(deviceId);
-      }
-    }
-    for (let i = 0; i < expired.length; i++) {
-      delete _lastUpdate[expired[i]];
-    }
-  }
-
-  function stop() {
-    if (_interval) { clearInterval(_interval); _interval = null; }
-    _lastUpdate = {};
-  }
-
-  return { start, touch, stop };
-})();
-
-// ═══════════════════════════════════════════════════════════════
 // 主程序
 // ═══════════════════════════════════════════════════════════════
 
@@ -672,8 +626,6 @@ function initWall() {
   // 连接 WebSocket
   connectWebSocket();
 
-  // 启动看门狗
-  watchdog.start();
 
   // WebSocket 推送方案：初始化时在线格 opacity:0（黑色背景透出），离线格 opacity:0.4 显示静态图
   // 首帧到达后 opacity:0→1 淡入
@@ -1912,7 +1864,6 @@ window.addEventListener('beforeunload', function() {
       ws.send(JSON.stringify({ type: 'unsubscribeWall', devices: wallData.devices.map(function(d) { return d.id; }), pageClosing: true }));
     }
   }
-  watchdog.stop();
   for (var zid in _zoomTimers) {
     if (_zoomTimers[zid]) clearTimeout(_zoomTimers[zid]);
   }
