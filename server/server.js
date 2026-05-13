@@ -1568,7 +1568,7 @@ function getGridPayload(gridSize) {
       deviceName: dev ? dev.deviceName : null,
       uuDeviceId: dev ? dev.uuDeviceId : null,
       online: dev ? dev.online : false,
-      screenshot: dev ? (dev.screenshot || null) : null,
+      screenshot: dev && dev.screenshot ? (Buffer.isBuffer(dev.screenshot) ? 'data:image/webp;base64,' + dev.screenshot.toString('base64') : dev.screenshot) : null,
     });
   }
   return cells;
@@ -2070,86 +2070,12 @@ wssClient.on('connection', (ws, req) => {
 
         // MJPEG 帧缓冲区更新已禁用（新架构使用 WebSocket 三通道推送）
 
-        // ===== 统一截图推送（HQ/标准 共用）=====
-        // 更新设备状态
+        // ===== JSON 截图只用于收藏截图，不推送实时流（二进制帧负责实时流）=====
+        // 更新设备离线图（用于设备离线时显示）
         dev.screenshot = msg.image;
 
-        const now = Date.now();
-
-        // ── browserScreenshot：批量攒批推送（减少 Browser 进程 IPC 压力）──────
-        // 不再逐条发送，改为攒入 _browserBatch，由定时器统一发送 screenshotBatch
-        let shouldSendBrowser = true;
-        if (!msg.hq) {
-          // 从 msg.image 提取 buffer 用于 MD5 去重
-          const base64Data = msg.image.replace(/^data:image\/\w+;base64,/, '');
-          const buf = Buffer.from(base64Data, 'base64');
-          const md5 = crypto.createHash('md5').update(buf).digest('hex');
-          const cached = frameCache.get(msg.deviceId);
-          if (cached && cached.md5 === md5 && (now - cached.time < 100)) {
-            shouldSendBrowser = false;
-          } else {
-            frameCache.set(msg.deviceId, { md5, time: now });
-          }
-        }
-
-        if (shouldSendBrowser) {
-          // 入批（覆盖旧帧，每设备只保留最新一帧）
-          _browserBatch.set(msg.deviceId, { image: msg.image, timestamp: now });
-          _scheduleBrowserBatch();
-
-          // ── 预览通道也推送低清图：打开预览时立即显示，不等HQ帧 ─────
-          // 推给订阅了该设备的预览客户端（bypass MD5去重，保证实时性）
-          const previewMsgLow = JSON.stringify({
-            type: 'browserScreenshot',
-            deviceId: msg.deviceId,
-            image: msg.image,
-            screenWidth: dev.screenWidth || 1920,
-            screenHeight: dev.screenHeight || 1080
-          });
-          for (const [previewWs, previewInfo] of previewClients) {
-            if (previewInfo.deviceId === msg.deviceId && previewWs.readyState === 1) {
-              previewWs.send(previewMsgLow);
-            }
-          }
-        }
-
-        // ── wallScreenshot：批量攒批推送（减少 Browser 进程 IPC 压力）────
-        // 不再逐条发送，改为攒入 _wallBatch，166ms 定时器统一发送
-        let shouldSendWall = true;
-        if (!msg.hq) {
-          if (dev._lastWallPush && now - dev._lastWallPush <= 200) {
-            shouldSendWall = false;
-          } else {
-            dev._lastWallPush = now;
-          }
-        }
-        if (shouldSendWall) {
-          // 入批（覆盖旧帧，每设备只保留最新一帧）
-          // 保留 buffer 字段（二进制帧），screenshot 字段（JSON帧）单独存储
-          const existing = _wallBatch.get(msg.deviceId);
-          _wallBatch.set(msg.deviceId, { 
-            buffer: existing ? existing.buffer : undefined, 
-            screenshot: msg.image, 
-            timestamp: now 
-          });
-          _scheduleWallBatch();
-        }
-
-        // ── previewScreenshot：无论 HQ 还是普通模式，每帧都推送给大图预览
-        // 先到普通图先显示，HQ 帧到了自动替换，不会因等待高清而黑屏
-        const previewMsg = JSON.stringify({
-          type: 'previewScreenshot',
-          deviceId: msg.deviceId,
-          image: msg.image,
-          timestamp: now,
-          screenWidth: dev.screenWidth || 1920,
-          screenHeight: dev.screenHeight || 1080
-        });
-        for (const [previewWs, previewInfo] of previewClients) {
-          if (previewInfo.deviceId === msg.deviceId && previewWs.readyState === 1) {
-            previewWs.send(previewMsg);
-          }
-        }
+        // JSON 帧只处理收藏截图，不推送到 _browserBatch/_wallBatch/previewClients
+        // 实时流由二进制帧负责，避免冲突
       }
     }
 
