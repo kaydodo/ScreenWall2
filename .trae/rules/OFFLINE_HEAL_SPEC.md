@@ -158,8 +158,8 @@ window.addEventListener('message', function(e) {
 ## 八、帧类型说明
 
 ### 二进制帧（实时画面）
-- `0x01`：设备发送给服务端的帧
-- `0x10`：服务端发送给浏览器的帧（browserScreenshot/wallScreenshot）
+- `0x01`：**客户端 → 服务端**，Python客户端发送截图给服务端（前端不可见）
+- `0x10`：**服务端 → 浏览器**，服务端转发截图给前端（前端只接收这个）
 
 ### JSON 消息（非实时画面）
 - `state`：初始化状态，包含 `screenshot`（最后一帧）
@@ -167,4 +167,4 @@ window.addEventListener('message', function(e) {
 - `devicePreviewStatus`：设备状态变更，包含 `screenshot`
 - `wallStateUpdate`：监控墙状态更新，包含 `screenshot`
 
-**实时画面只通过二进制帧传输，JSON 消息中的 screenshot 只用于离线图显示。**
+**实时画面只通过二进制帧 `0x10` 传输到前端，JSON 消息中的 screenshot 只用于离线图显示。**
