@@ -819,6 +819,8 @@ function connectWebSocket() {
           if (data.screenshot) {
             devices[deviceId].screenshot = data.screenshot;
           }
+          // 清除帧计数，防止自愈逻辑被缓存帧触发
+          frameHealCount.delete(deviceId);
           // 更新格子 DOM（离线标签、UU 按钮等）
           var cellIndex = wallData.devices.findIndex(function(d) { return d.id === deviceId; });
           if (cellIndex >= 0) {
@@ -889,6 +891,11 @@ function connectWebSocket() {
             }
             if (newDev.monitorIndex !== undefined) {
               devices[newDev.deviceId].monitorIndex = newDev.monitorIndex;
+            }
+            
+            // 清除帧计数，防止自愈逻辑被缓存帧触发
+            if (newDev.online === false) {
+              frameHealCount.delete(newDev.deviceId);
             }
             
             // 更新格子 DOM（离线标签、UU 按钮等）
