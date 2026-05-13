@@ -2688,7 +2688,7 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
   left: 0;
   width: 20px;
   height: 20px;
-  background: rgba(79,126,247,0.85);
+  background: rgba(0,0,0,0.45);
   border: none;
   border-radius: 4px;
   cursor: pointer;
@@ -2699,15 +2699,20 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
   opacity: 0;
   transition: opacity 0.2s, background 0.2s;
   font-size: 12px;
-  color: #fff;
+  color: #888;
   padding: 0;
 }
 .wall-cell:hover .cell-task-btn {
   opacity: 1;
 }
+.cell-task-btn:hover {
+  background: rgba(0,0,0,0.6);
+  color: #fff;
+}
 .cell-task-btn.has-pending {
   opacity: 1;
   background: rgba(239,68,68,0.9);
+  color: #fff;
 }
 
 /* 任务角标数字 */

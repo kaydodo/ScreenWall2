@@ -79,7 +79,8 @@
       "cellIndex": 0,
       "online": true,
       "deleted": false,
-      "timestamp": 1778687256901
+      "timestamp": 1778687256901,
+      "groupId": ""
     }
   ]
 }
