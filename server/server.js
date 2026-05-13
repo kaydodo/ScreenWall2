@@ -398,16 +398,18 @@ async function _flushWallBatch() {
             if (!data || !data.buffer) continue;
             
             try {
+              // 用实际帧尺寸而非硬编码 853×720
+              const srcW = data.screenWidth || 853;
+              const srcH = data.screenHeight || 720;
               const croppedBuffer = await cropFrame(
-                data.buffer, 853, 720,
+                data.buffer, srcW, srcH,
                 layout.cellW, layout.cellH,
                 col, row, layout.cols, layout.rows
               );
               sendBinaryScreenshot(wallWs, 0x10, deviceId, croppedBuffer, layout.cellW, layout.cellH, false);
             } catch(e) {
-              // 裁剪失败，按布局 cell 尺寸标记 header，避免宽高比不一致导致黑边闪烁
+              // 裁剪失败时跳过此设备，下一批次重试
               serverLog('[cropFrame] 裁剪失败 deviceId=' + deviceId + ': ' + e.message);
-              // 裁剪失败时跳过此设备，下一批次重试（不发送错误比例的帧）
               continue;
             }
           }
