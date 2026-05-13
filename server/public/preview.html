@@ -879,7 +879,14 @@ function setOnline() {
   var watermark = document.getElementById('previewOfflineWatermark');
   if (watermark) watermark.style.display = 'none';
   var previewImg = document.getElementById('previewImg');
-  if (previewImg) previewImg.style.filter = '';
+  if (previewImg) {
+    previewImg.style.filter = '';
+    // 在线设备：如果不是 blob URL，隐藏图片等帧到达
+    if (!previewImg.src.startsWith('blob:')) {
+      previewImg.style.display = 'none';
+      previewImg.style.visibility = 'hidden';
+    }
+  }
   var uuBtn = document.getElementById('previewUUbtn');
   if (uuBtn) {
     uuBtn.disabled = false;

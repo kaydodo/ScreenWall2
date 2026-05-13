@@ -1678,8 +1678,12 @@ function updateCellElement(index) {
       let offlineLabel = document.getElementById(`offline_${index}`);
       if (offlineLabel) offlineLabel.style.display = 'none';
 
-      // 在线设备：保持当前图片状态，等二进制帧到达后自动更新
-      img.style.opacity = '1';
+      // 在线设备：隐藏 ns_ 和离线标签，图片等二进制帧到达
+      ns.style.display = 'none';
+      // 如果图片不是 blob URL，隐藏图片等帧到达
+      if (!img.src.startsWith('blob:')) {
+        img.style.display = 'none';
+      }
     }
   } else {
     // 空格子：显示"空闲"，隐藏开关机按钮
