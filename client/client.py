@@ -982,9 +982,9 @@ class ScreenCapturer:
                         pic = Image.fromarray(rgb, "RGB")
                         use_dxgi = True
                         if not hq:
-                            pic.thumbnail((self.resize_w, self.resize_h), Image.LANCZOS)
+                            pic = pic.resize((self.resize_w, self.resize_h), Image.LANCZOS)
                         if hq and (pic.width > int(hq_limit * 32 / 27) or pic.height > hq_limit):
-                            pic.thumbnail((int(hq_limit * 32 / 27), hq_limit), Image.LANCZOS)
+                            pic = pic.resize((int(hq_limit * 32 / 27), hq_limit), Image.LANCZOS)
                         buf = BytesIO()
                         if lossless:
                             pic.save(buf, format="WEBP", lossless=True)
@@ -1016,10 +1016,9 @@ class ScreenCapturer:
                     from PIL import Image
                     pic = Image.frombytes("RGB", frame.size, frame.bgra, "raw", "BGRX").convert("RGB")
                     if not hq:
-                        pic.thumbnail((self.resize_w, self.resize_h), Image.LANCZOS)
-                    # HQ 模式限制分辨率上限为 hq_limit（默认 720p，可设 1080p）
+                        pic = pic.resize((self.resize_w, self.resize_h), Image.LANCZOS)
                     if hq and (pic.width > int(hq_limit * 32 / 27) or pic.height > hq_limit):
-                        pic.thumbnail((int(hq_limit * 32 / 27), hq_limit), Image.LANCZOS)
+                        pic = pic.resize((int(hq_limit * 32 / 27), hq_limit), Image.LANCZOS)
                     buf = BytesIO()
                     if lossless:
                         pic.save(buf, format="WEBP", lossless=True)
@@ -1046,10 +1045,9 @@ class ScreenCapturer:
                 pic = ImageGrab.grab()
                 pic = pic.convert("RGB")
                 if not hq:
-                    pic.thumbnail((self.resize_w, self.resize_h), Image.LANCZOS)
-                # HQ 模式限制分辨率上限为 hq_limit（默认 720p，可设 1080p）
+                    pic = pic.resize((self.resize_w, self.resize_h), Image.LANCZOS)
                 if hq and (pic.width > int(hq_limit * 32 / 27) or pic.height > hq_limit):
-                    pic.thumbnail((int(hq_limit * 32 / 27), hq_limit), Image.LANCZOS)
+                    pic = pic.resize((int(hq_limit * 32 / 27), hq_limit), Image.LANCZOS)
                 buf = BytesIO()
                 if lossless:
                     pic.save(buf, format="WEBP", lossless=True)
