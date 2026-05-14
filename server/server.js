@@ -327,27 +327,17 @@ async function _flushWallBatch() {
   _wallBatchScheduled = false;
   if (_wallBatch.size === 0 || wallClients.size === 0) { _wallBatch.clear(); _wallFlushing = false; return; }
   
-  let hasActiveClient = false;
-  for (const wallWs of wallClients.keys()) {
-    const subscription = wallClients.get(wallWs);
-    if (!subscription || !subscription.paused) {
-      hasActiveClient = true;
-      break;
-    }
-  }
-  if (!hasActiveClient) { _wallFlushing = false; return; }
-  
   try {
+    let hasActiveClient = false;
     for (const wallWs of wallClients.keys()) {
       if (wallWs.readyState !== 1) continue;
       
       const subscription = wallClients.get(wallWs);
       if (subscription && subscription.paused) continue;
       
+      hasActiveClient = true;
       const layout = wallLayouts.get(wallWs);
       if (layout) {
-        // 监控墙：每个格子是不同设备的完整画面，只需 resize，不需要裁剪
-        // 直接按 deviceIds 顺序遍历，不做行列索引
         for (let i = 0; i < layout.deviceIds.length; i++) {
           const deviceId = layout.deviceIds[i];
           if (!deviceId) continue;
@@ -363,16 +353,16 @@ async function _flushWallBatch() {
             continue;
           }
         }
-      } else {
-        // 无布局信息，跳过（等待 subscribeWall 上报布局后再推送）
       }
     }
+    if (hasActiveClient) {
+      _wallBatch.clear();
+    }
   } catch(e) { serverLog('[wallBatch] 批量推送失败:', e.message); }
-  _wallBatch.clear();
   _wallFlushing = false;
 }
-function _scheduleWallBatch(force = false) {
-  if (!_wallBatchScheduled || force) {
+function _scheduleWallBatch() {
+  if (!_wallBatchScheduled) {
     _wallBatchScheduled = true;
     setTimeout(_flushWallBatch, 166);
   }
@@ -394,28 +384,15 @@ async function _flushBrowserBatch() {
     return;
   }
   
-  let hasActiveViewport = false;
-  for (const browserWs of browserClients) {
-    if (browserWs.readyState !== 1) continue;
-    const vpData = viewportSubscriptions.get(browserWs);
-    if (!vpData || !wallClients.has(browserWs)) {
-      if (!vpData || vpData.deviceIds.size > 0) {
-        hasActiveViewport = true;
-        break;
-      }
-    }
-  }
-  if (!hasActiveViewport) {
-    _browserFlushing = false;
-    return;
-  }
-  
   try {
+    let hasActiveClient = false;
     for (const browserWs of browserClients) {
       if (browserWs.readyState !== 1) continue;
 
       const vpData = viewportSubscriptions.get(browserWs);
       if (vpData && !wallClients.has(browserWs)) {
+        if (vpData.deviceIds.size === 0) continue;
+        hasActiveClient = true;
         for (const [deviceId, data] of _browserBatch) {
           if (!vpData.deviceIds.has(deviceId)) continue;
           if (!data.buffer) continue;
@@ -437,18 +414,21 @@ async function _flushBrowserBatch() {
         }
       } else {
         if (!previewClients.has(browserWs) && !wallClients.has(browserWs)) {
+          hasActiveClient = true;
           for (const [deviceId, data] of _browserBatch) {
             if (data.buffer) sendBinaryScreenshot(browserWs, 0x10, deviceId, data.buffer, data.screenWidth || 0, data.screenHeight || 0, data.isHQ || false);
           }
         }
       }
     }
+    if (hasActiveClient) {
+      _browserBatch.clear();
+    }
   } catch(e) { serverLog('[browserBatch] 批量推送失败:', e.message); }
-  _browserBatch.clear();
   _browserFlushing = false;
 }
-function _scheduleBrowserBatch(force = false) {
-  if (!_browserBatchScheduled || force) {
+function _scheduleBrowserBatch() {
+  if (!_browserBatchScheduled) {
     _browserBatchScheduled = true;
     setTimeout(_flushBrowserBatch, 166);
   }
@@ -2951,9 +2931,6 @@ wssBrowser.on('connection', (ws) => {
         cropCols: msg.cropCols || 4,
         cropSize: msg.cropSize || { w: 480, h: 270 }
       });
-      if (msg.deviceIds && msg.deviceIds.length > 0) {
-        _scheduleBrowserBatch(true);
-      }
     }
 
     // 视口更新：浏览器上报当前可见格子
@@ -3098,9 +3075,6 @@ wssBrowser.on('connection', (ws) => {
       const subscription = wallClients.get(ws);
       if (subscription) {
         subscription.paused = !!msg.paused;
-        if (!msg.paused) {
-          _scheduleWallBatch(true);
-        }
       }
     }
 
