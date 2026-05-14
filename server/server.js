@@ -328,14 +328,9 @@ async function _flushWallBatch() {
   if (_wallBatch.size === 0 || wallClients.size === 0) { _wallBatch.clear(); _wallFlushing = false; return; }
   
   try {
-    let hasActiveClient = false;
     for (const wallWs of wallClients.keys()) {
       if (wallWs.readyState !== 1) continue;
       
-      const subscription = wallClients.get(wallWs);
-      if (subscription && subscription.paused) continue;
-      
-      hasActiveClient = true;
       const layout = wallLayouts.get(wallWs);
       if (layout) {
         for (let i = 0; i < layout.deviceIds.length; i++) {
@@ -355,10 +350,8 @@ async function _flushWallBatch() {
         }
       }
     }
-    if (hasActiveClient) {
-      _wallBatch.clear();
-    }
   } catch(e) { serverLog('[wallBatch] 批量推送失败:', e.message); }
+  _wallBatch.clear();
   _wallFlushing = false;
 }
 function _scheduleWallBatch() {
@@ -385,14 +378,12 @@ async function _flushBrowserBatch() {
   }
   
   try {
-    let hasActiveClient = false;
     for (const browserWs of browserClients) {
       if (browserWs.readyState !== 1) continue;
 
       const vpData = viewportSubscriptions.get(browserWs);
       if (vpData && !wallClients.has(browserWs)) {
         if (vpData.deviceIds.size === 0) continue;
-        hasActiveClient = true;
         for (const [deviceId, data] of _browserBatch) {
           if (!vpData.deviceIds.has(deviceId)) continue;
           if (!data.buffer) continue;
@@ -414,16 +405,13 @@ async function _flushBrowserBatch() {
         }
       } else {
         if (!previewClients.has(browserWs) && !wallClients.has(browserWs)) {
-          hasActiveClient = true;
           for (const [deviceId, data] of _browserBatch) {
             if (data.buffer) sendBinaryScreenshot(browserWs, 0x10, deviceId, data.buffer, data.screenWidth || 0, data.screenHeight || 0, data.isHQ || false);
           }
         }
       }
     }
-    if (hasActiveClient) {
-      _browserBatch.clear();
-    }
+    _browserBatch.clear();
   } catch(e) { serverLog('[browserBatch] 批量推送失败:', e.message); }
   _browserFlushing = false;
 }
@@ -3076,20 +3064,6 @@ wssBrowser.on('connection', (ws) => {
       ws.send(JSON.stringify({ type: 'walledDevices', devices: myDevices }));
     }
 
-    if (msg.type === 'pauseWall') {
-      const subscription = wallClients.get(ws);
-      if (subscription) {
-        const wasPaused = subscription.paused;
-        subscription.paused = !!msg.paused;
-        if (wasPaused && !msg.paused && _wallBatch.size > 0) {
-          _wallBatchScheduled = false;
-          _wallFlushing = false;
-          _scheduleWallBatch();
-        }
-      }
-    }
-
-    // 客户端动态切换键盘状态（用户通过托盘菜单启动/关闭键盘）
     if (msg.type === 'keyboardState' && msg.deviceId) {
       const dev = devices.get(msg.deviceId);
       if (dev) {

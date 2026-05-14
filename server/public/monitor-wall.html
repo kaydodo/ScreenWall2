@@ -1246,20 +1246,16 @@ document.getElementById('wallPreviewOverlay').onclick = (e) => {
   wallClosePreview();
 };
 
-var _wallPreviewActive = false;
-
 window.addEventListener('message', function(e) {
   if (!e.data || !e.data.type) return;
   if (e.data.type === 'previewOpen') {
-    _wallPreviewActive = true;
     if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: 'pauseWall', paused: true }));
+      ws.close();
     }
   } else if (e.data.type === 'previewClose') {
-    _wallPreviewActive = false;
     wallClosePreview();
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: 'pauseWall', paused: false }));
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      connectWebSocket();
     }
   } else if (e.data.type === 'previewOnline' && e.data.deviceId) {
     if (ws && ws.readyState === WebSocket.OPEN) {

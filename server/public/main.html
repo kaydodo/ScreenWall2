@@ -2348,48 +2348,16 @@ function closePreview() {
 window.addEventListener('message', function(e) {
   if (!e.data || !e.data.type) return;
   if (e.data.type === 'previewOpen') {
-    _previewActive = true;
     if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: 'setViewport', deviceIds: [], cropCols: 4, cropSize: { w: 480, h: 270 } }));
+      ws.close();
     }
   } else if (e.data.type === 'previewClose') {
-    _previewActive = false;
     closePreview();
-    if (_viewportTimer) clearTimeout(_viewportTimer);
-    _viewportTimer = null;
-    updateViewportImmediate();
-  }
-});
-
-function updateViewportImmediate() {
-  const mainGrid = document.getElementById('mainGrid');
-  if (!mainGrid || !ws || ws.readyState !== WebSocket.OPEN) return;
-
-  const rect = mainGrid.getBoundingClientRect();
-  const visibleDevices = [];
-
-  for (let i = 0; i < gridCells.length; i++) {
-    const cell = mainGrid.children[i];
-    if (!cell) continue;
-    if (gridCells[i] && gridCells[i]._hidden) continue;
-    const cellRect = cell.getBoundingClientRect();
-    if (cellRect.top < rect.bottom && cellRect.bottom > rect.top) {
-      if (gridCells[i] && gridCells[i].deviceId) {
-        visibleDevices.push(gridCells[i].deviceId);
-      }
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      connectWS();
     }
   }
-
-  const currentCols = parseInt(document.getElementById('selGrid').value) || 4;
-  const cropSize = LAYOUT_CROP_SIZES[currentCols] || { w: 480, h: 270 };
-
-  ws.send(JSON.stringify({ 
-    type: 'setViewport', 
-    deviceIds: visibleDevices,
-    cropCols: currentCols,
-    cropSize: cropSize
-  }));
-}
+});
 
 var _previewActive = false;
 
