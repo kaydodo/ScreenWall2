@@ -371,8 +371,8 @@ async function _flushWallBatch() {
   _wallBatch.clear();
   _wallFlushing = false;
 }
-function _scheduleWallBatch() {
-  if (!_wallBatchScheduled) {
+function _scheduleWallBatch(force = false) {
+  if (!_wallBatchScheduled || force) {
     _wallBatchScheduled = true;
     setTimeout(_flushWallBatch, 166);
   }
@@ -447,10 +447,10 @@ async function _flushBrowserBatch() {
   _browserBatch.clear();
   _browserFlushing = false;
 }
-function _scheduleBrowserBatch() {
-  if (!_browserBatchScheduled) {
+function _scheduleBrowserBatch(force = false) {
+  if (!_browserBatchScheduled || force) {
     _browserBatchScheduled = true;
-    setTimeout(_flushBrowserBatch, 166); // 166ms ≈ 6fps，与客户端帧率对齐
+    setTimeout(_flushBrowserBatch, 166);
   }
 }
 // 报警截图查重缓存（存储最近一张 640×360 截图）
@@ -2952,7 +2952,7 @@ wssBrowser.on('connection', (ws) => {
         cropSize: msg.cropSize || { w: 480, h: 270 }
       });
       if (msg.deviceIds && msg.deviceIds.length > 0) {
-        _scheduleBrowserBatch();
+        _scheduleBrowserBatch(true);
       }
     }
 
@@ -3099,7 +3099,7 @@ wssBrowser.on('connection', (ws) => {
       if (subscription) {
         subscription.paused = !!msg.paused;
         if (!msg.paused) {
-          _scheduleWallBatch();
+          _scheduleWallBatch(true);
         }
       }
     }
