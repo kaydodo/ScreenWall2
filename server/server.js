@@ -1667,23 +1667,7 @@ wssClient.on('connection', (ws, req) => {
           _browserBatch.set(deviceId, { buffer: webpBuffer, timestamp: now, isHQ, screenWidth, screenHeight });
           _scheduleBrowserBatch();
           if (monitorWallDevices.has(deviceId)) { _wallBatch.set(deviceId, { buffer: webpBuffer, timestamp: now, screenWidth, screenHeight }); _scheduleWallBatch(); }
-          for (const [pw, pi] of previewClients) {
-            if (pi.deviceId === deviceId && pw.readyState === 1) {
-              (async () => {
-                try {
-                  const resizedBuffer = await cropToLayout(webpBuffer, 2, screenWidth, screenHeight);
-                  sendBinaryScreenshot(pw, 0x10, deviceId, resizedBuffer, screenWidth, screenHeight, isHQ);
-                } catch(e) {
-                  sendBinaryScreenshot(pw, 0x10, deviceId, webpBuffer, screenWidth, screenHeight, isHQ);
-                }
-              })();
-            }
-          }
-          if (isHQ && dev._frameCount % 60 === 1) {
-            sharp(webpBuffer).metadata().then(meta => {
-              serverLog(`[帧尺寸] ${deviceId}: 实际${meta.width}×${meta.height}, 原始屏幕${screenWidth}×${screenHeight}, level=${isHQ ? (screenHeight > 800 ? 2 : 1) : 0}`);
-            }).catch(() => {});
-          }
+          for (const [pw, pi] of previewClients) { if (pi.deviceId === deviceId && pw.readyState === 1) sendBinaryScreenshot(pw, 0x10, deviceId, webpBuffer, screenWidth, screenHeight, isHQ); }
         } catch(e) { serverError('[二进制帧] 解析失败:', e.message); }
         return;
       }
