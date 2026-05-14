@@ -326,6 +326,17 @@ async function _flushWallBatch() {
   _wallFlushing = true;
   _wallBatchScheduled = false;
   if (_wallBatch.size === 0 || wallClients.size === 0) { _wallBatch.clear(); _wallFlushing = false; return; }
+  
+  let hasActiveClient = false;
+  for (const wallWs of wallClients.keys()) {
+    const subscription = wallClients.get(wallWs);
+    if (!subscription || !subscription.paused) {
+      hasActiveClient = true;
+      break;
+    }
+  }
+  if (!hasActiveClient) { _wallFlushing = false; return; }
+  
   try {
     for (const wallWs of wallClients.keys()) {
       if (wallWs.readyState !== 1) continue;
