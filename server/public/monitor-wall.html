@@ -740,9 +740,11 @@ function connectWebSocket() {
             // 正常渲染格子（仅当设备在线时）
             const el = document.getElementById('img_' + devId);
             if (el) {
-              if (el._blobUrl) URL.revokeObjectURL(el._blobUrl);
+              const oldBlobUrl = el._blobUrl;
               el.src = blobUrl;
               el._blobUrl = blobUrl;
+              // 先设新src再释放旧blobUrl，避免revoke导致img短暂空白引发画面跳动
+              if (oldBlobUrl) URL.revokeObjectURL(oldBlobUrl);
               el.classList.remove('wall-img-hidden');
               el.classList.remove('grayscale');
               el.style.display = 'block';
