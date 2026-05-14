@@ -156,9 +156,10 @@ function hasOtherPreview(deviceId, excludeWs) {
 
 // ========== Step 3: 视口懒加载 - 按布局裁剪函数 ==========
 async function cropToLayout(frameBuffer, level, targetW, targetH) {
-  // 直接 resize 到目标尺寸，不指定 fit（sharp 默认行为）
+  // fit:'contain' 等比缩放不裁剪，黑边填充到精确 targetW×targetH
+  // 帧内容完整、尺寸固定，前端 object-fit:contain 不会跳动
   return sharp(frameBuffer)
-    .resize(targetW, targetH)
+    .resize(targetW, targetH, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 1 } })
     .webp({ quality: 30 })
     .toBuffer();
 }
