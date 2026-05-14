@@ -330,6 +330,9 @@ async function _flushWallBatch() {
     for (const wallWs of wallClients.keys()) {
       if (wallWs.readyState !== 1) continue;
       
+      const subscription = wallClients.get(wallWs);
+      if (subscription && subscription.paused) continue;
+      
       const layout = wallLayouts.get(wallWs);
       if (layout) {
         // 监控墙：每个格子是不同设备的完整画面，只需 resize，不需要裁剪
@@ -3061,10 +3064,16 @@ wssBrowser.on('connection', (ws) => {
     }
 
     if (msg.type === 'getWalledDevices') {
-      // 返回该浏览器已上墙设备列表
       const subscription = wallClients.get(ws);
       const myDevices = subscription ? Array.from(subscription.devices) : [];
       ws.send(JSON.stringify({ type: 'walledDevices', devices: myDevices }));
+    }
+
+    if (msg.type === 'pauseWall') {
+      const subscription = wallClients.get(ws);
+      if (subscription) {
+        subscription.paused = !!msg.paused;
+      }
     }
 
     // 客户端动态切换键盘状态（用户通过托盘菜单启动/关闭键盘）

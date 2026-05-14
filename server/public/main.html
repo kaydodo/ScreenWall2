@@ -1483,6 +1483,7 @@ let _viewportTimer = null;
 function updateViewport() {
   if (_viewportTimer) clearTimeout(_viewportTimer);
   _viewportTimer = setTimeout(function() {
+    if (_previewActive) return;
     const mainGrid = document.getElementById('mainGrid');
     if (!mainGrid || !ws || ws.readyState !== WebSocket.OPEN) return;
 
@@ -2345,8 +2346,20 @@ function closePreview() {
 }
 
 window.addEventListener('message', function(e) {
-  if (e.data && e.data.type === 'previewClose') closePreview();
+  if (!e.data || !e.data.type) return;
+  if (e.data.type === 'previewOpen') {
+    _previewActive = true;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'setViewport', deviceIds: [], cropCols: 4, cropSize: { w: 480, h: 270 } }));
+    }
+  } else if (e.data.type === 'previewClose') {
+    _previewActive = false;
+    closePreview();
+    updateViewport();
+  }
 });
+
+var _previewActive = false;
 
 var previewKeyboardOpen = false;
 var preview1080Mode = false;  // 1080p 预览模式（仅桌面端）
