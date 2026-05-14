@@ -2941,11 +2941,6 @@ wssBrowser.on('connection', (ws) => {
       if (msg.deviceId) removeMonitorWall(msg.deviceId);
     }
     
-    if (msg.type === 'stopHQ') {
-      // 统一通过 unsubscribeLevel 处理订阅清理
-      unsubscribeLevel(msg.deviceId, ws);
-    }
-
     if (msg.type === 'groups') {
       // 浏览器发来分组更新
       groups = msg.groups || [];
@@ -3330,23 +3325,6 @@ httpServer.on('request', (req, res) => {
 
     if (cleanPath === '/api/devices' && req.method === 'GET') {
       res.end(JSON.stringify(getDeviceListPayload()));
-      return;
-    }
-
-    // 【调试】POST /api/test-starthq - 手动发送 startHQ 命令给设备
-    if (cleanPath === '/api/test-starthq' && req.method === 'POST') {
-      const deviceId = urlObj.searchParams.get('deviceId') || 'aeawtmgwtiau3yfl';
-      
-      let sent = false;
-      for (const client of wssClient.clients) {
-        if (client._deviceId === deviceId) {
-          client.send(JSON.stringify({ type: 'startHQ' }));
-          
-          sent = true;
-          break;
-        }
-      }
-      res.end(JSON.stringify({ ok: sent, msg: sent ? '已发送 startHQ' : '设备未连接', deviceId }));
       return;
     }
 
