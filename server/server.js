@@ -146,26 +146,6 @@ const {
   client: CLIENT_CFG
 } = config;
 
-// ========== 全局追踪（从 deviceSubscribers 动态计算，单一数据源） ==========
-// 1080p追踪：deviceId → count
-const global1080p = new Map();
-// HQ高清流追踪：deviceId → count
-const globalHQ = new Map();
-
-function _recalcGlobalCounters() {
-  globalHQ.clear();
-  global1080p.clear();
-  for (const [deviceId, subs] of deviceSubscribers) {
-    let hq = 0, p1080 = 0;
-    for (const level of subs.values()) {
-      if (level >= 1) hq++;
-      if (level >= 2) p1080++;
-    }
-    if (hq > 0) globalHQ.set(deviceId, hq);
-    if (p1080 > 0) global1080p.set(deviceId, p1080);
-  }
-}
-
 // ========== 辅助函数 ==========
 function hasOtherPreview(deviceId, excludeWs) {
   return deviceMaxLevel.has(deviceId) && deviceMaxLevel.get(deviceId) >= 1;
@@ -228,15 +208,8 @@ const devices = new Map();
 const browserClients = new Set();
 const wallClients = new Map(); // ws -> { devices: Set<deviceId>, interval: ms }
 const wallDevices = new Map(); // deviceId -> interval (持久化追踪哪些设备应该接收高清流)
-// 每个窗口独立的高清通道追踪：window ws -> Set<deviceId>
-const wallHDChannels = new Map(); // ws -> Set<deviceId>
-// 浏览器预览高清通道追踪：browser ws -> Set<deviceId>
-const browserPreviewHD = new Map(); // ws -> Set<deviceId>
 // 格子预览独立通道（不受帧缓存去重影响）
 const previewClients = new Map(); // ws -> { deviceId, interval }
-// 浏览器 1080p 预览模式追踪：browser ws -> Set<deviceId>（哪些设备正在该浏览器预览中启用1080p）
-const browser1080p = new Map(); // ws -> Set<deviceId>
-// 全局1080p追踪：deviceId -> 使用该设备的浏览器数量（只有所有浏览器都不用时才通知设备关闭）
 // 每个浏览器独立管理已上墙设备，同一浏览器的不同窗口共享 localStorage 同步
 
 // ========== 渲染优化 ==========
@@ -310,14 +283,12 @@ function subscribeLevel(deviceId, ws, level) {
   }
   deviceSubscribers.get(deviceId).set(ws, level);
   updateLevel(deviceId);
-  _recalcGlobalCounters();
 }
 
 function unsubscribeLevel(deviceId, ws) {
   if (!deviceSubscribers.has(deviceId)) return;
   deviceSubscribers.get(deviceId).delete(ws);
   updateLevel(deviceId);
-  _recalcGlobalCounters();
 }
 
 function unsubscribeAllLevel(ws) {
@@ -326,7 +297,6 @@ function unsubscribeAllLevel(ws) {
       updateLevel(deviceId);
     }
   }
-  _recalcGlobalCounters();
 }
 
 // ========== wallScreenshot 批量推送（监控墙，同优化）==========
@@ -2333,60 +2303,6 @@ wssBrowser.on('connection', (ws) => {
     }
 
 
-    // ========== 1080p 预览模式切换 ==========
-    // 浏览器请求开启 1080p 预览
-    if (msg.type === 'hq1080On') {
-      // 优先使用消息中指定的deviceId（格子预览用），否则从previewClients获取
-      const deviceId = msg.deviceId || (previewClients.get(ws) && previewClients.get(ws).deviceId);
-      if (deviceId) {
-        // 追踪该浏览器的 1080p 设备
-        if (!browser1080p.has(ws)) browser1080p.set(ws, new Set());
-        browser1080p.get(ws).add(deviceId);
-        // 转发给设备客户端
-        for (const client of wssClient.clients) {
-          if (client._deviceId === deviceId && client.readyState === 1) {
-            client.send(JSON.stringify({ type: 'hq1080On' }));
-            break;
-          }
-        }
-      }
-    }
-
-    // 浏览器请求关闭 1080p 预览
-    if (msg.type === 'hq1080Off') {
-      const my1080pDevices = browser1080p.get(ws);
-      // 优先使用消息中指定的deviceId，否则从追踪Map中获取所有设备
-      if (msg.deviceId) {
-        // 从浏览器追踪Map中移除
-        if (my1080pDevices) my1080pDevices.delete(msg.deviceId);
-        // Step 1: 自动同步，无剩余订阅时关闭设备 1080p
-        if (!global1080p.has(msg.deviceId)) {
-          for (const client of wssClient.clients) {
-            if (client._deviceId === msg.deviceId && client.readyState === 1) {
-              client.send(JSON.stringify({ type: 'hq1080Off' }));
-              break;
-            }
-          }
-        }
-      } else {
-        // 关闭所有追踪的设备
-        if (my1080pDevices) {
-          for (const deviceId of my1080pDevices) {
-            // Step 1: 自动同步，无剩余订阅时关闭设备 1080p
-            if (!global1080p.has(deviceId)) {
-              for (const client of wssClient.clients) {
-                if (client._deviceId === deviceId && client.readyState === 1) {
-                  client.send(JSON.stringify({ type: 'hq1080Off' }));
-                  break;
-                }
-              }
-            }
-          }
-          browser1080p.delete(ws);
-        }
-      }
-    }
-
     if (msg.type === 'getState') {
       // 转换 collections 为数组格式
       const collectionsArr = [];
@@ -2989,42 +2905,8 @@ wssBrowser.on('connection', (ws) => {
     // ── 格子预览独立通道取消订阅 ──────────────────────
     if (msg.type === 'unsubscribePreview') {
       previewClients.delete(ws);
-
-      // 检查是否是监控墙的连接
-      const isWallClient = wallClients.has(ws) || ws._wallUnsubscribing;
-
-      // 1. 清理 1080p 追踪（计数自动由 _recalcGlobalCounters 维护）
-      const my1080p = browser1080p.get(ws);
-      if (msg.deviceId && !isWallClient) {
-        if (my1080p) my1080p.delete(msg.deviceId);
-        if (!global1080p.has(msg.deviceId)) {
-          for (const client of wssClient.clients) {
-            if (client._deviceId === msg.deviceId && client.readyState === 1) {
-              client.send(JSON.stringify({ type: 'hq1080Off' }));
-              break;
-            }
-          }
-        }
-      }
-
-      // 2. 清理 startHQ 追踪（计数自动由 _recalcGlobalCounters 维护）
-      const myHD = browserPreviewHD.get(ws);
-      if (msg.deviceId && !isWallClient) {
-        if (myHD) myHD.delete(msg.deviceId);
-        if (!globalHQ.has(msg.deviceId)) {
-          let needHQ = false;
-          for (const [wallWs, hdChannels] of wallHDChannels) {
-            if (hdChannels.has(msg.deviceId)) { needHQ = true; break; }
-          }
-          if (!needHQ) {
-            for (const client of wssClient.clients) {
-              if (client._deviceId === msg.deviceId) {
-                client.send(JSON.stringify({ type: 'stopHQ' }));
-                break;
-              }
-            }
-          }
-        }
+      if (msg.deviceId) {
+        unsubscribeLevel(msg.deviceId, ws);
       }
     }
 
@@ -3060,10 +2942,6 @@ wssBrowser.on('connection', (ws) => {
     }
     
     if (msg.type === 'stopHQ') {
-      // 从浏览器追踪Map中移除
-      if (browserPreviewHD.has(ws)) {
-        browserPreviewHD.get(ws).delete(msg.deviceId);
-      }
       // 统一通过 unsubscribeLevel 处理订阅清理
       unsubscribeLevel(msg.deviceId, ws);
     }
@@ -3143,20 +3021,14 @@ wssBrowser.on('connection', (ws) => {
         deviceIds: deviceList
       });
       
-      // 获取该窗口当前的高清通道
-      const existingHD = wallHDChannels.get(ws) || new Set();
-      const newHDChannels = new Set(existingHD);
-      
       // 合并设备列表
       const existing = wallClients.get(ws);
       const existingDevices = existing ? existing.devices : new Set();
       const newDevices = new Set(existingDevices);
       
       for (const deviceId of deviceList) {
-        const isNewDevice = !existingDevices.has(deviceId);
         newDevices.add(deviceId);
         addMonitorWall(deviceId);
-        newHDChannels.add(deviceId);
         wallDevices.set(deviceId, true);
 
         // 监控墙使用 level 1 (853x720)
@@ -3164,7 +3036,6 @@ wssBrowser.on('connection', (ws) => {
       }
       
       wallClients.set(ws, { devices: newDevices });
-      wallHDChannels.set(ws, newHDChannels);
       
       // 返回该浏览器已上墙设备列表（仅自己）
       ws.send(JSON.stringify({ type: 'walledDevices', devices: Array.from(newDevices) }));
@@ -3182,12 +3053,10 @@ wssBrowser.on('connection', (ws) => {
       } else {
         // 手动取消单个设备：调用 unsubscribeLevel 统一处理
         const subscription = wallClients.get(ws);
-        const hdChannels = wallHDChannels.get(ws);
         if (subscription) {
           for (const deviceId of devicesToUnsubscribe) {
             subscription.devices.delete(deviceId);
             removeMonitorWall(deviceId); // 同步清理监控墙白名单
-            if (hdChannels) hdChannels.delete(deviceId);
             unsubscribeLevel(deviceId, ws); // 统一处理订阅清理和客户端通知
           }
           ws.send(JSON.stringify({ type: 'walledDevices', devices: Array.from(subscription.devices) }));
@@ -3236,122 +3105,10 @@ wssBrowser.on('connection', (ws) => {
     previewClients.delete(ws);
     wallLayouts.delete(ws); // Step 2: 清理监控墙布局信息
     viewportSubscriptions.delete(ws); // Step 3: 清理视口订阅
-    unsubscribeAllLevel(ws); // Step 1: 清理该 ws 的所有 level 订阅
+    unsubscribeAllLevel(ws); // Step 1: 清理该 ws 的所有 level 订阅（自动通知客户端）
 
-    const my1080pDevices = browser1080p.get(ws);
-    browser1080p.delete(ws);
-    const myPreviewHD = browserPreviewHD.get(ws);
-    browserPreviewHD.delete(ws);
-
-    // ══════════════════════════════════════════════════════════════
-    // 主页面 vs 监控墙：完全分离清理路径
-    // ══════════════════════════════════════════════════════════════
-    // 主页面：不订阅 wall，关闭时立即清理所有资源（不存在重连场景）
-    // 监控墙：延迟5秒清理（防止页面刷新导致误关）
-    //
-    // 核心原则：每种资源只在一个路径里减计数，绝不同时走两个路径
-    // ══════════════════════════════════════════════════════════════
-
-    const isWallBrowser = wallClients.has(ws) || ws._wallUnsubscribing;
-
-    if (isWallBrowser) {
-      const subscription = wallClients.get(ws);
-      const hdChannels = wallHDChannels.get(ws);
-
-      wallClients.delete(ws);
-      wallHDChannels.delete(ws);
-
-      const devicesToClean = subscription ? Array.from(subscription.devices) : [];
-      const hdDevicesToClean = hdChannels ? Array.from(hdChannels) : [];
-      const devices1080pToClean = my1080pDevices ? Array.from(my1080pDevices) : [];
-
-      // 清理 1080p
-      if (devices1080pToClean.length > 0) {
-        for (const deviceId of devices1080pToClean) {
-          if (!global1080p.has(deviceId)) {
-            for (const client of wssClient.clients) {
-              if (client._deviceId === deviceId && client.readyState === 1) {
-                client.send(JSON.stringify({ type: 'hq1080Off' }));
-                break;
-              }
-            }
-          }
-        }
-      }
-
-      // 清理 HQ
-      const allDevices = new Set([...devicesToClean, ...hdDevicesToClean]);
-      for (const deviceId of allDevices) {
-        let stillInUse = false;
-        for (const [otherWs, otherHd] of wallHDChannels) {
-          if (otherHd.has(deviceId)) { stillInUse = true; break; }
-        }
-        for (const [otherWs, otherSub] of wallClients) {
-          if (otherSub.devices.has(deviceId)) { stillInUse = true; break; }
-        }
-        for (const [otherWs, otherDev] of browserPreviewHD) {
-          if (otherDev.has(deviceId)) { stillInUse = true; break; }
-        }
-
-        if (!stillInUse && !globalHQ.has(deviceId)) {
-          wallDevices.delete(deviceId);
-          for (const client of wssClient.clients) {
-            if (client._deviceId === deviceId && client.readyState === 1) {
-              client.send(JSON.stringify({ type: 'stopHQ' }));
-              break;
-            }
-          }
-        }
-      }
-
-    } else {
-      // ── 主页面浏览器：立即清理（无重连场景，不需要延迟）──────
-      //
-      // stopHQ/hq1080Off 消息可能在 beforeunload 里已经发了，
-      // 如果已发，browser1080p/browserPreviewHD 的 Set 里对应的 deviceId 已被删除，
-      // 这里不会再重复减计数。如果 beforeunload 消息丢了，这里补上。
-
-      // 清理 1080p（计数由 _recalcGlobalCounters 自动维护）
-      if (my1080pDevices && my1080pDevices.size > 0) {
-        for (const deviceId of my1080pDevices) {
-          if (!global1080p.has(deviceId)) {
-            for (const client of wssClient.clients) {
-              if (client._deviceId === deviceId && client.readyState === 1) {
-                client.send(JSON.stringify({ type: 'hq1080Off' }));
-                break;
-              }
-            }
-          }
-        }
-      }
-
-      // 清理 HQ/720p（计数由 _recalcGlobalCounters 自动维护）
-      if (myPreviewHD && myPreviewHD.size > 0) {
-        for (const deviceId of myPreviewHD) {
-          if (!globalHQ.has(deviceId)) {
-            let stillNeedsHQ = false;
-            for (const [wWs, wHd] of wallHDChannels) {
-              if (wHd.has(deviceId)) { stillNeedsHQ = true; break; }
-            }
-            for (const [oWs, oSub] of wallClients) {
-              if (oSub.devices.has(deviceId)) { stillNeedsHQ = true; break; }
-            }
-            for (const [oWs, oDev] of browserPreviewHD) {
-              if (oDev.has(deviceId)) { stillNeedsHQ = true; break; }
-            }
-            if (!stillNeedsHQ) {
-              wallDevices.delete(deviceId);
-              for (const client of wssClient.clients) {
-                if (client._deviceId === deviceId && client.readyState === 1) {
-                  client.send(JSON.stringify({ type: 'stopHQ' }));
-                  break;
-                }
-              }
-            }
-          }
-        }
-      }
-    }
+    // 清理 per-ws 追踪变量
+    wallClients.delete(ws);
   });
   ws.on('error', () => {
     // error 时触发 close，close handler 已做完整清理
