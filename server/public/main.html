@@ -512,6 +512,7 @@ let serverVersion = '';      // 服务端版本号
 let activeFilters = new Set();  // 当前激活的分组筛选，空=全显示
 let selectedCell = null;    // 当前选中待设置的格子
 let previewDeviceId = null;  // 当前预览设备
+let previewCellIndex = null; // 预览格子索引（用于动画定位）
 let previewHQMode = false;   // 当前预览是否开启了HQ高清
 let previewScreenWidth = 1280;  // 预览设备的实际分辨率（用于鼠标点击映射）
 let previewScreenHeight = 720;   // 预览设备的实际分辨率（用于鼠标点击映射）
@@ -2155,13 +2156,15 @@ function openCollectionPreview(timestamp, deviceId) {
   sessionStorage.setItem('previewInitData', JSON.stringify(initData));
   var iframe = document.getElementById('previewIframe');
   var overlay = document.getElementById('previewOverlay');
+  previewCellIndex = null;
+  overlay.style.transformOrigin = 'center center';
   iframe.src = '/preview.html';
   overlay.classList.add('animating', 'zoom-in');
   overlay.style.display = 'flex';
   setTimeout(function() {
     overlay.classList.remove('animating', 'zoom-in');
     overlay.classList.add('active');
-  }, 300);
+  }, 400);
   var floatingClose = document.getElementById('previewFloatingClose');
   if (floatingClose) floatingClose.style.display = 'block';
 }
@@ -2306,6 +2309,7 @@ function openPreview(cellIndex) {
   if (!cell || !cell.deviceId) return;
   const dev = devices.find(d => d.deviceId === cell.deviceId);
   previewDeviceId = cell.deviceId;
+  previewCellIndex = cellIndex;
   var currentScreenshot = dev ? dev.screenshot : null;
   var initData = {
     mode: 'normal',
@@ -2323,13 +2327,24 @@ function openPreview(cellIndex) {
   sessionStorage.setItem('previewInitData', JSON.stringify(initData));
   var iframe = document.getElementById('previewIframe');
   var overlay = document.getElementById('previewOverlay');
+  
+  var cellEl = document.querySelector('.wall-cell[data-index="' + cellIndex + '"]');
+  if (cellEl) {
+    var rect = cellEl.getBoundingClientRect();
+    var centerX = rect.left + rect.width / 2;
+    var centerY = rect.top + rect.height / 2;
+    overlay.style.transformOrigin = centerX + 'px ' + centerY + 'px';
+  } else {
+    overlay.style.transformOrigin = 'center center';
+  }
+  
   iframe.src = '/preview.html';
   overlay.classList.add('animating', 'zoom-in');
   overlay.style.display = 'flex';
   setTimeout(function() {
     overlay.classList.remove('animating', 'zoom-in');
     overlay.classList.add('active');
-  }, 300);
+  }, 400);
   var floatingClose = document.getElementById('previewFloatingClose');
   if (floatingClose) floatingClose.style.display = 'block';
 }
@@ -2343,13 +2358,25 @@ function closePreview() {
   var overlay = document.getElementById('previewOverlay');
   var iframe = document.getElementById('previewIframe');
   var floatingClose = document.getElementById('previewFloatingClose');
+  
+  if (previewCellIndex !== null) {
+    var cellEl = document.querySelector('.wall-cell[data-index="' + previewCellIndex + '"]');
+    if (cellEl) {
+      var rect = cellEl.getBoundingClientRect();
+      var centerX = rect.left + rect.width / 2;
+      var centerY = rect.top + rect.height / 2;
+      overlay.style.transformOrigin = centerX + 'px ' + centerY + 'px';
+    }
+  }
+  previewCellIndex = null;
+  
   overlay.classList.remove('active');
   overlay.classList.add('animating', 'zoom-out');
   setTimeout(function() {
     overlay.style.display = 'none';
     overlay.classList.remove('animating', 'zoom-out');
     iframe.src = 'about:blank';
-  }, 250);
+  }, 350);
   if (floatingClose) floatingClose.style.display = 'none';
   for (const [idx, entry] of _cellBlobs) {
     try { URL.revokeObjectURL(entry.blobUrl); } catch(e) {}
@@ -4789,13 +4816,15 @@ function openAlarmPreview(alarmId) {
   sessionStorage.setItem('previewInitData', JSON.stringify(initData));
   var iframe = document.getElementById('previewIframe');
   var overlay = document.getElementById('previewOverlay');
+  previewCellIndex = null;
+  overlay.style.transformOrigin = (window.innerWidth * 0.15) + 'px ' + (window.innerHeight * 0.85) + 'px';
   iframe.src = '/preview.html';
   overlay.classList.add('animating', 'zoom-in');
   overlay.style.display = 'flex';
   setTimeout(function() {
     overlay.classList.remove('animating', 'zoom-in');
     overlay.classList.add('active');
-  }, 300);
+  }, 400);
   var floatingClose = document.getElementById('previewFloatingClose');
   if (floatingClose) floatingClose.style.display = 'block';
 }

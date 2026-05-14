@@ -219,10 +219,10 @@ html, body {
   pointer-events: none;
 }
 .wall-preview-overlay.zoom-in {
-  animation: previewZoomIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  animation: previewZoomIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 .wall-preview-overlay.zoom-out {
-  animation: previewZoomOut 0.25s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  animation: previewZoomOut 0.35s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
 @keyframes previewZoomIn {
@@ -1207,7 +1207,6 @@ function wallOpenPreview(deviceId) {
   wallPreviewDeviceId = deviceId;
   wallPreviewActive1080 = true;
 
-  // 发送 setLevel 2 开启 1080p 模式（由监控墙自己的 WebSocket 连接发送）
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'setLevel', deviceId: deviceId, level: 2 }));
   }
@@ -1229,13 +1228,24 @@ function wallOpenPreview(deviceId) {
   sessionStorage.setItem('previewInitData', JSON.stringify(initData));
   var iframe = document.getElementById('wallPreviewIframe');
   var overlay = document.getElementById('wallPreviewOverlay');
+  
+  var cellEl = document.querySelector('.wall-cell[data-device-id="' + deviceId + '"]') || findCellByDeviceId(deviceId);
+  if (cellEl) {
+    var rect = cellEl.getBoundingClientRect();
+    var centerX = rect.left + rect.width / 2;
+    var centerY = rect.top + rect.height / 2;
+    overlay.style.transformOrigin = centerX + 'px ' + centerY + 'px';
+  } else {
+    overlay.style.transformOrigin = 'center center';
+  }
+  
   iframe.src = '/preview.html';
   overlay.classList.add('animating', 'zoom-in');
   overlay.style.display = 'flex';
   setTimeout(function() {
     overlay.classList.remove('animating', 'zoom-in');
     overlay.classList.add('active');
-  }, 300);
+  }, 400);
   var floatingClose = document.getElementById('wallPreviewFloatingClose');
   if (floatingClose) floatingClose.style.display = 'block';
 }
@@ -1251,13 +1261,22 @@ function wallClosePreview() {
   var overlay = document.getElementById('wallPreviewOverlay');
   var iframe = document.getElementById('wallPreviewIframe');
   var floatingClose = document.getElementById('wallPreviewFloatingClose');
+  
+  var cellEl = document.querySelector('.wall-cell[data-device-id="' + wallPreviewDeviceId + '"]') || findCellByDeviceId(wallPreviewDeviceId);
+  if (cellEl) {
+    var rect = cellEl.getBoundingClientRect();
+    var centerX = rect.left + rect.width / 2;
+    var centerY = rect.top + rect.height / 2;
+    overlay.style.transformOrigin = centerX + 'px ' + centerY + 'px';
+  }
+  
   overlay.classList.remove('active');
   overlay.classList.add('animating', 'zoom-out');
   setTimeout(function() {
     overlay.style.display = 'none';
     overlay.classList.remove('animating', 'zoom-out');
     iframe.src = 'about:blank';
-  }, 250);
+  }, 350);
   if (floatingClose) floatingClose.style.display = 'none';
   var devId = wallPreviewDeviceId;
   wallPreviewActive1080 = false;

@@ -1343,10 +1343,10 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
   pointer-events: none;
 }
 .preview-overlay.zoom-in {
-  animation: previewZoomIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  animation: previewZoomIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 .preview-overlay.zoom-out {
-  animation: previewZoomOut 0.25s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  animation: previewZoomOut 0.35s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
 @keyframes previewZoomIn {
