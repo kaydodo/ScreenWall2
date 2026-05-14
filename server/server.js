@@ -361,8 +361,11 @@ async function _flushWallBatch() {
   } catch(e) { serverLog('[wallBatch] 批量推送失败:', e.message); }
   _wallFlushing = false;
 }
-function _scheduleWallBatch() {
-  if (!_wallBatchScheduled) {
+function _scheduleWallBatch(force = false) {
+  if (force) {
+    _wallFlushing = false;
+  }
+  if (force || !_wallBatchScheduled) {
     _wallBatchScheduled = true;
     setTimeout(_flushWallBatch, 166);
   }
@@ -427,8 +430,11 @@ async function _flushBrowserBatch() {
   } catch(e) { serverLog('[browserBatch] 批量推送失败:', e.message); }
   _browserFlushing = false;
 }
-function _scheduleBrowserBatch() {
-  if (!_browserBatchScheduled) {
+function _scheduleBrowserBatch(force = false) {
+  if (force) {
+    _browserFlushing = false;
+  }
+  if (force || !_browserBatchScheduled) {
     _browserBatchScheduled = true;
     setTimeout(_flushBrowserBatch, 166);
   }
@@ -2926,11 +2932,16 @@ wssBrowser.on('connection', (ws) => {
 
     // Step 3: 视口懒加载 - 浏览器上报当前可见格子和裁剪参数
     if (msg.type === 'setViewport') {
+      const prevDeviceIds = viewportSubscriptions.get(ws)?.deviceIds || new Set();
+      const newDeviceIds = new Set(msg.deviceIds || []);
       viewportSubscriptions.set(ws, {
-        deviceIds: new Set(msg.deviceIds || []),
+        deviceIds: newDeviceIds,
         cropCols: msg.cropCols || 4,
         cropSize: msg.cropSize || { w: 480, h: 270 }
       });
+      if (newDeviceIds.size > 0 && prevDeviceIds.size === 0) {
+        _scheduleBrowserBatch(true);
+      }
     }
 
     // 视口更新：浏览器上报当前可见格子
@@ -3074,7 +3085,11 @@ wssBrowser.on('connection', (ws) => {
     if (msg.type === 'pauseWall') {
       const subscription = wallClients.get(ws);
       if (subscription) {
+        const wasPaused = subscription.paused;
         subscription.paused = !!msg.paused;
+        if (wasPaused && !msg.paused) {
+          _scheduleWallBatch(true);
+        }
       }
     }
 
