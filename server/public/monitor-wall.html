@@ -737,25 +737,21 @@ function connectWebSocket() {
             reader.readAsDataURL(blob);
           }
           
-          if (!wallPreviewActive && (!dev || dev.online !== false)) {
-            // 正常渲染格子（仅当设备在线时）
+          if (!dev || dev.online !== false) {
             const el = document.getElementById('img_' + devId);
             if (el) {
               const oldBlobUrl = el._blobUrl;
               el.src = blobUrl;
               el._blobUrl = blobUrl;
-              // 先设新src再释放旧blobUrl，避免revoke导致img短暂空白引发画面跳动
               if (oldBlobUrl) URL.revokeObjectURL(oldBlobUrl);
               el.classList.remove('wall-img-hidden');
               el.classList.remove('grayscale');
               el.style.display = 'block';
               el.style.opacity = '1';
-              // 更新左上角时间戳
               var tsEl = document.getElementById('ts_' + devId);
               if (tsEl) tsEl.textContent = formatDate(new Date());
             }
           } else {
-            // 预览模式 或 设备离线：不更新格子，但仍释放 blobUrl 防内存泄漏
             URL.revokeObjectURL(blobUrl);
           }
 
@@ -1020,8 +1016,7 @@ function connectWebSocket() {
 // ═══════════════════════════════════════════════════════════════
 
 var wallPreviewDeviceId = null;   // 当前预览的设备ID
-var wallPreviewActive = false;    // ★ 预览激活时暂停格子渲染（和主页面一样）
-var wallPreviewActive1080 = false; // 1080p 预览模式
+var wallPreviewActive1080 = false;
 var wallPreviewScreenWidth = 1920;
 var wallPreviewScreenHeight = 1080;
 var wallKeyboardOpen = false;
@@ -1176,7 +1171,6 @@ function wallOpenPreview(deviceId) {
   if (wallPreviewDeviceId === deviceId) { wallClosePreview(); return; }
 
   wallPreviewDeviceId = deviceId;
-  wallPreviewActive = true;
   wallPreviewActive1080 = true;
 
   // 发送 setLevel 2 开启 1080p 模式（由监控墙自己的 WebSocket 连接发送）
@@ -1221,7 +1215,6 @@ function wallClosePreview() {
   var floatingClose = document.getElementById('wallPreviewFloatingClose');
   if (floatingClose) floatingClose.style.display = 'none';
   var devId = wallPreviewDeviceId;
-  wallPreviewActive = false;
   wallPreviewActive1080 = false;
   wallPreviewDeviceId = null;
 

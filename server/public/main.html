@@ -545,7 +545,6 @@ function downloadUU() {
     document.body.removeChild(a);
   }
 }
-let previewActive = false;   // 预览激活时暂停格子渲染
 let inputFocused = false;    // 输入框激活时暂停格子刷新
 let previewWS = null;       // 预览专用连接（请求高清）
 let keyClientExists = false; // 键盘客户端是否存在
@@ -1483,7 +1482,6 @@ let _viewportTimer = null;
 function updateViewport() {
   if (_viewportTimer) clearTimeout(_viewportTimer);
   _viewportTimer = setTimeout(function() {
-    if (_previewActive) return;
     const mainGrid = document.getElementById('mainGrid');
     if (!mainGrid || !ws || ws.readyState !== WebSocket.OPEN) return;
 
@@ -2141,7 +2139,6 @@ function openCollectionPreview(timestamp, deviceId) {
   // 使用统一的预览页面
   const dev = devices.find(d => d.deviceId === deviceId);
   previewDeviceId = deviceId;
-  previewActive = true;
   const initData = {
     mode: 'collection',
     deviceId: deviceId,
@@ -2303,8 +2300,6 @@ function openPreview(cellIndex) {
   if (!cell || !cell.deviceId) return;
   const dev = devices.find(d => d.deviceId === cell.deviceId);
   previewDeviceId = cell.deviceId;
-  previewActive = true;
-  // 获取当前格子的截图
   var currentScreenshot = dev ? dev.screenshot : null;
   var initData = {
     mode: 'normal',
@@ -2333,7 +2328,6 @@ function closePreview() {
   previewHQMode = false;
   previewDeviceId = null;
   alarmPreviewDeviceId = null;
-  previewActive = false;
   document.getElementById('previewOverlay').style.display = 'none';
   var iframe = document.getElementById('previewIframe');
   iframe.src = 'about:blank';
@@ -2358,8 +2352,6 @@ window.addEventListener('message', function(e) {
     }
   }
 });
-
-var _previewActive = false;
 
 var previewKeyboardOpen = false;
 var preview1080Mode = false;  // 1080p 预览模式（仅桌面端）
@@ -4759,7 +4751,6 @@ function openAlarmPreview(alarmId) {
   // 使用统一的预览页面
   const dev = devices.find(d => d.deviceId === rec.deviceId);
   previewDeviceId = rec.deviceId;
-  previewActive = true;
   var isOnline = rec.online;
   if (!isOnline && rec.deviceId) {
     isOnline = dev ? dev.online : false;
