@@ -36,12 +36,11 @@ html, body {
   min-height: 0;
   cursor: pointer;
 }
-/* 内层格子：16:9 比例，自适应填满外层，居中 */
+/* 内层格子：填满外层，img保持比例显示 */
 .wall-cell .img-wrapper {
-  position: relative;
-  max-width: 100%;
-  max-height: 100%;
-  aspect-ratio: 16 / 9;
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  overflow: hidden;
 }
 .wall-cell .img-wrapper img {
   width: 100%;
