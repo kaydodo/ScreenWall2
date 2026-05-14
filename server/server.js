@@ -3004,12 +3004,9 @@ wssBrowser.on('connection', (ws) => {
     if (msg.type === 'subscribeWall') {
       const deviceList = msg.devices || [];
       
-      // 保存布局信息用于裁剪，服务端计算帧尺寸
-      // 基准尺寸使用实际帧尺寸：Level 1 = 853×720（水平压缩2/3）
-      // 而非固定的 1280×720，确保 cellW/cellH 宽高比与实际帧一致
       const cols = msg.cols || 4;
       const rows = msg.rows || 4;
-      const cellW = Math.floor((853 * 2) / cols);
+      const cellW = Math.floor((1280 * 2) / cols);
       const cellH = Math.floor((720 * 2) / rows);
       
       wallLayouts.set(ws, {
