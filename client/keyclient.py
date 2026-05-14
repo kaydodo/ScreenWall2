@@ -123,11 +123,20 @@ SCREEN_W = ctypes.windll.user32.GetSystemMetrics(0)
 SCREEN_H = ctypes.windll.user32.GetSystemMetrics(1)
 
 
-def _abs_xy(x, y):
-    """将物理坐标转为绝对坐标 (0~65535)"""
+def _get_screen_size():
+    """实时获取屏幕分辨率"""
     return (
-        int(x * 65535 / SCREEN_W),
-        int(y * 65535 / SCREEN_H)
+        ctypes.windll.user32.GetSystemMetrics(0),
+        ctypes.windll.user32.GetSystemMetrics(1)
+    )
+
+
+def _abs_xy(x, y):
+    """将物理坐标转为绝对坐标 (0~65535)，实时获取分辨率"""
+    w, h = _get_screen_size()
+    return (
+        int(x * 65535 / w),
+        int(y * 65535 / h)
     )
 
 
