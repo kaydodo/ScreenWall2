@@ -19,7 +19,7 @@ import time
 import webbrowser
 
 # 客户端版本号（每次功能更新时手动递增）
-CLIENT_VERSION = "1.8.1"
+CLIENT_VERSION = "1.9.0"
 
 
 def _get_mac_address():
@@ -983,8 +983,8 @@ class ScreenCapturer:
                         use_dxgi = True
                         if not hq:
                             pic.thumbnail((self.resize_w, self.resize_h), Image.LANCZOS)
-                        if hq and (pic.width > int(hq_limit * 32 / 27) or pic.height > hq_limit):
-                            pic.thumbnail((int(hq_limit * 32 / 27), hq_limit), Image.LANCZOS)
+                        if hq and (pic.width > int(hq_limit * 16 / 9) or pic.height > hq_limit):
+                            pic.thumbnail((int(hq_limit * 16 / 9), hq_limit), Image.LANCZOS)
                         buf = BytesIO()
                         if lossless:
                             pic.save(buf, format="WEBP", lossless=True)
@@ -1017,8 +1017,8 @@ class ScreenCapturer:
                     pic = Image.frombytes("RGB", frame.size, frame.bgra, "raw", "BGRX").convert("RGB")
                     if not hq:
                         pic.thumbnail((self.resize_w, self.resize_h), Image.LANCZOS)
-                    if hq and (pic.width > int(hq_limit * 32 / 27) or pic.height > hq_limit):
-                        pic.thumbnail((int(hq_limit * 32 / 27), hq_limit), Image.LANCZOS)
+                    if hq and (pic.width > int(hq_limit * 16 / 9) or pic.height > hq_limit):
+                        pic.thumbnail((int(hq_limit * 16 / 9), hq_limit), Image.LANCZOS)
                     buf = BytesIO()
                     if lossless:
                         pic.save(buf, format="WEBP", lossless=True)
@@ -1046,8 +1046,8 @@ class ScreenCapturer:
                 pic = pic.convert("RGB")
                 if not hq:
                     pic.thumbnail((self.resize_w, self.resize_h), Image.LANCZOS)
-                if hq and (pic.width > int(hq_limit * 32 / 27) or pic.height > hq_limit):
-                    pic.thumbnail((int(hq_limit * 32 / 27), hq_limit), Image.LANCZOS)
+                if hq and (pic.width > int(hq_limit * 16 / 9) or pic.height > hq_limit):
+                    pic.thumbnail((int(hq_limit * 16 / 9), hq_limit), Image.LANCZOS)
                 buf = BytesIO()
                 if lossless:
                     pic.save(buf, format="WEBP", lossless=True)
@@ -2007,11 +2007,10 @@ class ScreenWallClient:
                 hq_limit = 1080
             elif self.hq_mode:
                 hq = True
-                hq_limit = 720
+                hq_limit = self.target_height
             else:
-                # 默认低清模式：hq=False，走 resizeW×H 路径（480×270），比例固定
                 hq = False
-                hq_limit = 720  # 不影响 hq=False 的情况
+                hq_limit = 720
             capt = ScreenCapturer(cfg["quality"], cfg["resizeW"], cfg["resizeH"], monitor_index=_current_monitor_index)
             try:
                 img_bytes = capt.capture(hq=hq, hq_limit=hq_limit, hq_quality=30)
@@ -2072,14 +2071,14 @@ class ScreenWallClient:
                             self.hq_mode = True
                             self.hq_streaming = True
                             self.hq_1080 = False
-                            self.target_width = 853
-                            self.target_height = 720
+                            self.target_width = 854
+                            self.target_height = 480
                         elif level == 2:
                             self.hq_mode = True
                             self.hq_streaming = True
-                            self.hq_1080 = True
+                            self.hq_1080 = False
                             self.target_width = 1280
-                            self.target_height = 1080
+                            self.target_height = 720
 
 
                     elif msg_type == "requestHdScreenshot":
