@@ -209,12 +209,9 @@ async function cropFrame(frameBuffer, compressedWidth, compressedHeight, targetW
 
 // ========== Step 3: 视口懒加载 - 按布局裁剪函数 ==========
 async function cropToLayout(frameBuffer, level, targetW, targetH) {
-  // 整帧等比缩放（不裁剪）
-  // 原理：压缩帧水平压缩 2/3，fit:fill 两个方向独立缩放，
-  // 宽缩放因子 (targetW/compressedW) 是高缩放因子 (targetH/compressedH) 的 1.5 倍，
-  // 恰好抵消水平压缩，输出 16:9 画面色彩正确，CSS object-fit:cover 完美填充格子
+  // 整帧等比缩放，保持比例，不足部分用黑色填充
   return sharp(frameBuffer)
-    .resize(targetW, targetH, { fit: 'fill' })
+    .resize(targetW, targetH, { fit: 'contain', background: '#000' })
     .webp({ quality: 30 })
     .toBuffer();
 }
