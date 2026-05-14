@@ -156,8 +156,8 @@ function hasOtherPreview(deviceId, excludeWs) {
 
 // ========== Step 3: 视口懒加载 - 按布局裁剪函数 ==========
 async function cropToLayout(frameBuffer, level, targetW, targetH) {
-  // fit:'cover' 保证输出精确 targetW×targetH，宽高比始终一致
-  // L1帧(16:9)左右裁剪，L2帧(1.185:1)完美匹配，输出一致不会横跳
+  // fit:'cover' 保证输出精确 targetW×targetH，尺寸始终一致
+  // L1/L2帧都是16:9(853×480/1280×720)，cover裁剪左右后输出一致不跳
   return sharp(frameBuffer)
     .resize(targetW, targetH, { fit: 'cover', position: 'center' })
     .webp({ quality: 30 })
@@ -383,7 +383,7 @@ async function _flushBrowserBatch() {
       if (browserWs.readyState !== 1) continue;
 
       const vpData = viewportSubscriptions.get(browserWs);
-      if (vpData) {
+      if (vpData && !wallClients.has(browserWs)) {
         // Step 3: 视口懒加载，只推送可见设备的帧
         for (const [deviceId, data] of _browserBatch) {
           if (!vpData.deviceIds.has(deviceId)) continue;
@@ -410,7 +410,8 @@ async function _flushBrowserBatch() {
       } else {
         // 无视口信息，使用旧逻辑发送所有帧
         // 但跳过预览客户端（它们已通过 previewClients 直接收到帧）
-        if (!previewClients.has(browserWs)) {
+        // 跳过监控墙客户端（它们通过 _flushWallBatch 收到裁剪后的帧）
+        if (!previewClients.has(browserWs) && !wallClients.has(browserWs)) {
           for (const [deviceId, data] of _browserBatch) {
             if (data.buffer) sendBinaryScreenshot(browserWs, 0x10, deviceId, data.buffer, data.screenWidth || 0, data.screenHeight || 0, data.isHQ || false);
           }
