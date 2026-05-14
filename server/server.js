@@ -171,41 +171,8 @@ function hasOtherPreview(deviceId, excludeWs) {
   return deviceMaxLevel.has(deviceId) && deviceMaxLevel.get(deviceId) >= 1;
 }
 
-function hasOtherWallSubscription(deviceId, excludeWs) {
-  return hdRequests.has(deviceId) && hdRequests.get(deviceId).size > 0;
-}
 
-// ========== Step 2: 监控墙裁剪 - 裁剪压缩帧函数 ==========
-async function cropFrame(frameBuffer, compressedWidth, compressedHeight, targetW, targetH, col, row, cols, rows) {
-  // 先获取实际帧尺寸，防止越界
-  const metadata = await sharp(frameBuffer).metadata();
-  const actualW = metadata.width || compressedWidth;
-  const actualH = metadata.height || compressedHeight;
 
-  // 计算每个格子的尺寸，确保不越界
-  const cellCompW = Math.floor(actualW / cols);
-  const cellCompH = Math.floor(actualH / rows);
-  const left = Math.min(col * cellCompW, actualW - 1);
-  const top = Math.min(row * cellCompH, actualH - 1);
-
-  // 确保裁剪区域有效
-  const extractW = Math.min(cellCompW, actualW - left);
-  const extractH = Math.min(cellCompH, actualH - top);
-
-  if (extractW <= 0 || extractH <= 0) {
-    // 裁剪区域无效，直接 resize
-    return sharp(frameBuffer)
-      .resize(targetW, targetH, { fit: 'fill' })
-      .webp({ quality: 30 })
-      .toBuffer();
-  }
-
-  return sharp(frameBuffer)
-    .extract({ left, top, width: extractW, height: extractH })
-    .resize(targetW, targetH, { fit: 'fill' })
-    .webp({ quality: 30 })
-    .toBuffer();
-}
 
 // ========== Step 3: 视口懒加载 - 按布局裁剪函数 ==========
 async function cropToLayout(frameBuffer, level, targetW, targetH) {
@@ -263,8 +230,6 @@ const wallClients = new Map(); // ws -> { devices: Set<deviceId>, interval: ms }
 const wallDevices = new Map(); // deviceId -> interval (持久化追踪哪些设备应该接收高清流)
 // 每个窗口独立的高清通道追踪：window ws -> Set<deviceId>
 const wallHDChannels = new Map(); // ws -> Set<deviceId>
-// 全局高清请求追踪（兼容旧逻辑）
-const hdRequests = new Map(); // deviceId -> Set<ws>  ref counting
 // 浏览器预览高清通道追踪：browser ws -> Set<deviceId>
 const browserPreviewHD = new Map(); // ws -> Set<deviceId>
 // 格子预览独立通道（不受帧缓存去重影响）
@@ -497,24 +462,7 @@ const GRID_PERSIST_PATH = path.join(__dirname, 'grid-layout.json');
 const GRID_SIZE_PATH = path.join(__dirname, 'grid-size.json');
 try {
   const raw = fs.readFileSync(GRID_PERSIST_PATH, 'utf8');
-  const parsed = JSON.parse(raw);
-  // 兼容旧格式（嵌套 gridSize -> cellIndex -> deviceId）
-  // 新格式：扁平化 cellIndex -> deviceId
-  const firstVal = Object.values(parsed)[0];
-  if (firstVal && typeof firstVal === 'object' && !Array.isArray(firstVal)) {
-    // 旧格式：合并所有 gridSize 的格子（取最后写入的）
-    serverLog('[ScreenWall] 检测到旧格式 grid-layout.json，自动迁移...');
-    for (const [gs, layout] of Object.entries(parsed)) {
-      for (const [idx, devId] of Object.entries(layout)) {
-        if (devId) gridLayout[idx] = devId;
-      }
-    }
-    // 保存新格式
-    fs.writeFileSync(GRID_PERSIST_PATH, JSON.stringify(gridLayout), 'utf8');
-    serverLog('[ScreenWall] 迁移完成，格子数:', Object.keys(gridLayout).length);
-  } else {
-    gridLayout = parsed;
-  }
+  gridLayout = JSON.parse(raw);
 } catch (e) {}
 try {
   const raw = fs.readFileSync(GRID_SIZE_PATH, 'utf8');
@@ -3087,37 +3035,6 @@ wssBrowser.on('connection', (ws) => {
       }
     }
 
-    // Step 1: 兼容性处理 - 旧消息映射到 setLevel
-    if (msg.type === 'startHQ') {
-      // 旧 startHQ 消息 -> level 1 (853x720)
-      if (msg.deviceId) {
-        subscribeLevel(msg.deviceId, ws, 1);
-      }
-    }
-    if (msg.type === 'stopHQ') {
-      // 旧 stopHQ 消息 -> 取消订阅
-      if (msg.deviceId) {
-        unsubscribeLevel(msg.deviceId, ws);
-      }
-    }
-    if (msg.type === 'hq1080On') {
-      // 旧 hq1080On 消息 -> level 2 (1280x1080)
-      if (msg.deviceId) {
-        subscribeLevel(msg.deviceId, ws, 2);
-      }
-    }
-    if (msg.type === 'hq1080Off') {
-      // 旧 hq1080Off 消息 -> 回退到 level 1 (监控墙) 或 0 (主页面)
-      if (msg.deviceId) {
-        const isWallClient = wallClients.has(ws) || ws._wallUnsubscribing;
-        if (isWallClient) {
-          subscribeLevel(msg.deviceId, ws, 1);
-        } else {
-          unsubscribeLevel(msg.deviceId, ws);
-        }
-      }
-    }
-
     // Step 3: 视口懒加载 - 浏览器上报当前可见格子和裁剪参数
     if (msg.type === 'setViewport') {
       viewportSubscriptions.set(ws, {
@@ -3147,31 +3064,8 @@ wssBrowser.on('connection', (ws) => {
       if (browserPreviewHD.has(ws)) {
         browserPreviewHD.get(ws).delete(msg.deviceId);
       }
-
-      // 监控墙的 HQ 由 subscribeWall/close 延迟清理管理
-      const isWallClient = wallClients.has(ws) || ws._wallUnsubscribing;
-      if (!isWallClient) {
-        // 主页面：检查是否已无HQ订阅（计数由 _recalcGlobalCounters 自动维护）
-        if (!globalHQ.has(msg.deviceId)) {
-          let stillNeedsHQ = false;
-          for (const [wallWs, hdChannels] of wallHDChannels) {
-            if (hdChannels.has(msg.deviceId)) { stillNeedsHQ = true; break; }
-          }
-          for (const [otherWs, otherDevices] of browserPreviewHD) {
-            if (otherDevices.has(msg.deviceId)) { stillNeedsHQ = true; break; }
-          }
-          if (!stillNeedsHQ) {
-            hdRequests.delete(msg.deviceId);
-            wallDevices.delete(msg.deviceId);
-            for (const client of wssClient.clients) {
-              if (client._deviceId === msg.deviceId) {
-                client.send(JSON.stringify({ type: 'stopHQ' }));
-                break;
-              }
-            }
-          }
-        }
-      }
+      // 统一通过 unsubscribeLevel 处理订阅清理
+      unsubscribeLevel(msg.deviceId, ws);
     }
 
     if (msg.type === 'groups') {
@@ -3265,9 +3159,6 @@ wssBrowser.on('connection', (ws) => {
         newHDChannels.add(deviceId);
         wallDevices.set(deviceId, true);
 
-        if (!hdRequests.has(deviceId)) hdRequests.set(deviceId, new Set());
-        hdRequests.get(deviceId).add(ws);
-
         // 监控墙使用 level 1 (853x720)
         subscribeLevel(deviceId, ws, 1);
       }
@@ -3285,12 +3176,11 @@ wssBrowser.on('connection', (ws) => {
       
       if (isPageClosing) {
         // 页面关闭：只标记，不删 devices，留给 close 事件统一清理
-
         if (devicesToUnsubscribe.length > 0) {
           ws._wallUnsubscribing = true;
         }
       } else {
-        // 手动取消单个设备：立即清理该设备（原逻辑）
+        // 手动取消单个设备：调用 unsubscribeLevel 统一处理
         const subscription = wallClients.get(ws);
         const hdChannels = wallHDChannels.get(ws);
         if (subscription) {
@@ -3298,28 +3188,7 @@ wssBrowser.on('connection', (ws) => {
             subscription.devices.delete(deviceId);
             removeMonitorWall(deviceId); // 同步清理监控墙白名单
             if (hdChannels) hdChannels.delete(deviceId);
-            if (hdRequests.has(deviceId)) {
-              hdRequests.get(deviceId).delete(ws);
-            }
-            if (!globalHQ.has(deviceId)) {
-              let wallStillNeedsHQ = false;
-              for (const [wWs, wHd] of wallHDChannels) {
-                if (wWs !== ws && wHd.has(deviceId)) { wallStillNeedsHQ = true; break; }
-              }
-              for (const [oWs, oDev] of browserPreviewHD) {
-                if (oWs !== ws && oDev.has(deviceId)) { wallStillNeedsHQ = true; break; }
-              }
-              if (!wallStillNeedsHQ) {
-                hdRequests.delete(deviceId);
-                wallDevices.delete(deviceId);
-                for (const client of wssClient.clients) {
-                  if (client._deviceId === deviceId) {
-                    client.send(JSON.stringify({ type: 'stopHQ' }));
-                    break;
-                  }
-                }
-              }
-            }
+            unsubscribeLevel(deviceId, ws); // 统一处理订阅清理和客户端通知
           }
           ws.send(JSON.stringify({ type: 'walledDevices', devices: Array.from(subscription.devices) }));
         }
@@ -3425,7 +3294,6 @@ wssBrowser.on('connection', (ws) => {
         }
 
         if (!stillInUse && !globalHQ.has(deviceId)) {
-          hdRequests.delete(deviceId);
           wallDevices.delete(deviceId);
           for (const client of wssClient.clients) {
             if (client._deviceId === deviceId && client.readyState === 1) {
@@ -3472,7 +3340,6 @@ wssBrowser.on('connection', (ws) => {
               if (oDev.has(deviceId)) { stillNeedsHQ = true; break; }
             }
             if (!stillNeedsHQ) {
-              hdRequests.delete(deviceId);
               wallDevices.delete(deviceId);
               for (const client of wssClient.clients) {
                 if (client._deviceId === deviceId && client.readyState === 1) {

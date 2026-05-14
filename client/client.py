@@ -2082,30 +2082,7 @@ class ScreenWallClient:
                             self.hq_1080 = True
                             self.target_width = 1280
                             self.target_height = 1080
-                    elif msg_type == "startHQ":
-                        # 兼容旧消息 - 相当于 level=1
-                        self.hq_mode = True
-                        self.hq_streaming = True
-                        self.target_width = 853
-                        self.target_height = 720
-                    elif msg_type == "stopHQ":
-                        # 兼容旧消息 - 相当于 level=0
-                        self.hq_mode = False
-                        self.hq_streaming = False
-                        self.hq_1080 = False
-                        self._last_msg_time = time.time()
 
-                    elif msg_type == "hq1080On":
-                        # 兼容旧消息 - 相当于 level=2
-                        self.hq_1080 = True
-                        self.target_width = 1280
-                        self.target_height = 1080
-
-                    elif msg_type == "hq1080Off":
-                        # 兼容旧消息 - 相当于回退到 level=1
-                        self.hq_1080 = False
-                        self.target_width = 853
-                        self.target_height = 720
 
                     elif msg_type == "requestHdScreenshot":
                         purpose = data.get("purpose", "collection")
