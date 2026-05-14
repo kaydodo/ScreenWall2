@@ -209,9 +209,9 @@ async function cropFrame(frameBuffer, compressedWidth, compressedHeight, targetW
 
 // ========== Step 3: 视口懒加载 - 按布局裁剪函数 ==========
 async function cropToLayout(frameBuffer, level, targetW, targetH) {
-  // 整帧等比缩放，保持比例，不足部分用黑色填充
+  // 直接 resize 到目标尺寸，不指定 fit（sharp 默认行为）
   return sharp(frameBuffer)
-    .resize(targetW, targetH, { fit: 'contain', background: '#000' })
+    .resize(targetW, targetH)
     .webp({ quality: 30 })
     .toBuffer();
 }
