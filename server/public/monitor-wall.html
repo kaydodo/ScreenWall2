@@ -208,9 +208,43 @@ html, body {
   flex-direction: column;
   -webkit-backdrop-filter: blur(6px);
   backdrop-filter: blur(6px);
+  transform-origin: center center;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
 }
 .wall-preview-overlay.active {
   display: flex;
+}
+.wall-preview-overlay.animating {
+  display: flex;
+  pointer-events: none;
+}
+.wall-preview-overlay.zoom-in {
+  animation: previewZoomIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+.wall-preview-overlay.zoom-out {
+  animation: previewZoomOut 0.25s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes previewZoomIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.2);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes previewZoomOut {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.2);
+  }
 }
 .wall-preview-titlebar {
   display: flex;
@@ -1194,8 +1228,14 @@ function wallOpenPreview(deviceId) {
   };
   sessionStorage.setItem('previewInitData', JSON.stringify(initData));
   var iframe = document.getElementById('wallPreviewIframe');
+  var overlay = document.getElementById('wallPreviewOverlay');
   iframe.src = '/preview.html';
-  document.getElementById('wallPreviewOverlay').style.display = 'flex';
+  overlay.classList.add('animating', 'zoom-in');
+  overlay.style.display = 'flex';
+  setTimeout(function() {
+    overlay.classList.remove('animating', 'zoom-in');
+    overlay.classList.add('active');
+  }, 300);
   var floatingClose = document.getElementById('wallPreviewFloatingClose');
   if (floatingClose) floatingClose.style.display = 'block';
 }
@@ -1204,21 +1244,25 @@ function wallClosePreview() {
   if (!wallPreviewDeviceId) return;
   if (wallKeyboardOpen) wallCloseKeyboard();
 
-  // 发送 setLevel 1 回退到监控墙级别（由监控墙自己的 WebSocket 连接发送）
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'setLevel', deviceId: wallPreviewDeviceId, level: 1 }));
   }
 
-  document.getElementById('wallPreviewOverlay').style.display = 'none';
+  var overlay = document.getElementById('wallPreviewOverlay');
   var iframe = document.getElementById('wallPreviewIframe');
-  iframe.src = 'about:blank';
   var floatingClose = document.getElementById('wallPreviewFloatingClose');
+  overlay.classList.remove('active');
+  overlay.classList.add('animating', 'zoom-out');
+  setTimeout(function() {
+    overlay.style.display = 'none';
+    overlay.classList.remove('animating', 'zoom-out');
+    iframe.src = 'about:blank';
+  }, 250);
   if (floatingClose) floatingClose.style.display = 'none';
   var devId = wallPreviewDeviceId;
   wallPreviewActive1080 = false;
   wallPreviewDeviceId = null;
 
-  // 关闭预览后，检查设备是否离线，若是则重新显示离线图
   var dev = devices[devId];
   if (dev && dev.online === false) {
     var cell = findCellByDeviceId(devId);

@@ -1334,8 +1334,42 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
   flex-direction: column;
   -webkit-backdrop-filter: blur(6px);
   backdrop-filter: blur(6px);
+  transform-origin: center center;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
 }
 .preview-overlay.active { display: flex; }
+.preview-overlay.animating {
+  display: flex;
+  pointer-events: none;
+}
+.preview-overlay.zoom-in {
+  animation: previewZoomIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+.preview-overlay.zoom-out {
+  animation: previewZoomOut 0.25s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes previewZoomIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.2);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes previewZoomOut {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.2);
+  }
+}
 
 .preview-titlebar {
   display: flex;
