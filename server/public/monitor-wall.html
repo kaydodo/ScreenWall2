@@ -1863,11 +1863,12 @@ document.addEventListener('mousemove', function(e) {
 
 document.addEventListener('mouseup', function(e) {
   if (!_activeDrag) return;
+  var savedCell = _activeDrag.cell;
   if (_activeDrag.isDragging) {
-    _activeDrag.cell._justDragged = true;
-    setTimeout(function() { _activeDrag.cell._justDragged = false; }, 50);
+    savedCell._justDragged = true;
+    setTimeout(function() { if (savedCell) savedCell._justDragged = false; }, 50);
   }
-  _activeDrag.cell.style.cursor = '';
+  savedCell.style.cursor = '';
   _activeDrag = null;
 });
 
