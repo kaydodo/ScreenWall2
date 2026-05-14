@@ -3006,8 +3006,8 @@ wssBrowser.on('connection', (ws) => {
       
       const cols = msg.cols || 4;
       const rows = msg.rows || 4;
-      const cellW = Math.floor((1280 * 2) / cols);
-      const cellH = Math.floor((720 * 2) / rows);
+      const cellW = Math.floor((854 * 2) / cols);
+      const cellH = Math.floor((480 * 2) / rows);
       
       wallLayouts.set(ws, {
         cols: cols,
