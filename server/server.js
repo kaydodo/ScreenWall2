@@ -393,13 +393,29 @@ async function _flushBrowserBatch() {
     _browserFlushing = false;
     return;
   }
+  
+  let hasActiveViewport = false;
+  for (const browserWs of browserClients) {
+    if (browserWs.readyState !== 1) continue;
+    const vpData = viewportSubscriptions.get(browserWs);
+    if (!vpData || !wallClients.has(browserWs)) {
+      if (!vpData || vpData.deviceIds.size > 0) {
+        hasActiveViewport = true;
+        break;
+      }
+    }
+  }
+  if (!hasActiveViewport) {
+    _browserFlushing = false;
+    return;
+  }
+  
   try {
     for (const browserWs of browserClients) {
       if (browserWs.readyState !== 1) continue;
 
       const vpData = viewportSubscriptions.get(browserWs);
       if (vpData && !wallClients.has(browserWs)) {
-        // Step 3: 视口懒加载，只推送可见设备的帧
         for (const [deviceId, data] of _browserBatch) {
           if (!vpData.deviceIds.has(deviceId)) continue;
           if (!data.buffer) continue;
@@ -413,18 +429,13 @@ async function _flushBrowserBatch() {
               );
               sendBinaryScreenshot(browserWs, 0x10, deviceId, croppedBuffer, vpData.cropSize.w, vpData.cropSize.h, data.isHQ || false);
             } else {
-              // 不裁剪直接发
               sendBinaryScreenshot(browserWs, 0x10, deviceId, data.buffer, data.screenWidth || 0, data.screenHeight || 0, data.isHQ || false);
             }
           } catch(e) {
-            // 裁剪失败，直接发送原图
             sendBinaryScreenshot(browserWs, 0x10, deviceId, data.buffer, data.screenWidth || 0, data.screenHeight || 0, data.isHQ || false);
           }
         }
       } else {
-        // 无视口信息，使用旧逻辑发送所有帧
-        // 但跳过预览客户端（它们已通过 previewClients 直接收到帧）
-        // 跳过监控墙客户端（它们通过 _flushWallBatch 收到裁剪后的帧）
         if (!previewClients.has(browserWs) && !wallClients.has(browserWs)) {
           for (const [deviceId, data] of _browserBatch) {
             if (data.buffer) sendBinaryScreenshot(browserWs, 0x10, deviceId, data.buffer, data.screenWidth || 0, data.screenHeight || 0, data.isHQ || false);
