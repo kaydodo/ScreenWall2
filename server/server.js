@@ -155,13 +155,12 @@ function hasOtherPreview(deviceId, excludeWs) {
 
 
 // ========== Step 3: 视口懒加载 - 按布局裁剪函数 ==========
-async function cropToLayout(frameBuffer, level, targetW, targetH) {
-  // fit:'contain'+黑边：输出精确targetW×targetH，画面完整不裁剪
+async function cropToLayout(frameBuffer, level, targetW, targetH, fit = 'contain') {
+  const resizeOptions = fit === 'cover' 
+    ? { fit: 'cover' }
+    : { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 1 } };
   return sharp(frameBuffer)
-    .resize(targetW, targetH, { 
-      fit: 'contain',
-      background: { r: 0, g: 0, b: 0, alpha: 1 }
-    })
+    .resize(targetW, targetH, resizeOptions)
     .webp({ quality: 30 })
     .toBuffer();
 }
@@ -393,11 +392,10 @@ async function _flushBrowserBatch() {
 
           try {
             if (vpData.cropSize) {
-              // 按布局裁剪
               const level = deviceMaxLevel.get(deviceId) || 0;
               const croppedBuffer = await cropToLayout(
                 data.buffer, level,
-                vpData.cropSize.w, vpData.cropSize.h
+                vpData.cropSize.w, vpData.cropSize.h, 'cover'
               );
               sendBinaryScreenshot(browserWs, 0x10, deviceId, croppedBuffer, vpData.cropSize.w, vpData.cropSize.h, data.isHQ || false);
             } else {
