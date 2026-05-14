@@ -2951,6 +2951,9 @@ wssBrowser.on('connection', (ws) => {
         cropCols: msg.cropCols || 4,
         cropSize: msg.cropSize || { w: 480, h: 270 }
       });
+      if (msg.deviceIds && msg.deviceIds.length > 0) {
+        _scheduleBrowserBatch();
+      }
     }
 
     // 视口更新：浏览器上报当前可见格子
@@ -3095,6 +3098,9 @@ wssBrowser.on('connection', (ws) => {
       const subscription = wallClients.get(ws);
       if (subscription) {
         subscription.paused = !!msg.paused;
+        if (!msg.paused) {
+          _scheduleWallBatch();
+        }
       }
     }
 
