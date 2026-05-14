@@ -3235,12 +3235,17 @@ wssBrowser.on('connection', (ws) => {
     if (msg.type === 'subscribeWall') {
       const deviceList = msg.devices || [];
       
-      // Step 2: 保存布局信息用于裁剪
+      // 保存布局信息用于裁剪，服务端计算帧尺寸
+      const cols = msg.cols || 4;
+      const rows = msg.rows || 4;
+      const cellW = Math.floor((1280 * 2) / cols);
+      const cellH = Math.floor((720 * 2) / rows);
+      
       wallLayouts.set(ws, {
-        cols: msg.cols || 4,
-        rows: msg.rows || 4,
-        cellW: msg.cellW || 320,
-        cellH: msg.cellH || 180,
+        cols: cols,
+        rows: rows,
+        cellW: cellW,
+        cellH: cellH,
         deviceIds: deviceList
       });
       

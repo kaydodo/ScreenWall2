@@ -679,24 +679,16 @@ function connectWebSocket() {
   ws.onopen = function() {
     console.log('[监控墙] WebSocket 连接成功，发送 subscribeWall', wallData.devices.map(function(d) { return d.id; }));
     
-    // Step 2: 计算布局信息并上报
+    // 上报布局信息，服务端根据布局计算帧尺寸
     var cfg = compactLayouts[wallData.layout];
     var rows = cfg ? cfg.rows : Math.sqrt(wallData.layout);
     var cols = cfg ? cfg.cols : Math.sqrt(wallData.layout);
     
-    // 计算单个格子的目标尺寸
-    // 原始帧 1280x720，乘以2后除以布局数
-    var cellW = Math.floor((1280 * 2) / cols);
-    var cellH = Math.floor((720 * 2) / rows);
-    
-    // 连接成功，请求高清截图并上报布局信息
     ws.send(JSON.stringify({
       type: 'subscribeWall',
       devices: wallData.devices.map(function(d) { return d.id; }),
       cols: cols,
-      rows: rows,
-      cellW: cellW,
-      cellH: cellH
+      rows: rows
     }));
   };
 
