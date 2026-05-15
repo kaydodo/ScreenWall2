@@ -81,10 +81,12 @@ html, body {
 }
 .preview-img-wrapper {
   position: absolute;
-  top: 8px;
-  left: 0;
-  right: 0;
-  bottom: 8px;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 100%;
+  aspect-ratio: 9/16;
+  max-height: 100%;
 }
 .preview-img-wrapper img {
   position: absolute;
@@ -121,7 +123,6 @@ html, body {
     <button class="nav-btn" id="homeBtn" title="主页">
       <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
     </button>
-    <span class="status-text" id="statusText">等待连接...</span>
   </div>
   
   <div class="preview-area" id="previewArea">
@@ -166,23 +167,16 @@ function connectWS() {
   ws.binaryType = 'arraybuffer';
   
   ws.onopen = function() {
-    document.getElementById('statusText').textContent = '已连接';
-    document.getElementById('statusText').className = 'status-text online';
-    
     if (deviceId) {
       ws.send(JSON.stringify({ type: 'setLevel', deviceId: deviceId, level: 2 }));
     }
   };
   
   ws.onclose = function() {
-    document.getElementById('statusText').textContent = '连接断开';
-    document.getElementById('statusText').className = 'status-text offline';
     setTimeout(connectWS, 3000);
   };
   
   ws.onerror = function() {
-    document.getElementById('statusText').textContent = '连接错误';
-    document.getElementById('statusText').className = 'status-text offline';
   };
   
   ws.onmessage = function(e) {
@@ -293,18 +287,13 @@ function handleJSONMessage(msg) {
 }
 
 function updateOnlineStatus() {
-  var statusText = document.getElementById('statusText');
   var img = document.getElementById('screenImg');
   var watermark = document.getElementById('offlineWatermark');
   
   if (isOnline) {
-    statusText.textContent = '在线';
-    statusText.className = 'status-text online';
     img.classList.remove('grayscale');
     watermark.style.display = 'none';
   } else {
-    statusText.textContent = '离线';
-    statusText.className = 'status-text offline';
     img.classList.add('grayscale');
     watermark.style.display = 'block';
   }

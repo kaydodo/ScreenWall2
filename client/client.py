@@ -1147,7 +1147,69 @@ def _tray_on_open_self_service(icon, item):
         "deviceName": device_name
     })
     url = f"http://{host}:{port}/self-service.html?{params}"
-    webbrowser.open(url)
+    
+    import subprocess
+    browser_path = _get_chromium_browser_path() or _get_default_browser_path()
+    if browser_path:
+        exe_name = os.path.basename(browser_path).lower()
+        if exe_name in ("chrome.exe", "msedge.exe"):
+            subprocess.Popen([browser_path, "--app=" + url, "--window-size=436,795", "--new-window"])
+        else:
+            webbrowser.open(url)
+    else:
+        webbrowser.open(url)
+
+def _get_chromium_browser_path():
+    common_paths = [
+        r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+        r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+        r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+    ]
+    for path in common_paths:
+        if os.path.exists(path):
+            return path
+    return None
+
+def _get_default_browser_path():
+    """获取 Windows 默认浏览器的可执行文件路径"""
+    try:
+        import winreg
+        # 读取 .html 文件的默认 ProgId
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER,
+                r"Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\.html\UserChoice") as key:
+            progid = winreg.QueryValueEx(key, "ProgId")[0]
+        
+        # 根据 ProgId 找到 open command
+        with winreg.OpenKey(winreg.HKEY_CLASSES_ROOT,
+                fr"{progid}\shell\open\command") as key:
+            command = winreg.QueryValueEx(key, None)[0]
+        
+        # 从命令中提取可执行文件路径
+        if command.startswith('"'):
+            path = command.split('"')[1]
+        else:
+            path = command.split()[0]
+        
+        if os.path.exists(path):
+            return path
+    except Exception:
+        pass
+    
+    # 回退：尝试常见路径
+    common_paths = [
+        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+        r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+        r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+        r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+        r"C:\Program Files\Mozilla Firefox\firefox.exe",
+        r"C:\Program Files (x86)\Mozilla Firefox\firefox.exe",
+    ]
+    for path in common_paths:
+        if os.path.exists(path):
+            return path
+    
+    return None
 
 def _build_menu():
     if Menu is None:
