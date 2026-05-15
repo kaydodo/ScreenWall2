@@ -5,25 +5,22 @@ import shutil
 
 os.chdir(r'D:\ScreenWall2\client')
 
-# ── 1. 打包主客户端（使用 spec 文件，包含 collect_data_files 配置） ──
 print("正在打包主客户端...")
 result = subprocess.run(
-    ['pyinstaller', 'client.spec', '-y'],
+    ['pyinstaller', 'client.spec', '-y', '--distpath', 'dist2'],
     capture_output=True, text=True, encoding='gbk', errors='replace'
 )
 if result.returncode != 0:
     print("主客户端打包错误:")
-    print(result.stderr[-3000:])  # 只打印末尾3000字符
+    print(result.stderr[-3000:])
     exit(1)
 print("  主客户端打包完成")
 
-dist_dir = 'dist/ScreenWallClient'
+dist_dir = 'dist2/ScreenWallClient'
 
-# ── 2. 创建 _internal 目录 ────────────────────────────────────
 internal_dir = os.path.join(dist_dir, '_internal')
 os.makedirs(internal_dir, exist_ok=True)
 
-# ── 3. 打包 KeyClient（单文件，默认输出到 dist/KeyClient.exe） ─
 print("正在打包 KeyClient（单文件）...")
 keyclient_cmd = [
     'pyinstaller',
@@ -31,6 +28,7 @@ keyclient_cmd = [
     '--onefile',
     '--windowed',
     '-y',
+    '--distpath', 'dist2',
     '--hidden-import=ctypes',
     '--hidden-import=_ctypes',
     'keyclient.py'
@@ -43,9 +41,7 @@ if result.returncode != 0:
     exit(1)
 print("  KeyClient 打包完成")
 
-# ── 4. 把 KeyClient.exe 复制到 _internal/ ─────────────────────
-# onefile 直接输出到 dist/KeyClient.exe（不是子目录）
-keyclient_exe_src = 'dist/KeyClient.exe'
+keyclient_exe_src = 'dist2/KeyClient.exe'
 if os.path.exists(keyclient_exe_src):
     shutil.copy(keyclient_exe_src, os.path.join(internal_dir, 'KeyClient.exe'))
     print("  KeyClient.exe 已复制到 _internal/")
@@ -54,13 +50,10 @@ else:
     print("  警告: KeyClient.exe 未找到!")
     exit(1)
 
-# 丢弃 KeyClient 的 build 目录
 shutil.rmtree('build/KeyClient', ignore_errors=True)
 
-# ── 5. 复制配置文件 ───
 if os.path.exists(dist_dir):
     shutil.copy('config.json', dist_dir + '/config.json')
-    # 注意：upgrade.bat 由客户端运行时动态生成，不需要打包时预制
 
 print("全部打包完成!")
 print(f"主客户端输出目录: {os.path.abspath(dist_dir)}")
