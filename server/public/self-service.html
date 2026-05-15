@@ -77,15 +77,15 @@ html, body {
   min-height: 0;
   width: 100%;
   background: #000;
-  padding: 8px 0;
+  padding: 16px 0;
 }
 .preview-img-wrapper {
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 100%;
   aspect-ratio: 9/16;
+  max-width: 100%;
   max-height: 100%;
 }
 .preview-img-wrapper img {
@@ -126,7 +126,7 @@ html, body {
   </div>
   
   <div class="preview-area" id="previewArea">
-    <div class="preview-img-wrapper">
+    <div class="preview-img-wrapper" id="previewWrapper">
       <img id="screenImg" src="" alt="屏幕画面">
     </div>
     <div class="offline-watermark" id="offlineWatermark">设备已离线</div>
@@ -144,6 +144,36 @@ var FRAME_HEAL_THRESHOLD = 2;
 var isOnline = false;
 var screenWidth = 1920;
 var screenHeight = 1080;
+var PREVIEW_ASPECT = 9 / 16;
+var _previewLayoutTimer = null;
+
+function updatePreviewLayout() {
+  var area = document.getElementById('previewArea');
+  var wrapper = document.getElementById('previewWrapper');
+  if (!area || !wrapper) return;
+  var st = window.getComputedStyle(area);
+  var padTop = parseFloat(st.paddingTop) || 0;
+  var padBottom = parseFloat(st.paddingBottom) || 0;
+  var padLeft = parseFloat(st.paddingLeft) || 0;
+  var padRight = parseFloat(st.paddingRight) || 0;
+  var availW = area.clientWidth - padLeft - padRight;
+  var availH = area.clientHeight - padTop - padBottom;
+  if (availW <= 0 || availH <= 0) return;
+
+  var w = availW;
+  var h = w / PREVIEW_ASPECT;
+  if (h > availH) {
+    h = availH;
+    w = h * PREVIEW_ASPECT;
+  }
+  wrapper.style.width = Math.floor(w) + 'px';
+  wrapper.style.height = Math.floor(h) + 'px';
+}
+
+function scheduleUpdatePreviewLayout() {
+  if (_previewLayoutTimer) clearTimeout(_previewLayoutTimer);
+  _previewLayoutTimer = setTimeout(updatePreviewLayout, 50);
+}
 
 function getQueryParams() {
   var params = {};
@@ -388,6 +418,8 @@ function init() {
   
   connectWS();
   setupMouseEvents();
+  updatePreviewLayout();
+  window.addEventListener('resize', scheduleUpdatePreviewLayout);
 }
 
 init();
