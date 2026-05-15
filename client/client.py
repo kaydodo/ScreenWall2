@@ -1096,9 +1096,27 @@ def _tray_on_open_screenwall(icon, item):
     """点击"打开屏幕墙"，读取服务端配置并用默认浏览器打开"""
     cfg = load_config()
     srv = cfg.get("server", {})
+    dev = cfg.get("device", {})
     host = srv.get("host", "localhost").replace("http://", "").replace("https://", "").rstrip("/")
     port = srv.get("port", 3000)
-    url = f"http://{host}:{port}/main.html?from=client"
+    
+    ini_path = Path("C:/ProgramData/Netease/GameViewer/user_info.ini")
+    ini_device_id = ""
+    if ini_path.exists():
+        user_info = read_ini_section(ini_path)
+        if "General" in user_info:
+            ini_device_id = user_info["General"].get("deviceId", "").strip()
+    
+    device_id = dev.get("deviceId", "").strip() or ini_device_id
+    if _CURRENT_USER.lower() not in ("administrator", ""):
+        device_id = f"{device_id}-{_CURRENT_USER}"
+    
+    import urllib.parse
+    params = urllib.parse.urlencode({
+        "from": "client",
+        "deviceId": device_id
+    })
+    url = f"http://{host}:{port}/main.html?{params}"
     webbrowser.open(url)
 
 def _tray_on_open_self_service(icon, item):
@@ -1109,11 +1127,20 @@ def _tray_on_open_self_service(icon, item):
     host = srv.get("host", "localhost").replace("http://", "").replace("https://", "").rstrip("/")
     port = srv.get("port", 3000)
     
-    device_id = dev.get("deviceId", "").strip()
-    device_name = dev.get("deviceName", "").strip() or os.environ.get("COMPUTERNAME", "UnknownPC")
+    ini_path = Path("C:/ProgramData/Netease/GameViewer/user_info.ini")
+    ini_device_id = ""
+    if ini_path.exists():
+        user_info = read_ini_section(ini_path)
+        if "General" in user_info:
+            ini_device_id = user_info["General"].get("deviceId", "").strip()
     
-    if not device_id:
-        return
+    device_id = dev.get("deviceId", "").strip() or ini_device_id
+    if _CURRENT_USER.lower() not in ("administrator", ""):
+        device_id = f"{device_id}-{_CURRENT_USER}"
+    
+    device_name = dev.get("deviceName", "").strip() or os.environ.get("COMPUTERNAME", "UnknownPC")
+    if _CURRENT_USER.lower() not in ("administrator", ""):
+        device_name = f"{device_name}-{_CURRENT_USER}"
     
     import urllib.parse
     params = urllib.parse.urlencode({
