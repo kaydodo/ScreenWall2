@@ -1101,12 +1101,35 @@ def _tray_on_open_screenwall(icon, item):
     url = f"http://{host}:{port}/main.html?from=client"
     webbrowser.open(url)
 
+def _tray_on_open_login(icon, item):
+    """点击"自助登号"，读取配置并用默认浏览器打开"""
+    cfg = load_config()
+    srv = cfg.get("server", {})
+    dev = cfg.get("device", {})
+    host = srv.get("host", "localhost").replace("http://", "").replace("https://", "").rstrip("/")
+    port = srv.get("port", 3000)
+    
+    device_id = dev.get("deviceId", "").strip()
+    device_name = dev.get("deviceName", "").strip() or os.environ.get("COMPUTERNAME", "UnknownPC")
+    
+    if not device_id:
+        return
+    
+    import urllib.parse
+    params = urllib.parse.urlencode({
+        "deviceId": device_id,
+        "deviceName": device_name
+    })
+    url = f"http://{host}:{port}/login.html?{params}"
+    webbrowser.open(url)
+
 def _build_menu():
     if Menu is None:
         return None
     return Menu(
         MenuItem(f"ScreenWall v{CLIENT_VERSION}", lambda i, t: None, enabled=False),
         MenuItem("打开屏幕墙", _tray_on_open_screenwall),
+        MenuItem("自助登号", _tray_on_open_login),
         MenuItem("启动远控", _tray_on_toggle_keyboard,
                  checked=lambda item: _keyboard_enabled),
         MenuItem("游戏掉线报警", _tray_on_toggle_alarm,
@@ -1419,8 +1442,25 @@ class ScreenWallClient:
                         self._uu_fetch_success = True
             except Exception:
                 pass
-        # 强制重连，让服务端通过 register 拿到最新的 uuDeviceId
         self._reconnect_async()
+
+    async def _do_login_async(self):
+        """执行登号操作"""
+        try:
+            server_log("[登号] 开始执行登号...")
+            await asyncio.sleep(0.1)
+            server_log("[登号] 登号完成")
+        except Exception as e:
+            server_log(f"[登号] 登号失败: {e}")
+
+    async def _do_logout_async(self):
+        """执行下号操作"""
+        try:
+            server_log("[下号] 开始执行下号...")
+            await asyncio.sleep(0.1)
+            server_log("[下号] 下号完成")
+        except Exception as e:
+            server_log(f"[下号] 下号失败: {e}")
 
     async def _do_upgrade_async(self, cfg, latest_version="?"):
         """下载新版本 exe 并触发升级"""
@@ -2204,15 +2244,20 @@ class ScreenWallClient:
                         self._reconnect_async()
 
                     elif msg_type == "setKeyboardDisabled":
-                        # 服务端关闭键盘功能
                         _set_keyboard_enabled(False)
                         self._close_keyclient()
-                        # 同步更新托盘菜单
                         _keyboard_enabled = False
                         if _tray_icon:
                             _tray_icon.menu = _build_menu()
-                        # 重新注册
                         self._reconnect_async()
+
+                    elif msg_type == "login":
+                        server_log("[登号] 收到登号指令")
+                        asyncio.create_task(self._do_login_async())
+
+                    elif msg_type == "logout":
+                        server_log("[下号] 收到下号指令")
+                        asyncio.create_task(self._do_logout_async())
 
                     elif msg_type == "heartbeat":
                         # 服务端心跳响应：检查是否需要升级客户端

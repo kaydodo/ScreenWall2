@@ -3069,13 +3069,31 @@ wssBrowser.on('connection', (ws) => {
       if (dev) {
         dev.supportsKeyClient = !!msg.supportsKeyClient;
         serverLog(`[远控] ${dev.deviceName} ${dev.supportsKeyClient ? '启动远控' : '关闭远控'}`);
-        // 广播设备列表更新 + 强制刷新预览状态
         broadcastToBrowsers({ type: 'deviceList', devices: getDeviceListPayload() });
         broadcastToBrowsers({ type: 'devicePreviewStatus', deviceId: msg.deviceId, status: 'refresh' });
       }
     }
 
-    // 页面端切换远控指令（服务转发给客户端）
+    if (msg.type === 'login' && msg.deviceId) {
+      for (const client of wssClient.clients) {
+        if (client._deviceId === msg.deviceId && client.readyState === 1) {
+          client.send(JSON.stringify({ type: 'login' }));
+          serverLog(`[登号] 发送登号指令 -> ${msg.deviceId}`);
+          break;
+        }
+      }
+    }
+
+    if (msg.type === 'logout' && msg.deviceId) {
+      for (const client of wssClient.clients) {
+        if (client._deviceId === msg.deviceId && client.readyState === 1) {
+          client.send(JSON.stringify({ type: 'logout' }));
+          serverLog(`[下号] 发送下号指令 -> ${msg.deviceId}`);
+          break;
+        }
+      }
+    }
+
     if ((msg.type === 'setKeyboardEnabled' || msg.type === 'setKeyboardDisabled') && msg.deviceId) {
       const enable = msg.type === 'setKeyboardEnabled';
       for (const client of wssClient.clients) {
