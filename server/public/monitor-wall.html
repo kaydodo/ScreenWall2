@@ -617,6 +617,7 @@ function initWall() {
 
       if (dev.online === false) {
         cell.classList.add('offline');
+        frameHealCount.set(dev.id, 0);
         // 离线设备显示截图
         var img = cell.querySelector('img');
         if (img && dev.screenshot) {
@@ -760,16 +761,41 @@ function connectWebSocket() {
           // ★ 预览激活时停止格子渲染（和主页面一样）★★★
           // ★ 设备离线时也停止格子渲染，避免覆盖离线图 ★★★
           const dev = devices[devId];
-          
-          // 更新设备的截图（用于离线时显示）
-          if (dev) {
-            const reader = new FileReader();
-            reader.onload = function() {
-              dev.screenshot = reader.result;
-            };
-            reader.readAsDataURL(blob);
+          if (dev && dev.online === false) {
+            var count = frameHealCount.has(devId) ? frameHealCount.get(devId) : 0;
+            count += 1;
+            frameHealCount.set(devId, count);
+            if (count >= WALL_FRAME_HEAL_THRESHOLD) {
+              dev.online = true;
+              frameHealCount.delete(devId);
+              var cell = document.querySelector('.wall-cell[data-device-id="' + devId + '"]') || findCellByDeviceId(devId);
+              if (cell) {
+                cell.classList.remove('offline');
+                var badge = cell.querySelector('.offline-badge');
+                if (badge) { badge.textContent = ''; badge.style.display = 'none'; }
+                updateUUButtonVisibility(cell, true);
+              }
+              if (wallPreviewDeviceId === devId) {
+                var watermark = document.getElementById('wallPreviewOfflineWatermark');
+                if (watermark) watermark.style.display = 'none';
+                var previewUUbtn = document.getElementById('wallPreviewUUbtn');
+                if (previewUUbtn && dev.uuDeviceId) {
+                  previewUUbtn.disabled = false;
+                  previewUUbtn.style.opacity = '';
+                  previewUUbtn.style.cursor = '';
+                  previewUUbtn.style.pointerEvents = '';
+                  previewUUbtn.onclick = function() { openUU(dev.uuDeviceId); };
+                }
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                  ws.send(JSON.stringify({ type: 'setLevel', deviceId: devId, level: 2 }));
+                }
+              }
+            } else {
+              URL.revokeObjectURL(blobUrl);
+              return;
+            }
           }
-          
+
           if (!dev || dev.online !== false) {
             const el = document.getElementById('img_' + devId);
             if (el) {
@@ -786,40 +812,6 @@ function connectWebSocket() {
             }
           } else {
             URL.revokeObjectURL(blobUrl);
-          }
-
-          // 自愈：收到帧累加计数，达到阈值才恢复离线（预览模式下也需要自愈）
-          // 只有当帧计数存在时才累加（如果已被删除，表示设备已确认离线，不再自愈）
-          if (dev && !dev.online && frameHealCount.has(devId)) {
-            frameHealCount.set(devId, frameHealCount.get(devId) + 1);
-            if (frameHealCount.get(devId) >= WALL_FRAME_HEAL_THRESHOLD) {
-              dev.online = true;
-              frameHealCount.delete(devId);  // 清除帧计数
-              var cell = document.querySelector('.wall-cell[data-device-id="' + devId + '"]') || findCellByDeviceId(devId);
-              if (cell) {
-                cell.classList.remove('offline');
-                var badge = cell.querySelector('.offline-badge');
-                if (badge) { badge.textContent = ''; badge.style.display = 'none'; }
-                updateUUButtonVisibility(cell, true);
-              }
-              // 自愈恢复预览弹窗状态
-              if (wallPreviewDeviceId === devId) {
-                var watermark = document.getElementById('wallPreviewOfflineWatermark');
-                if (watermark) watermark.style.display = 'none';
-                var previewUUbtn = document.getElementById('wallPreviewUUbtn');
-                if (previewUUbtn && dev.uuDeviceId) {
-                  previewUUbtn.disabled = false;
-                  previewUUbtn.style.opacity = '';
-                  previewUUbtn.style.cursor = '';
-                  previewUUbtn.style.pointerEvents = '';
-                  previewUUbtn.onclick = function() { openUU(dev.uuDeviceId); };
-                }
-                // 重新开启1080p (level 2)
-                if (ws && ws.readyState === WebSocket.OPEN) {
-                  ws.send(JSON.stringify({ type: 'setLevel', deviceId: devId, level: 2 }));
-                }
-              }
-            }
           }
         }
       } catch(ex) {}
@@ -844,9 +836,6 @@ function connectWebSocket() {
         var deviceId = data.deviceId;
         // 设备可能不在 devices 对象中（监控墙只订阅了部分设备）
         if (deviceId) {
-          // 清除帧计数，防止自愈逻辑被缓存帧触发
-          frameHealCount.delete(deviceId);
-          
           // 更新 devices 对象
           if (devices[deviceId]) {
             if (data.screenshot) {
@@ -854,8 +843,11 @@ function connectWebSocket() {
             }
             if (data.status === 'offline' || data.status === 'deleted') {
               devices[deviceId].online = false;
+              frameHealCount.set(deviceId, 0);
             } else if (data.status === 'online') {
-              devices[deviceId].online = true;
+              if (!frameHealCount.has(deviceId)) {
+                frameHealCount.set(deviceId, 0);
+              }
             }
           }
           
@@ -882,19 +874,6 @@ function connectWebSocket() {
                   img.style.display = 'block';
                   img.style.opacity = '1';
                 }
-              } else if (data.status === 'online') {
-                // 设备在线
-                cell.classList.remove('offline');
-                if (badge) badge.style.display = 'none';
-                // 创建 UU 按钮（如果有 uuDeviceId）
-                var dev = devices[deviceId];
-                if (dev && dev.uuDeviceId && !uuBtn) {
-                  var newUuBtn = document.createElement('button');
-                  newUuBtn.className = 'uu-float-btn';
-                  newUuBtn.onclick = function(e) { e.stopPropagation(); openUU(dev.uuDeviceId); };
-                  newUuBtn.textContent = '🖱️ UU远程';
-                  cell.appendChild(newUuBtn);
-                }
               }
             }
           }
@@ -911,7 +890,13 @@ function connectWebSocket() {
               devices[newDev.deviceId].supportsKeyClient = newDev.supportsKeyClient;
             }
             if (newDev.online !== undefined) {
-              devices[newDev.deviceId].online = newDev.online;
+              if (newDev.online === false) {
+                devices[newDev.deviceId].online = false;
+              } else if (newDev.online === true) {
+                if (devices[newDev.deviceId].online !== false) {
+                  devices[newDev.deviceId].online = true;
+                }
+              }
             }
             if (newDev.deviceName) {
               devices[newDev.deviceId].name = newDev.deviceName;
@@ -929,9 +914,8 @@ function connectWebSocket() {
               devices[newDev.deviceId].monitorIndex = newDev.monitorIndex;
             }
             
-            // 清除帧计数，防止自愈逻辑被缓存帧触发
             if (newDev.online === false) {
-              frameHealCount.delete(newDev.deviceId);
+              frameHealCount.set(newDev.deviceId, 0);
             }
             
             // 更新格子 DOM（离线标签、UU 按钮等）
@@ -957,7 +941,7 @@ function connectWebSocket() {
                     img.style.display = 'block';
                     img.style.opacity = '1';
                   }
-                } else if (newDev.online === true) {
+                } else if (newDev.online === true && devices[newDev.deviceId].online !== false) {
                   // 设备在线
                   cell.classList.remove('offline');
                   if (badge) badge.style.display = 'none';
@@ -1619,7 +1603,13 @@ function handleWallStateUpdate(data) {
 
   serverDevices.forEach(function(sd) {
     if (devices[sd.deviceId]) {
-      devices[sd.deviceId].online = sd.online;
+      if (sd.online === false) {
+        devices[sd.deviceId].online = false;
+      } else if (sd.online === true) {
+        if (devices[sd.deviceId].online !== false) {
+          devices[sd.deviceId].online = true;
+        }
+      }
       devices[sd.deviceId].name = sd.deviceName;
       devices[sd.deviceId].groupId = sd.groupId;
       if (sd.groupId) {
@@ -1642,6 +1632,7 @@ function handleWallStateUpdate(data) {
     var offlineScreenshot = data.screenshot;
     if (devices[deviceId]) {
       devices[deviceId].online = false;
+      frameHealCount.set(deviceId, 0);
       if (data.supportsKeyClient !== undefined) {
         devices[deviceId].supportsKeyClient = data.supportsKeyClient;
       }
@@ -1686,7 +1677,6 @@ function handleWallStateUpdate(data) {
   if (eventType === 'deviceOnline') {
     var deviceId = data.deviceId;
     if (devices[deviceId]) {
-      devices[deviceId].online = true;
       if (data.supportsKeyClient !== undefined) {
         devices[deviceId].supportsKeyClient = data.supportsKeyClient;
       }
@@ -1694,8 +1684,15 @@ function handleWallStateUpdate(data) {
         devices[deviceId].name = data.deviceName;
       }
     }
+    if (devices[deviceId] && devices[deviceId].online === false) {
+      if (!frameHealCount.has(deviceId)) {
+        frameHealCount.set(deviceId, 0);
+      }
+    } else if (devices[deviceId]) {
+      devices[deviceId].online = true;
+    }
     var cell = findCellByDeviceId(deviceId);
-    if (cell) {
+    if (cell && (!devices[deviceId] || devices[deviceId].online !== false)) {
       cell.classList.remove('offline');
       cell.classList.remove('deleted');
       frameHealCount.delete(deviceId);
