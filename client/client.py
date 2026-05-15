@@ -1102,7 +1102,7 @@ def _tray_on_open_screenwall(icon, item):
     webbrowser.open(url)
 
 def _tray_on_open_self_service(icon, item):
-    """点击"自助服务"，读取配置并用默认浏览器打开"""
+    """点击"自助登号"，读取配置并用默认浏览器打开"""
     cfg = load_config()
     srv = cfg.get("server", {})
     dev = cfg.get("device", {})
@@ -1129,7 +1129,7 @@ def _build_menu():
     return Menu(
         MenuItem(f"ScreenWall v{CLIENT_VERSION}", lambda i, t: None, enabled=False),
         MenuItem("打开屏幕墙", _tray_on_open_screenwall),
-        MenuItem("自助服务", _tray_on_open_self_service),
+        MenuItem("自助登号", _tray_on_open_self_service),
         MenuItem("启动远控", _tray_on_toggle_keyboard,
                  checked=lambda item: _keyboard_enabled),
         MenuItem("游戏掉线报警", _tray_on_toggle_alarm,

@@ -3,97 +3,90 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>自助服务</title>
+<title>自助登号</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: #0a0c14;
+  background: #000;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   user-select: none;
   -webkit-user-select: none;
 }
 .container {
-  width: 100%;
-  height: 100%;
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: rgba(10,12,20,0.88);
   display: flex;
   flex-direction: column;
-  background: rgba(10,12,20,0.95);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
 }
 .titlebar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 16px;
+  padding: 14px 24px;
   background: rgba(255,255,255,0.06);
   border-bottom: 1px solid rgba(255,255,255,0.1);
   flex-shrink: 0;
 }
-.titlebar-title {
-  font-size: 14px;
-  font-weight: 600;
+.titlebar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+#deviceName {
+  font-size: 15px;
+  font-weight: 700;
   color: #e2e8f0;
 }
 .status-text {
-  font-size: 12px;
+  font-size: 13px;
   color: #888;
 }
 .status-text.online { color: #48bb78; }
 .status-text.offline { color: #e06c75; }
-.display-area {
+.preview-area {
   flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 0;
-  overflow: hidden;
-}
-.display-wrapper {
   position: relative;
+  overflow: hidden;
+  min-height: 0;
   width: 100%;
-  height: 100%;
   background: #000;
 }
-.display-wrapper img {
+.preview-img-wrapper {
+  position: absolute;
+  top: 16px;
+  left: 0;
+  right: 0;
+  bottom: 16px;
+}
+.preview-img-wrapper img {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   object-fit: contain;
-  background: #111;
-}
-.no-signal {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  color: #666;
-  font-size: 14px;
-  gap: 12px;
-}
-.no-signal-icon {
-  font-size: 48px;
-  opacity: 0.5;
+  border-radius: 0;
+  box-shadow: none;
+  border: none;
 }
 .offline-watermark {
-  position: absolute;
-  inset: 0;
   display: none;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
-}
-.offline-watermark.show { display: flex; }
-.offline-watermark::before {
-  content: '设备已离线';
   position: absolute;
-  font-size: 28px;
-  font-weight: 700;
-  color: rgba(255,255,255,0.15);
-  transform: rotate(-30deg);
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-15deg) scale(3);
+  font-size: 52px;
+  font-weight: 300;
+  color: rgba(160,160,160,0.7);
+  pointer-events: none;
   white-space: nowrap;
+  text-shadow: 0 0 30px rgba(255,255,255,0.4);
 }
 .grayscale {
   filter: grayscale(100%);
@@ -103,19 +96,17 @@ html, body {
 <body>
 <div class="container">
   <div class="titlebar">
-    <span class="titlebar-title">自助服务</span>
-    <span class="status-text" id="statusText">等待连接...</span>
+    <div class="titlebar-left">
+      <span id="deviceName">自助登号</span>
+      <span class="status-text" id="statusText">等待连接...</span>
+    </div>
   </div>
   
-  <div class="display-area">
-    <div class="display-wrapper" id="displayWrapper">
+  <div class="preview-area" id="previewArea">
+    <div class="preview-img-wrapper">
       <img id="screenImg" src="" alt="屏幕画面">
-      <div class="no-signal" id="noSignal">
-        <div class="no-signal-icon">📺</div>
-        <span>等待画面...</span>
-      </div>
-      <div class="offline-watermark" id="offlineWatermark"></div>
     </div>
+    <div class="offline-watermark" id="offlineWatermark">设备已离线</div>
   </div>
 </div>
 
@@ -123,10 +114,13 @@ html, body {
 var ws = null;
 var deviceId = null;
 var deviceName = null;
+var supportsKeyClient = false;
 var devices = {};
 var frameHealCount = 0;
 var FRAME_HEAL_THRESHOLD = 2;
 var isOnline = false;
+var screenWidth = 1920;
+var screenHeight = 1080;
 
 function getQueryParams() {
   var params = {};
@@ -185,9 +179,15 @@ function handleBinaryFrame(data) {
   
   if (frameType === 0x10) {
     var devIdLen = arr[1];
+    var flags = arr[2];
+    var scrW = view.getUint16(4);
+    var scrH = view.getUint16(6);
     var devId = new TextDecoder().decode(new Uint8Array(data, 8, devIdLen));
     
     if (devId !== deviceId) return;
+    
+    screenWidth = scrW || screenWidth;
+    screenHeight = scrH || screenHeight;
     
     var webpBuf = data.slice(8 + devIdLen);
     var blob = new Blob([webpBuf], { type: 'image/webp' });
@@ -200,8 +200,7 @@ function handleBinaryFrame(data) {
     if (oldUrl) URL.revokeObjectURL(oldUrl);
     
     img.classList.remove('grayscale');
-    document.getElementById('noSignal').style.display = 'none';
-    document.getElementById('offlineWatermark').classList.remove('show');
+    document.getElementById('offlineWatermark').style.display = 'none';
     
     if (!isOnline) {
       frameHealCount++;
@@ -223,7 +222,10 @@ function handleJSONMessage(msg) {
     if (deviceId && devices[deviceId]) {
       var dev = devices[deviceId];
       deviceName = dev.deviceName || deviceName;
+      supportsKeyClient = dev.supportsKeyClient || false;
       isOnline = dev.online !== false;
+      screenWidth = dev.screenWidth || screenWidth;
+      screenHeight = dev.screenHeight || screenHeight;
       updateOnlineStatus();
       
       if (dev.screenshot && !document.getElementById('screenImg').src) {
@@ -237,6 +239,7 @@ function handleJSONMessage(msg) {
       devices[d.deviceId] = d;
     });
     if (deviceId && devices[deviceId]) {
+      supportsKeyClient = devices[deviceId].supportsKeyClient || false;
       isOnline = devices[deviceId].online !== false;
       updateOnlineStatus();
     }
@@ -273,16 +276,80 @@ function updateOnlineStatus() {
   var watermark = document.getElementById('offlineWatermark');
   
   if (isOnline) {
-    statusText.textContent = deviceName + ' - 在线';
+    statusText.textContent = '在线';
     statusText.className = 'status-text online';
     img.classList.remove('grayscale');
-    watermark.classList.remove('show');
+    watermark.style.display = 'none';
   } else {
-    statusText.textContent = deviceName + ' - 离线';
+    statusText.textContent = '离线';
     statusText.className = 'status-text offline';
     img.classList.add('grayscale');
-    watermark.classList.add('show');
+    watermark.style.display = 'block';
   }
+}
+
+function getClickPos(e) {
+  var img = document.getElementById('screenImg');
+  var imgRect = img.getBoundingClientRect();
+  var cw = imgRect.width;
+  var ch = imgRect.height;
+  var imgAspect = screenWidth / screenHeight;
+  var imgW, imgH, offsetX, offsetY;
+  
+  if (cw / ch > imgAspect) {
+    imgH = ch; imgW = ch * imgAspect; offsetX = (cw - imgW) / 2; offsetY = 0;
+  } else {
+    imgW = cw; imgH = cw / imgAspect; offsetX = 0; offsetY = (ch - imgH) / 2;
+  }
+  
+  var clickX = e.clientX - imgRect.left - offsetX;
+  var clickY = e.clientY - imgRect.top - offsetY;
+  
+  if (clickX < 0 || clickY < 0 || clickX > imgW || clickY > imgH) return null;
+  return { x: Math.round((clickX / imgW) * screenWidth), y: Math.round((clickY / imgH) * screenHeight) };
+}
+
+function sendMouse(type, x, y, extra) {
+  if (!deviceId || !supportsKeyClient || !isOnline) return;
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    var payload = { type: type, deviceId: deviceId, x: x, y: y, previewWidth: screenWidth, previewHeight: screenHeight };
+    if (extra) Object.assign(payload, extra);
+    ws.send(JSON.stringify(payload));
+  }
+}
+
+function handlePreviewClick(e) {
+  var pos = getClickPos(e);
+  if (pos && supportsKeyClient && isOnline) {
+    sendMouse('mouseLeft', pos.x, pos.y);
+  }
+}
+
+function setupMouseEvents() {
+  var previewArea = document.getElementById('previewArea');
+  var img = document.getElementById('screenImg');
+  
+  img.onclick = handlePreviewClick;
+  
+  previewArea.oncontextmenu = function(e) { e.preventDefault(); };
+  
+  previewArea.onwheel = function(e) {
+    e.preventDefault();
+    if (supportsKeyClient && isOnline) {
+      var delta = e.deltaY > 0 ? -120 : 120;
+      sendMouse('mouseScroll', 0, 0, { delta: delta });
+    }
+  };
+  
+  previewArea.onmousedown = function(e) {
+    if (e.button === 2) {
+      e.preventDefault();
+      if (supportsKeyClient && isOnline) {
+        var pos = getClickPos(e);
+        if (pos) sendMouse('mouseRight', pos.x, pos.y);
+      }
+    }
+  };
 }
 
 function init() {
@@ -290,11 +357,11 @@ function init() {
   deviceId = params.deviceId || null;
   deviceName = params.deviceName || '未知设备';
   
-  if (deviceId) {
-    document.title = '自助服务 - ' + deviceName;
-  }
+  document.getElementById('deviceName').textContent = deviceName;
+  document.title = '自助登号 - ' + deviceName;
   
   connectWS();
+  setupMouseEvents();
 }
 
 init();
