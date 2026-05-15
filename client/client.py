@@ -1119,8 +1119,32 @@ def _tray_on_open_screenwall(icon, item):
     url = f"http://{host}:{port}/main.html?{params}"
     webbrowser.open(url)
 
+def _open_simple_window(url, width, height):
+    """用简易窗口打开URL（无地址栏）"""
+    import subprocess
+    import shutil
+    
+    edge_path = shutil.which("msedge")
+    chrome_path = shutil.which("chrome")
+    
+    browser_path = edge_path or chrome_path
+    
+    if browser_path:
+        try:
+            subprocess.Popen([
+                browser_path,
+                "--app=" + url,
+                "--window-size=" + str(width) + "," + str(height),
+                "--window-position=100,100"
+            ], creationflags=subprocess.DETACHED_PROCESS)
+            return
+        except Exception:
+            pass
+    
+    webbrowser.open(url)
+
 def _tray_on_open_self_service(icon, item):
-    """点击"自助登号"，读取配置并用默认浏览器打开"""
+    """点击"自助登号"，读取配置并用简易窗口打开"""
     cfg = load_config()
     srv = cfg.get("server", {})
     dev = cfg.get("device", {})
@@ -1148,7 +1172,7 @@ def _tray_on_open_self_service(icon, item):
         "deviceName": device_name
     })
     url = f"http://{host}:{port}/self-service.html?{params}"
-    webbrowser.open(url)
+    _open_simple_window(url, 540, 960)
 
 def _build_menu():
     if Menu is None:

@@ -39,7 +39,7 @@ html, body {
   align-items: center;
   gap: 10px;
 }
-#deviceName {
+#pageTitle {
   font-size: 15px;
   font-weight: 700;
   color: #e2e8f0;
@@ -63,7 +63,7 @@ html, body {
   top: 16px;
   left: 0;
   right: 0;
-  bottom: 16px;
+  bottom: 70px;
 }
 .preview-img-wrapper img {
   position: absolute;
@@ -91,13 +91,49 @@ html, body {
 .grayscale {
   filter: grayscale(100%);
 }
+.nav-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 54px;
+  background: rgba(20,22,30,0.95);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 48px;
+  border-top: 1px solid rgba(255,255,255,0.1);
+}
+.nav-btn {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.08);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+}
+.nav-btn:hover {
+  background: rgba(255,255,255,0.15);
+}
+.nav-btn:active {
+  background: rgba(255,255,255,0.2);
+}
+.nav-btn svg {
+  width: 20px;
+  height: 20px;
+  fill: #aaa;
+}
 </style>
 </head>
 <body>
 <div class="container">
   <div class="titlebar">
     <div class="titlebar-left">
-      <span id="deviceName">自助登号</span>
+      <span id="pageTitle">自助登号</span>
       <span class="status-text" id="statusText">等待连接...</span>
     </div>
   </div>
@@ -107,6 +143,15 @@ html, body {
       <img id="screenImg" src="" alt="屏幕画面">
     </div>
     <div class="offline-watermark" id="offlineWatermark">设备已离线</div>
+    
+    <div class="nav-bar">
+      <button class="nav-btn" id="backBtn" title="返回">
+        <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+      </button>
+      <button class="nav-btn" id="homeBtn" title="主页">
+        <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+      </button>
+    </div>
   </div>
 </div>
 
@@ -318,6 +363,13 @@ function sendMouse(type, x, y, extra) {
   }
 }
 
+function sendKey(key) {
+  if (!deviceId || !supportsKeyClient || !isOnline) return;
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'keyPress', deviceId: deviceId, key: key }));
+  }
+}
+
 function handlePreviewClick(e) {
   var pos = getClickPos(e);
   if (pos && supportsKeyClient && isOnline) {
@@ -357,8 +409,16 @@ function init() {
   deviceId = params.deviceId || null;
   deviceName = params.deviceName || '未知设备';
   
-  document.getElementById('deviceName').textContent = deviceName;
+  document.getElementById('pageTitle').textContent = deviceName + ' - 自助登号';
   document.title = '自助登号 - ' + deviceName;
+  
+  document.getElementById('backBtn').onclick = function() {
+    sendKey('Back');
+  };
+  
+  document.getElementById('homeBtn').onclick = function() {
+    sendKey('Home');
+  };
   
   connectWS();
   setupMouseEvents();
