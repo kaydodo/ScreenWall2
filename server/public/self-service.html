@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>自助登号</title>
+<title>自助服务</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body {
@@ -26,60 +26,15 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
+  padding: 10px 16px;
   background: rgba(255,255,255,0.06);
   border-bottom: 1px solid rgba(255,255,255,0.1);
   flex-shrink: 0;
 }
-.titlebar-left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
 .titlebar-title {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
   color: #e2e8f0;
-}
-.titlebar-right {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.toolbar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  background: rgba(0,0,0,0.3);
-  border-bottom: 1px solid rgba(255,255,255,0.05);
-  flex-shrink: 0;
-}
-.toolbar-btn {
-  background: #4a5568;
-  border: none;
-  color: #fff;
-  border-radius: 6px;
-  padding: 6px 12px;
-  font-size: 13px;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-.toolbar-btn:hover { background: #2d3748; }
-.toolbar-btn.primary {
-  background: #4f7ef7;
-}
-.toolbar-btn.primary:hover { background: #3c64e6; }
-.toolbar-btn:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
-  pointer-events: none;
-}
-.toolbar-divider {
-  width: 1px;
-  height: 24px;
-  background: rgba(255,255,255,0.1);
-  margin: 0 4px;
 }
 .status-text {
   font-size: 12px;
@@ -92,19 +47,14 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 16px;
   min-height: 0;
   overflow: hidden;
 }
 .display-wrapper {
   position: relative;
   width: 100%;
-  max-width: 400px;
-  aspect-ratio: 9 / 16;
+  height: 100%;
   background: #000;
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
 }
 .display-wrapper img {
   width: 100%;
@@ -153,21 +103,8 @@ html, body {
 <body>
 <div class="container">
   <div class="titlebar">
-    <div class="titlebar-left">
-      <span class="titlebar-title">自助登号</span>
-      <span class="status-text" id="statusText">等待连接...</span>
-    </div>
-    <div class="titlebar-right">
-      <button class="toolbar-btn" id="refreshBtn" title="刷新">🔄 刷新</button>
-    </div>
-  </div>
-  
-  <div class="toolbar">
-    <button class="toolbar-btn primary" id="loginBtn">登号</button>
-    <button class="toolbar-btn" id="logoutBtn">下号</button>
-    <div class="toolbar-divider"></div>
-    <button class="toolbar-btn" id="screenshotBtn">截图</button>
-    <button class="toolbar-btn" id="fullscreenBtn">全屏</button>
+    <span class="titlebar-title">自助服务</span>
+    <span class="status-text" id="statusText">等待连接...</span>
   </div>
   
   <div class="display-area">
@@ -190,7 +127,6 @@ var devices = {};
 var frameHealCount = 0;
 var FRAME_HEAL_THRESHOLD = 2;
 var isOnline = false;
-var currentScreenshot = null;
 
 function getQueryParams() {
   var params = {};
@@ -274,12 +210,6 @@ function handleBinaryFrame(data) {
         updateOnlineStatus();
       }
     }
-    
-    var reader = new FileReader();
-    reader.onload = function() {
-      currentScreenshot = reader.result;
-    };
-    reader.readAsDataURL(blob);
   }
 }
 
@@ -298,7 +228,6 @@ function handleJSONMessage(msg) {
       
       if (dev.screenshot && !document.getElementById('screenImg').src) {
         document.getElementById('screenImg').src = dev.screenshot;
-        currentScreenshot = dev.screenshot;
       }
     }
   }
@@ -321,7 +250,6 @@ function handleJSONMessage(msg) {
       if (msg.screenshot) {
         document.getElementById('screenImg').src = msg.screenshot;
         document.getElementById('screenImg').classList.add('grayscale');
-        currentScreenshot = msg.screenshot;
       }
     }
   }
@@ -357,52 +285,13 @@ function updateOnlineStatus() {
   }
 }
 
-document.getElementById('refreshBtn').onclick = function() {
-  if (ws && ws.readyState === WebSocket.OPEN && deviceId) {
-    ws.send(JSON.stringify({ type: 'setLevel', deviceId: deviceId, level: 2 }));
-  }
-};
-
-document.getElementById('loginBtn').onclick = function() {
-  if (!deviceId) return;
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'login', deviceId: deviceId }));
-  }
-};
-
-document.getElementById('logoutBtn').onclick = function() {
-  if (!deviceId) return;
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'logout', deviceId: deviceId }));
-  }
-};
-
-document.getElementById('screenshotBtn').onclick = function() {
-  if (!currentScreenshot) return;
-  var a = document.createElement('a');
-  a.href = currentScreenshot;
-  a.download = (deviceName || 'screenshot') + '_' + new Date().toISOString().slice(0,19).replace(/[:-]/g,'') + '.webp';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-};
-
-document.getElementById('fullscreenBtn').onclick = function() {
-  var wrapper = document.getElementById('displayWrapper');
-  if (document.fullscreenElement) {
-    document.exitFullscreen();
-  } else {
-    wrapper.requestFullscreen();
-  }
-};
-
 function init() {
   var params = getQueryParams();
   deviceId = params.deviceId || null;
   deviceName = params.deviceName || '未知设备';
   
   if (deviceId) {
-    document.title = '自助登号 - ' + deviceName;
+    document.title = '自助服务 - ' + deviceName;
   }
   
   connectWS();
