@@ -1153,7 +1153,7 @@ def _tray_on_open_self_service(icon, item):
     if browser_path:
         exe_name = os.path.basename(browser_path).lower()
         if exe_name in ("chrome.exe", "msedge.exe"):
-            subprocess.Popen([browser_path, "--app=" + url, "--window-size=436,795", "--new-window"])
+            subprocess.Popen([browser_path, "--app=" + url, "--window-size=380,720", "--new-window"])
         else:
             webbrowser.open(url)
     else:
