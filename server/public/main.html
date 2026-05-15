@@ -547,6 +547,13 @@ function downloadUU() {
   }
 }
 let inputFocused = false;    // 输入框激活时暂停格子刷新
+let microRefreshLockUntil = 0;
+function lockMicroRefresh(ms) {
+  microRefreshLockUntil = Math.max(microRefreshLockUntil, Date.now() + ms);
+}
+function isMicroRefreshLocked() {
+  return inputFocused || Date.now() < microRefreshLockUntil;
+}
 let previewWS = null;       // 预览专用连接（请求高清）
 let keyClientExists = false; // 键盘客户端是否存在
 let reconnectTimer = null;
@@ -1582,7 +1589,7 @@ function createCellElement(index) {
 
 function updateCellElement(index) {
   // 输入框激活时跳过格子刷新，避免输入内容被覆盖
-  if (inputFocused) return;
+  if (isMicroRefreshLocked()) return;
   
   const t0 = performance.now();
   const cell = gridCells[index];
@@ -1832,7 +1839,7 @@ function getPositionLabel(index) {
 
 function rebuildSidebar() {
   // 输入框激活时跳过侧边栏刷新，避免输入内容被覆盖
-  if (inputFocused) return;
+  if (isMicroRefreshLocked()) return;
   
   const list = document.getElementById('sidebarList');
   
@@ -2520,18 +2527,29 @@ document.addEventListener('DOMContentLoaded', initKeyboardDrag);
 
 // 输入框焦点跟踪：激活时暂停格子刷新，避免输入内容被覆盖
 document.addEventListener('focusin', function(e) {
-  if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable)) {
-    // 排除 checkbox 和 radio
-    if (e.target.type !== 'checkbox' && e.target.type !== 'radio') {
+  if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable)) {
+    if (e.target.tagName === 'INPUT' && (e.target.type === 'checkbox' || e.target.type === 'radio')) {
+      lockMicroRefresh(800);
+    } else {
       inputFocused = true;
     }
   }
 });
 document.addEventListener('focusout', function(e) {
-  if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable)) {
-    if (e.target.type !== 'checkbox' && e.target.type !== 'radio') {
+  if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable)) {
+    if (!(e.target.tagName === 'INPUT' && (e.target.type === 'checkbox' || e.target.type === 'radio'))) {
       inputFocused = false;
     }
+  }
+});
+document.addEventListener('mousedown', function(e) {
+  if (e.target && e.target.tagName === 'INPUT' && (e.target.type === 'checkbox' || e.target.type === 'radio')) {
+    lockMicroRefresh(800);
+  }
+});
+document.addEventListener('change', function(e) {
+  if (e.target && e.target.tagName === 'INPUT' && (e.target.type === 'checkbox' || e.target.type === 'radio')) {
+    lockMicroRefresh(800);
   }
 });
 
