@@ -357,6 +357,7 @@ async function _flushWallBatch() {
       
       const layout = wallLayouts.get(wallWs);
       if (layout) {
+        const tasks = [];
         for (let i = 0; i < layout.deviceIds.length; i++) {
           const deviceId = layout.deviceIds[i];
           if (!deviceId) continue;
@@ -364,7 +365,24 @@ async function _flushWallBatch() {
           const data = _wallBatch.get(deviceId);
           if (!data || !data.buffer) continue;
           
-          sendBinaryScreenshot(wallWs, 0x10, deviceId, data.buffer, data.screenWidth || 0, data.screenHeight || 0, false);
+          tasks.push((async () => {
+            try {
+              const resizedBuffer = await sharp(data.buffer)
+                .resize(layout.cellW, layout.cellH, { fit: 'cover' })
+                .webp({ quality: 30 })
+                .toBuffer();
+              return { deviceId, buffer: resizedBuffer, w: layout.cellW, h: layout.cellH };
+            } catch(e) {
+              return { deviceId, buffer: data.buffer, w: data.screenWidth || 0, h: data.screenHeight || 0 };
+            }
+          })());
+        }
+        
+        if (tasks.length > 0) {
+          const results = await Promise.all(tasks);
+          for (const r of results) {
+            sendBinaryScreenshot(wallWs, 0x10, r.deviceId, r.buffer, r.w, r.h, false);
+          }
         }
       }
     }
@@ -409,10 +427,34 @@ async function _flushBrowserBatch() {
       const vpData = viewportSubscriptions.get(browserWs);
       if (vpData && !wallClients.has(browserWs)) {
         if (vpData.deviceIds.size === 0) continue;
+        
+        const tasks = [];
         for (const [deviceId, data] of _browserBatch) {
           if (!vpData.deviceIds.has(deviceId)) continue;
           if (!data.buffer) continue;
-          sendBinaryScreenshot(browserWs, 0x10, deviceId, data.buffer, data.screenWidth || 0, data.screenHeight || 0, data.isHQ || false);
+          
+          if (vpData.cropSize) {
+            tasks.push((async () => {
+              try {
+                const croppedBuffer = await sharp(data.buffer)
+                  .resize(vpData.cropSize.w, vpData.cropSize.h, { fit: 'cover' })
+                  .webp({ quality: 30 })
+                  .toBuffer();
+                return { deviceId, buffer: croppedBuffer, w: vpData.cropSize.w, h: vpData.cropSize.h, isHQ: data.isHQ };
+              } catch(e) {
+                return { deviceId, buffer: data.buffer, w: data.screenWidth || 0, h: data.screenHeight || 0, isHQ: data.isHQ };
+              }
+            })());
+          } else {
+            sendBinaryScreenshot(browserWs, 0x10, deviceId, data.buffer, data.screenWidth || 0, data.screenHeight || 0, data.isHQ || false);
+          }
+        }
+        
+        if (tasks.length > 0) {
+          const results = await Promise.all(tasks);
+          for (const r of results) {
+            sendBinaryScreenshot(browserWs, 0x10, r.deviceId, r.buffer, r.w, r.h, r.isHQ);
+          }
         }
       } else {
         if (!previewClients.has(browserWs) && !wallClients.has(browserWs)) {
