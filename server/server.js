@@ -385,28 +385,22 @@ function _scheduleWallBatch() {
 // ========== browserScreenshot 批量推送（减少 Browser 进程内存压力）==========
 // 不再逐条推送，改为攒批后统一发送 screenshotBatch
 // 200设备×8fps = 1600条/秒 → 合并为 8条/秒，Browser进程 IPC 压力降200倍
-const _browserBatch = new Map(); // deviceId -> { image, timestamp }
+const _browserBatch = new Map();
 let _browserBatchScheduled = false;
 let _browserFlushing = false;
-let _frameCounter = 0;
-let _lastFrameLog = Date.now();
-let _flushCallCount = 0;
 async function _flushBrowserBatch() {
-  _flushCallCount++;
   if (_browserFlushing) {
     _browserBatchScheduled = false;
     return;
   }
   _browserFlushing = true;
   _browserBatchScheduled = false;
-  serverLog(`[browserBatch] 开始刷新 #${_flushCallCount}: batch=${_browserBatch.size}, clients=${browserClients.size}, vp=${viewportSubscriptions.size}`);
   if (_browserBatch.size === 0 || browserClients.size === 0) {
     _browserBatch.clear();
     _browserFlushing = false;
     return;
   }
   
-  let pushedCount = 0;
   try {
     for (const browserWs of browserClients) {
       if (browserWs.readyState !== 1) continue;
@@ -426,21 +420,17 @@ async function _flushBrowserBatch() {
                 vpData.cropSize.w, vpData.cropSize.h, 'cover'
               );
               sendBinaryScreenshot(browserWs, 0x10, deviceId, croppedBuffer, vpData.cropSize.w, vpData.cropSize.h, data.isHQ || false);
-              pushedCount++;
             } else {
               sendBinaryScreenshot(browserWs, 0x10, deviceId, data.buffer, data.screenWidth || 0, data.screenHeight || 0, data.isHQ || false);
-              pushedCount++;
             }
           } catch(e) {
             sendBinaryScreenshot(browserWs, 0x10, deviceId, data.buffer, data.screenWidth || 0, data.screenHeight || 0, data.isHQ || false);
-            pushedCount++;
           }
         }
       } else {
         if (!previewClients.has(browserWs) && !wallClients.has(browserWs)) {
           for (const [deviceId, data] of _browserBatch) {
             if (data.buffer) sendBinaryScreenshot(browserWs, 0x10, deviceId, data.buffer, data.screenWidth || 0, data.screenHeight || 0, data.isHQ || false);
-            pushedCount++;
           }
         }
       }
@@ -448,7 +438,6 @@ async function _flushBrowserBatch() {
     _browserBatch.clear();
   } catch(e) { serverLog('[browserBatch] 批量推送失败:', e.message); }
   _browserFlushing = false;
-  if (pushedCount > 0) serverLog(`[browserBatch] 推送完成: ${pushedCount} 帧`);
   if (_browserBatch.size > 0) {
     _browserBatchScheduled = false;
     _scheduleBrowserBatch();
@@ -457,11 +446,7 @@ async function _flushBrowserBatch() {
 function _scheduleBrowserBatch() {
   if (!_browserBatchScheduled) {
     _browserBatchScheduled = true;
-    serverLog(`[browserBatch] 首次调度, _browserBatch.size=${_browserBatch.size}`);
-    setTimeout(() => {
-      serverLog(`[browserBatch] setTimeout回调执行`);
-      _flushBrowserBatch();
-    }, 166);
+    setTimeout(_flushBrowserBatch, 166);
   }
 }
 // 报警截图查重缓存（存储最近一张 640×360 截图）
@@ -1701,12 +1686,6 @@ wssClient.on('connection', (ws, req) => {
           dev.lastSeen = now;
           if (!dev.online) { dev.online = true; broadcastToBrowsers({ type: 'deviceList', devices: getDeviceListPayload() }); }
           _browserBatch.set(deviceId, { buffer: webpBuffer, timestamp: now, isHQ, screenWidth, screenHeight });
-          _frameCounter++;
-          if (now - _lastFrameLog > 30000) {
-            serverLog(`[二进制帧] 30秒内收到 ${_frameCounter} 帧`);
-            _frameCounter = 0;
-            _lastFrameLog = now;
-          }
           _scheduleBrowserBatch();
           const inWall = monitorWallDevices.has(deviceId);
           if (inWall) { 
@@ -2986,14 +2965,11 @@ wssBrowser.on('connection', (ws) => {
 
     // Step 3: 视口懒加载 - 浏览器上报当前可见格子和裁剪参数
     if (msg.type === 'setViewport') {
-      const deviceIds = msg.deviceIds || [];
-      serverLog(`[setViewport] 收到视口更新: ${deviceIds.length} 个设备, deviceIds=${JSON.stringify(deviceIds.slice(0, 5))}...`);
       viewportSubscriptions.set(ws, {
-        deviceIds: new Set(deviceIds),
+        deviceIds: new Set(msg.deviceIds || []),
         cropCols: msg.cropCols || 4,
         cropSize: msg.cropSize || { w: 480, h: 270 }
       });
-      serverLog(`[setViewport] 订阅完成: viewportSubscriptions.size=${viewportSubscriptions.size}, 当前ws的deviceIds数量=${viewportSubscriptions.get(ws).deviceIds.size}`);
     }
 
     // 视口更新：浏览器上报当前可见格子
