@@ -393,7 +393,10 @@ let _lastFrameLog = Date.now();
 let _flushCallCount = 0;
 async function _flushBrowserBatch() {
   _flushCallCount++;
-  if (_browserFlushing) return;
+  if (_browserFlushing) {
+    _browserBatchScheduled = false;
+    return;
+  }
   _browserFlushing = true;
   _browserBatchScheduled = false;
   serverLog(`[browserBatch] 开始刷新 #${_flushCallCount}: batch=${_browserBatch.size}, clients=${browserClients.size}, vp=${viewportSubscriptions.size}`);
@@ -446,6 +449,10 @@ async function _flushBrowserBatch() {
   } catch(e) { serverLog('[browserBatch] 批量推送失败:', e.message); }
   _browserFlushing = false;
   if (pushedCount > 0) serverLog(`[browserBatch] 推送完成: ${pushedCount} 帧`);
+  if (_browserBatch.size > 0) {
+    _browserBatchScheduled = false;
+    _scheduleBrowserBatch();
+  }
 }
 function _scheduleBrowserBatch() {
   if (!_browserBatchScheduled) {
