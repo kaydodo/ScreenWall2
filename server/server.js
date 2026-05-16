@@ -388,6 +388,8 @@ function _scheduleWallBatch() {
 const _browserBatch = new Map(); // deviceId -> { image, timestamp }
 let _browserBatchScheduled = false;
 let _browserFlushing = false;
+let _frameCounter = 0;
+let _lastFrameLog = Date.now();
 async function _flushBrowserBatch() {
   if (_browserFlushing) return;
   _browserFlushing = true;
@@ -1693,6 +1695,12 @@ wssClient.on('connection', (ws, req) => {
           dev.lastSeen = now;
           if (!dev.online) { dev.online = true; broadcastToBrowsers({ type: 'deviceList', devices: getDeviceListPayload() }); }
           _browserBatch.set(deviceId, { buffer: webpBuffer, timestamp: now, isHQ, screenWidth, screenHeight });
+          _frameCounter++;
+          if (now - _lastFrameLog > 5000) {
+            serverLog(`[二进制帧] 5秒内收到 ${_frameCounter} 帧, _browserBatch.size=${_browserBatch.size}`);
+            _frameCounter = 0;
+            _lastFrameLog = now;
+          }
           _scheduleBrowserBatch();
           const inWall = monitorWallDevices.has(deviceId);
           if (inWall) { 
