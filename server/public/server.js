@@ -398,17 +398,13 @@ async function _flushBrowserBatch() {
     return;
   }
   
-  let pushedCount = 0;
   try {
     for (const browserWs of browserClients) {
       if (browserWs.readyState !== 1) continue;
 
       const vpData = viewportSubscriptions.get(browserWs);
       if (vpData && !wallClients.has(browserWs)) {
-        if (vpData.deviceIds.size === 0) {
-          serverLog(`[browserBatch] vpData存在但deviceIds为空, 跳过推送`);
-          continue;
-        }
+        if (vpData.deviceIds.size === 0) continue;
         for (const [deviceId, data] of _browserBatch) {
           if (!vpData.deviceIds.has(deviceId)) continue;
           if (!data.buffer) continue;
@@ -421,22 +417,17 @@ async function _flushBrowserBatch() {
                 vpData.cropSize.w, vpData.cropSize.h, 'cover'
               );
               sendBinaryScreenshot(browserWs, 0x10, deviceId, croppedBuffer, vpData.cropSize.w, vpData.cropSize.h, data.isHQ || false);
-              pushedCount++;
             } else {
               sendBinaryScreenshot(browserWs, 0x10, deviceId, data.buffer, data.screenWidth || 0, data.screenHeight || 0, data.isHQ || false);
-              pushedCount++;
             }
           } catch(e) {
             sendBinaryScreenshot(browserWs, 0x10, deviceId, data.buffer, data.screenWidth || 0, data.screenHeight || 0, data.isHQ || false);
-            pushedCount++;
           }
         }
       } else {
         if (!previewClients.has(browserWs) && !wallClients.has(browserWs)) {
-          serverLog(`[browserBatch] 无vpData, 推送所有设备, _browserBatch.size=${_browserBatch.size}`);
           for (const [deviceId, data] of _browserBatch) {
             if (data.buffer) sendBinaryScreenshot(browserWs, 0x10, deviceId, data.buffer, data.screenWidth || 0, data.screenHeight || 0, data.isHQ || false);
-            pushedCount++;
           }
         }
       }
@@ -444,7 +435,6 @@ async function _flushBrowserBatch() {
     _browserBatch.clear();
   } catch(e) { serverLog('[browserBatch] 批量推送失败:', e.message); }
   _browserFlushing = false;
-  if (pushedCount > 0) serverLog(`[browserBatch] 推送完成: ${pushedCount} 帧`);
 }
 function _scheduleBrowserBatch() {
   if (!_browserBatchScheduled) {
@@ -1690,11 +1680,7 @@ wssClient.on('connection', (ws, req) => {
           if (!dev.online) { dev.online = true; broadcastToBrowsers({ type: 'deviceList', devices: getDeviceListPayload() }); }
           _browserBatch.set(deviceId, { buffer: webpBuffer, timestamp: now, isHQ, screenWidth, screenHeight });
           _scheduleBrowserBatch();
-          const inWall = monitorWallDevices.has(deviceId);
-          if (inWall) { 
-            _wallBatch.set(deviceId, { buffer: webpBuffer, timestamp: now, screenWidth, screenHeight }); 
-            _scheduleWallBatch(); 
-          }
+          if (monitorWallDevices.has(deviceId)) { _wallBatch.set(deviceId, { buffer: webpBuffer, timestamp: now, screenWidth, screenHeight }); _scheduleWallBatch(); }
           for (const [pw, pi] of previewClients) { if (pi.deviceId === deviceId && pw.readyState === 1) sendBinaryScreenshot(pw, 0x10, deviceId, webpBuffer, screenWidth, screenHeight, isHQ); }
         } catch(e) { serverError('[二进制帧] 解析失败:', e.message); }
         return;
@@ -2968,14 +2954,16 @@ wssBrowser.on('connection', (ws) => {
 
     // Step 3: 视口懒加载 - 浏览器上报当前可见格子和裁剪参数
     if (msg.type === 'setViewport') {
-      const deviceIds = msg.deviceIds || [];
-      serverLog(`[setViewport] 收到视口更新: ${deviceIds.length} 个设备, deviceIds=${JSON.stringify(deviceIds.slice(0, 5))}...`);
       viewportSubscriptions.set(ws, {
-        deviceIds: new Set(deviceIds),
+        deviceIds: new Set(msg.deviceIds || []),
         cropCols: msg.cropCols || 4,
         cropSize: msg.cropSize || { w: 480, h: 270 }
       });
-      serverLog(`[setViewport] 订阅完成: viewportSubscriptions.size=${viewportSubscriptions.size}, 当前ws的deviceIds数量=${viewportSubscriptions.get(ws).deviceIds.size}`);
+      if (msg.deviceIds && msg.deviceIds.length > 0 && _browserBatch.size > 0) {
+        _browserBatchScheduled = false;
+        _browserFlushing = false;
+        _scheduleBrowserBatch();
+      }
     }
 
     // 视口更新：浏览器上报当前可见格子
@@ -3053,7 +3041,6 @@ wssBrowser.on('connection', (ws) => {
 
     if (msg.type === 'subscribeWall') {
       const deviceList = msg.devices || [];
-      serverLog(`[subscribeWall] 收到订阅请求: ${deviceList.length} 个设备, wallClients.size=${wallClients.size}`);
       
       const cols = msg.cols || 4;
       const rows = msg.rows || 4;
@@ -3068,6 +3055,7 @@ wssBrowser.on('connection', (ws) => {
         deviceIds: deviceList
       });
       
+      // 合并设备列表
       const existing = wallClients.get(ws);
       const existingDevices = existing ? existing.devices : new Set();
       const newDevices = new Set(existingDevices);
@@ -3077,12 +3065,13 @@ wssBrowser.on('connection', (ws) => {
         addMonitorWall(deviceId);
         wallDevices.set(deviceId, true);
 
+        // 监控墙使用 level 1 (853x720)
         subscribeLevel(deviceId, ws, 1);
       }
       
       wallClients.set(ws, { devices: newDevices });
-      serverLog(`[subscribeWall] 订阅完成: monitorWallDevices.size=${monitorWallDevices.size}, wallClients.size=${wallClients.size}`);
       
+      // 返回该浏览器已上墙设备列表（仅自己）
       ws.send(JSON.stringify({ type: 'walledDevices', devices: Array.from(newDevices) }));
     }
 

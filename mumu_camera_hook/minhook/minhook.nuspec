@@ -1,0 +1,19 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2011/08/nuspec.xsd">
+  <metadata>
+    <id>minhook</id>
+    <version>1.3.3</version>
+    <title>MinHook</title>
+    <authors>Tsuda Kageyu,RaMMicHaeL,et al</authors>
+    <owners>Tsuda Kageyu,RaMMicHaeL,et al</owners>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <licenseUrl>http://opensource.org/licenses/bsd-license.php</licenseUrl>
+    <projectUrl>http://www.codeproject.com/KB/winsdk/LibMinHook.aspx</projectUrl>
+    <description>The Minimalistic x86/x64 API Hooking Library</description>
+    <releaseNotes>This release is based on MinHook 1.3.3.
+https://github.com/TsudaKageyu/minhook</releaseNotes>
+    <copyright>Copyright © 2009-2016 Tsuda Kageyu. All rights reserved.</copyright>
+    <language>en-US</language>
+    <tags>c c++ native windows api hook x86 x64 amd64</tags>
+  </metadata>
+</package>
