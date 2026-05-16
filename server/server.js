@@ -457,15 +457,15 @@ async function _flushBrowserBatch() {
 }
 function _scheduleBrowserBatch() {
   const prevScheduled = _browserBatchScheduled;
-  serverLog(`[browserBatch] 调度检查: _browserBatchScheduled=${_browserBatchScheduled}, _browserFlushing=${_browserFlushing}, _browserBatch.size=${_browserBatch.size}`);
   if (!_browserBatchScheduled) {
     _browserBatchScheduled = true;
-    serverLog(`[browserBatch] 调度刷新 (之前scheduled=${prevScheduled})`);
-    const timerId = setTimeout(() => {
+    serverLog(`[browserBatch] 首次调度, 设置scheduled=true, _browserBatch.size=${_browserBatch.size}`);
+    setTimeout(() => {
       serverLog(`[browserBatch] setTimeout回调执行`);
       _flushBrowserBatch();
     }, 166);
-    serverLog(`[browserBatch] setTimeout 返回: ${timerId}`);
+  } else {
+    serverLog(`[browserBatch] 跳过调度: scheduled=${_browserBatchScheduled}, flushing=${_browserFlushing}`);
   }
 }
 // 报警截图查重缓存（存储最近一张 640×360 截图）
