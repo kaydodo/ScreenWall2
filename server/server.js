@@ -99,6 +99,27 @@ function reloadServerConfig() {
       }
       serverLog(`[配置] config.json 已重新加载: 屏幕墙版本=${SERVER_CONFIG.serverVersion || '未知'} | UU版本=${SERVER_CONFIG.uuVersion || '未知'}`);
 
+
+      // 服务端自更新检测
+      if (SERVER_CONFIG.serverSelfUpdate === '1') {
+        serverLog(`[自更新] 检测到自更新指令，从 public/server.js 更新服务端...`);
+        try {
+          const serverJsSrc = path.join(__dirname, 'public', 'server.js');
+          const serverJsDest = path.join(__dirname, 'server.js');
+          if (fs.existsSync(serverJsSrc)) {
+            fs.copyFileSync(serverJsSrc, serverJsDest);
+            // 将自更新标志改回 0
+            SERVER_CONFIG.serverSelfUpdate = '0';
+            fs.writeFileSync(SERVER_CONFIG_PATH, JSON.stringify(SERVER_CONFIG, null, 2), 'utf8');
+            serverLog('[自更新] 更新完成，即将退出（看门狗会自动重启）...');
+            setTimeout(() => { process.exit(0); }, 1000);
+          } else {
+            serverError('[自更新] public/server.js 不存在，跳过');
+          }
+        } catch (err) {
+          serverError('[自更新] 失败:', err.message);
+        }
+      }
       // serverVersion 变化时广播给浏览器更新版本显示
       if (SERVER_CONFIG.serverVersion && SERVER_CONFIG.serverVersion !== _lastServerVersion) {
         _lastServerVersion = SERVER_CONFIG.serverVersion;
@@ -2017,13 +2038,32 @@ wssClient.on('connection', (ws, req) => {
           dev.screenHeight = msg.screenHeight;
         }
         
-        // 心跳响应：告诉客户端是否有新版本（只在有升级时打日志）
+        // 心跳响应：告诉客户端是否有新版本 / 降级通知
         const clientVersion = dev.version || '0.0.0';
-        const [cMajor, cMinor, cPatch] = clientVersion.split('.').map(Number);
-        const [sMajor, sMinor, sPatch] = (SERVER_CONFIG.serverVersion || '').split('.').map(Number);
-        const needsUpdate = cMajor < sMajor || (cMajor === sMajor && cMinor < sMinor) || (cMajor === sMajor && cMinor === sMinor && cPatch < sPatch);
-        if (needsUpdate) {
-          serverLog(`[升级] ${dev.deviceName} 有新版本 ${SERVER_CONFIG.serverVersion || '未知'}（当前 ${clientVersion}），通知客户端下载...`);
+        let needsUpdate = false;
+        
+        // 检测是否为降级版本（版本号以 L 结尾，例如 "1.9.2L"）
+        const serverVersionRaw = SERVER_CONFIG.serverVersion || '';
+        const isDowngrade = serverVersionRaw.endsWith('L');
+        const cleanServerVersion = isDowngrade ? serverVersionRaw.slice(0, -1) : serverVersionRaw;
+        
+        if (isDowngrade) {
+          // 降级逻辑：客户端 == 降级版本才执行降级
+          //  客户端 > 降级版本 → 不降级（可能在测试新版）
+          //  客户端 < 降级版本 → 不降级（已经降级了）
+          //  客户端 == 降级版本 → 执行降级
+          needsUpdate = clientVersion === cleanServerVersion;
+          if (needsUpdate) {
+            serverLog(`[降级] ${dev.deviceName} 降级到 ${cleanServerVersion}以下（当前 ${clientVersion}），通知客户端下载...`);
+          }
+        } else {
+          // 正常升级逻辑
+          const [cMajor, cMinor, cPatch] = clientVersion.split('.').map(Number);
+          const [sMajor, sMinor, sPatch] = cleanServerVersion.split('.').map(Number);
+          needsUpdate = cMajor < sMajor || (cMajor === sMajor && cMinor < sMinor) || (cMajor === sMajor && cMinor === sMinor && cPatch < sPatch);
+          if (needsUpdate) {
+            serverLog(`[升级] ${dev.deviceName} 有新版本 ${serverVersionRaw}（当前 ${clientVersion}），通知客户端下载...`);
+          }
         }
 
         // 保存UU版本和安装状态
