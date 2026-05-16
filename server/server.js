@@ -392,6 +392,7 @@ async function _flushBrowserBatch() {
   if (_browserFlushing) return;
   _browserFlushing = true;
   _browserBatchScheduled = false;
+  serverLog(`[browserBatch] 开始刷新: _browserBatch.size=${_browserBatch.size}, browserClients.size=${browserClients.size}, viewportSubscriptions.size=${viewportSubscriptions.size}`);
   if (_browserBatch.size === 0 || browserClients.size === 0) {
     _browserBatch.clear();
     _browserFlushing = false;
@@ -404,7 +405,9 @@ async function _flushBrowserBatch() {
       if (browserWs.readyState !== 1) continue;
 
       const vpData = viewportSubscriptions.get(browserWs);
+      serverLog(`[browserBatch] 检查客户端: vpData=${!!vpData}, wallClients.has=${wallClients.has(browserWs)}, previewClients.has=${previewClients.has(browserWs)}`);
       if (vpData && !wallClients.has(browserWs)) {
+        serverLog(`[browserBatch] vpData分支: deviceIds.size=${vpData.deviceIds.size}`);
         if (vpData.deviceIds.size === 0) {
           serverLog(`[browserBatch] vpData存在但deviceIds为空, 跳过推送`);
           continue;
@@ -412,6 +415,7 @@ async function _flushBrowserBatch() {
         for (const [deviceId, data] of _browserBatch) {
           if (!vpData.deviceIds.has(deviceId)) continue;
           if (!data.buffer) continue;
+          serverLog(`[browserBatch] vpData分支匹配设备: ${deviceId}`);
 
           try {
             if (vpData.cropSize) {
