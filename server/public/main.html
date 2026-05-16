@@ -849,6 +849,8 @@ function connectWS() {
       keyClientExists = devices.some(function(d) { return d.supportsKeyClient === true; });
       // 同步更新鼠标提示文字（电脑端+有键盘时显示）
       updateMouseHint();
+      // 重新发送视口订阅（关闭预览后重连时需要）
+      setTimeout(updateViewport, 100);
     }
 
     // 动态更新服务端版本号（config.json 变化时触发）

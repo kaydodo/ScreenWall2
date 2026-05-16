@@ -269,6 +269,93 @@ html, body {
   }
   .numpad-section { display: none; }
 }
+
+@media (max-width: 768px) and (orientation: portrait) {
+  .preview-overlay {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 2000 !important;
+    background: #000 !important;
+  }
+  .preview-titlebar {
+    display: none !important;
+  }
+  .preview-area {
+    position: absolute !important;
+    top: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    background: #000 !important;
+    overflow: hidden !important;
+  }
+  .preview-img-wrapper {
+    position: absolute !important;
+    top: 16px !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: calc(100% - 16px) !important;
+    overflow: hidden !important;
+  }
+  .preview-img-wrapper img {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: contain !important;
+    object-position: center top !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    z-index: 1 !important;
+  }
+  #previewOfflineWatermark {
+    transform: translate(-50%,-50%) rotate(90deg) !important;
+    z-index: 10 !important;
+  }
+  .preview-kb-btn {
+    transform: rotate(90deg);
+  }
+  .keyboard-container {
+    transform: rotate(90deg);
+    transform-origin: center center;
+  }
+  .mobile-close-hint {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.6);
+    color: #fff;
+    padding: 10px 20px;
+    border-radius: 20px;
+    font-size: 14px;
+    z-index: 2002;
+    pointer-events: none;
+    opacity: 1;
+    transition: opacity 0.5s;
+  }
+  .mobile-close-hint.fade-out {
+    opacity: 0;
+  }
+  .mobile-controls {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 2003;
+  }
+  .mobile-btn {
+    transform: rotate(90deg);
+    padding: 8px 16px;
+  }
+}
 </style>
 </head>
 <body>
@@ -301,6 +388,11 @@ html, body {
     </div>
   </div>
   <div class="preview-offline-watermark" id="previewOfflineWatermark">设备已离线</div>
+  <div class="mobile-close-hint" id="mobileCloseHint">点击任意处关闭</div>
+  <div class="mobile-controls" id="mobileControls" style="display:none;">
+    <button class="preview-kb-btn mobile-btn" id="previewMonitorBtnMobile" title="切换显示器" onclick="cycleMonitor()" style="display:none;">🖥️ 显示器 1</button>
+    <button class="preview-kb-btn mobile-btn" id="previewKBbtnMobile" title="键盘控制" onclick="toggleKeyboard()">⌨️ 键盘</button>
+  </div>
 </div>
 
 <div class="remote-list-overlay" id="remoteListOverlay" style="display:none;">
@@ -504,6 +596,39 @@ function initUI() {
     if (monBtn) monBtn.style.display = 'none';
     if (mouseHint) mouseHint.style.display = 'none';
   }
+
+  // 手机端关闭提示淡出
+  var mobileHint = document.getElementById('mobileCloseHint');
+  if (mobileHint && isMobile()) {
+    setTimeout(function() {
+      mobileHint.classList.add('fade-out');
+    }, 2000);
+  }
+
+  // 手机端显示按钮
+  var mobileControls = document.getElementById('mobileControls');
+  var kbBtnMobile = document.getElementById('previewKBbtnMobile');
+  var monBtnMobile = document.getElementById('previewMonitorBtnMobile');
+  if (isMobile() && previewMode === 'normal' && mobileControls) {
+    mobileControls.style.display = 'flex';
+    if (kbBtnMobile) kbBtnMobile.style.display = supportsKeyClient ? 'block' : 'none';
+    if (monBtnMobile) {
+      if (monitorCount > 1) {
+        monBtnMobile.style.display = 'block';
+        monBtnMobile.textContent = '🖥️ 显示器 ' + monitorIndex;
+      } else {
+        monBtnMobile.style.display = 'none';
+      }
+    }
+  }
+
+  // 手机端点击关闭
+  var previewArea = document.getElementById('previewArea');
+  if (previewArea && isMobile()) {
+    previewArea.addEventListener('click', function() {
+      closePreview();
+    });
+  }
 }
 
 function isMobile() {
@@ -663,6 +788,8 @@ function cycleMonitor() {
   ws.send(JSON.stringify({ type: 'switchMonitor', deviceId: deviceId, monitorIndex: monitorIndex }));
   var monBtn = document.getElementById('previewMonitorBtn');
   if (monBtn) monBtn.textContent = '🖥️ 显示器 ' + monitorIndex;
+  var monBtnMobile = document.getElementById('previewMonitorBtnMobile');
+  if (monBtnMobile) monBtnMobile.textContent = '🖥️ 显示器 ' + monitorIndex;
   document.getElementById('previewDeviceName').textContent = deviceName + ' - 实时预览 🖥️' + monitorIndex;
 }
 
