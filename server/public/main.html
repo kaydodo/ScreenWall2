@@ -623,6 +623,7 @@ function setCell(cellIndex, deviceId) {
   showToast('已放入 ' + (dev ? dev.deviceName : deviceId) + ' ' + getPositionLabel(cellIndex), 'success');
 }
 function connectWS() {
+  if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
   setConnStatus('connecting');
   const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
   ws = new WebSocket(`${protocol}//${location.host}/ws/browser`);
