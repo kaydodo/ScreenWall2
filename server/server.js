@@ -401,6 +401,7 @@ async function _flushBrowserBatch() {
     return;
   }
   
+  const flushStart = Date.now();
   try {
     for (const browserWs of browserClients) {
       if (browserWs.readyState !== 1) continue;
@@ -408,6 +409,8 @@ async function _flushBrowserBatch() {
       const vpData = viewportSubscriptions.get(browserWs);
       if (vpData && !wallClients.has(browserWs)) {
         if (vpData.deviceIds.size === 0) continue;
+        const cropStart = Date.now();
+        let cropCount = 0;
         for (const [deviceId, data] of _browserBatch) {
           if (!vpData.deviceIds.has(deviceId)) continue;
           if (!data.buffer) continue;
@@ -420,12 +423,16 @@ async function _flushBrowserBatch() {
                 vpData.cropSize.w, vpData.cropSize.h, 'cover'
               );
               sendBinaryScreenshot(browserWs, 0x10, deviceId, croppedBuffer, vpData.cropSize.w, vpData.cropSize.h, data.isHQ || false);
+              cropCount++;
             } else {
               sendBinaryScreenshot(browserWs, 0x10, deviceId, data.buffer, data.screenWidth || 0, data.screenHeight || 0, data.isHQ || false);
             }
           } catch(e) {
             sendBinaryScreenshot(browserWs, 0x10, deviceId, data.buffer, data.screenWidth || 0, data.screenHeight || 0, data.isHQ || false);
           }
+        }
+        if (cropCount > 0) {
+          serverLog(`[browserBatch] cropToLayout: ${cropCount}帧, 耗时${Date.now() - cropStart}ms`);
         }
       } else {
         if (!previewClients.has(browserWs) && !wallClients.has(browserWs)) {
@@ -438,6 +445,10 @@ async function _flushBrowserBatch() {
     _browserBatch.clear();
   } catch(e) { serverLog('[browserBatch] 批量推送失败:', e.message); }
   _browserFlushing = false;
+  const flushTime = Date.now() - flushStart;
+  if (flushTime > 50) {
+    serverLog(`[browserBatch] 刷新耗时: ${flushTime}ms`);
+  }
   if (_browserBatch.size > 0) {
     _browserBatchScheduled = false;
     _scheduleBrowserBatch();
