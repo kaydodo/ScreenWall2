@@ -108,7 +108,7 @@ function reloadServerConfig() {
           const serverJsDest = path.join(__dirname, 'server.js');
           if (fs.existsSync(serverJsSrc)) {
             fs.copyFileSync(serverJsSrc, serverJsDest);
-            // 将自更新标志改回 0
+            fs.unlinkSync(serverJsSrc);
             SERVER_CONFIG.serverSelfUpdate = '0';
             fs.writeFileSync(SERVER_CONFIG_PATH, JSON.stringify(SERVER_CONFIG, null, 2), 'utf8');
             serverLog('[自更新] 更新完成，即将退出（看门狗会自动重启）...');
