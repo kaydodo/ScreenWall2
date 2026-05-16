@@ -274,7 +274,7 @@ html, body {
   .preview-overlay {
     position: fixed !important;
     inset: 0 !important;
-    z-index: 2000 !important;
+    z-index: 99999 !important;
     background: #000 !important;
   }
   .preview-titlebar {
@@ -293,13 +293,12 @@ html, body {
   }
   .preview-img-wrapper {
     position: absolute !important;
-    top: 16px !important;
-    right: 0 !important;
-    bottom: 0 !important;
-    left: 0 !important;
-    width: 100% !important;
-    height: calc(100% - 16px) !important;
-    overflow: hidden !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) rotate(90deg) scale(1.8) !important;
+    transform-origin: center center !important;
+    width: 100vh !important;
+    height: 100vw !important;
   }
   .preview-img-wrapper img {
     position: absolute !important;
@@ -307,14 +306,14 @@ html, body {
     width: 100% !important;
     height: 100% !important;
     object-fit: contain !important;
-    object-position: center top !important;
+    object-position: center center !important;
     border-radius: 0 !important;
     box-shadow: none !important;
     border: none !important;
     z-index: 1 !important;
   }
   #previewOfflineWatermark {
-    transform: translate(-50%,-50%) rotate(90deg) !important;
+    transform: translate(-50%,-50%) rotate(90deg) scale(1.8) !important;
     z-index: 10 !important;
   }
   .preview-kb-btn {
@@ -334,7 +333,7 @@ html, body {
     padding: 10px 20px;
     border-radius: 20px;
     font-size: 14px;
-    z-index: 2002;
+    z-index: 100002;
     pointer-events: none;
     opacity: 1;
     transition: opacity 0.5s;
@@ -344,16 +343,22 @@ html, body {
   }
   .mobile-controls {
     position: fixed;
-    top: 20px;
+    bottom: 20px;
     right: 20px;
     display: flex;
     flex-direction: column;
     gap: 10px;
-    z-index: 2003;
+    z-index: 100001;
   }
   .mobile-btn {
     transform: rotate(90deg);
     padding: 8px 16px;
+  }
+  .mobile-remote-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
   }
 }
 </style>
@@ -390,6 +395,12 @@ html, body {
   <div class="preview-offline-watermark" id="previewOfflineWatermark">设备已离线</div>
   <div class="mobile-close-hint" id="mobileCloseHint">点击任意处关闭</div>
   <div class="mobile-controls" id="mobileControls" style="display:none;">
+    <div class="mobile-remote-wrap" id="mobileRemoteWrap">
+      <div id="previewRemoteSliderMobile" role="button" tabindex="0" aria-label="远控开关" onclick="event.stopPropagation();toggleRemote()" style="width:36px;height:18px;background:#555;border-radius:9px;position:relative;transition:background 0.2s;cursor:pointer;pointer-events:auto;transform:rotate(90deg);">
+        <div id="previewRemoteKnobMobile" style="width:14px;height:14px;background:#fff;border-radius:50%;position:absolute;top:2px;left:2px;transition:transform 0.2s;"></div>
+      </div>
+      <span style="font-size:12px;color:#888;transform:rotate(90deg);display:block;">远控</span>
+    </div>
     <button class="preview-kb-btn mobile-btn" id="previewMonitorBtnMobile" title="切换显示器" onclick="cycleMonitor()" style="display:none;">🖥️ 显示器 1</button>
     <button class="preview-kb-btn mobile-btn" id="previewKBbtnMobile" title="键盘控制" onclick="toggleKeyboard()">⌨️ 键盘</button>
   </div>
@@ -609,6 +620,7 @@ function initUI() {
   var mobileControls = document.getElementById('mobileControls');
   var kbBtnMobile = document.getElementById('previewKBbtnMobile');
   var monBtnMobile = document.getElementById('previewMonitorBtnMobile');
+  var mobileRemoteWrap = document.getElementById('mobileRemoteWrap');
   if (isMobile() && previewMode === 'normal' && mobileControls) {
     mobileControls.style.display = 'flex';
     if (kbBtnMobile) kbBtnMobile.style.display = supportsKeyClient ? 'block' : 'none';
@@ -620,6 +632,7 @@ function initUI() {
         monBtnMobile.style.display = 'none';
       }
     }
+    if (mobileRemoteWrap) mobileRemoteWrap.style.display = 'flex';
   }
 
   // 手机端点击关闭
@@ -650,6 +663,9 @@ function updateMouseHint() {
 function updateRemoteBtn() {
   var slider = document.getElementById('previewRemoteSlider');
   var knob = document.getElementById('previewRemoteKnob');
+  var sliderMobile = document.getElementById('previewRemoteSliderMobile');
+  var knobMobile = document.getElementById('previewRemoteKnobMobile');
+  
   if (!slider || !knob) return;
   slider.style.opacity = '1';
   slider.style.cursor = 'pointer';
@@ -657,9 +673,13 @@ function updateRemoteBtn() {
   if (supportsKeyClient) {
     slider.style.background = '#22c55e';
     knob.style.transform = 'translateX(18px)';
+    if (sliderMobile) sliderMobile.style.background = '#22c55e';
+    if (knobMobile) knobMobile.style.transform = 'translateX(18px)';
   } else {
     slider.style.background = '#555';
     knob.style.transform = 'translateX(0)';
+    if (sliderMobile) sliderMobile.style.background = '#555';
+    if (knobMobile) knobMobile.style.transform = 'translateX(0)';
   }
 }
 
