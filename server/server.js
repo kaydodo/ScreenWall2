@@ -393,11 +393,10 @@ let _lastFrameLog = Date.now();
 let _flushCallCount = 0;
 async function _flushBrowserBatch() {
   _flushCallCount++;
-  serverLog(`[browserBatch] _flushBrowserBatch 被调用 #${_flushCallCount}, _browserFlushing=${_browserFlushing}`);
   if (_browserFlushing) return;
   _browserFlushing = true;
   _browserBatchScheduled = false;
-  serverLog(`[browserBatch] 开始刷新: _browserBatch.size=${_browserBatch.size}, browserClients.size=${browserClients.size}, viewportSubscriptions.size=${viewportSubscriptions.size}`);
+  serverLog(`[browserBatch] 开始刷新 #${_flushCallCount}: batch=${_browserBatch.size}, clients=${browserClients.size}, vp=${viewportSubscriptions.size}`);
   if (_browserBatch.size === 0 || browserClients.size === 0) {
     _browserBatch.clear();
     _browserFlushing = false;
@@ -410,17 +409,11 @@ async function _flushBrowserBatch() {
       if (browserWs.readyState !== 1) continue;
 
       const vpData = viewportSubscriptions.get(browserWs);
-      serverLog(`[browserBatch] 检查客户端: vpData=${!!vpData}, wallClients.has=${wallClients.has(browserWs)}, previewClients.has=${previewClients.has(browserWs)}`);
       if (vpData && !wallClients.has(browserWs)) {
-        serverLog(`[browserBatch] vpData分支: deviceIds.size=${vpData.deviceIds.size}`);
-        if (vpData.deviceIds.size === 0) {
-          serverLog(`[browserBatch] vpData存在但deviceIds为空, 跳过推送`);
-          continue;
-        }
+        if (vpData.deviceIds.size === 0) continue;
         for (const [deviceId, data] of _browserBatch) {
           if (!vpData.deviceIds.has(deviceId)) continue;
           if (!data.buffer) continue;
-          serverLog(`[browserBatch] vpData分支匹配设备: ${deviceId}`);
 
           try {
             if (vpData.cropSize) {
@@ -442,7 +435,6 @@ async function _flushBrowserBatch() {
         }
       } else {
         if (!previewClients.has(browserWs) && !wallClients.has(browserWs)) {
-          serverLog(`[browserBatch] 无vpData, 推送所有设备, _browserBatch.size=${_browserBatch.size}`);
           for (const [deviceId, data] of _browserBatch) {
             if (data.buffer) sendBinaryScreenshot(browserWs, 0x10, deviceId, data.buffer, data.screenWidth || 0, data.screenHeight || 0, data.isHQ || false);
             pushedCount++;
@@ -456,16 +448,13 @@ async function _flushBrowserBatch() {
   if (pushedCount > 0) serverLog(`[browserBatch] 推送完成: ${pushedCount} 帧`);
 }
 function _scheduleBrowserBatch() {
-  const prevScheduled = _browserBatchScheduled;
   if (!_browserBatchScheduled) {
     _browserBatchScheduled = true;
-    serverLog(`[browserBatch] 首次调度, 设置scheduled=true, _browserBatch.size=${_browserBatch.size}`);
+    serverLog(`[browserBatch] 首次调度, _browserBatch.size=${_browserBatch.size}`);
     setTimeout(() => {
       serverLog(`[browserBatch] setTimeout回调执行`);
       _flushBrowserBatch();
     }, 166);
-  } else {
-    serverLog(`[browserBatch] 跳过调度: scheduled=${_browserBatchScheduled}, flushing=${_browserFlushing}`);
   }
 }
 // 报警截图查重缓存（存储最近一张 640×360 截图）
@@ -1706,8 +1695,8 @@ wssClient.on('connection', (ws, req) => {
           if (!dev.online) { dev.online = true; broadcastToBrowsers({ type: 'deviceList', devices: getDeviceListPayload() }); }
           _browserBatch.set(deviceId, { buffer: webpBuffer, timestamp: now, isHQ, screenWidth, screenHeight });
           _frameCounter++;
-          if (now - _lastFrameLog > 5000) {
-            serverLog(`[二进制帧] 5秒内收到 ${_frameCounter} 帧, _browserBatch.size=${_browserBatch.size}`);
+          if (now - _lastFrameLog > 30000) {
+            serverLog(`[二进制帧] 30秒内收到 ${_frameCounter} 帧`);
             _frameCounter = 0;
             _lastFrameLog = now;
           }
