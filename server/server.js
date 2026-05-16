@@ -391,6 +391,7 @@ let _browserFlushing = false;
 let _frameCounter = 0;
 let _lastFrameLog = Date.now();
 async function _flushBrowserBatch() {
+  serverLog(`[browserBatch] _flushBrowserBatch 被调用, _browserFlushing=${_browserFlushing}`);
   if (_browserFlushing) return;
   _browserFlushing = true;
   _browserBatchScheduled = false;
