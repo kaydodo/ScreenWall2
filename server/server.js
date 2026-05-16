@@ -390,8 +390,10 @@ let _browserBatchScheduled = false;
 let _browserFlushing = false;
 let _frameCounter = 0;
 let _lastFrameLog = Date.now();
+let _flushCallCount = 0;
 async function _flushBrowserBatch() {
-  serverLog(`[browserBatch] _flushBrowserBatch 被调用, _browserFlushing=${_browserFlushing}`);
+  _flushCallCount++;
+  serverLog(`[browserBatch] _flushBrowserBatch 被调用 #${_flushCallCount}, _browserFlushing=${_browserFlushing}`);
   if (_browserFlushing) return;
   _browserFlushing = true;
   _browserBatchScheduled = false;
@@ -454,11 +456,16 @@ async function _flushBrowserBatch() {
   if (pushedCount > 0) serverLog(`[browserBatch] 推送完成: ${pushedCount} 帧`);
 }
 function _scheduleBrowserBatch() {
+  const prevScheduled = _browserBatchScheduled;
   serverLog(`[browserBatch] 调度检查: _browserBatchScheduled=${_browserBatchScheduled}, _browserFlushing=${_browserFlushing}, _browserBatch.size=${_browserBatch.size}`);
   if (!_browserBatchScheduled) {
     _browserBatchScheduled = true;
-    serverLog(`[browserBatch] 调度刷新`);
-    setTimeout(_flushBrowserBatch, 166);
+    serverLog(`[browserBatch] 调度刷新 (之前scheduled=${prevScheduled})`);
+    const timerId = setTimeout(() => {
+      serverLog(`[browserBatch] setTimeout回调执行`);
+      _flushBrowserBatch();
+    }, 166);
+    serverLog(`[browserBatch] setTimeout 返回: ${timerId}`);
   }
 }
 // 报警截图查重缓存（存储最近一张 640×360 截图）
