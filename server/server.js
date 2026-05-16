@@ -17,6 +17,7 @@ const zlib = require('zlib');
 const sharp = require('sharp');
 const Tesseract = require('tesseract.js');
 const { spawn } = require('child_process');
+const imageWorkerPool = require('./image-worker-pool');
 
 // 服务端版本从 config.json 的 serverVersion 字段读取，无需硬编码
 
@@ -357,7 +358,8 @@ async function _flushWallBatch() {
       
       const layout = wallLayouts.get(wallWs);
       if (layout) {
-        const tasks = [];
+        const resizeTasks = [];
+        const resizeMeta = [];
         for (let i = 0; i < layout.deviceIds.length; i++) {
           const deviceId = layout.deviceIds[i];
           if (!deviceId) continue;
@@ -365,23 +367,22 @@ async function _flushWallBatch() {
           const data = _wallBatch.get(deviceId);
           if (!data || !data.buffer) continue;
           
-          tasks.push((async () => {
-            try {
-              const resizedBuffer = await sharp(data.buffer)
-                .resize(layout.cellW, layout.cellH, { fit: 'cover' })
-                .webp({ quality: 30 })
-                .toBuffer();
-              return { deviceId, buffer: resizedBuffer, w: layout.cellW, h: layout.cellH };
-            } catch(e) {
-              return { deviceId, buffer: data.buffer, w: data.screenWidth || 0, h: data.screenHeight || 0 };
-            }
-          })());
+          resizeTasks.push({
+            buffer: data.buffer,
+            width: layout.cellW,
+            height: layout.cellH,
+            originalWidth: data.screenWidth || 0,
+            originalHeight: data.screenHeight || 0
+          });
+          resizeMeta.push({ deviceId });
         }
         
-        if (tasks.length > 0) {
-          const results = await Promise.all(tasks);
-          for (const r of results) {
-            sendBinaryScreenshot(wallWs, 0x10, r.deviceId, r.buffer, r.w, r.h, false);
+        if (resizeTasks.length > 0) {
+          const results = await imageWorkerPool.resizeBatch(resizeTasks);
+          for (let i = 0; i < results.length; i++) {
+            const r = results[i];
+            const m = resizeMeta[i];
+            sendBinaryScreenshot(wallWs, 0x10, m.deviceId, r.buffer, r.width, r.height, false);
           }
         }
       }
@@ -428,32 +429,32 @@ async function _flushBrowserBatch() {
       if (vpData && !wallClients.has(browserWs)) {
         if (vpData.deviceIds.size === 0) continue;
         
-        const tasks = [];
+        const resizeTasks = [];
+        const resizeMeta = [];
         for (const [deviceId, data] of _browserBatch) {
           if (!vpData.deviceIds.has(deviceId)) continue;
           if (!data.buffer) continue;
           
           if (vpData.cropSize) {
-            tasks.push((async () => {
-              try {
-                const croppedBuffer = await sharp(data.buffer)
-                  .resize(vpData.cropSize.w, vpData.cropSize.h, { fit: 'cover' })
-                  .webp({ quality: 30 })
-                  .toBuffer();
-                return { deviceId, buffer: croppedBuffer, w: vpData.cropSize.w, h: vpData.cropSize.h, isHQ: data.isHQ };
-              } catch(e) {
-                return { deviceId, buffer: data.buffer, w: data.screenWidth || 0, h: data.screenHeight || 0, isHQ: data.isHQ };
-              }
-            })());
+            resizeTasks.push({
+              buffer: data.buffer,
+              width: vpData.cropSize.w,
+              height: vpData.cropSize.h,
+              originalWidth: data.screenWidth || 0,
+              originalHeight: data.screenHeight || 0
+            });
+            resizeMeta.push({ deviceId, isHQ: data.isHQ });
           } else {
             sendBinaryScreenshot(browserWs, 0x10, deviceId, data.buffer, data.screenWidth || 0, data.screenHeight || 0, data.isHQ || false);
           }
         }
         
-        if (tasks.length > 0) {
-          const results = await Promise.all(tasks);
-          for (const r of results) {
-            sendBinaryScreenshot(browserWs, 0x10, r.deviceId, r.buffer, r.w, r.h, r.isHQ);
+        if (resizeTasks.length > 0) {
+          const results = await imageWorkerPool.resizeBatch(resizeTasks);
+          for (let i = 0; i < results.length; i++) {
+            const r = results[i];
+            const m = resizeMeta[i];
+            sendBinaryScreenshot(browserWs, 0x10, m.deviceId, r.buffer, r.width, r.height, m.isHQ);
           }
         }
       } else {
