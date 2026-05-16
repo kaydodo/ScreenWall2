@@ -453,9 +453,10 @@ async function _flushBrowserBatch() {
   if (pushedCount > 0) serverLog(`[browserBatch] 推送完成: ${pushedCount} 帧`);
 }
 function _scheduleBrowserBatch() {
+  serverLog(`[browserBatch] 调度检查: _browserBatchScheduled=${_browserBatchScheduled}, _browserFlushing=${_browserFlushing}, _browserBatch.size=${_browserBatch.size}`);
   if (!_browserBatchScheduled) {
     _browserBatchScheduled = true;
-    serverLog(`[browserBatch] 调度刷新, _browserBatch.size=${_browserBatch.size}`);
+    serverLog(`[browserBatch] 调度刷新`);
     setTimeout(_flushBrowserBatch, 166);
   }
 }
