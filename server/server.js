@@ -455,6 +455,7 @@ async function _flushBrowserBatch() {
 function _scheduleBrowserBatch() {
   if (!_browserBatchScheduled) {
     _browserBatchScheduled = true;
+    serverLog(`[browserBatch] 调度刷新, _browserBatch.size=${_browserBatch.size}`);
     setTimeout(_flushBrowserBatch, 166);
   }
 }
