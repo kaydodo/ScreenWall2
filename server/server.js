@@ -343,7 +343,10 @@ function sendBinaryScreenshot(ws, frameType, deviceId, webpBuffer, screenWidth, 
 
 let _wallFlushing = false;
 async function _flushWallBatch() {
-  if (_wallFlushing) return;
+  if (_wallFlushing) {
+    _wallBatchScheduled = false;
+    return;
+  }
   _wallFlushing = true;
   _wallBatchScheduled = false;
   if (_wallBatch.size === 0 || wallClients.size === 0) { _wallBatch.clear(); _wallFlushing = false; return; }
@@ -361,19 +364,17 @@ async function _flushWallBatch() {
           const data = _wallBatch.get(deviceId);
           if (!data || !data.buffer) continue;
           
-          try {
-            const resizedBuffer = await cropToLayout(data.buffer, 0, layout.cellW, layout.cellH);
-            sendBinaryScreenshot(wallWs, 0x10, deviceId, resizedBuffer, layout.cellW, layout.cellH, false);
-          } catch(e) {
-            serverLog('[wallResize] 缩放失败 deviceId=' + deviceId + ': ' + e.message);
-            continue;
-          }
+          sendBinaryScreenshot(wallWs, 0x10, deviceId, data.buffer, data.screenWidth || 0, data.screenHeight || 0, false);
         }
       }
     }
+    _wallBatch.clear();
   } catch(e) { serverLog('[wallBatch] 批量推送失败:', e.message); }
-  _wallBatch.clear();
   _wallFlushing = false;
+  if (_wallBatch.size > 0) {
+    _wallBatchScheduled = false;
+    _scheduleWallBatch();
+  }
 }
 function _scheduleWallBatch() {
   if (!_wallBatchScheduled) {
