@@ -81,25 +81,55 @@ Handle=0x1CE8 IOCTL=0x002F0410
 - **修复**：去掉去重逻辑，保存所有帧（最大200帧）
 - **新增工具**：`convert_frames.py` - 转换.raw帧为.bmp图片
 
+### v35 - 详细帧分析
+- **问题发现**：312字节帧不是完整图像
+- **帧结构分析**：
+  - 签名：0x01C0
+  - NV12标记在offset 144
+  - 包含55字节连续NULL序列
+- **结论**：需要Hook底层驱动获取完整帧
+
 ---
 
-## 五、当前文件结构
+## 五、帧数据分析结果
+
+### HID报告结构 (312字节)
+```
+Offset 0-1:   0xC0 0x01 (签名)
+Offset 2-5:   0x00000000 (未知)
+Offset 6-7:   数据长度
+Offset 8-9:   偏移量
+Offset 10-11: 帧类型
+Offset 16+:   负载数据
+Offset 144:   "NV12NV12" 格式标识
+```
+
+### 关键发现
+1. **312字节只是HID报告碎片**，不是完整摄像头帧
+2. **NV12格式**在offset 144处标识
+3. **完整帧需要从多个HID报告组合**或Hook底层驱动
+4. **MuMu使用USB摄像头**：VID_13D3, PID_5415
+
+---
+
+## 六、当前文件结构
 
 ```
 D:\ScreenWall2\mumu_camera_hook\
-├── camera_hook34.cpp       # v34 - 捕获所有帧 ✅
-├── camera_hook34.dll       # v34编译产物 ✅
+├── camera_hook35.cpp       # v35 - 详细帧分析 ✅
+├── camera_hook35.dll       # v35编译产物 ✅
+├── camera_hook34.cpp       # v34 - 捕获所有帧
 ├── camera_hook33.cpp       # v33 - NV12检测
 ├── camera_hook32.cpp       # v32 - 帧捕获
 ├── camera_hook31.cpp       # v31 - 完整HID API
-├── injector34.exe          # v34注入器 ✅
-├── convert_frames.py       # 帧转换工具 ✅
+├── injector35.exe          # v35注入器 ✅
+├── convert_frames.py       # 帧转换工具
+├── analyze_frame.exe       # 帧分析工具 ✅
 └── minhook\                # MinHook库
 
 输出目录:
-D:\mumu_frames\
-├── frame_XXX.raw           # 原始帧数据
-└── converted\              # 转换后的.bmp图片
+D:\mumu_frames\             # v34帧数据
+D:\mumu_frames_v2\          # v35帧数据
 ```
 
 ---
@@ -129,13 +159,9 @@ python convert_frames.py
 
 ## 七、下一步计划
 
-1. **测试v34** - 收集足够的帧数据
-2. **分析帧组合方式** - 确定如何从多个HID报告重构完整图像
-3. **开发虚拟摄像头** - 基于分析结果实现帧替换
-
----
-
-## 七、使用说明
+1. **测试v35** - 收集详细日志，分析完整帧结构
+2. **Hook底层驱动** - 可能需要Hook winusb.sys或usbccgp.sys
+3. **实现虚拟摄像头** - 基于分析结果实现帧替换
 
 ### 编译
 ```batch
