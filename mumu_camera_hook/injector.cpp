@@ -88,7 +88,7 @@ int main(int argc, char* argv[]) {
     GetModuleFileNameA(NULL, dllPath, MAX_PATH);
     char* lastSlash = strrchr(dllPath, '\\');
     if (lastSlash) {
-        strcpy(lastSlash + 1, "camera_hook16.dll");
+        strcpy(lastSlash + 1, "camera_hook30.dll");
     }
     
     printf("=== MuMu Camera Hook Injector ===\n");
@@ -123,3 +123,5 @@ int main(int argc, char* argv[]) {
     
     return 0;
 }
+
+
