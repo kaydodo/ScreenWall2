@@ -5614,7 +5614,7 @@ function openMonitorWall() {
   sessionStorage.setItem('monitorWallData', JSON.stringify(wallData));
   
   // 打开新窗口
-  var wallWindow = window.open('/monitor-wall.html?id=' + wallId, '_blank', 'width=1920,height=1080');
+  var wallWindow = window.open('/monitor-wall.html?id=' + wallId, '_blank', 'width=1920,height=1080,location=no,menubar=no,toolbar=no,status=no');
   
   // 关闭弹窗
   closeMonitorDialog();
