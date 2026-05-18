@@ -215,7 +215,7 @@ class MumuClient:
         
         server_host = self.config["server"]["host"]
         server_port = self.config["server"]["port"]
-        ws_uri = f"ws://{server_host}:{server_port}"
+        ws_uri = f"ws://{server_host}:{server_port}/ws/client"
         
         print(f"[MUMU] 正在连接服务端: {ws_uri}")
         
