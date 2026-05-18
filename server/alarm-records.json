@@ -1,13 +1,13 @@
 [
   {
-    "id": "9486d5eb-24ee-4099-baaf-a66c79c8bfce",
+    "id": "189310b0-5c3a-4641-940e-4e99ceb83b03",
     "deviceId": "aeawtmgwtiau3yfl",
-    "deviceName": "9UXW",
+    "deviceName": "9UXW干一天刚过同感同感",
     "uuDeviceId": "441947603",
-    "screenshot": "/alarm-screenshots/6a17751f-a1ed-4fd7-b4b5-a5070c3dc31a.png",
-    "screenshotId": "6a17751f-a1ed-4fd7-b4b5-a5070c3dc31a",
-    "screenshotPath": "D:\\ScreenWall2\\server\\alarm-screenshots\\6a17751f-a1ed-4fd7-b4b5-a5070c3dc31a.png",
-    "timestamp": 1778788457354,
+    "screenshot": "/alarm-screenshots/12ca6b34-b9ca-4c47-b1a8-1a608b99ef75.png",
+    "screenshotId": "12ca6b34-b9ca-4c47-b1a8-1a608b99ef75",
+    "screenshotPath": "D:\\ScreenWall2\\server\\alarm-screenshots\\12ca6b34-b9ca-4c47-b1a8-1a608b99ef75.png",
+    "timestamp": 1779111001515,
     "groupName": "",
     "cellStr": "",
     "occurrenceCount": 1,
@@ -23,7 +23,7 @@
       "w": 173,
       "h": 129
     },
-    "isFullScreenshot": false,
+    "isFullScreenshot": true,
     "viewed": true
   }
 ]

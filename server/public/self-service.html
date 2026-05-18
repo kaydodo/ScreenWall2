@@ -30,32 +30,15 @@ html, body {
 .titlebar {
   display: flex;
   align-items: center;
-  padding: 10px 14px;
+  padding: 10px 10px;
   background: rgba(255,255,255,0.06);
   border-bottom: 1px solid rgba(255,255,255,0.1);
   flex-shrink: 0;
-  gap: 10px;
+  gap: 8px;
 }
-#pageTitle {
-  font-size: 14px;
-  font-weight: 600;
-  color: #e2e8f0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 160px;
-}
-.status-text {
-  font-size: 12px;
-  color: #888;
-  margin-left: auto;
-  display: none;
-}
-.status-text.online { color: #48bb78; }
-.status-text.offline { color: #e06c75; }
 .nav-btn {
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   background: rgba(255,255,255,0.08);
   border: none;
@@ -73,8 +56,8 @@ html, body {
   background: rgba(255,255,255,0.2);
 }
 .nav-btn svg {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   fill: #aaa;
 }
 .preview-area {
@@ -130,12 +113,14 @@ html, body {
 <body>
 <div class="container">
   <div class="titlebar">
-    <span id="pageTitle">自助登号</span>
     <button class="nav-btn" id="backBtn" title="返回">
       <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
     </button>
     <button class="nav-btn" id="homeBtn" title="主页">
       <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+    </button>
+    <button class="nav-btn" id="recentsBtn" title="任务">
+      <svg viewBox="0 0 24 24"><path d="M4 8h4V4H4v4zm6 12h4v-4h-4v4zm-6 0h4v-4H4v4zm0-6h4v-4H4v4zm6 0h4v-4h-4v4zm6-10v4h4V4h-4zm-6 4h4V4h-4v4zm6 6h4v-4h-4v4zm0 6h4v-4h-4v4z"/></svg>
     </button>
   </div>
   
@@ -416,10 +401,6 @@ function setupMouseEvents() {
 function init() {
   var params = getQueryParams();
   deviceId = params.deviceId || 'MUMU-service';
-  deviceName = params.deviceName || 'MUMU 模拟器';
-  
-  document.getElementById('pageTitle').textContent = deviceName + ' - 自助登号';
-  document.title = '自助登号 - ' + deviceName;
   
   document.getElementById('backBtn').onclick = function() {
     sendKey('Back');
@@ -427,6 +408,10 @@ function init() {
   
   document.getElementById('homeBtn').onclick = function() {
     sendKey('Home');
+  };
+  
+  document.getElementById('recentsBtn').onclick = function() {
+    sendKey('Recent');
   };
   
   connectWS();
