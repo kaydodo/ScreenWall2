@@ -89,14 +89,23 @@ class MumuClient:
 
     async def _adb_keyevent(self, keycode):
         try:
-            cmd = self._get_adb_cmd(["shell", "input", "keyevent", str(keycode)])
+            # 把字符串key转换成Android keycode
+            android_key = keycode
+            if keycode == "Back":
+                android_key = "4"
+            elif keycode == "Home":
+                android_key = "3"
+            elif keycode == "Recent":
+                android_key = "187"
+            
+            cmd = self._get_adb_cmd(["shell", "input", "keyevent", str(android_key)])
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
             await asyncio.wait_for(proc.communicate(), timeout=5)
-            print(f"[ADB] 按键: {keycode}")
+            print(f"[ADB] 按键: {keycode} (keycode: {android_key})")
         except Exception as e:
             print(f"[ADB] 按键失败: {e}")
 

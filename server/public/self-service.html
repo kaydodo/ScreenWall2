@@ -351,25 +351,25 @@ function getClickPos(e) {
 }
 
 function sendMouse(type, x, y, extra) {
-  if (!deviceId || !supportsKeyClient || !isOnline) return;
+  if (!previewDeviceId || !isOnline) return;
   if (ws && ws.readyState === WebSocket.OPEN) {
-    var payload = { type: type, deviceId: deviceId, x: x, y: y, previewWidth: screenWidth, previewHeight: screenHeight };
+    var payload = { type: type, deviceId: previewDeviceId, x: x, y: y, previewWidth: screenWidth, previewHeight: screenHeight };
     if (extra) Object.assign(payload, extra);
     ws.send(JSON.stringify(payload));
   }
 }
 
 function sendKey(key) {
-  if (!deviceId || !supportsKeyClient || !isOnline) return;
+  if (!previewDeviceId || !isOnline) return;
   if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'keyPress', deviceId: deviceId, key: key }));
+    ws.send(JSON.stringify({ type: 'keyClick', deviceId: previewDeviceId, key: key }));
   }
 }
 
 function handlePreviewClick(e) {
   var pos = getClickPos(e);
-  if (pos && supportsKeyClient && isOnline) {
-    sendMouse('mouseLeft', pos.x, pos.y);
+  if (pos && isOnline) {
+    sendMouse('mouseClick', pos.x, pos.y);
   }
 }
 
@@ -383,7 +383,7 @@ function setupMouseEvents() {
   
   previewArea.onwheel = function(e) {
     e.preventDefault();
-    if (supportsKeyClient && isOnline) {
+    if (isOnline) {
       var delta = e.deltaY > 0 ? -120 : 120;
       sendMouse('mouseScroll', 0, 0, { delta: delta });
     }
@@ -392,7 +392,7 @@ function setupMouseEvents() {
   previewArea.onmousedown = function(e) {
     if (e.button === 2) {
       e.preventDefault();
-      if (supportsKeyClient && isOnline) {
+      if (isOnline) {
         var pos = getClickPos(e);
         if (pos) sendMouse('mouseRight', pos.x, pos.y);
       }

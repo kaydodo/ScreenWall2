@@ -2368,9 +2368,12 @@ wssBrowser.on('connection', (ws) => {
         actualY = Math.round((y / ph) * devH);
       }
 
-      // 加显示器偏移量得到虚拟桌面坐标
-      actualX += dev.monitorOffsetX || 0;
-      actualY += dev.monitorOffsetY || 0;
+      // MUMU客户端不加显示器偏移量
+      if (mDevId !== 'MUMU-service') {
+        // 加显示器偏移量得到虚拟桌面坐标
+        actualX += dev.monitorOffsetX || 0;
+        actualY += dev.monitorOffsetY || 0;
+      }
 
       for (const client of wssClient.clients) {
         if (client._deviceId === mDevId && client.readyState === 1) {
@@ -2401,8 +2404,11 @@ wssBrowser.on('connection', (ws) => {
         actualY = Math.round((y / ph) * devH);
       }
 
-      actualX += dev.monitorOffsetX || 0;
-      actualY += dev.monitorOffsetY || 0;
+      // MUMU客户端不加显示器偏移量
+      if (mDevId !== 'MUMU-service') {
+        actualX += dev.monitorOffsetX || 0;
+        actualY += dev.monitorOffsetY || 0;
+      }
 
       for (const client of wssClient.clients) {
         if (client._deviceId === mDevId && client.readyState === 1) {
