@@ -802,6 +802,10 @@ try {
   const rawDevices = fs.readFileSync(DEVICES_PERSIST_PATH, 'utf8');
   const savedDevices = JSON.parse(rawDevices);
   for (const d of savedDevices) {
+    // MUMU后台微服务：持久化时忽略，不加载到设备列表
+    if (d.deviceId === 'MUMU-service') {
+      continue;
+    }
     d.online = false;  // 重启后所有设备视为离线
     d.lastSeen = d.lastSeen || Date.now();
     devices.set(d.deviceId, d);
@@ -1745,6 +1749,12 @@ wssClient.on('connection', (ws, req) => {
     if (msg.type === 'register') {
       const incomingUU = String(msg.uuDeviceId || '');
       const incomingDeviceId = String(msg.deviceId || '');
+
+      // MUMU后台微服务：识别到后直接忽略，不加入屏幕墙
+      if (incomingDeviceId === 'MUMU-service') {
+        serverLog(`[MUMU] 后台微服务 ${incomingDeviceId} 忽略，不加入屏幕墙`);
+        return;
+      }
 
       // deviceId 为空：不创建设备，只发安装指令，等UU装完重新上线
       if (!incomingDeviceId) {
