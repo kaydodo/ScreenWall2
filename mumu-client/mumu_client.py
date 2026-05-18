@@ -1,6 +1,5 @@
 import asyncio
 import json
-import subprocess
 import base64
 import time
 from pathlib import Path
@@ -28,13 +27,13 @@ class MumuClient:
     async def _check_adb_connection(self):
         try:
             adb_path = self.config['adb'].get('path', 'adb')
-            result = subprocess.run(
-                [adb_path, "connect", f"{self.config['adb']['host']}:{self.config['adb']['port']}"],
-                capture_output=True,
-                text=True,
-                timeout=5
+            proc = await asyncio.create_subprocess_exec(
+                adb_path, "connect", f"{self.config['adb']['host']}:{self.config['adb']['port']}",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
             )
-            print(f"[ADB] 连接结果: {result.stdout.strip()}")
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=5)
+            print(f"[ADB] 连接结果: {stdout.decode('utf-8', errors='ignore').strip()}")
             return True
         except Exception as e:
             print(f"[ADB] 连接失败: {e}")
@@ -42,14 +41,16 @@ class MumuClient:
 
     async def _adb_screenshot(self):
         try:
-            result = subprocess.run(
-                self._get_adb_cmd(["exec-out", "screencap", "-p"]),
-                capture_output=True,
-                timeout=10
+            cmd = self._get_adb_cmd(["exec-out", "screencap", "-p"])
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
             )
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=10)
             
-            if result.stdout and len(result.stdout) > 0:
-                img = Image.open(io.BytesIO(result.stdout))
+            if stdout and len(stdout) > 0:
+                img = Image.open(io.BytesIO(stdout))
                 img = img.resize((360, 640), Image.Resampling.LANCZOS)
                 output = io.BytesIO()
                 img.save(output, format='WEBP', quality=30)
@@ -62,30 +63,39 @@ class MumuClient:
 
     async def _adb_click(self, x, y):
         try:
-            subprocess.run(
-                self._get_adb_cmd(["shell", "input", "tap", str(x), str(y)]),
-                timeout=5
+            cmd = self._get_adb_cmd(["shell", "input", "tap", str(x), str(y)])
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
             )
+            await asyncio.wait_for(proc.communicate(), timeout=5)
             print(f"[ADB] 点击坐标: ({x}, {y})")
         except Exception as e:
             print(f"[ADB] 点击失败: {e}")
 
     async def _adb_swipe(self, x1, y1, x2, y2, duration=300):
         try:
-            subprocess.run(
-                self._get_adb_cmd(["shell", "input", "swipe", str(x1), str(y1), str(x2), str(y2), str(duration)]),
-                timeout=5
+            cmd = self._get_adb_cmd(["shell", "input", "swipe", str(x1), str(y1), str(x2), str(y2), str(duration)])
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
             )
+            await asyncio.wait_for(proc.communicate(), timeout=5)
             print(f"[ADB] 滑动: ({x1}, {y1}) -> ({x2}, {y2})")
         except Exception as e:
             print(f"[ADB] 滑动失败: {e}")
 
     async def _adb_keyevent(self, keycode):
         try:
-            subprocess.run(
-                self._get_adb_cmd(["shell", "input", "keyevent", str(keycode)]),
-                timeout=5
+            cmd = self._get_adb_cmd(["shell", "input", "keyevent", str(keycode)])
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
             )
+            await asyncio.wait_for(proc.communicate(), timeout=5)
             print(f"[ADB] 按键: {keycode}")
         except Exception as e:
             print(f"[ADB] 按键失败: {e}")

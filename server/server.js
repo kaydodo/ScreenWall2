@@ -3123,7 +3123,7 @@ wssBrowser.on('connection', (ws) => {
 
     if (msg.type === 'subscribeWall') {
       const deviceList = msg.devices || [];
-      serverLog(`[subscribeWall] 收到订阅请求: ${deviceList.length} 个设备, wallClients.size=${wallClients.size}`);
+      serverLog(`📺 监控墙收到订阅请求，要显示 ${deviceList.length} 个设备，当前已有 ${wallClients.size} 个监控墙连接`);
       
       const cols = msg.cols || 4;
       const rows = msg.rows || 4;
@@ -3151,7 +3151,7 @@ wssBrowser.on('connection', (ws) => {
       }
       
       wallClients.set(ws, { devices: newDevices });
-      serverLog(`[subscribeWall] 订阅完成: monitorWallDevices.size=${monitorWallDevices.size}, wallClients.size=${wallClients.size}`);
+      serverLog(`✅ 监控墙订阅成功，正在监控 ${monitorWallDevices.size} 个设备，共 ${wallClients.size} 个监控墙连接`);
       
       ws.send(JSON.stringify({ type: 'walledDevices', devices: Array.from(newDevices) }));
     }
