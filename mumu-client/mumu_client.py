@@ -186,7 +186,7 @@ class MumuClient:
         while self.running:
             start_time = time.time()
             
-            if self.ws and not self.ws.closed:
+            if self.ws and self.ws.readyState == 1:  # 1 = OPEN
                 img_bytes = await self._adb_screenshot()
                 if img_bytes:
                     await self._send_binary_frame(img_bytes)
@@ -196,7 +196,7 @@ class MumuClient:
             await asyncio.sleep(sleep_time)
 
     async def _message_loop(self):
-        while self.running and self.ws and not self.ws.closed:
+        while self.running and self.ws and self.ws.readyState == 1:
             try:
                 message = await self.ws.recv()
                 await self._handle_message(message)
@@ -208,32 +208,35 @@ class MumuClient:
                 break
 
     async def run(self):
-        self.running = True
-        
-        print("[MUMU] 正在初始化...")
-        await self._check_adb_connection()
-        
-        server_host = self.config["server"]["host"]
-        server_port = self.config["server"]["port"]
-        ws_uri = f"ws://{server_host}:{server_port}/ws/client"
-        
-        print(f"[MUMU] 正在连接服务端: {ws_uri}")
-        
-        while self.running:
-            try:
-                self.ws = await websockets.connect(ws_uri, ping_interval=30, ping_timeout=10)
-                print("[MUMU] 已连接到服务端")
-                
-                await self._register()
-                
-                screenshot_task = asyncio.create_task(self._screenshot_loop())
-                message_task = asyncio.create_task(self._message_loop())
-                
-                await asyncio.gather(screenshot_task, message_task)
-                
-            except Exception as e:
+    self.running = True
+    
+    print("[MUMU] 正在初始化...")
+    await self._check_adb_connection()
+    
+    server_host = self.config["server"]["host"]
+    server_port = self.config["server"]["port"]
+    ws_uri = f"ws://{server_host}:{server_port}/ws/client"
+    
+    print(f"[MUMU] 正在连接服务端: {ws_uri}")
+    
+    while self.running:
+        try:
+            self.ws = await websockets.connect(ws_uri, ping_interval=30, ping_timeout=10)
+            print("[MUMU] 已连接到服务端")
+            
+            await self._register()
+            
+            screenshot_task = asyncio.create_task(self._screenshot_loop())
+            message_task = asyncio.create_task(self._message_loop())
+            
+            await asyncio.gather(screenshot_task, message_task)
+            
+        except Exception as e:
+            # 服务端可能主动关闭连接，这是正常的
+            if not str(e).endswith("(close)") and not isinstance(e, websockets.exceptions.ConnectionClosed):
                 print(f"[MUMU] 连接失败: {e}")
-                await asyncio.sleep(3)
+            # 等待3秒再尝试
+            await asyncio.sleep(3)
 
     def stop(self):
         self.running = False
