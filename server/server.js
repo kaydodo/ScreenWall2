@@ -307,11 +307,15 @@ const deviceSubscribers = new Map(); // deviceId -> Map(ws -> level)
 
 // ========== Step 1: 流级别系统 - 函数 ==========
 function updateLevel(deviceId) {
+  const dev = devices.get(deviceId);
   if (!deviceSubscribers.has(deviceId)) {
     const oldLevel = deviceMaxLevel.get(deviceId);
     deviceMaxLevel.delete(deviceId);
     if (oldLevel !== undefined) {
       notifyDeviceLevel(deviceId, 0);
+      if (dev) {
+        serverLog(`[流级别] ${dev.deviceName} -> 0`);
+      }
     }
     return;
   }
@@ -322,6 +326,9 @@ function updateLevel(deviceId) {
     deviceMaxLevel.delete(deviceId);
     if (oldLevel !== undefined) {
       notifyDeviceLevel(deviceId, 0);
+      if (dev) {
+        serverLog(`[流级别] ${dev.deviceName} -> 0`);
+      }
     }
     return;
   }
@@ -336,6 +343,9 @@ function updateLevel(deviceId) {
 
   if (maxLevel !== oldLevel) {
     notifyDeviceLevel(deviceId, maxLevel);
+    if (dev) {
+      serverLog(`[流级别] ${dev.deviceName} -> ${maxLevel}`);
+    }
   }
 }
 
@@ -3123,7 +3133,6 @@ wssBrowser.on('connection', (ws) => {
 
     if (msg.type === 'subscribeWall') {
       const deviceList = msg.devices || [];
-      serverLog(`📺 监控墙收到订阅请求，要显示 ${deviceList.length} 个设备，当前已有 ${wallClients.size} 个监控墙连接`);
       
       const cols = msg.cols || 4;
       const rows = msg.rows || 4;
@@ -3151,29 +3160,28 @@ wssBrowser.on('connection', (ws) => {
       }
       
       wallClients.set(ws, { devices: newDevices });
-      serverLog(`✅ 监控墙订阅成功，正在监控 ${monitorWallDevices.size} 个设备，共 ${wallClients.size} 个监控墙连接`);
+      serverLog(`[监控墙] 订阅 ${deviceList.length} 个设备`);
       
       ws.send(JSON.stringify({ type: 'walledDevices', devices: Array.from(newDevices) }));
     }
 
     if (msg.type === 'unsubscribeWall') {
       const devicesToUnsubscribe = msg.devices || [];
-      const isPageClosing = msg.pageClosing === true; // 页面关闭时的预清理标记
+      const isPageClosing = msg.pageClosing === true;
       
       if (isPageClosing) {
-        // 页面关闭：只标记，不删 devices，留给 close 事件统一清理
         if (devicesToUnsubscribe.length > 0) {
           ws._wallUnsubscribing = true;
         }
       } else {
-        // 手动取消单个设备：调用 unsubscribeLevel 统一处理
         const subscription = wallClients.get(ws);
         if (subscription) {
           for (const deviceId of devicesToUnsubscribe) {
             subscription.devices.delete(deviceId);
-            removeMonitorWall(deviceId); // 同步清理监控墙白名单
-            unsubscribeLevel(deviceId, ws); // 统一处理订阅清理和客户端通知
+            removeMonitorWall(deviceId);
+            unsubscribeLevel(deviceId, ws);
           }
+          serverLog(`[监控墙] 取消订阅 ${devicesToUnsubscribe.length} 个设备`);
           ws.send(JSON.stringify({ type: 'walledDevices', devices: Array.from(subscription.devices) }));
         }
       }
@@ -3211,12 +3219,16 @@ wssBrowser.on('connection', (ws) => {
   });
 
   ws.on('close', () => {
+    const wallSubscription = wallClients.get(ws);
+    if (wallSubscription) {
+      serverLog(`[监控墙] 断开连接`);
+    }
     browserClients.delete(ws);
     browserViewport.delete(ws);
     previewClients.delete(ws);
-    wallLayouts.delete(ws); // Step 2: 清理监控墙布局信息
-    viewportSubscriptions.delete(ws); // Step 3: 清理视口订阅
-    unsubscribeAllLevel(ws); // Step 1: 清理该 ws 的所有 level 订阅（自动通知客户端）
+    wallLayouts.delete(ws);
+    viewportSubscriptions.delete(ws);
+    unsubscribeAllLevel(ws);
 
     // 清理 per-ws 追踪变量
     wallClients.delete(ws);
