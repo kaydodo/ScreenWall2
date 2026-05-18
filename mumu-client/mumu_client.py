@@ -49,7 +49,7 @@ class MumuClient:
             
             if result.stdout and len(result.stdout) > 0:
                 img = Image.open(io.BytesIO(result.stdout))
-                img = img.resize((480, 270), Image.LANCZOS)
+                img = img.resize((480, 854), Image.LANCZOS)
                 output = io.BytesIO()
                 img.save(output, format='WEBP', quality=30)
                 return output.getvalue()
@@ -100,7 +100,7 @@ class MumuClient:
         header[3] = 0x00
         
         screen_width = 480
-        screen_height = 270
+        screen_height = 854
         header[4:6] = screen_width.to_bytes(2, byteorder="big")
         header[6:8] = screen_height.to_bytes(2, byteorder="big")
         
@@ -116,11 +116,11 @@ class MumuClient:
         await self.ws.send(json.dumps({
             "type": "hdScreenshot",
             "deviceId": device_id,
-            "image": "data:image/png;base64," + base64.b64encode(img_bytes).decode("ascii"),
+            "image": "data:image/webp;base64," + base64.b64encode(img_bytes).decode("ascii"),
             "purpose": purpose,
             "timestamp": timestamp,
-            "screenWidth": 1920,
-            "screenHeight": 1080
+            "screenWidth": 480,
+            "screenHeight": 854
         }))
         print(f"[MUMU] 已发送 HD 截图, purpose={purpose}")
 
@@ -137,8 +137,8 @@ class MumuClient:
             "version": "1.0.0",
             "monitorIndex": 1,
             "monitorCount": 1,
-            "screenWidth": 1920,
-            "screenHeight": 1080,
+            "screenWidth": 480,
+            "screenHeight": 854,
             "monitorOffsetX": 0,
             "monitorOffsetY": 0
         }))

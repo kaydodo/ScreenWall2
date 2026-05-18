@@ -9,7 +9,7 @@
         "device_id": "127.0.0.1:5555"
     },
     "device": {
-        "deviceId": "mumu-service",
+        "deviceId": "MUMU-service",
         "deviceName": "MUMU 模拟器微服务",
         "fps": 6
     }

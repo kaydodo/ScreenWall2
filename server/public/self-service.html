@@ -408,9 +408,8 @@ function setupMouseEvents() {
 }
 
 function init() {
-  var params = getQueryParams();
-  deviceId = params.deviceId || null;
-  deviceName = params.deviceName || '未知设备';
+  deviceId = 'MUMU-service';
+  deviceName = 'MUMU 模拟器';
   
   document.getElementById('pageTitle').textContent = deviceName + ' - 自助登号';
   document.title = '自助登号 - ' + deviceName;
