@@ -1750,9 +1750,10 @@ wssClient.on('connection', (ws, req) => {
       const incomingUU = String(msg.uuDeviceId || '');
       const incomingDeviceId = String(msg.deviceId || '');
 
-      // MUMU后台微服务：识别到后直接忽略，不加入屏幕墙
+      // MUMU后台微服务：识别到后直接忽略，不加入屏幕墙，立即关闭连接
       if (incomingDeviceId === 'MUMU-service') {
         serverLog(`[MUMU] 后台服务已上线`);
+        ws.close();
         return;
       }
 
@@ -2246,6 +2247,7 @@ wssClient.on('connection', (ws, req) => {
 
   ws.on('close', () => {
     try {
+      const deviceId = ws._deviceId;
       if (deviceId && devices.has(deviceId)) {
         const dev = devices.get(deviceId);
         dev.online = false;

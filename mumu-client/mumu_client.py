@@ -186,7 +186,7 @@ class MumuClient:
         while self.running:
             start_time = time.time()
             
-            if self.ws and self.ws.open:
+            if self.ws and not self.ws.closed:
                 img_bytes = await self._adb_screenshot()
                 if img_bytes:
                     await self._send_binary_frame(img_bytes)
@@ -196,7 +196,7 @@ class MumuClient:
             await asyncio.sleep(sleep_time)
 
     async def _message_loop(self):
-        while self.running and self.ws and self.ws.open:
+        while self.running and self.ws and not self.ws.closed:
             try:
                 message = await self.ws.recv()
                 await self._handle_message(message)
