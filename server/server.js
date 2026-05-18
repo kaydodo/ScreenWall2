@@ -1752,7 +1752,7 @@ wssClient.on('connection', (ws, req) => {
 
       // MUMU后台微服务：识别到后直接忽略，不加入屏幕墙
       if (incomingDeviceId === 'MUMU-service') {
-        serverLog(`[MUMU] 后台微服务 ${incomingDeviceId} 忽略，不加入屏幕墙`);
+        serverLog(`[MUMU] 后台服务已上线`);
         return;
       }
 
