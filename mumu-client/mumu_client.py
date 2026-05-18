@@ -186,26 +186,29 @@ class MumuClient:
         while self.running:
             start_time = time.time()
             
-            if self.ws and self.ws.readyState == 1:  # 1 = OPEN
-                img_bytes = await self._adb_screenshot()
-                if img_bytes:
-                    await self._send_binary_frame(img_bytes)
+            if self.ws:
+                try:
+                    img_bytes = await self._adb_screenshot()
+                    if img_bytes:
+                        await self._send_binary_frame(img_bytes)
+                except websockets.exceptions.ConnectionClosed:
+                    break
+                except Exception as e:
+                    pass
             
             elapsed = time.time() - start_time
             sleep_time = max(0, interval - elapsed)
             await asyncio.sleep(sleep_time)
 
     async def _message_loop(self):
-        while self.running and self.ws and self.ws.readyState == 1:
+        while self.running and self.ws:
             try:
                 message = await self.ws.recv()
                 await self._handle_message(message)
             except websockets.exceptions.ConnectionClosed:
-                print("[MUMU] WebSocket 连接已关闭")
                 break
             except Exception as e:
-                print(f"[MUMU] 接收消息失败: {e}")
-                break
+                pass
 
     async def run(self):
         self.running = True
