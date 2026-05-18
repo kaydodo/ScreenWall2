@@ -16,7 +16,6 @@ const crypto = require('crypto');
 const zlib = require('zlib');
 const sharp = require('sharp');
 const Tesseract = require('tesseract.js');
-const jsQR = require('jsqr');
 const { spawn } = require('child_process');
 
 // 服务端版本从 config.json 的 serverVersion 字段读取，无需硬编码

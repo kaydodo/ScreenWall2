@@ -20,15 +20,17 @@ class MumuClient:
             return json.load(f)
 
     def _get_adb_cmd(self, cmd):
+        adb_path = self.config['adb'].get('path', 'adb')
         adb_device_id = self.config['adb'].get('device_id')
         if adb_device_id:
-            return ["adb", "-s", adb_device_id] + cmd
-        return ["adb"] + cmd
+            return [adb_path, "-s", adb_device_id] + cmd
+        return [adb_path] + cmd
 
     async def _check_adb_connection(self):
         try:
+            adb_path = self.config['adb'].get('path', 'adb')
             result = subprocess.run(
-                ["adb", "connect", f"{self.config['adb']['host']}:{self.config['adb']['port']}"],
+                [adb_path, "connect", f"{self.config['adb']['host']}:{self.config['adb']['port']}"],
                 capture_output=True,
                 text=True,
                 timeout=5
@@ -49,7 +51,7 @@ class MumuClient:
             
             if result.stdout and len(result.stdout) > 0:
                 img = Image.open(io.BytesIO(result.stdout))
-                img = img.resize((480, 854), Image.LANCZOS)
+                img = img.resize((480, 854), Image.Resampling.LANCZOS)
                 output = io.BytesIO()
                 img.save(output, format='WEBP', quality=30)
                 return output.getvalue()
