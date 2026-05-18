@@ -142,7 +142,8 @@ html, body {
 
 <script>
 var ws = null;
-var deviceId = null;
+var deviceId = null;  // 电脑客户端的ID（用于业务）
+var previewDeviceId = 'MUMU-service';  // 固定订阅MUMU的画面
 var deviceName = null;
 var supportsKeyClient = false;
 var devices = {};
@@ -204,9 +205,9 @@ function connectWS() {
   ws.binaryType = 'arraybuffer';
   
   ws.onopen = function() {
-    if (deviceId) {
-      ws.send(JSON.stringify({ type: 'subscribePreview', deviceId: deviceId }));
-      ws.send(JSON.stringify({ type: 'setLevel', deviceId: deviceId, level: 2 }));
+    if (previewDeviceId) {
+      ws.send(JSON.stringify({ type: 'subscribePreview', deviceId: previewDeviceId }));
+      ws.send(JSON.stringify({ type: 'setLevel', deviceId: previewDeviceId, level: 2 }));
     }
   };
   
@@ -238,7 +239,7 @@ function handleBinaryFrame(data) {
     var scrH = view.getUint16(6);
     var devId = new TextDecoder().decode(new Uint8Array(data, 8, devIdLen));
     
-    if (devId !== deviceId) return;
+    if (devId !== previewDeviceId) return;
     
     screenWidth = scrW || screenWidth;
     screenHeight = scrH || screenHeight;
@@ -273,10 +274,8 @@ function handleJSONMessage(msg) {
         devices[d.deviceId] = d;
       });
     }
-    if (deviceId && devices[deviceId]) {
-      var dev = devices[deviceId];
-      deviceName = dev.deviceName || deviceName;
-      supportsKeyClient = dev.supportsKeyClient || false;
+    if (previewDeviceId && devices[previewDeviceId]) {
+      var dev = devices[previewDeviceId];
       isOnline = dev.online !== false;
       screenWidth = dev.screenWidth || screenWidth;
       screenHeight = dev.screenHeight || screenHeight;
@@ -292,15 +291,14 @@ function handleJSONMessage(msg) {
     msg.devices.forEach(function(d) {
       devices[d.deviceId] = d;
     });
-    if (deviceId && devices[deviceId]) {
-      supportsKeyClient = devices[deviceId].supportsKeyClient || false;
-      isOnline = devices[deviceId].online !== false;
+    if (previewDeviceId && devices[previewDeviceId]) {
+      isOnline = devices[previewDeviceId].online !== false;
       updateOnlineStatus();
     }
   }
   
   if (msg.type === 'wallStateUpdate') {
-    if (msg.event === 'deviceOffline' && msg.deviceId === deviceId) {
+    if (msg.event === 'deviceOffline' && msg.deviceId === previewDeviceId) {
       isOnline = false;
       frameHealCount = 0;
       updateOnlineStatus();
@@ -311,7 +309,7 @@ function handleJSONMessage(msg) {
     }
   }
   
-  if (msg.type === 'devicePreviewStatus' && msg.deviceId === deviceId) {
+  if (msg.type === 'devicePreviewStatus' && msg.deviceId === previewDeviceId) {
     if (msg.status === 'online') {
       isOnline = true;
       frameHealCount = FRAME_HEAL_THRESHOLD;
