@@ -835,16 +835,18 @@ function persistGroups() {
 
 function persistDevices() {
   try {
-    const arr = Array.from(devices.values()).map(d => ({
-      deviceId: d.deviceId,
-      deviceName: d.deviceName,
-      uuDeviceId: d.uuDeviceId,
-      macAddress: d.macAddress || null,
-      lastSeen: d.lastSeen,
-      groupId: d.groupId || null,
-      // 持久化时 Buffer 转 base64（避免存成巨大数组），加载后直接可用
-      screenshot: d.screenshot ? (Buffer.isBuffer(d.screenshot) ? 'data:image/webp;base64,' + d.screenshot.toString('base64') : d.screenshot) : null,
-    }));
+    const arr = Array.from(devices.values())
+      .filter(d => d.deviceId !== 'MUMU-service')  // 排除MUMU，不持久化
+      .map(d => ({
+        deviceId: d.deviceId,
+        deviceName: d.deviceName,
+        uuDeviceId: d.uuDeviceId,
+        macAddress: d.macAddress || null,
+        lastSeen: d.lastSeen,
+        groupId: d.groupId || null,
+        // 持久化时 Buffer 转 base64（避免存成巨大数组），加载后直接可用
+        screenshot: d.screenshot ? (Buffer.isBuffer(d.screenshot) ? 'data:image/webp;base64,' + d.screenshot.toString('base64') : d.screenshot) : null,
+      }));
     fs.writeFileSync(DEVICES_PERSIST_PATH, JSON.stringify(arr, null, 2), 'utf8');
   } catch (e) { serverError('[设备] 持久化失败:', e.message); }
 }
@@ -1500,6 +1502,7 @@ function findConnectedRegions(mask, w, h) {
 
 function getDeviceListPayload() {
   return Array.from(devices.values())
+    .filter(d => d.deviceId !== 'MUMU-service')  // 排除MUMU，不显示在浏览器中
     .sort((a, b) => a.deviceName.localeCompare(b.deviceName, 'zh-CN'))
     .map(d => ({
       deviceId: d.deviceId,
@@ -1750,13 +1753,10 @@ wssClient.on('connection', (ws, req) => {
       const incomingUU = String(msg.uuDeviceId || '');
       const incomingDeviceId = String(msg.deviceId || '');
 
-      // MUMU后台微服务：识别到后直接忽略，不加入屏幕墙
-      if (incomingDeviceId === 'MUMU-service') {
+      // MUMU后台微服务：正常处理，只是不持久化和不显示在浏览器设备列表中
+      const isMUMU = incomingDeviceId === 'MUMU-service';
+      if (isMUMU) {
         serverLog(`[MUMU] 后台服务已上线`);
-        // 标记这个连接是MUMU，用于关闭时打印日志
-        ws._isMUMU = true;
-        ws.close();
-        return;
       }
 
       // deviceId 为空：不创建设备，只发安装指令，等UU装完重新上线
@@ -1824,8 +1824,9 @@ wssClient.on('connection', (ws, req) => {
       };
       devices.set(deviceId, newDev);
       ws._deviceId = deviceId;
+      ws._isMUMU = isMUMU;  // 标记是否是MUMU设备
       const wasOffline = !existing || !existing.online;
-      if (wasOffline) {
+      if (wasOffline && !isMUMU) {  // MUMU已经打印了上线日志
         const kbTag = msg.supportsKeyClient ? '远控' : '—';
         serverLog(`[+] 上线: ${newDev.deviceName} (${deviceId}) uuId=${newDev.uuDeviceId} | IP: ${ip} | ${kbTag} | 显示器${newDev.monitorIndex} | ${newDev.screenWidth || '?'}×${newDev.screenHeight || '?'}`);
       }
@@ -2249,9 +2250,15 @@ wssClient.on('connection', (ws, req) => {
 
   ws.on('close', () => {
     try {
-      // 如果是MUMU服务的连接关闭
+      // 如果是MUMU服务
       if (ws._isMUMU) {
-        serverLog(`[MUMU] 后台服务已离线`);
+        const deviceId = ws._deviceId;
+        if (deviceId && devices.has(deviceId)) {
+          const dev = devices.get(deviceId);
+          dev.online = false;
+          serverLog(`[MUMU] 后台服务已离线`);
+          devices.delete(deviceId);  // MUMU直接从内存删除，不持久化
+        }
         return;
       }
       
