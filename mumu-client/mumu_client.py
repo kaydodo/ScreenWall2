@@ -5,6 +5,8 @@ import base64
 import time
 from pathlib import Path
 import websockets
+from PIL import Image
+import io
 
 
 class MumuClient:
@@ -44,7 +46,15 @@ class MumuClient:
                 capture_output=True,
                 timeout=10
             )
-            return result.stdout
+            
+            if result.stdout and len(result.stdout) > 0:
+                img = Image.open(io.BytesIO(result.stdout))
+                img = img.resize((480, 270), Image.LANCZOS)
+                output = io.BytesIO()
+                img.save(output, format='WEBP', quality=30)
+                return output.getvalue()
+            
+            return None
         except Exception as e:
             print(f"[ADB] 截图失败: {e}")
             return None
@@ -89,8 +99,8 @@ class MumuClient:
         header[2] = 0x00
         header[3] = 0x00
         
-        screen_width = 1920
-        screen_height = 1080
+        screen_width = 480
+        screen_height = 270
         header[4:6] = screen_width.to_bytes(2, byteorder="big")
         header[6:8] = screen_height.to_bytes(2, byteorder="big")
         
