@@ -1,9 +1,6 @@
 #include <windows.h>
 #include <tlhelp32.h>
 #include <stdio.h>
-#include <string.h>
-
-#define MAX_PROCESSES 16
 
 typedef struct {
     char name[64];
@@ -37,21 +34,16 @@ int FindAllMuMuProcesses(ProcessInfo* processes, int maxCount) {
 
 BOOL InjectDll(DWORD pid, const char* dllPath) {
     HANDLE hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
-    if (!hProcess) {
-        printf("  Failed to open process. Error: %lu\n", GetLastError());
-        return FALSE;
-    }
+    if (!hProcess) return FALSE;
     
     size_t pathLen = strlen(dllPath) + 1;
     LPVOID remoteMem = VirtualAllocEx(hProcess, NULL, pathLen, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
     if (!remoteMem) {
-        printf("  Failed to allocate memory. Error: %lu\n", GetLastError());
         CloseHandle(hProcess);
         return FALSE;
     }
     
     if (!WriteProcessMemory(hProcess, remoteMem, dllPath, pathLen, NULL)) {
-        printf("  Failed to write memory. Error: %lu\n", GetLastError());
         VirtualFreeEx(hProcess, remoteMem, 0, MEM_RELEASE);
         CloseHandle(hProcess);
         return FALSE;
@@ -64,25 +56,20 @@ BOOL InjectDll(DWORD pid, const char* dllPath) {
         (LPTHREAD_START_ROUTINE)pLoadLibraryA, remoteMem, 0, NULL);
     
     if (!hThread) {
-        printf("  Failed to create remote thread. Error: %lu\n", GetLastError());
         VirtualFreeEx(hProcess, remoteMem, 0, MEM_RELEASE);
         CloseHandle(hProcess);
         return FALSE;
     }
     
     WaitForSingleObject(hThread, INFINITE);
-    
-    DWORD exitCode = 0;
-    GetExitCodeThread(hThread, &exitCode);
-    
     CloseHandle(hThread);
     VirtualFreeEx(hProcess, remoteMem, 0, MEM_RELEASE);
     CloseHandle(hProcess);
     
-    return exitCode != 0;
+    return TRUE;
 }
 
-int main(int argc, char* argv[]) {
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
     char exePath[MAX_PATH];
     char dllPath[MAX_PATH];
     
@@ -107,38 +94,26 @@ int main(int argc, char* argv[]) {
         strcpy(lastSlash + 1, "camera_hook.dll");
     }
     
-    printf("=== MuMu Camera Hook Injector ===\n");
-    printf("EXE: %s\n", exePath);
-    printf("DLL: %s\n\n", dllPath);
-    
-    ProcessInfo processes[MAX_PROCESSES];
-    int count = FindAllMuMuProcesses(processes, MAX_PROCESSES);
+    ProcessInfo processes[16];
+    int count = FindAllMuMuProcesses(processes, 16);
     
     if (count == 0) {
-        printf("No MuMu processes found!\n");
+        MessageBox(NULL, "No MuMu process found", "Info", MB_OK | MB_ICONWARNING);
         return 1;
     }
     
-    printf("Found %d MuMu process(es):\n", count);
-    for (int i = 0; i < count; i++) {
-        printf("  [%d] %s (PID: %lu)\n", i + 1, processes[i].name, processes[i].pid);
-    }
-    printf("\n");
-    
     int successCount = 0;
     for (int i = 0; i < count; i++) {
-        printf("Injecting into %s (PID: %lu)...\n", processes[i].name, processes[i].pid);
         if (InjectDll(processes[i].pid, dllPath)) {
-            printf("  Success!\n");
             successCount++;
-        } else {
-            printf("  Failed!\n");
         }
     }
     
-    printf("\n=== Injection complete: %d/%d successful ===\n", successCount, count);
+    if (successCount > 0) {
+        MessageBox(NULL, "Injection successful", "Done", MB_OK | MB_ICONINFORMATION);
+    } else {
+        MessageBox(NULL, "Injection failed", "Error", MB_OK | MB_ICONERROR);
+    }
     
     return 0;
 }
-
-
