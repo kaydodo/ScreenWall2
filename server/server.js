@@ -3019,8 +3019,8 @@ wssBrowser.on('connection', (ws) => {
         // 记录预览订阅（interval 已废弃，客户端统一8fps）
         previewClients.set(ws, { deviceId });
 
-        // 立即发送完整设备列表（如果是 MUMU 则包含 MUMU）
-        const includeMUMU = deviceId === 'MUMU-service';
+        // 立即发送完整设备列表（确保包含当前订阅的设备）
+        const includeMUMU = true;
         ws.send(JSON.stringify({ type: 'deviceList', devices: getDeviceListPayload(includeMUMU) }));
       }
     }
