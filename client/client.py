@@ -2068,52 +2068,41 @@ class ScreenWallClient:
                         "uuVersion":          self._get_uu_version(),
                         "uuInstalled":        self._is_uu_installed(),
                     }
-                    # 先立即发送不带报警截图的心跳包，保证连接不超时
-                    await ws.send(json.dumps(payload))
-                    
-                    # 报警开启时：异步后台截取报警截图，避免阻塞主循环
+                    # 报警开启时：心跳包合并报警截图，二合一节省资源
+                    # 固定截取屏幕中心 640×360 区域，用于报警检测
                     if _alarm_enabled:
-                        import asyncio
-                        import concurrent.futures
-                        
-                        async def capture_alarm_screenshot():
-                            try:
-                                crop_x = (off_w - 640) // 2
-                                crop_y = (off_h - 360) // 2
+                        try:
+                            # 计算中心区域坐标
+                            crop_x = (off_w - 640) // 2
+                            crop_y = (off_h - 360) // 2
+                            
+                            # 用 MSS 截取中心区域
+                            import mss
+                            with mss.mss() as sct:
+                                monitors = sct.monitors
+                                # 确保索引不越界
+                                mon_idx = min(_current_monitor_index, len(monitors) - 2)  # -2 因为 index 0 是总区域
+                                monitor = monitors[mon_idx + 1]
+                                # 截取中心 640×360 区域
+                                region = {
+                                    "left": monitor["left"] + crop_x,
+                                    "top": monitor["top"] + crop_y,
+                                    "width": 640,
+                                    "height": 360
+                                }
+                                sct_img = sct.grab(region)
                                 
-                                def sync_capture():
-                                    import mss
-                                    with mss.mss() as sct:
-                                        monitors = sct.monitors
-                                        mon_idx = min(_current_monitor_index, len(monitors) - 2)
-                                        monitor = monitors[mon_idx + 1]
-                                        region = {
-                                            "left": monitor["left"] + crop_x,
-                                            "top": monitor["top"] + crop_y,
-                                            "width": 640,
-                                            "height": 360
-                                        }
-                                        sct_img = sct.grab(region)
-                                        
-                                        from PIL import Image
-                                        import io
-                                        img = Image.frombytes("RGB", sct_img.size, sct_img.bgra, "raw", "BGRX")
-                                        out = io.BytesIO()
-                                        img.save(out, format='WEBP', quality=30)
-                                        return "data:image/webp;base64," + base64.b64encode(out.getvalue()).decode("ascii")
-                                
-                                loop = asyncio.get_event_loop()
-                                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                                    alarm_screenshot = await loop.run_in_executor(executor, sync_capture)
-                                
-                                # 截图完成后，发送带报警截图的更新心跳
-                                payload["alarmScreenshot"] = alarm_screenshot
-                                await ws.send(json.dumps(payload))
-                            except Exception:
-                                pass
-                        
-                        # 启动后台任务，不等待完成
-                        asyncio.create_task(capture_alarm_screenshot())
+                                # 转 webp
+                                from PIL import Image
+                                import io
+                                img = Image.frombytes("RGB", sct_img.size, sct_img.bgra, "raw", "BGRX")
+                                out = io.BytesIO()
+                                img.save(out, format='WEBP', quality=30)
+                                payload["alarmScreenshot"] = "data:image/webp;base64," + base64.b64encode(out.getvalue()).decode("ascii")
+                        except Exception as e:
+                            pass
+                            pass
+                    await ws.send(json.dumps(payload))
                 except Exception:
                     break
                 # interval = self.hq_interval if (self.hq_mode and self.hq_interval) else cfg["interval"]
