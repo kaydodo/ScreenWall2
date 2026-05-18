@@ -5,14 +5,12 @@
     },
     "adb": {
         "host": "127.0.0.1",
-        "port": 5555
+        "port": 5555,
+        "device_id": "127.0.0.1:5555"
     },
     "device": {
         "deviceId": "mumu-service",
         "deviceName": "MUMU 模拟器微服务",
         "fps": 6
-    },
-    "qrcode": {
-        "enabled": true
     }
 }

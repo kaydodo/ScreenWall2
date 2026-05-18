@@ -17,6 +17,12 @@ class MumuClient:
         with open(config_path, "r", encoding="utf-8") as f:
             return json.load(f)
 
+    def _get_adb_cmd(self, cmd):
+        adb_device_id = self.config['adb'].get('device_id')
+        if adb_device_id:
+            return ["adb", "-s", adb_device_id] + cmd
+        return ["adb"] + cmd
+
     async def _check_adb_connection(self):
         try:
             result = subprocess.run(
@@ -34,7 +40,7 @@ class MumuClient:
     async def _adb_screenshot(self):
         try:
             result = subprocess.run(
-                ["adb", "shell", "screencap", "-p"],
+                self._get_adb_cmd(["shell", "screencap", "-p"]),
                 capture_output=True,
                 timeout=10
             )
@@ -46,7 +52,7 @@ class MumuClient:
     async def _adb_click(self, x, y):
         try:
             subprocess.run(
-                ["adb", "shell", "input", "tap", str(x), str(y)],
+                self._get_adb_cmd(["shell", "input", "tap", str(x), str(y)]),
                 timeout=5
             )
             print(f"[ADB] 点击坐标: ({x}, {y})")
@@ -56,7 +62,7 @@ class MumuClient:
     async def _adb_swipe(self, x1, y1, x2, y2, duration=300):
         try:
             subprocess.run(
-                ["adb", "shell", "input", "swipe", str(x1), str(y1), str(x2), str(y2), str(duration)],
+                self._get_adb_cmd(["shell", "input", "swipe", str(x1), str(y1), str(x2), str(y2), str(duration)]),
                 timeout=5
             )
             print(f"[ADB] 滑动: ({x1}, {y1}) -> ({x2}, {y2})")
@@ -66,7 +72,7 @@ class MumuClient:
     async def _adb_keyevent(self, keycode):
         try:
             subprocess.run(
-                ["adb", "shell", "input", "keyevent", str(keycode)],
+                self._get_adb_cmd(["shell", "input", "keyevent", str(keycode)]),
                 timeout=5
             )
             print(f"[ADB] 按键: {keycode}")
