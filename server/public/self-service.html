@@ -118,6 +118,13 @@ html, body {
 .grayscale {
   filter: grayscale(100%);
 }
+#screenImg {
+  background: transparent;
+}
+#screenImg[src=""],
+#screenImg:not([src]) {
+  opacity: 0;
+}
 </style>
 </head>
 <body>
