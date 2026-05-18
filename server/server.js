@@ -1500,9 +1500,9 @@ function findConnectedRegions(mask, w, h) {
   return regions;
 }
 
-function getDeviceListPayload() {
+function getDeviceListPayload(includeMUMU = false) {
   return Array.from(devices.values())
-    .filter(d => d.deviceId !== 'MUMU-service')  // 排除MUMU，不显示在浏览器中
+    .filter(d => includeMUMU || d.deviceId !== 'MUMU-service')  // 可选包含MUMU
     .sort((a, b) => a.deviceName.localeCompare(b.deviceName, 'zh-CN'))
     .map(d => ({
       deviceId: d.deviceId,
@@ -3019,10 +3019,9 @@ wssBrowser.on('connection', (ws) => {
         // 记录预览订阅（interval 已废弃，客户端统一8fps）
         previewClients.set(ws, { deviceId });
 
-        // 立即发送完整设备列表（包含版本号等）
-        ws.send(JSON.stringify({ type: 'deviceList', devices: getDeviceListPayload() }));
-
-
+        // 立即发送完整设备列表（如果是 MUMU 则包含 MUMU）
+        const includeMUMU = deviceId === 'MUMU-service';
+        ws.send(JSON.stringify({ type: 'deviceList', devices: getDeviceListPayload(includeMUMU) }));
       }
     }
 

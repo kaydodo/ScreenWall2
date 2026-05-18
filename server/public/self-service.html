@@ -205,6 +205,7 @@ function connectWS() {
   
   ws.onopen = function() {
     if (deviceId) {
+      ws.send(JSON.stringify({ type: 'subscribePreview', deviceId: deviceId }));
       ws.send(JSON.stringify({ type: 'setLevel', deviceId: deviceId, level: 2 }));
     }
   };
