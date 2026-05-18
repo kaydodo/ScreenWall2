@@ -198,7 +198,7 @@ function getQueryParams() {
 
 function connectWS() {
   var wsProtocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  var wsUrl = wsProtocol + '//' + location.host;
+  var wsUrl = wsProtocol + '//' + location.host + '/ws/browser';
   
   ws = new WebSocket(wsUrl);
   ws.binaryType = 'arraybuffer';
