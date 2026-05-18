@@ -307,15 +307,11 @@ const deviceSubscribers = new Map(); // deviceId -> Map(ws -> level)
 
 // ========== Step 1: 流级别系统 - 函数 ==========
 function updateLevel(deviceId) {
-  const dev = devices.get(deviceId);
   if (!deviceSubscribers.has(deviceId)) {
     const oldLevel = deviceMaxLevel.get(deviceId);
     deviceMaxLevel.delete(deviceId);
     if (oldLevel !== undefined) {
       notifyDeviceLevel(deviceId, 0);
-      if (dev) {
-        serverLog(`[流级别] ${dev.deviceName} -> 0`);
-      }
     }
     return;
   }
@@ -326,9 +322,6 @@ function updateLevel(deviceId) {
     deviceMaxLevel.delete(deviceId);
     if (oldLevel !== undefined) {
       notifyDeviceLevel(deviceId, 0);
-      if (dev) {
-        serverLog(`[流级别] ${dev.deviceName} -> 0`);
-      }
     }
     return;
   }
@@ -343,9 +336,6 @@ function updateLevel(deviceId) {
 
   if (maxLevel !== oldLevel) {
     notifyDeviceLevel(deviceId, maxLevel);
-    if (dev) {
-      serverLog(`[流级别] ${dev.deviceName} -> ${maxLevel}`);
-    }
   }
 }
 
@@ -3187,6 +3177,14 @@ wssBrowser.on('connection', (ws) => {
       }
     }
 
+    if (msg.type === 'selfServiceInit') {
+      ws._isSelfService = true;
+      ws._selfServiceDeviceId = msg.deviceId;
+      ws._selfServiceDeviceName = msg.deviceName;
+      const displayName = msg.deviceName || msg.deviceId || '未知设备';
+      serverLog(`[自助登号] ${displayName} 开始使用`);
+    }
+
     if (msg.type === 'getWalledDevices') {
       const subscription = wallClients.get(ws);
       const myDevices = subscription ? Array.from(subscription.devices) : [];
@@ -3219,6 +3217,10 @@ wssBrowser.on('connection', (ws) => {
   });
 
   ws.on('close', () => {
+    if (ws._isSelfService) {
+      const displayName = ws._selfServiceDeviceName || ws._selfServiceDeviceId || '未知设备';
+      serverLog(`[自助登号] ${displayName} 退出`);
+    }
     const wallSubscription = wallClients.get(ws);
     if (wallSubscription) {
       serverLog(`[监控墙] 断开连接`);
