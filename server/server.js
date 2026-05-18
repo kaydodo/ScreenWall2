@@ -168,65 +168,6 @@ const {
   client: CLIENT_CFG
 } = config;
 
-// ========== 二维码处理配置 ==========
-const QRCODE_DIR = path.join(__dirname, 'qrcode');
-const QRCODE_OUTPUT_PATH = path.join(QRCODE_DIR, 'last_qrcode.png');
-const MUMU_DEVICE_ID = 'mumu-service';
-
-async function processQrcodeImage(imageBuffer) {
-  try {
-    const { data, info } = await sharp(imageBuffer)
-      .raw()
-      .toBuffer({ resolveWithObject: true });
-
-    const code = jsQR(data, info.width, info.height);
-    
-    if (code) {
-      serverLog(`[二维码] 识别成功: ${code.data}`);
-      
-      const isAdUrl = code.data.includes('http') && (
-        code.data.includes('ad') || code.data.includes('ads') || code.data.includes('promotion'));
-      if (isAdUrl) {
-        serverLog('[二维码] 识别到广告链接，跳过保存');
-        return;
-      }
-
-      await saveProcessedQrcode(imageBuffer, code);
-    } else {
-      serverLog('[二维码] 未识别到二维码');
-    }
-  } catch (err) {
-    serverError('[二维码] 处理失败:', err.message);
-  }
-}
-
-async function saveProcessedQrcode(imageBuffer, qrCode) {
-  try {
-    const { x, y, width, height } = qrCode.location;
-    const padding = Math.max(width, height) * 0.3;
-    
-    const cropX = Math.max(0, Math.floor(x - padding));
-    const cropY = Math.max(0, Math.floor(y - padding));
-    const cropWidth = Math.floor(width + padding * 2);
-    const cropHeight = Math.floor(height + padding * 2);
-    
-    const targetWidth = 640;
-    const targetHeight = 360;
-    
-    await sharp(imageBuffer)
-      .extract({ left: cropX, top: cropY, width: cropWidth, height: cropHeight })
-      .grayscale()
-      .threshold(128)
-      .resize(targetWidth, targetHeight, { fit: 'contain', background: { r: 255, g: 255, b: 255 } })
-      .png()
-      .toFile(QRCODE_OUTPUT_PATH);
-    
-    serverLog(`[二维码] 已保存处理后的二维码: ${QRCODE_OUTPUT_PATH}`);
-  } catch (err) {
-    serverError('[二维码] 保存失败:', err.message);
-  }
-}
-
 // ========== 辅助函数 ==========
 function hasOtherPreview(deviceId, excludeWs) {
   return deviceMaxLevel.has(deviceId) && deviceMaxLevel.get(deviceId) >= 1;
@@ -1960,19 +1901,6 @@ wssClient.on('connection', (ws, req) => {
       if (!dev) return;
       
       const { purpose, timestamp, deviceId, image } = msg;
-      
-      if (deviceId === MUMU_DEVICE_ID) {
-        (async () => {
-          try {
-            const base64Data = image.replace(/^data:image\/\w+;base64,/, '');
-            const buffer = Buffer.from(base64Data, 'base64');
-            await processQrcodeImage(buffer);
-          } catch (e) {
-            serverError('[二维码] 处理 mumu-service 截图失败:', e.message);
-          }
-        })();
-        return;
-      }
       
       if (purpose === 'collection') {
         // 收藏截图
