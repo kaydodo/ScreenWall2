@@ -19,7 +19,7 @@ import time
 import webbrowser
 
 # 客户端版本号（每次功能更新时手动递增）
-CLIENT_VERSION = "1.9.4"
+CLIENT_VERSION = "1.9.5"
 
 
 def _get_mac_address():
@@ -2105,11 +2105,7 @@ class ScreenWallClient:
                     await ws.send(json.dumps(payload))
                 except Exception:
                     break
-                # interval = self.hq_interval if (self.hq_mode and self.hq_interval) else cfg["interval"]
-                # HQ模式固定 6fps（~166.7ms），动态 sleep 补偿处理耗时
-                interval = 1 / 6
-                await asyncio.sleep(interval)
-                continue  # 跳过本次截图，进入下一轮
+                # 不跳过本次截图，继续发送主画面，不丢帧！
 
             # 根据模式确定截图参数
             if self.hq_1080:
