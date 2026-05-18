@@ -19,7 +19,7 @@ import time
 import webbrowser
 
 # 客户端版本号（每次功能更新时手动递增）
-CLIENT_VERSION = "1.9.5"
+CLIENT_VERSION = "1.9.6"
 
 
 def _get_mac_address():
@@ -2068,44 +2068,61 @@ class ScreenWallClient:
                         "uuVersion":          self._get_uu_version(),
                         "uuInstalled":        self._is_uu_installed(),
                     }
-                    # 报警开启时：心跳包合并报警截图，二合一节省资源
-                    # 固定截取屏幕中心 640×360 区域，用于报警检测
-                    if _alarm_enabled:
-                        try:
-                            # 计算中心区域坐标
-                            crop_x = (off_w - 640) // 2
-                            crop_y = (off_h - 360) // 2
-                            
-                            # 用 MSS 截取中心区域
-                            import mss
-                            with mss.mss() as sct:
-                                monitors = sct.monitors
-                                # 确保索引不越界
-                                mon_idx = min(_current_monitor_index, len(monitors) - 2)  # -2 因为 index 0 是总区域
-                                monitor = monitors[mon_idx + 1]
-                                # 截取中心 640×360 区域
-                                region = {
-                                    "left": monitor["left"] + crop_x,
-                                    "top": monitor["top"] + crop_y,
-                                    "width": 640,
-                                    "height": 360
-                                }
-                                sct_img = sct.grab(region)
-                                
-                                # 转 webp
-                                from PIL import Image
-                                import io
-                                img = Image.frombytes("RGB", sct_img.size, sct_img.bgra, "raw", "BGRX")
-                                out = io.BytesIO()
-                                img.save(out, format='WEBP', quality=30)
-                                payload["alarmScreenshot"] = "data:image/webp;base64," + base64.b64encode(out.getvalue()).decode("ascii")
-                        except Exception as e:
-                            pass
-                            pass
+                    # 立即发送心跳（不带报警截图），不阻塞主循环
                     await ws.send(json.dumps(payload))
+                    
+                    # 报警开启时：异步后台处理报警截图，准备好后补发
+                    if _alarm_enabled:
+                        async def send_alarm_screenshot():
+                            try:
+                                # 计算中心区域坐标
+                                crop_x = (off_w - 640) // 2
+                                crop_y = (off_h - 360) // 2
+                                
+                                # 用 MSS 截取中心区域
+                                import mss
+                                with mss.mss() as sct:
+                                    monitors = sct.monitors
+                                    mon_idx = min(_current_monitor_index, len(monitors) - 2)
+                                    monitor = monitors[mon_idx + 1]
+                                    region = {
+                                        "left": monitor["left"] + crop_x,
+                                        "top": monitor["top"] + crop_y,
+                                        "width": 640,
+                                        "height": 360
+                                    }
+                                    sct_img = sct.grab(region)
+                                    
+                                    # 转 webp
+                                    from PIL import Image
+                                    import io
+                                    img = Image.frombytes("RGB", sct_img.size, sct_img.bgra, "raw", "BGRX")
+                                    out = io.BytesIO()
+                                    img.save(out, format='WEBP', quality=30)
+                                    alarm_payload = {
+                                        "type": "heartbeat",
+                                        "deviceId": cfg["deviceId"],
+                                        "supportsKeyClient": has_kb,
+                                        "version": CLIENT_VERSION,
+                                        "monitorIndex": _current_monitor_index,
+                                        "monitorCount": len(all_monitors),
+                                        "screenWidth": off_w,
+                                        "screenHeight": off_h,
+                                        "monitorOffsetX": off_x,
+                                        "monitorOffsetY": off_y,
+                                        "uuVersion": self._get_uu_version(),
+                                        "uuInstalled": self._is_uu_installed(),
+                                        "alarmScreenshot": "data:image/webp;base64," + base64.b64encode(out.getvalue()).decode("ascii"),
+                                    }
+                                    await ws.send(json.dumps(alarm_payload))
+                            except Exception:
+                                pass
+                        
+                        # 启动后台任务，不等待完成
+                        asyncio.create_task(send_alarm_screenshot())
                 except Exception:
                     break
-                # 不跳过本次截图，继续发送主画面，不丢帧！
+                # 继续发送主画面，不丢帧！
 
             # 根据模式确定截图参数
             if self.hq_1080:
