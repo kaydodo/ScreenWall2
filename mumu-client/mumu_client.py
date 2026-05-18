@@ -40,7 +40,7 @@ class MumuClient:
     async def _adb_screenshot(self):
         try:
             result = subprocess.run(
-                self._get_adb_cmd(["shell", "screencap", "-p"]),
+                self._get_adb_cmd(["exec-out", "screencap", "-p"]),
                 capture_output=True,
                 timeout=10
             )
