@@ -8,6 +8,7 @@
     "dev": "nodemon server.js"
   },
   "dependencies": {
+    "jsqr": "^1.4.0",
     "sharp": "^0.34.5",
     "tesseract.js": "^7.0.0",
     "ws": "^8.16.0"
@@ -17,7 +18,9 @@
   },
   "mijia": {
     "description": "米家API集成（Python）",
-    "python_dependencies": ["mijiaAPI"],
+    "python_dependencies": [
+      "mijiaAPI"
+    ],
     "auth_file": "mijia-auth.json"
   }
 }
