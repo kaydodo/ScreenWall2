@@ -213,8 +213,8 @@ class MumuClient:
                 # 启动监听任务
                 listen_task = asyncio.create_task(self._listen(ws, cfg))
                 
-                fps = cfg["device"]["fps"]
-                interval = 1.0 / fps
+                # 降低帧率为4fps，避免ADB截图压力过大
+                target_interval = 1 / 4  # 4fps，~250ms
                 
                 # 主循环
                 while self.running:
@@ -230,7 +230,7 @@ class MumuClient:
                         break
                     
                     elapsed = time.time() - frame_start
-                    sleep_time = max(0, interval - elapsed)
+                    sleep_time = max(0, target_interval - elapsed)
                     await asyncio.sleep(sleep_time)
                 
                 # 等待监听任务结束
