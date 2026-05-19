@@ -366,37 +366,61 @@ function sendKey(key) {
   }
 }
 
-function handlePreviewClick(e) {
-  var pos = getClickPos(e);
-  if (pos && isOnline) {
-    sendMouse('mouseClick', pos.x, pos.y);
-  }
-}
-
 function setupMouseEvents() {
   var previewArea = document.getElementById('previewArea');
   var img = document.getElementById('screenImg');
-  
-  img.onclick = handlePreviewClick;
   
   previewArea.oncontextmenu = function(e) { e.preventDefault(); };
   
   previewArea.onwheel = function(e) {
     e.preventDefault();
+    // 模拟器滚轮可以作为快速滑动
     if (isOnline) {
       var delta = e.deltaY > 0 ? -120 : 120;
       sendMouse('mouseScroll', 0, 0, { delta: delta });
     }
   };
   
+  // 滑动操作相关变量
+  var swipeStartX = 0;
+  var swipeStartY = 0;
+  var swipeStartTime = 0;
+  var isDragging = false;
+  
   previewArea.onmousedown = function(e) {
-    if (e.button === 2) {
-      e.preventDefault();
-      if (isOnline) {
-        var pos = getClickPos(e);
-        if (pos) sendMouse('mouseRight', pos.x, pos.y);
+    e.preventDefault();
+    var pos = getClickPos(e);
+    if (pos && isOnline && e.button === 0) { // 只处理左键
+      isDragging = true;
+      swipeStartX = pos.x;
+      swipeStartY = pos.y;
+      swipeStartTime = Date.now();
+    }
+  };
+  
+  previewArea.onmousemove = function(e) {
+    // 可以添加滑动过程中暂时不做处理
+  };
+  
+  previewArea.onmouseup = function(e) {
+    if (!isDragging) return;
+    isDragging = false;
+    var pos = getClickPos(e);
+    if (pos && isOnline) {
+      var deltaTime = Date.now() - swipeStartTime;
+      if (deltaTime > 100 && (Math.abs(pos.x - swipeStartX) > 10 || Math.abs(pos.y - swipeStartY) > 10)) {
+        // 滑动，发送滑动事件
+        sendMouse('mouseSwipe', swipeStartX, swipeStartY, { 
+          x2: pos.x, y2: pos.y, duration: deltaTime });
+      } else {
+        // 点击
+        sendMouse('mouseClick', pos.x, pos.y);
       }
     }
+  };
+  
+  previewArea.onmouseleave = function(e) {
+    isDragging = false;
   };
 }
 

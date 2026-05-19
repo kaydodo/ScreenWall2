@@ -2432,6 +2432,47 @@ wssBrowser.on('connection', (ws) => {
       }
     }
 
+    // 鼠标滑动操作
+    if (msg.type === 'mouseSwipe') {
+      const { deviceId: mDevId, x, y, x2, y2, previewWidth, previewHeight, duration } = msg;
+      if (!mDevId) return;
+      const dev = devices.get(mDevId);
+      if (!dev || !dev.online) return;
+
+      let actualX, actualY, actualX2, actualY2;
+      const devW = dev.screenWidth || 1920;
+      const devH = dev.screenHeight || 1080;
+
+      if (previewWidth === devW && previewHeight === devH) {
+        actualX = x;
+        actualY = y;
+        actualX2 = x2;
+        actualY2 = y2;
+      } else {
+        const pw = previewWidth || devW;
+        const ph = previewHeight || devH;
+        actualX = Math.round((x / pw) * devW);
+        actualY = Math.round((y / ph) * devH);
+        actualX2 = Math.round((x2 / pw) * devW);
+        actualY2 = Math.round((y2 / ph) * devH);
+      }
+
+      // MUMU客户端不加显示器偏移量
+      if (mDevId !== 'MUMU-service') {
+        actualX += dev.monitorOffsetX || 0;
+        actualY += dev.monitorOffsetY || 0;
+        actualX2 += dev.monitorOffsetX || 0;
+        actualY2 += dev.monitorOffsetY || 0;
+      }
+
+      for (const client of wssClient.clients) {
+        if (client._deviceId === mDevId && client.readyState === 1) {
+          client.send(JSON.stringify({ type: 'mouseSwipe', x: actualX, y: actualY, x2: actualX2, y2: actualY2, duration: duration || 300 }));
+          break;
+        }
+      }
+    }
+
 
     if (msg.type === 'getState') {
       // 转换 collections 为数组格式

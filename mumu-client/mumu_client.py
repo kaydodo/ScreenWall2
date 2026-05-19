@@ -169,12 +169,24 @@ class MumuClient:
                             await self._adb_click(x, y)
                     
                     elif msg_type == "mouseSwipe":
-                        x1 = data.get("x1", 0)
-                        y1 = data.get("y1", 0)
+                        x1 = data.get("x", 0)
+                        y1 = data.get("y", 0)
                         x2 = data.get("x2", 0)
                         y2 = data.get("y2", 0)
                         duration = data.get("duration", 300)
                         await self._adb_swipe(x1, y1, x2, y2, duration)
+                        
+                    elif msg_type == "mouseScroll":
+                        delta = data.get("delta", 120)
+                        # 对于模拟器，滚轮可以转换为上下滑动
+                        center_x = 180
+                        center_y = 320
+                        if delta > 0:
+                            # 向上滚动
+                            await self._adb_swipe(center_x, center_y + 50, center_x, center_y - 50, 200)
+                        else:
+                            # 向下滚动
+                            await self._adb_swipe(center_x, center_y - 50, center_x, center_y + 50, 200)
                 
                 except Exception as e:
                     pass
