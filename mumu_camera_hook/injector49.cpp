@@ -130,7 +130,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
     int injectSuccess = 0;
     int injectSkip = 0;
-    int injectFail = 0;
 
     for (int i = 0; i < count; i++) {
         printf("INFO:Checking %s (PID: %lu)...\n", processes[i].name, processes[i].pid);
@@ -145,14 +144,13 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
             printf("INFO:Inject success\n");
             injectSuccess++;
         } else {
-            printf("ERROR:Inject failed\n");
-            injectFail++;
+            printf("INFO:Inject failed (maybe not a target process)\n");
         }
     }
 
     if (injectSuccess > 0) {
         printf("OK:INJECT_SUCCESS\n");
-    } else if (injectSkip > 0 && injectFail == 0) {
+    } else if (injectSkip > 0) {
         printf("OK:ALREADY_INJECTED\n");
     } else {
         printf("ERROR:INJECT_FAILED\n");
