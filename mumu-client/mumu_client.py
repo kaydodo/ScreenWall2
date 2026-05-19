@@ -218,7 +218,7 @@ class MumuClient:
     async def _screenshot_worker(self):
         while self.running:
             try:
-                img_bytes = await self._adb_screenshot(log_perf=True, compress=False)
+                img_bytes = await self._adb_screenshot(log_perf=True, compress=True)
                 if img_bytes:
                     current_time = time.time()
                     try:
