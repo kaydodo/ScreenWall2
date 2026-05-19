@@ -269,11 +269,6 @@ class MumuClient:
             MessageBox(None, "注入器 injector49.exe 不存在，请检查客户端安装目录", "MUMU客户端", 0x10)
             return False
 
-        if not self._check_mumu_running():
-            MessageBox = ctypes.windll.user32.MessageBoxW
-            MessageBox(None, "未检测到MUMU模拟器运行，请先启动模拟器后再打开客户端", "MUMU客户端", 0x30)
-            return False
-
         print("[MUMU] 正在注入摄像头Hook...")
         try:
             # 使用 startupinfo 隐藏窗口，避免GUI程序阻塞
@@ -313,12 +308,12 @@ class MumuClient:
 
         print("[MUMU] 正在初始化...")
 
-        if not self._inject_camera_hook():
-            print("[MUMU] 摄像头Hook注入失败，程序退出")
-            return
-
         if not await self._check_adb_connection():
             print("[MUMU] ADB连接失败，程序退出")
+            return
+
+        if not self._inject_camera_hook():
+            print("[MUMU] 摄像头Hook注入失败，程序退出")
             return
         
         screen_width, screen_height = await self._get_device_resolution()
