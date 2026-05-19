@@ -177,11 +177,10 @@ html, body {
   padding: 12px;
   max-height: 60vh;
   overflow-y: auto;
-  overflow-x: auto;
   display: grid;
   grid-template-columns: 1fr;
   gap: 6px;
-  min-width: 280px;
+  min-width: 380px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.5);
 }
 
@@ -733,7 +732,7 @@ function toggleRemoteListModal() {
       var textColor = isEnabled ? '#22c55e' : '#888';
       var ver = dev.version || '';
       var uuVer = dev.uuVersion || '';
-      html += '<div style="display:flex;justify-content:space-between;align-items:center;background:' + bgColor + ';border:1px solid ' + borderColor + ';border-radius:6px;padding:10px 16px;font-size:14px;color:' + textColor + ';gap:12px;word-break:break-all;"><span>' + (dev.name || id) + '</span><span style="opacity:0.7;flex-shrink:0;">' + (ver ? 'v' + ver : '') + (uuVer ? '&nbsp;&nbsp;v' + uuVer : '') + '</span></div>';
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;background:' + bgColor + ';border:1px solid ' + borderColor + ';border-radius:6px;padding:10px 16px;font-size:14px;color:' + textColor + ';white-space:nowrap;gap:12px;min-width:100%;"><span>' + (dev.name || id) + '</span><span style="opacity:0.7;">' + (ver ? 'v' + ver : '') + (uuVer ? '&nbsp;&nbsp;v' + uuVer : '') + '</span></div>';
     }
   }
   content.innerHTML = html;
