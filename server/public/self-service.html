@@ -445,6 +445,17 @@ function init() {
   setupMouseEvents();
   updatePreviewLayout();
   window.addEventListener('resize', scheduleUpdatePreviewLayout);
+
+  window.addEventListener('beforeunload', function() {
+    var img = document.getElementById('screenImg');
+    if (img && img._blobUrl) {
+      URL.revokeObjectURL(img._blobUrl);
+      img._blobUrl = null;
+    }
+    if (_previewLayoutTimer) {
+      clearTimeout(_previewLayoutTimer);
+    }
+  });
 }
 
 init();
