@@ -6,6 +6,8 @@ from pathlib import Path
 import websockets
 from PIL import Image
 import io
+import ctypes
+import os
 
 
 class MumuClient:
@@ -17,6 +19,9 @@ class MumuClient:
         self._frame_queue = asyncio.Queue(maxsize=3)
         self._last_frame_time = 0
         self._send_timeout = 1.0
+        self._dll_handle = None
+        self._get_camera_completed = None
+        self._reset_camera_completed = None
 
     def _load_config(self, config_path):
         with open(config_path, "r", encoding="utf-8") as f:
@@ -213,6 +218,20 @@ class MumuClient:
                         else:
                             await self._adb_swipe(center_x, center_y - 50, center_x, center_y + 50, 200)
 
+                    elif msg_type == "getCameraStatus":
+                        status = self.get_camera_status()
+                        await ws.send(json.dumps({
+                            "type": "cameraStatus",
+                            "status": status
+                        }))
+
+                    elif msg_type == "resetCameraStatus":
+                        success = self.reset_camera_status()
+                        await ws.send(json.dumps({
+                            "type": "cameraStatusReset",
+                            "success": success
+                        }))
+
                 except Exception as e:
                     pass
         except websockets.exceptions.ConnectionClosed:
@@ -294,6 +313,156 @@ class MumuClient:
             MessageBox(None, "注入失败，请检查模拟器状态后重新打开客户端", "MUMU客户端", 0x10)
             return False
 
+    def _load_camera_hook_dll(self):
+        import os
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        dll_path = os.path.join(base_dir, "camera_hook49.dll")
+        
+        if not os.path.exists(dll_path):
+            print(f"[MUMU] DLL不存在: {dll_path}")
+            return False
+        
+        try:
+            self._dll_handle = ctypes.CDLL(dll_path)
+            self._get_camera_completed = self._dll_handle.GetCameraCompleted
+            self._get_camera_completed.restype = ctypes.c_int
+            self._reset_camera_completed = self._dll_handle.ResetCameraCompleted
+            self._reset_camera_completed.restype = None
+            print("[MUMU] 成功加载camera_hook49.dll")
+            return True
+        except Exception as e:
+            print(f"[MUMU] 加载DLL失败: {e}")
+            return False
+
+    def _get_camera_status_via_pipe(self):
+        import struct
+        try:
+            pipe_name = r"\\.\pipe\MuMuCameraHook"
+            handle = ctypes.windll.kernel32.CreateFileW(
+                pipe_name,
+                ctypes.c_uint32(0xC0000000),  # GENERIC_READ | GENERIC_WRITE
+                0,
+                None,
+                ctypes.c_uint32(3),  # OPEN_EXISTING
+                0,
+                None
+            )
+            
+            if handle == ctypes.c_void_p(-1).value:
+                return None
+            
+            try:
+                buffer = ctypes.create_string_buffer(b"GET_STATUS")
+                bytes_written = ctypes.c_uint32(0)
+                success = ctypes.windll.kernel32.WriteFile(
+                    handle,
+                    buffer,
+                    len(buffer) - 1,
+                    ctypes.byref(bytes_written),
+                    None
+                )
+                
+                if not success:
+                    return None
+                
+                read_buffer = ctypes.create_string_buffer(32)
+                bytes_read = ctypes.c_uint32(0)
+                success = ctypes.windll.kernel32.ReadFile(
+                    handle,
+                    read_buffer,
+                    31,
+                    ctypes.byref(bytes_read),
+                    None
+                )
+                
+                if not success or bytes_read.value == 0:
+                    return None
+                
+                response = read_buffer.value.decode('ascii', errors='ignore')
+                if response.startswith("STATUS:"):
+                    return int(response[7:])
+                
+                return None
+            finally:
+                ctypes.windll.kernel32.CloseHandle(handle)
+        except Exception as e:
+            print(f"[MUMU] 管道通信失败: {e}")
+            return None
+
+    def _reset_camera_status_via_pipe(self):
+        try:
+            pipe_name = r"\\.\pipe\MuMuCameraHook"
+            handle = ctypes.windll.kernel32.CreateFileW(
+                pipe_name,
+                ctypes.c_uint32(0xC0000000),  # GENERIC_READ | GENERIC_WRITE
+                0,
+                None,
+                ctypes.c_uint32(3),  # OPEN_EXISTING
+                0,
+                None
+            )
+            
+            if handle == ctypes.c_void_p(-1).value:
+                return False
+            
+            try:
+                buffer = ctypes.create_string_buffer(b"RESET_STATUS")
+                bytes_written = ctypes.c_uint32(0)
+                success = ctypes.windll.kernel32.WriteFile(
+                    handle,
+                    buffer,
+                    len(buffer) - 1,
+                    ctypes.byref(bytes_written),
+                    None
+                )
+                
+                if not success:
+                    return False
+                
+                read_buffer = ctypes.create_string_buffer(32)
+                bytes_read = ctypes.c_uint32(0)
+                success = ctypes.windll.kernel32.ReadFile(
+                    handle,
+                    read_buffer,
+                    31,
+                    ctypes.byref(bytes_read),
+                    None
+                )
+                
+                if success and bytes_read.value > 0:
+                    response = read_buffer.value.decode('ascii', errors='ignore')
+                    return response == "RESET_OK"
+                
+                return False
+            finally:
+                ctypes.windll.kernel32.CloseHandle(handle)
+        except Exception as e:
+            print(f"[MUMU] 重置状态失败: {e}")
+            return False
+
+    def get_camera_status(self):
+        if self._get_camera_completed:
+            try:
+                return self._get_camera_completed()
+            except:
+                pass
+        
+        status = self._get_camera_status_via_pipe()
+        if status is not None:
+            return status
+        
+        return 0
+
+    def reset_camera_status(self):
+        if self._reset_camera_completed:
+            try:
+                self._reset_camera_completed()
+                return True
+            except:
+                pass
+        
+        return self._reset_camera_status_via_pipe()
+
     async def run(self):
         self.running = True
 
@@ -306,6 +475,8 @@ class MumuClient:
         if not self._inject_camera_hook():
             print("[MUMU] 摄像头Hook注入失败，程序退出")
             return
+
+        self._load_camera_hook_dll()
 
         screen_width, screen_height = await self._get_device_resolution()
         print(f"[MUMU] 检测到模拟器分辨率: {screen_width}x{screen_height}")

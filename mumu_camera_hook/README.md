@@ -35,6 +35,22 @@ ERROR:INJECT_FAILED
 - 注入失败的进程标记为"可能不是目标进程"，不影响整体判断
 - 只要有成功或已注入，就返回成功，忽略非目标进程失败
 
+**DLL新增功能**：
+- 命名管道通信：`\\\\.\\pipe\\MuMuCameraHook`
+- 管道命令：
+  - `GET_STATUS` → 返回 `STATUS:0` 或 `STATUS:1`
+  - `RESET_STATUS` → 返回 `RESET_OK`
+- 导出函数：
+  - `int GetCameraCompleted()`: 获取摄像头选择状态（0=未完成，1=已完成）
+  - `void ResetCameraCompleted()`: 重置摄像头选择状态
+
+**自助登号流程**：
+1. MUMU客户端启动，注入camera_hook49.dll
+2. 客户端加载DLL并连接命名管道
+3. 自助登号页面可通过服务端查询/重置摄像头状态：
+   - `getCameraStatus` → 客户端返回 `cameraStatus`
+   - `resetCameraStatus` → 客户端返回 `cameraStatusReset`
+
 ---
 
 ## 目录结构
@@ -130,9 +146,24 @@ return True
 - 每 500ms 调用 EnumWindows 枚举窗口
 - 检测 336x316 尺寸的 Qt5/Qt6 窗口
 - 使用 PostMessage 发送 WM_LBUTTONDOWN/UP 点击窗口中心
+- 提供命名管道通信接口
+- 提供导出函数供外部调用
 
 **导出函数**：
-无（当前 v49 DLL 与 v48 一致，仅保留核心功能）
+```cpp
+// 获取摄像头选择状态
+// 返回值：0=未完成，1=已完成
+extern "C" __declspec(dllexport) int GetCameraCompleted();
+
+// 重置摄像头选择状态
+extern "C" __declspec(dllexport) void ResetCameraCompleted();
+```
+
+**命名管道通信**：
+- 管道名称：`\\\\.\\pipe\\MuMuCameraHook`
+- 命令格式：
+  - 发送 `GET_STATUS` → 收到 `STATUS:0` 或 `STATUS:1`
+  - 发送 `RESET_STATUS` → 收到 `RESET_OK`
 
 ---
 
@@ -151,7 +182,7 @@ return True
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
-| v49 | 2026-05-19 | 注入器移除弹窗，修复进程查重逻辑，完善返回值判断 |
+| v49 | 2026-05-19 | 注入器移除弹窗，修复进程查重逻辑，完善返回值判断；DLL恢复管道通信和导出函数功能，支持自助登号流程 |
 | v48 | 2026-05-17 | 极简版（去日志） |
 | v47 | 2026-05-17 | 首个稳定版（EnumWindows） |
 
