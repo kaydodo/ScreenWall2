@@ -267,7 +267,7 @@ cd D:\ScreenWall2\server
 npm install
 node server.js
 ```
-服务地址：`http://localhost:8080`
+服务地址：`http://localhost:3000`
 
 ### 启动电脑客户端
 ```bash
