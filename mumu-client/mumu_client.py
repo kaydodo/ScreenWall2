@@ -46,6 +46,7 @@ class MumuClient:
 
     async def _adb_screenshot(self):
         try:
+            adb_start = time.time()
             cmd = self._get_adb_cmd(["exec-out", "screencap", "-p"])
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
@@ -53,14 +54,20 @@ class MumuClient:
                 stderr=asyncio.subprocess.PIPE
             )
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=10)
+            adb_time = (time.time() - adb_start) * 1000
 
             if stdout and len(stdout) > 0:
+                process_start = time.time()
                 img = Image.open(io.BytesIO(stdout))
                 self._real_width = img.width
                 self._real_height = img.height
                 img = img.resize((360, 640), Image.Resampling.LANCZOS)
                 output = io.BytesIO()
                 img.save(output, format='WEBP', quality=30)
+                process_time = (time.time() - process_start) * 1000
+                
+                total_time = adb_time + process_time
+                print(f"[PERF] ADB: {adb_time:.0f}ms 处理: {process_time:.0f}ms 总: {total_time:.0f}ms 分辨率: {self._real_width}x{self._real_height}")
                 return output.getvalue()
 
             return None
@@ -254,6 +261,9 @@ class MumuClient:
                 listen_task = asyncio.create_task(self._listen(ws, cfg))
                 screenshot_task = asyncio.create_task(self._screenshot_worker())
 
+                frame_count = 0
+                last_print = time.time()
+                
                 while self.running:
                     try:
                         timestamp, img_bytes = await asyncio.wait_for(
@@ -265,6 +275,14 @@ class MumuClient:
                             continue
 
                         await self._send_binary_frame(ws, img_bytes)
+                        
+                        frame_count += 1
+                        now = time.time()
+                        if now - last_print > 5.0:
+                            fps = frame_count / (now - last_print)
+                            print(f"[PERF] 发送帧率: {fps:.1f} fps (过去{now - last_print:.0f}秒)")
+                            frame_count = 0
+                            last_print = now
                     except asyncio.TimeoutError:
                         continue
                     except websockets.exceptions.ConnectionClosed:
