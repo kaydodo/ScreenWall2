@@ -14,6 +14,9 @@ class MumuClient:
         self.running = False
         self._real_width = 1080
         self._real_height = 1920
+        self._frame_queue = asyncio.Queue(maxsize=3)
+        self._last_frame_time = 0
+        self._send_timeout = 1.0
 
     def _load_config(self, config_path):
         with open(config_path, "r", encoding="utf-8") as f:
@@ -43,8 +46,6 @@ class MumuClient:
 
     async def _adb_screenshot(self):
         try:
-            screenshot_start = time.time()
-            
             cmd = self._get_adb_cmd(["exec-out", "screencap", "-p"])
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
@@ -52,20 +53,16 @@ class MumuClient:
                 stderr=asyncio.subprocess.PIPE
             )
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=10)
-            screenshot_elapsed = (time.time() - screenshot_start) * 1000
-            
+
             if stdout and len(stdout) > 0:
-                process_start = time.time()
                 img = Image.open(io.BytesIO(stdout))
                 self._real_width = img.width
                 self._real_height = img.height
                 img = img.resize((360, 640), Image.Resampling.LANCZOS)
                 output = io.BytesIO()
                 img.save(output, format='WEBP', quality=30)
-                process_elapsed = (time.time() - process_start) * 1000
-                
                 return output.getvalue()
-            
+
             return None
         except Exception as e:
             print(f"[ADB] 截图失败: {e}")
@@ -99,7 +96,6 @@ class MumuClient:
 
     async def _adb_keyevent(self, keycode):
         try:
-            # 把字符串key转换成Android keycode
             android_key = keycode
             if keycode == "Back":
                 android_key = "4"
@@ -107,7 +103,7 @@ class MumuClient:
                 android_key = "3"
             elif keycode == "Recent":
                 android_key = "187"
-            
+
             cmd = self._get_adb_cmd(["shell", "input", "keyevent", str(android_key)])
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
@@ -122,18 +118,18 @@ class MumuClient:
     async def _send_binary_frame(self, ws, img_bytes):
         device_id = self.config["device"]["deviceId"]
         device_id_bytes = device_id.encode("utf-8")
-        
+
         header = bytearray(8)
         header[0] = 0x01
         header[1] = len(device_id_bytes)
         header[2] = 0x00
         header[3] = 0x00
-        
+
         screen_width = getattr(self, '_real_width', 1080)
         screen_height = getattr(self, '_real_height', 1920)
         header[4:6] = screen_width.to_bytes(2, byteorder="big")
         header[6:8] = screen_height.to_bytes(2, byteorder="big")
-        
+
         frame = bytes(header) + device_id_bytes + img_bytes
         await ws.send(frame)
 
@@ -141,7 +137,7 @@ class MumuClient:
         img_bytes = await self._adb_screenshot()
         if not img_bytes:
             return
-        
+
         device_id = self.config["device"]["deviceId"]
         screen_width = getattr(self, '_real_width', 1080)
         screen_height = getattr(self, '_real_height', 1920)
@@ -162,24 +158,24 @@ class MumuClient:
                 try:
                     data = json.loads(msg)
                     msg_type = data.get("type")
-                    
+
                     if msg_type == "requestHdScreenshot":
                         purpose = data.get("purpose", "collection")
                         timestamp = data.get("timestamp")
                         if timestamp:
                             await self._send_hd_screenshot(ws, purpose, timestamp)
-                    
+
                     elif msg_type == "keyClick":
                         key = data.get("key", "")
                         if key:
                             await self._adb_keyevent(key)
-                    
+
                     elif msg_type == "mouseClick":
                         x = data.get("x", 0)
                         y = data.get("y", 0)
                         if x and y:
                             await self._adb_click(x, y)
-                    
+
                     elif msg_type == "mouseSwipe":
                         x1 = data.get("x", 0)
                         y1 = data.get("y", 0)
@@ -187,43 +183,55 @@ class MumuClient:
                         y2 = data.get("y2", 0)
                         duration = data.get("duration", 300)
                         await self._adb_swipe(x1, y1, x2, y2, duration)
-                        
+
                     elif msg_type == "mouseScroll":
                         delta = data.get("delta", 120)
-                        # 对于模拟器，滚轮可以转换为上下滑动
                         center_x = 180
                         center_y = 320
                         if delta > 0:
-                            # 向上滚动
                             await self._adb_swipe(center_x, center_y + 50, center_x, center_y - 50, 200)
                         else:
-                            # 向下滚动
                             await self._adb_swipe(center_x, center_y - 50, center_x, center_y + 50, 200)
-                
+
                 except Exception as e:
                     pass
         except websockets.exceptions.ConnectionClosed:
             pass
 
+    async def _screenshot_worker(self):
+        while self.running:
+            try:
+                img_bytes = await self._adb_screenshot()
+                if img_bytes:
+                    current_time = time.time()
+                    try:
+                        self._frame_queue.put_nowait((current_time, img_bytes))
+                    except asyncio.QueueFull:
+                        while not self._frame_queue.empty():
+                            self._frame_queue.get_nowait()
+                        self._frame_queue.put_nowait((current_time, img_bytes))
+                await asyncio.sleep(0.1)
+            except Exception as e:
+                await asyncio.sleep(0.5)
+
     async def run(self):
         self.running = True
-        
+
         print("[MUMU] 正在初始化...")
         await self._check_adb_connection()
-        
+
         server_host = self.config["server"]["host"]
         server_port = self.config["server"]["port"]
         ws_uri = f"ws://{server_host}:{server_port}/ws/client"
         cfg = self.config
-        
+
         print(f"[MUMU] 正在连接服务端: {ws_uri}")
-        
+
         while self.running:
             try:
                 ws = await websockets.connect(ws_uri, ping_interval=30, ping_timeout=10)
                 print("[MUMU] 已连接到服务端")
-                
-                # 注册
+
                 device_id = cfg["device"]["deviceId"]
                 device_name = cfg["device"]["deviceName"]
                 await ws.send(json.dumps({
@@ -242,33 +250,39 @@ class MumuClient:
                     "monitorOffsetY": 0
                 }))
                 print(f"[MUMU] 已注册: deviceId={device_id}")
-                
-                # 启动监听任务
+
                 listen_task = asyncio.create_task(self._listen(ws, cfg))
-                
-                # 降低帧率为3fps，避免ADB截图压力过大
-                target_interval = 1 / 3  # 3fps，~333ms
-                
-                # 主循环
+                screenshot_task = asyncio.create_task(self._screenshot_worker())
+
                 while self.running:
                     try:
-                        img_bytes = await self._adb_screenshot()
-                        if img_bytes:
-                            await self._send_binary_frame(ws, img_bytes)
+                        timestamp, img_bytes = await asyncio.wait_for(
+                            self._frame_queue.get(), timeout=self._send_timeout
+                        )
+
+                        age = time.time() - timestamp
+                        if age > 2.0:
+                            continue
+
+                        await self._send_binary_frame(ws, img_bytes)
+                    except asyncio.TimeoutError:
+                        continue
                     except websockets.exceptions.ConnectionClosed:
                         break
-                    except Exception:
+                    except Exception as e:
                         break
-                    
-                    await asyncio.sleep(target_interval)
-                
-                # 等待监听任务结束
+
                 listen_task.cancel()
+                screenshot_task.cancel()
                 try:
                     await listen_task
                 except asyncio.CancelledError:
                     pass
-                
+                try:
+                    await screenshot_task
+                except asyncio.CancelledError:
+                    pass
+
             except Exception as e:
                 if not isinstance(e, websockets.exceptions.ConnectionClosed):
                     print(f"[MUMU] 连接失败: {e}")
