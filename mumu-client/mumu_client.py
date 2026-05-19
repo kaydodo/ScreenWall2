@@ -44,7 +44,7 @@ class MumuClient:
             print(f"[ADB] 连接失败: {e}")
             return False
 
-    async def _adb_screenshot(self, log_perf=True, compress=False):
+    async def _adb_screenshot(self, compress=True):
         try:
             adb_start = time.time()
             cmd = self._get_adb_cmd(["exec-out", "screencap", "-p"])
@@ -73,11 +73,6 @@ class MumuClient:
                     img_bytes = output.getvalue()
                 
                 process_time = (time.time() - process_start) * 1000
-                
-                if log_perf:
-                    total_time = adb_time + process_time
-                    size_kb = len(img_bytes) / 1024
-                    print(f"[PERF] ADB: {adb_time:.0f}ms 处理: {process_time:.0f}ms 总: {total_time:.0f}ms 大小: {size_kb:.0f}KB 分辨率: {self._real_width}x{self._real_height}")
                 return img_bytes
 
             return None
@@ -218,7 +213,7 @@ class MumuClient:
     async def _screenshot_worker(self):
         while self.running:
             try:
-                img_bytes = await self._adb_screenshot(log_perf=True, compress=True)
+                img_bytes = await self._adb_screenshot(compress=True)
                 if img_bytes:
                     current_time = time.time()
                     try:
@@ -227,13 +222,12 @@ class MumuClient:
                         while not self._frame_queue.empty():
                             self._frame_queue.get_nowait()
                         self._frame_queue.put_nowait((current_time, img_bytes))
-                await asyncio.sleep(0.1)
             except Exception as e:
-                await asyncio.sleep(0.5)
+                await asyncio.sleep(0.05)
 
     async def _get_device_resolution(self):
         try:
-            img_bytes = await self._adb_screenshot(log_perf=False, compress=True)
+            img_bytes = await self._adb_screenshot(compress=True)
             if img_bytes:
                 return self._real_width, self._real_height
         except Exception as e:
@@ -283,9 +277,6 @@ class MumuClient:
                 listen_task = asyncio.create_task(self._listen(ws, cfg))
                 screenshot_task = asyncio.create_task(self._screenshot_worker())
 
-                frame_count = 0
-                last_print = time.time()
-                
                 while self.running:
                     try:
                         timestamp, img_bytes = await asyncio.wait_for(
@@ -297,14 +288,6 @@ class MumuClient:
                             continue
 
                         await self._send_binary_frame(ws, img_bytes)
-                        
-                        frame_count += 1
-                        now = time.time()
-                        if now - last_print > 5.0:
-                            fps = frame_count / (now - last_print)
-                            print(f"[PERF] 发送帧率: {fps:.1f} fps (过去{now - last_print:.0f}秒)")
-                            frame_count = 0
-                            last_print = now
                     except asyncio.TimeoutError:
                         continue
                     except websockets.exceptions.ConnectionClosed:
