@@ -2,9 +2,9 @@
 #include <tlhelp32.h>
 #include <psapi.h>
 #include <string.h>
-#include <strsafe.h>
+#include <stdio.h>
 
-#pragma comment(lib, "user32.lib")
+#pragma comment(lib, "psapi.lib")
 
 #define MAX_PROCESSES 16
 
@@ -100,7 +100,7 @@ BOOL InjectDll(DWORD pid, const char* dllPath) {
     return TRUE;
 }
 
-int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
+int main(int argc, char* argv[]) {
     char exePath[MAX_PATH];
     char dllPath[MAX_PATH];
 
@@ -117,40 +117,36 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         if (numEnd) {
             char version[16] = {0};
             strncpy(version, numStart, numEnd - numStart);
-            StringCchPrintfA(lastSlash + 1, MAX_PATH, "camera_hook%s.dll", version);
+            sprintf(lastSlash + 1, "camera_hook%s.dll", version);
         } else {
-            strcpy_s(lastSlash + 1, MAX_PATH, "camera_hook.dll");
+            strcpy(lastSlash + 1, "camera_hook.dll");
         }
     } else {
-        strcpy_s(lastSlash + 1, MAX_PATH, "camera_hook.dll");
+        strcpy(lastSlash + 1, "camera_hook.dll");
     }
 
     ProcessInfo processes[MAX_PROCESSES];
     int count = FindAllMuMuProcesses(processes, MAX_PROCESSES);
 
     if (count == 0) {
-        MessageBoxA(NULL, "未检测到MUMU模拟器运行，请先启动模拟器", "MUMU摄像头Hook", MB_ICONERROR | MB_OK);
+        printf("ERROR:NO_MUMU_PROCESS\n");
         return 1;
     }
 
-    int injectCount = 0;
-    int skipCount = 0;
+    int injectSuccess = 0;
+    int injectSkip = 0;
+    int injectFail = 0;
 
     for (int i = 0; i < count; i++) {
         if (IsHookInjected(processes[i].pid)) {
-            skipCount++;
-            continue;
-        }
-
-        if (InjectDll(processes[i].pid, dllPath)) {
-            injectCount++;
+            injectSkip++;
+        } else if (InjectDll(processes[i].pid, dllPath)) {
+            injectSuccess++;
+        } else {
+            injectFail++;
         }
     }
 
-    if (injectCount == 0 && skipCount == 0) {
-        MessageBoxA(NULL, "摄像头Hook注入失败，请检查模拟器状态", "MUMU摄像头Hook", MB_ICONERROR | MB_OK);
-        return 1;
-    }
-
+    printf("RESULT:OK:%d:%d:%d\n", injectSuccess, injectSkip, injectFail);
     return 0;
 }
