@@ -12,6 +12,8 @@ class MumuClient:
     def __init__(self, config_path="config.json"):
         self.config = self._load_config(config_path)
         self.running = False
+        self._real_width = 1080
+        self._real_height = 1920
 
     def _load_config(self, config_path):
         with open(config_path, "r", encoding="utf-8") as f:
@@ -51,6 +53,8 @@ class MumuClient:
             
             if stdout and len(stdout) > 0:
                 img = Image.open(io.BytesIO(stdout))
+                self._real_width = img.width
+                self._real_height = img.height
                 img = img.resize((360, 640), Image.Resampling.LANCZOS)
                 output = io.BytesIO()
                 img.save(output, format='WEBP', quality=30)
@@ -119,8 +123,8 @@ class MumuClient:
         header[2] = 0x00
         header[3] = 0x00
         
-        screen_width = 360
-        screen_height = 640
+        screen_width = getattr(self, '_real_width', 1080)
+        screen_height = getattr(self, '_real_height', 1920)
         header[4:6] = screen_width.to_bytes(2, byteorder="big")
         header[6:8] = screen_height.to_bytes(2, byteorder="big")
         
@@ -133,14 +137,16 @@ class MumuClient:
             return
         
         device_id = self.config["device"]["deviceId"]
+        screen_width = getattr(self, '_real_width', 1080)
+        screen_height = getattr(self, '_real_height', 1920)
         await ws.send(json.dumps({
             "type": "hdScreenshot",
             "deviceId": device_id,
             "image": "data:image/webp;base64," + base64.b64encode(img_bytes).decode("ascii"),
             "purpose": purpose,
             "timestamp": timestamp,
-            "screenWidth": 360,
-            "screenHeight": 640
+            "screenWidth": screen_width,
+            "screenHeight": screen_height
         }))
         print(f"[MUMU] 已发送 HD 截图, purpose={purpose}")
 
@@ -224,8 +230,8 @@ class MumuClient:
                     "version": "1.0.0",
                     "monitorIndex": 1,
                     "monitorCount": 1,
-                    "screenWidth": 360,
-                    "screenHeight": 640,
+                    "screenWidth": 1080,
+                    "screenHeight": 1920,
                     "monitorOffsetX": 0,
                     "monitorOffsetY": 0
                 }))
