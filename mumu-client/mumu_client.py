@@ -55,7 +55,7 @@ class MumuClient:
                 img = Image.open(io.BytesIO(stdout))
                 self._real_width = img.width
                 self._real_height = img.height
-                img = img.resize((360, 640), Image.Resampling.LANCZOS)
+                img = img.resize((270, 480), Image.Resampling.LANCZOS)
                 output = io.BytesIO()
                 img.save(output, format='WEBP', quality=30)
                 return output.getvalue()
