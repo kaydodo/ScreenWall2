@@ -271,37 +271,33 @@ class MumuClient:
 
         print("[MUMU] 正在注入摄像头Hook...")
         try:
-            # 使用 startupinfo 隐藏窗口，避免GUI程序阻塞
-            startupinfo = subprocess.STARTUPINFO()
-            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-            startupinfo.wShowWindow = subprocess.SW_HIDE
-            
             result = subprocess.run(
                 [injector_path],
                 capture_output=True,
                 text=True,
-                timeout=5,
-                startupinfo=startupinfo
+                timeout=10
             )
             print(result.stdout)
             if result.stderr:
                 print(result.stderr)
 
-            # 注入器可能返回非0代码但实际上成功了，我们放宽检查
             if result.returncode != 0:
-                print(f"[MUMU] 注入器返回非0代码: {result.returncode}，但继续执行")
+                print(f"[MUMU] 注入器返回失败代码: {result.returncode}")
+                return False
             
             print("[MUMU] 摄像头Hook注入完成")
             return True
             
         except subprocess.TimeoutExpired:
-            print("[MUMU] 注入超时，跳过注入继续运行")
-            # 注入超时但继续运行，不阻止程序启动
-            return True
+            print("[MUMU] 注入超时")
+            MessageBox = ctypes.windll.user32.MessageBoxW
+            MessageBox(None, "摄像头Hook注入超时，请检查模拟器状态后重新打开客户端", "MUMU客户端", 0x10)
+            return False
         except Exception as e:
-            print(f"[MUMU] 注入失败: {e}，跳过注入继续运行")
-            # 注入失败但继续运行，不阻止程序启动
-            return True
+            print(f"[MUMU] 注入失败: {e}")
+            MessageBox = ctypes.windll.user32.MessageBoxW
+            MessageBox(None, f"摄像头Hook注入失败: {e}\n请检查模拟器状态后重新打开客户端", "MUMU客户端", 0x10)
+            return False
 
     async def run(self):
         self.running = True

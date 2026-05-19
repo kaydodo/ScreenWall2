@@ -129,6 +129,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     int count = FindAllMuMuProcesses(processes, MAX_PROCESSES);
 
     if (count == 0) {
+        MessageBoxA(NULL, "未检测到MUMU模拟器运行，请先启动模拟器", "MUMU摄像头Hook", MB_ICONERROR | MB_OK);
         return 1;
     }
 
@@ -147,6 +148,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     }
 
     if (injectCount == 0 && skipCount == 0) {
+        MessageBoxA(NULL, "摄像头Hook注入失败，请检查模拟器状态", "MUMU摄像头Hook", MB_ICONERROR | MB_OK);
         return 1;
     }
 
