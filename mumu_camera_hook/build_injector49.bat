@@ -12,7 +12,7 @@ set "PATH=%VS_PATH%\VC\Tools\MSVC\%MSVC_VER%\bin\Hostx64\x64;%PATH%"
 
 cd /d "D:\ScreenWall2\mumu_camera_hook"
 
-cl.exe /EHsc /O2 /MD injector49.cpp /Fe:injector49.exe /link psapi.lib
+cl.exe /EHsc /O2 /MD injector49.cpp /Fe:injector49.exe /link user32.lib psapi.lib
 if exist injector49.exe echo Injector OK
 del /q *.obj *.exp *.lib 2>nul
 endlocal

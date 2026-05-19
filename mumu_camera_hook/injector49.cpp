@@ -1,12 +1,9 @@
 #include <windows.h>
 #include <tlhelp32.h>
 #include <psapi.h>
-#include <string.h>
 #include <stdio.h>
 
 #pragma comment(lib, "psapi.lib")
-
-#define MAX_PROCESSES 16
 
 typedef struct {
     char name[64];
@@ -19,8 +16,8 @@ BOOL IsHookInjected(DWORD pid) {
 
     HMODULE modules[1024];
     DWORD needed;
-
     BOOL found = FALSE;
+
     if (EnumProcessModules(hProcess, modules, sizeof(modules), &needed)) {
         for (DWORD i = 0; i < (needed / sizeof(HMODULE)); i++) {
             char name[MAX_PATH];
@@ -37,7 +34,7 @@ BOOL IsHookInjected(DWORD pid) {
     return found;
 }
 
-int FindAllMuMuProcesses(ProcessInfo* processes, int maxCount) {
+int FindAllMuMuProcesses(ProcessInfo *processes, int maxCount) {
     HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
     if (snapshot == INVALID_HANDLE_VALUE) return 0;
 
@@ -61,11 +58,9 @@ int FindAllMuMuProcesses(ProcessInfo* processes, int maxCount) {
     return count;
 }
 
-BOOL InjectDll(DWORD pid, const char* dllPath) {
+BOOL InjectDll(DWORD pid, const char *dllPath) {
     HANDLE hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
-    if (!hProcess) {
-        return FALSE;
-    }
+    if (!hProcess) return FALSE;
 
     size_t pathLen = strlen(dllPath) + 1;
     LPVOID remoteMem = VirtualAllocEx(hProcess, NULL, pathLen, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
@@ -100,20 +95,20 @@ BOOL InjectDll(DWORD pid, const char* dllPath) {
     return TRUE;
 }
 
-int main(int argc, char* argv[]) {
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
     char exePath[MAX_PATH];
     char dllPath[MAX_PATH];
 
     GetModuleFileNameA(NULL, exePath, MAX_PATH);
     strcpy(dllPath, exePath);
 
-    char* lastSlash = strrchr(dllPath, '\\');
-    char* exeName = lastSlash ? lastSlash + 1 : dllPath;
+    char *lastSlash = strrchr(dllPath, '\\');
+    char *exeName = lastSlash ? lastSlash + 1 : dllPath;
 
-    char* numStart = strstr(exeName, "injector");
+    char *numStart = strstr(exeName, "injector");
     if (numStart) {
         numStart += 8;
-        char* numEnd = strstr(numStart, ".exe");
+        char *numEnd = strstr(numStart, ".exe");
         if (numEnd) {
             char version[16] = {0};
             strncpy(version, numStart, numEnd - numStart);
@@ -125,11 +120,11 @@ int main(int argc, char* argv[]) {
         strcpy(lastSlash + 1, "camera_hook.dll");
     }
 
-    ProcessInfo processes[MAX_PROCESSES];
-    int count = FindAllMuMuProcesses(processes, MAX_PROCESSES);
+    ProcessInfo processes[16];
+    int count = FindAllMuMuProcesses(processes, 16);
 
     if (count == 0) {
-        printf("ERROR:NO_MUMU_PROCESS\n");
+        printf("ERROR:NO_MUMU\n");
         return 1;
     }
 
@@ -138,15 +133,30 @@ int main(int argc, char* argv[]) {
     int injectFail = 0;
 
     for (int i = 0; i < count; i++) {
+        printf("INFO:Checking %s (PID: %lu)...\n", processes[i].name, processes[i].pid);
+
         if (IsHookInjected(processes[i].pid)) {
+            printf("INFO:Already injected, skipping\n");
             injectSkip++;
-        } else if (InjectDll(processes[i].pid, dllPath)) {
+            continue;
+        }
+
+        if (InjectDll(processes[i].pid, dllPath)) {
+            printf("INFO:Inject success\n");
             injectSuccess++;
         } else {
+            printf("ERROR:Inject failed\n");
             injectFail++;
         }
     }
 
-    printf("RESULT:OK:%d:%d:%d\n", injectSuccess, injectSkip, injectFail);
+    if (injectSuccess > 0) {
+        printf("OK:INJECT_SUCCESS\n");
+    } else if (injectSkip > 0 && injectFail == 0) {
+        printf("OK:ALREADY_INJECTED\n");
+    } else {
+        printf("ERROR:INJECT_FAILED\n");
+    }
+
     return 0;
 }

@@ -41,13 +41,12 @@ class MumuClient:
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=5)
             result = stdout.decode('utf-8', errors='ignore').strip()
             print(f"[ADB] 连接结果: {result}")
-            
-            # 检查是否连接被拒绝（模拟器未运行）
+
             if 'refused' in result.lower() or '10061' in result:
                 MessageBox = ctypes.windll.user32.MessageBoxW
                 MessageBox(None, "模拟器没有正在运行，请先启动模拟器后再打开客户端", "MUMU客户端", 0x30)
                 return False
-                
+
             return True
         except Exception as e:
             print(f"[ADB] 连接失败: {e}")
@@ -71,7 +70,7 @@ class MumuClient:
                 self._real_width = img.width
                 self._real_height = img.height
                 img = img.resize((360, 640), Image.Resampling.LANCZOS)
-                
+
                 if compress:
                     output = io.BytesIO()
                     img.save(output, format='WEBP', quality=30)
@@ -80,7 +79,7 @@ class MumuClient:
                     output = io.BytesIO()
                     img.save(output, format='PNG')
                     img_bytes = output.getvalue()
-                
+
                 process_time = (time.time() - process_start) * 1000
                 return img_bytes
 
@@ -243,19 +242,6 @@ class MumuClient:
             pass
         return 1080, 1920
 
-    def _check_mumu_running(self):
-        import ctypes
-        import psutil
-
-        try:
-            for proc in psutil.process_iter(['name']):
-                name = proc.info['name'] or ''
-                if name.lower().startswith('mumu'):
-                    return True
-        except:
-            pass
-        return False
-
     def _inject_camera_hook(self):
         import subprocess
         import os
@@ -263,10 +249,16 @@ class MumuClient:
 
         base_dir = os.path.dirname(os.path.abspath(__file__))
         injector_path = os.path.join(base_dir, "injector49.exe")
+        dll_path = os.path.join(base_dir, "camera_hook49.dll")
 
         if not os.path.exists(injector_path):
             MessageBox = ctypes.windll.user32.MessageBoxW
             MessageBox(None, "注入器 injector49.exe 不存在，请检查客户端安装目录", "MUMU客户端", 0x10)
+            return False
+
+        if not os.path.exists(dll_path):
+            MessageBox = ctypes.windll.user32.MessageBoxW
+            MessageBox(None, "摄像头Hook DLL不存在，请检查客户端安装目录", "MUMU客户端", 0x10)
             return False
 
         print("[MUMU] 正在注入摄像头Hook...")
@@ -277,26 +269,29 @@ class MumuClient:
                 text=True,
                 timeout=10
             )
-            print(result.stdout)
-            if result.stderr:
-                print(result.stderr)
+            output = result.stdout.strip()
 
-            if result.returncode != 0:
-                print(f"[MUMU] 注入器返回失败代码: {result.returncode}")
+            if "INJECT_SUCCESS" in output:
+                print("[MUMU] 摄像头Hook注入成功")
+            elif "ALREADY_INJECTED" in output:
+                print("[MUMU] 已注入Hook，无需再次注入")
+            else:
+                print(f"[MUMU] 注入器返回: {output}")
+                MessageBox = ctypes.windll.user32.MessageBoxW
+                MessageBox(None, "注入失败，请检查模拟器状态后重新打开客户端", "MUMU客户端", 0x10)
                 return False
-            
-            print("[MUMU] 摄像头Hook注入完成")
+
             return True
-            
+
         except subprocess.TimeoutExpired:
             print("[MUMU] 注入超时")
             MessageBox = ctypes.windll.user32.MessageBoxW
-            MessageBox(None, "摄像头Hook注入超时，请检查模拟器状态后重新打开客户端", "MUMU客户端", 0x10)
+            MessageBox(None, "注入失败，请检查模拟器状态后重新打开客户端", "MUMU客户端", 0x10)
             return False
         except Exception as e:
             print(f"[MUMU] 注入失败: {e}")
             MessageBox = ctypes.windll.user32.MessageBoxW
-            MessageBox(None, f"摄像头Hook注入失败: {e}\n请检查模拟器状态后重新打开客户端", "MUMU客户端", 0x10)
+            MessageBox(None, "注入失败，请检查模拟器状态后重新打开客户端", "MUMU客户端", 0x10)
             return False
 
     async def run(self):
@@ -311,7 +306,7 @@ class MumuClient:
         if not self._inject_camera_hook():
             print("[MUMU] 摄像头Hook注入失败，程序退出")
             return
-        
+
         screen_width, screen_height = await self._get_device_resolution()
         print(f"[MUMU] 检测到模拟器分辨率: {screen_width}x{screen_height}")
 
