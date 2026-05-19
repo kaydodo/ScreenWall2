@@ -240,8 +240,8 @@ class MumuClient:
                 # 启动监听任务
                 listen_task = asyncio.create_task(self._listen(ws, cfg))
                 
-                # 降低帧率为4fps，避免ADB截图压力过大
-                target_interval = 1 / 4  # 4fps，~250ms
+                # 降低帧率为3fps，避免ADB截图压力过大
+                target_interval = 1 / 3  # 3fps，~333ms
                 
                 # 主循环
                 while self.running:
