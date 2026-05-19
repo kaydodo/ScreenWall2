@@ -69,20 +69,57 @@ build_injector49.bat
 2. 运行 `injector49.exe`
 3. 查看输出
 
-### 与客户端集成
+### 与 MuMu 客户端联动
 
+**目录要求**：
+```
+mumu-client/
+├── mumu_client.py
+├── injector49.exe
+└── camera_hook49.dll
+```
+
+**客户端联动流程**：
+1. 客户端先检查 ADB 连接（确保模拟器已启动）
+2. 调用 `injector49.exe`，捕获标准输出
+3. 解析输出判断结果：
+   - 有 `INJECT_SUCCESS` → 控制台打印，不弹窗
+   - 有 `ALREADY_INJECTED` → 控制台打印，不弹窗
+   - 其他情况 → 弹窗提示"注入失败"并退出
+
+**代码参考**（简化版）：
 ```python
 import subprocess
+import os
 
-result = subprocess.run(['injector49.exe'], capture_output=True, text=True)
-output = result.stdout.strip()
+base_dir = os.path.dirname(os.path.abspath(__file__))
+injector_path = os.path.join(base_dir, "injector49.exe")
 
-if "INJECT_SUCCESS" in output:
-    print("摄像头Hook注入成功")
-elif "ALREADY_INJECTED" in output:
-    print("已注入Hook，无需再次注入")
-else:
-    print("注入失败，请检查模拟器状态")
+if not os.path.exists(injector_path):
+    MessageBox(None, "注入器不存在", "错误", 0x10)
+    return False
+
+try:
+    result = subprocess.run(
+        [injector_path],
+        capture_output=True,
+        text=True,
+        timeout=10
+    )
+    output = result.stdout.strip()
+
+    if "INJECT_SUCCESS" in output:
+        print("[MUMU] 摄像头Hook注入成功")
+    elif "ALREADY_INJECTED" in output:
+        print("[MUMU] 已注入Hook，无需再次注入")
+    else:
+        MessageBox(None, "注入失败，请检查模拟器状态", "错误", 0x10)
+        return False
+except Exception as e:
+    MessageBox(None, f"注入失败: {e}", "错误", 0x10)
+    return False
+
+return True
 ```
 
 ---
