@@ -44,20 +44,27 @@ class MumuClient:
     async def _adb_screenshot(self):
         try:
             cmd = self._get_adb_cmd(["exec-out", "screencap", "-p"])
+            
+            screenshot_start = time.time()
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=10)
+            screenshot_elapsed = (time.time() - screenshot_start) * 1000
             
             if stdout and len(stdout) > 0:
+                process_start = time.time()
                 img = Image.open(io.BytesIO(stdout))
                 self._real_width = img.width
                 self._real_height = img.height
                 img = img.resize((360, 640), Image.Resampling.LANCZOS)
                 output = io.BytesIO()
                 img.save(output, format='WEBP', quality=30)
+                process_elapsed = (time.time() - process_start) * 1000
+                
+                print(f"[PERF] ADB截图: {screenshot_elapsed:.1f}ms, 图像处理: {process_elapsed:.1f}ms, 总耗时: {(screenshot_elapsed + process_elapsed):.1f}ms")
                 return output.getvalue()
             
             return None
@@ -250,7 +257,10 @@ class MumuClient:
                     try:
                         img_bytes = await self._adb_screenshot()
                         if img_bytes:
+                            send_start = time.time()
                             await self._send_binary_frame(ws, img_bytes)
+                            send_elapsed = (time.time() - send_start) * 1000
+                            print(f"[PERF] 发送帧: {send_elapsed:.1f}ms")
                     except websockets.exceptions.ConnectionClosed:
                         break
                     except Exception:
@@ -258,6 +268,8 @@ class MumuClient:
                     
                     elapsed = time.time() - frame_start
                     sleep_time = max(0, target_interval - elapsed)
+                    frame_ms = elapsed * 1000
+                    print(f"[PERF] 整帧耗时: {frame_ms:.1f}ms, Sleep: {sleep_time*1000:.1f}ms, FPS: {1/elapsed:.1f}")
                     await asyncio.sleep(sleep_time)
                 
                 # 等待监听任务结束
