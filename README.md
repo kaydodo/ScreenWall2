@@ -31,7 +31,7 @@ D:\ScreenWall2\
 │   └── dist/                       # 打包输出
 │
 ├── mumu-client/                     # MUMU模拟器客户端
-│   ├── mumu_client.py              # 主程序
+│   ├── mumu_client.py             # 主程序
 │   ├── injector49.exe              # 摄像头Hook注入器
 │   └── config.json                 # 配置文件
 │
@@ -43,9 +43,9 @@ D:\ScreenWall2\
 │   ├── README.md                    # Hook模块文档
 │   └── ANALYSIS_REPORT.md          # 技术分析报告
 │
-└── .trae/rules/                    # 项目规则
+└── .trae/rules/                   # 项目规则
     ├── OFFLINE_HEAL_SPEC.md        # 离线自愈规范
-    └── project_rules.md             # 项目规则
+    └── project_rules.md            # 项目规则
 ```
 
 ---
@@ -112,7 +112,12 @@ D:\ScreenWall2\
 | 格子视图（main.html） | 0 | 480×270 | 最低画质，用于格子缩略图 |
 | 监控墙格子（monitor-wall.html） | 1 | 853×720 | 中等画质 |
 | 预览画面（preview.html） | 2 | 1280×720 | 高清画质 |
-| 自助登号（self-service.html） | 2 | 1280×720 | 高清画质 |
+| 自助登号（self-service.html） | 无 | 540×960 | 专属通道，推荐使用540P |
+
+**说明**：
+- Level 0/1/2 由服务端根据订阅情况动态推送
+- 自助登号页面使用固定专属通道，无需Level设置
+- 推荐MUMU模拟器使用540×960分辨率以获得最佳帧率
 
 ### 帧类型定义
 
@@ -123,23 +128,60 @@ D:\ScreenWall2\
 
 ### 前端页面规格
 
-| 页面 | 设备ID来源 | 流级别 | 主要功能 |
-|------|-----------|--------|----------|
-| main.html | 设备注册 | 动态（0/1/2） | 格子视图、UU控制 |
-| monitor-wall.html | 设备注册 | 1（格子）/2（预览） | 监控墙、浮动预览 |
-| preview.html | URL参数/initData | 2 | 独立预览弹窗 |
-| self-service.html | URL参数 | 2 | 自助登号、MUMU控制 |
+| 页面 | 设备ID来源 | 主要功能 |
+|------|-----------|----------|
+| main.html | 设备注册 | 格子视图、UU控制、4-10列布局 |
+| monitor-wall.html | 设备注册 | 监控墙、浮动预览、自定义行列布局 |
+| preview.html | URL参数/initData | 独立预览弹窗 |
+| self-service.html | URL参数 | 自助登号、MUMU控制 |
 
 ### MUMU客户端规格
 
 | 参数 | 值 |
 |------|-----|
-| 模拟器分辨率 | 540×960（推荐）或 720×1280 |
+| 模拟器推荐分辨率 | 540×960 |
 | 客户端输出分辨率 | 360×640 |
 | 压缩格式 | WEBP（质量30） |
 | 帧队列大小 | 3帧 |
 | 帧超时 | 2秒 |
 | 理论帧率 | 3-4 fps |
+
+---
+
+## 布局系统
+
+### 主页面布局（main.html）
+
+- **布局范围**：4-10列可选
+- **默认布局**：4列
+- **总格子数**：200个
+- **特殊布局**：9列和10列为航拍/宽屏专用布局
+
+| 列数 | 适用场景 |
+|------|----------|
+| 4列 | 标准桌面 |
+| 5列 | 标准桌面 |
+| 6列 | 标准桌面 |
+| 7列 | 标准桌面 |
+| 8列 | 标准桌面 |
+| 9列* | 航拍/宽屏专用 |
+| 10列* | 航拍/宽屏专用 |
+
+### 监控墙布局（monitor-wall.html）
+
+- **布局范围**：自定义行列
+- **两套布局模式**：标准布局、接收布局
+- **快捷布局**：4格、6格、9格、12格、16格、20格
+
+| 布局 | 行列 | 说明 |
+|------|------|------|
+| 4格 | 2×2 | 最小布局 |
+| 6格 | 2×3 | 非标准布局 |
+| 9格 | 3×3 | 完全平方 |
+| 12格 | 3×4 | 非标准布局 |
+| 16格 | 4×4 | 完全平方 |
+| 20格 | 4×5 | 非标准布局 |
+| 自定义 | N×M | 任意行列组合 |
 
 ---
 
@@ -154,7 +196,7 @@ D:\ScreenWall2\
 | subscribePreview | deviceId | 订阅设备预览 |
 | unsubscribePreview | deviceId | 取消订阅预览 |
 | setLevel | deviceId, level | 设置流级别（0/1/2） |
-| subscribeWall | cols, rows, cellW, cellH | 订阅监控墙 |
+| subscribeWall | cols, rows, devices[] | 订阅监控墙 |
 | unsubscribeWall | - | 取消监控墙订阅 |
 | keyClick | deviceId, key | 发送按键 |
 | mouseClick | deviceId, x, y | 鼠标点击 |
@@ -166,7 +208,7 @@ D:\ScreenWall2\
 
 | 消息类型 | 参数 | 说明 |
 |----------|------|------|
-| state | devices[], groups[] | 初始状态 |
+| state | cells[], devices[], groups[] | 初始状态 |
 | deviceList | devices[] | 设备列表更新 |
 | devicePreviewStatus | deviceId, status | 设备预览状态 |
 | wallStateUpdate | devices[], groups[] | 监控墙状态更新 |
@@ -197,7 +239,7 @@ D:\ScreenWall2\
 ├─────────────────────────────────────────┤
 │ [0] 0x10 (frame type)                  │
 │ [1] deviceId length                     │
-│ [2] flags (bit0=HQ)                   │
+│ [2] flags (bit0=HQ)                    │
 │ [3] reserved                           │
 │ [4-5] screen width (big-endian)        │
 │ [6-7] screen height (big-endian)       │
@@ -244,7 +286,7 @@ D:\ScreenWall2\
 ### 1. 主页面 (main.html)
 
 **功能**：
-- 设备格子视图显示
+- 设备格子视图显示（200格，4-10列可选）
 - 设备在线/离线状态管理
 - UU远程控制
 - 设备预览弹窗
@@ -259,15 +301,17 @@ var frameHealCount = new Map(); // deviceId -> count
 ### 2. 监控墙 (monitor-wall.html)
 
 **功能**：
-- 监控墙布局显示
+- 监控墙布局显示（自定义行列）
 - 浮动预览弹窗
 - 设备切换
+- 快捷布局：4/6/9/12/16/20格
 
 **关键变量**：
 ```javascript
 var FRAME_HEAL_THRESHOLD = 2;
 var wallPreviewDeviceId = null;
-var wallData = { devices: [], groups: [] };
+var wallData = { devices: [], groups: [], layout: 16 };
+var compactLayouts = { 6: {rows:2,cols:3}, 12: {rows:3,cols:4}, 20: {rows:4,cols:5} };
 ```
 
 ### 3. 预览弹窗 (preview.html)
@@ -287,7 +331,7 @@ var fromWall = false; // 是否从监控墙打开
 ### 4. 自助登号 (self-service.html)
 
 **功能**：
-- MUMU模拟器画面预览
+- MUMU模拟器画面预览（专属通道）
 - 安卓三键控制（返回、主页、任务）
 - 鼠标滑动、点击操作
 
@@ -354,9 +398,6 @@ OUTPUT_SIZE = (360, 640)  # 输出分辨率
   "device": {
     "deviceId": "PC-001",
     "deviceName": "设备名称"
-  },
-  "capture": {
-    "fps": 6
   }
 }
 ```
@@ -410,7 +451,7 @@ python client.py
 
 ### 启动MUMU客户端
 
-1. 启动MUMU模拟器
+1. 启动MUMU模拟器（推荐分辨率：540×960）
 2. 运行客户端：
 ```bash
 cd D:\ScreenWall2\mumu-client
@@ -452,6 +493,9 @@ python mumu_client.py
 ## 注意事项
 
 1. **MUMU模拟器必须先启动**才能运行客户端
-2. **摄像头Hook**会在客户端启动时自动注入
-3. **设备ID**需全局唯一，避免冲突
-4. **帧超时**设置为2秒，防止旧帧堆积
+2. **推荐使用540P分辨率**以获得最佳帧率（3-4fps）
+3. **摄像头Hook**会在客户端启动时自动注入
+4. **设备ID**需全局唯一，避免冲突
+5. **帧超时**设置为2秒，防止旧帧堆积
+6. **主页面布局**：9列和10列为航拍/宽屏专用
+7. **监控墙布局**：支持4/6/9/12/16/20格快捷布局及自定义行列
