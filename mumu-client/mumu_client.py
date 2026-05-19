@@ -234,10 +234,44 @@ class MumuClient:
             pass
         return 1080, 1920
 
+    def _inject_camera_hook(self):
+        import subprocess
+        import os
+
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        injector_path = os.path.join(base_dir, "..", "mumu_camera_hook", "injector49.exe")
+
+        if not os.path.exists(injector_path):
+            print(f"[MUMU] 注入器不存在: {injector_path}")
+            return False
+
+        print(f"[MUMU] 正在注入摄像头Hook...")
+        try:
+            result = subprocess.run(
+                [injector_path],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            print(result.stdout)
+            if result.stderr:
+                print(result.stderr)
+            return result.returncode == 0
+        except subprocess.TimeoutExpired:
+            print("[MUMU] 注入超时")
+            return False
+        except Exception as e:
+            print(f"[MUMU] 注入失败: {e}")
+            return False
+
     async def run(self):
         self.running = True
 
         print("[MUMU] 正在初始化...")
+
+        if not self._inject_camera_hook():
+            print("[MUMU] 警告: 摄像头Hook注入失败，继续运行...")
+
         await self._check_adb_connection()
         
         screen_width, screen_height = await self._get_device_resolution()
