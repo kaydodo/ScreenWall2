@@ -44,7 +44,7 @@ class MumuClient:
             print(f"[ADB] 连接失败: {e}")
             return False
 
-    async def _adb_screenshot(self):
+    async def _adb_screenshot(self, log_perf=True):
         try:
             adb_start = time.time()
             cmd = self._get_adb_cmd(["exec-out", "screencap", "-p"])
@@ -66,8 +66,9 @@ class MumuClient:
                 img.save(output, format='WEBP', quality=30)
                 process_time = (time.time() - process_start) * 1000
                 
-                total_time = adb_time + process_time
-                print(f"[PERF] ADB: {adb_time:.0f}ms 处理: {process_time:.0f}ms 总: {total_time:.0f}ms 分辨率: {self._real_width}x{self._real_height}")
+                if log_perf:
+                    total_time = adb_time + process_time
+                    print(f"[PERF] ADB: {adb_time:.0f}ms 处理: {process_time:.0f}ms 总: {total_time:.0f}ms 分辨率: {self._real_width}x{self._real_height}")
                 return output.getvalue()
 
             return None
@@ -221,11 +222,23 @@ class MumuClient:
             except Exception as e:
                 await asyncio.sleep(0.5)
 
+    async def _get_device_resolution(self):
+        try:
+            img_bytes = await self._adb_screenshot(log_perf=False)
+            if img_bytes:
+                return self._real_width, self._real_height
+        except Exception as e:
+            pass
+        return 1080, 1920
+
     async def run(self):
         self.running = True
 
         print("[MUMU] 正在初始化...")
         await self._check_adb_connection()
+        
+        screen_width, screen_height = await self._get_device_resolution()
+        print(f"[MUMU] 检测到模拟器分辨率: {screen_width}x{screen_height}")
 
         server_host = self.config["server"]["host"]
         server_port = self.config["server"]["port"]
@@ -251,8 +264,8 @@ class MumuClient:
                     "version": "1.0.0",
                     "monitorIndex": 1,
                     "monitorCount": 1,
-                    "screenWidth": 1080,
-                    "screenHeight": 1920,
+                    "screenWidth": screen_width,
+                    "screenHeight": screen_height,
                     "monitorOffsetX": 0,
                     "monitorOffsetY": 0
                 }))
