@@ -16,7 +16,7 @@ cd /d "D:\ScreenWall2\mumu_camera_hook"
 cl.exe /EHsc /O2 /MD /LD camera_hook49.cpp /Fe:camera_hook49.dll /link psapi.lib
 if exist camera_hook49.dll echo DLL OK
 
-cl.exe /EHsc /O2 /MD injector49.cpp /Fe:injector49.exe /link user32.lib psapi.lib
+cl.exe /EHsc /O2 /MD injector49.cpp /Fe:injector49.exe /link user32.lib psapi.lib /SUBSYSTEM:WINDOWS
 if exist injector49.exe echo Injector OK
 
 del /q *.obj *.exp *.lib 2>nul
