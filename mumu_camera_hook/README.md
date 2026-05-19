@@ -16,23 +16,24 @@
 
 **输出格式**：
 ```
-ERROR:NO_MUMU_PROCESS        # 返回1，无模拟器
-RESULT:OK:成功数:跳过数:失败数  # 返回0
+# 情况1：无MUMU进程
+ERROR:NO_MUMU
+
+# 情况2：有至少一个成功注入
+OK:INJECT_SUCCESS
+
+# 情况3：全是已注入
+OK:ALREADY_INJECTED
+
+# 情况4：全失败
+ERROR:INJECT_FAILED
 ```
 
-**示例**：
-```
-# 注入成功
-RESULT:OK:1:0:0
-
-# 重复注入
-RESULT:OK:0:1:0
-
-# 混合情况
-RESULT:OK:1:2:0
-```
-
-**静默退出**：注入器不显示任何弹窗或窗口，由客户端统一处理。
+**关键逻辑**：
+- 枚举所有MuMu进程，逐个检查是否已注入
+- 已注入的跳过，未注入的尝试注入
+- 注入失败的进程标记为"可能不是目标进程"，不影响整体判断
+- 只要有成功或已注入，就返回成功，忽略非目标进程失败
 
 ---
 
@@ -46,6 +47,7 @@ mumu_camera_hook/
 ├── camera_hook49.dll      # v49 Hook DLL
 ├── injector49.cpp         # v49 注入器源代码
 └── injector49.exe        # v49 注入器
+└── build_injector49.bat  # 编译脚本
 ```
 
 ---
@@ -65,7 +67,7 @@ build_injector49.bat
 
 1. 启动MUMU模拟器
 2. 运行 `injector49.exe`
-3. 检查返回码
+3. 查看输出
 
 ### 与客户端集成
 
@@ -75,27 +77,25 @@ import subprocess
 result = subprocess.run(['injector49.exe'], capture_output=True, text=True)
 output = result.stdout.strip()
 
-if result.returncode == 0:
-    # 成功，解析输出
-    if ':' in output:
-        _, data = output.split(':', 1)
-        success, skip, fail = map(int, data.split(':'))
-        if success > 0:
-            print("注入成功")
-        else:
-            print("重复注入，跳过")
+if "INJECT_SUCCESS" in output:
+    print("摄像头Hook注入成功")
+elif "ALREADY_INJECTED" in output:
+    print("已注入Hook，无需再次注入")
 else:
-    print("无MUMU进程，请先启动模拟器")
+    print("注入失败，请检查模拟器状态")
 ```
 
 ---
 
-## DLL导出函数
+## DLL 功能
 
-```cpp
-extern "C" __declspec(dllexport) BOOL GetCameraCompleted();
-extern "C" __declspec(dllexport) void ResetCameraCompleted();
-```
+**功能**：
+- 每 500ms 调用 EnumWindows 枚举窗口
+- 检测 336x316 尺寸的 Qt5/Qt6 窗口
+- 使用 PostMessage 发送 WM_LBUTTONDOWN/UP 点击窗口中心
+
+**导出函数**：
+无（当前 v49 DLL 与 v48 一致，仅保留核心功能）
 
 ---
 
@@ -103,10 +103,10 @@ extern "C" __declspec(dllexport) void ResetCameraCompleted();
 
 | 项目 | 说明 |
 |------|------|
-| 检测方式 | EnumWindows API轮询（每500ms） |
-| 点击方式 | PostMessage发送WM_LBUTTONDOWN/UP |
-| 目标窗口 | Qt5/Qt6窗口，尺寸336x316 |
-| 注入检测 | EnumProcessModules枚举模块列表 |
+| DLL 检测方式 | EnumWindows API 轮询（每 500ms） |
+| 点击方式 | PostMessage 发送 WM_LBUTTONDOWN/UP |
+| 目标窗口 | Qt5/Qt6 窗口，尺寸 336x316 |
+| 注入检测 | EnumProcessModules 枚举模块列表 |
 
 ---
 
@@ -114,7 +114,7 @@ extern "C" __declspec(dllexport) void ResetCameraCompleted();
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
-| v49 | 2026-05-19 | 简化返回值，静默退出 |
+| v49 | 2026-05-19 | 注入器移除弹窗，修复进程查重逻辑，完善返回值判断 |
 | v48 | 2026-05-17 | 极简版（去日志） |
 | v47 | 2026-05-17 | 首个稳定版（EnumWindows） |
 
@@ -131,6 +131,7 @@ extern "C" __declspec(dllexport) void ResetCameraCompleted();
 ## 注意事项
 
 1. **必须先启动模拟器**：客户端启动前必须先运行MUMU模拟器
-2. **注入器路径**：injector49.exe需与客户端同目录
+2. **注入器与 DLL 同目录**：`injector49.exe` 和 `camera_hook49.dll` 需要在同一目录
 3. **重复启动**：MUMU客户端重启时会自动跳过已注入的进程
-4. **DLL卸载**：关闭MUMU模拟器后DLL自动卸载
+4. **DLL 卸载**：关闭MUMU模拟器后 DLL 自动卸载
+5. **进程筛选**：MuMu有多个进程，非目标进程注入失败是正常的，不影响结果
