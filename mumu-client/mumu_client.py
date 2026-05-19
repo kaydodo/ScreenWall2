@@ -43,9 +43,9 @@ class MumuClient:
 
     async def _adb_screenshot(self):
         try:
-            cmd = self._get_adb_cmd(["exec-out", "screencap", "-p"])
-            
             screenshot_start = time.time()
+            
+            cmd = self._get_adb_cmd(["exec-out", "screencap", "-c"])
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
@@ -55,16 +55,39 @@ class MumuClient:
             screenshot_elapsed = (time.time() - screenshot_start) * 1000
             
             if stdout and len(stdout) > 0:
+                try:
+                    img = Image.open(io.BytesIO(stdout))
+                    self._real_width = img.width
+                    self._real_height = img.height
+                    process_start = time.time()
+                    img = img.resize((360, 640), Image.Resampling.BILINEAR)
+                    output = io.BytesIO()
+                    img.save(output, format='WEBP', quality=20)
+                    process_elapsed = (time.time() - process_start) * 1000
+                    print(f"[PERF] ADB截图(-c): {screenshot_elapsed:.1f}ms, 处理: {process_elapsed:.1f}ms")
+                    return output.getvalue()
+                except:
+                    pass
+            
+            cmd = self._get_adb_cmd(["exec-out", "screencap", "-p"])
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=10)
+            screenshot_elapsed_total = (time.time() - screenshot_start) * 1000
+            
+            if stdout and len(stdout) > 0:
                 process_start = time.time()
                 img = Image.open(io.BytesIO(stdout))
                 self._real_width = img.width
                 self._real_height = img.height
-                img = img.resize((360, 640), Image.Resampling.LANCZOS)
+                img = img.resize((360, 640), Image.Resampling.BILINEAR)
                 output = io.BytesIO()
-                img.save(output, format='WEBP', quality=30)
+                img.save(output, format='WEBP', quality=20)
                 process_elapsed = (time.time() - process_start) * 1000
-                
-                print(f"[PERF] ADB截图: {screenshot_elapsed:.1f}ms, 图像处理: {process_elapsed:.1f}ms, 总耗时: {(screenshot_elapsed + process_elapsed):.1f}ms")
+                print(f"[PERF] ADB截图(-p): {screenshot_elapsed_total:.1f}ms, 处理: {process_elapsed:.1f}ms")
                 return output.getvalue()
             
             return None
