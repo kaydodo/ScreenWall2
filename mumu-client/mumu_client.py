@@ -44,7 +44,7 @@ class MumuClient:
             print(f"[ADB] 连接失败: {e}")
             return False
 
-    async def _adb_screenshot(self, log_perf=True):
+    async def _adb_screenshot(self, log_perf=True, compress=False):
         try:
             adb_start = time.time()
             cmd = self._get_adb_cmd(["exec-out", "screencap", "-p"])
@@ -62,14 +62,23 @@ class MumuClient:
                 self._real_width = img.width
                 self._real_height = img.height
                 img = img.resize((360, 640), Image.Resampling.LANCZOS)
-                output = io.BytesIO()
-                img.save(output, format='WEBP', quality=30)
+                
+                if compress:
+                    output = io.BytesIO()
+                    img.save(output, format='WEBP', quality=30)
+                    img_bytes = output.getvalue()
+                else:
+                    output = io.BytesIO()
+                    img.save(output, format='PNG')
+                    img_bytes = output.getvalue()
+                
                 process_time = (time.time() - process_start) * 1000
                 
                 if log_perf:
                     total_time = adb_time + process_time
-                    print(f"[PERF] ADB: {adb_time:.0f}ms 处理: {process_time:.0f}ms 总: {total_time:.0f}ms 分辨率: {self._real_width}x{self._real_height}")
-                return output.getvalue()
+                    size_kb = len(img_bytes) / 1024
+                    print(f"[PERF] ADB: {adb_time:.0f}ms 处理: {process_time:.0f}ms 总: {total_time:.0f}ms 大小: {size_kb:.0f}KB 分辨率: {self._real_width}x{self._real_height}")
+                return img_bytes
 
             return None
         except Exception as e:
@@ -209,7 +218,7 @@ class MumuClient:
     async def _screenshot_worker(self):
         while self.running:
             try:
-                img_bytes = await self._adb_screenshot()
+                img_bytes = await self._adb_screenshot(log_perf=True, compress=False)
                 if img_bytes:
                     current_time = time.time()
                     try:
@@ -224,7 +233,7 @@ class MumuClient:
 
     async def _get_device_resolution(self):
         try:
-            img_bytes = await self._adb_screenshot(log_perf=False)
+            img_bytes = await self._adb_screenshot(log_perf=False, compress=True)
             if img_bytes:
                 return self._real_width, self._real_height
         except Exception as e:

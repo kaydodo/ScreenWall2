@@ -239,7 +239,7 @@ function handleBinaryFrame(data) {
     screenHeight = scrH || screenHeight;
     
     var webpBuf = data.slice(8 + devIdLen);
-    var blob = new Blob([webpBuf], { type: 'image/webp' });
+    var blob = new Blob([webpBuf], { type: 'image/png' });
     var blobUrl = URL.createObjectURL(blob);
     
     var img = document.getElementById('screenImg');
