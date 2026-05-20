@@ -209,12 +209,13 @@ async function processQrcodeImage(imageBuffer, businessId, currentDeviceId) {
     }
     
     const { data, info } = await sharp(imageBuffer)
+      .greyscale()
       .raw()
       .toBuffer({ resolveWithObject: true });
     
-    serverLog(`[二维码] 图片解码成功, 尺寸=${info.width}x${info.height}`);
+    serverLog(`[二维码] 图片解码成功, 尺寸=${info.width}x${info.height}, 灰度数据长度=${data.length}`);
 
-    const code = jsQR(data, info.width, info.height);
+    const code = jsQR(data, info.width, info.height, { inversionAttempts: 'dontInvert' });
     
     // 获取设备名称（用于日志，不返回给客户端）
     const businessDev = devices.get(businessId);
