@@ -185,27 +185,30 @@ class MumuClient:
         frame = bytes(header) + device_id_bytes + img_bytes
         await ws.send(frame)
 
-    async def _send_hd_screenshot(self, ws, purpose, timestamp, business_id=None):
-        img_bytes = await self._adb_screenshot()
-        if not img_bytes:
-            return
+    async def _send_hd_screenshot_async(self, ws, purpose, timestamp, business_id=None):
+        try:
+            img_bytes = await self._adb_screenshot()
+            if not img_bytes:
+                return
 
-        device_id = self.config["device"]["deviceId"]
-        screen_width = getattr(self, '_real_width', 1080)
-        screen_height = getattr(self, '_real_height', 1920)
-        payload = {
-            "type": "hdScreenshot",
-            "deviceId": device_id,
-            "image": "data:image/webp;base64," + base64.b64encode(img_bytes).decode("ascii"),
-            "purpose": purpose,
-            "timestamp": timestamp,
-            "screenWidth": screen_width,
-            "screenHeight": screen_height
-        }
-        if business_id:
-            payload["businessId"] = business_id
-        await ws.send(json.dumps(payload))
-        print(f"[MUMU] 已发送 HD 截图, purpose={purpose}")
+            device_id = self.config["device"]["deviceId"]
+            screen_width = getattr(self, '_real_width', 1080)
+            screen_height = getattr(self, '_real_height', 1920)
+            payload = {
+                "type": "hdScreenshot",
+                "deviceId": device_id,
+                "image": "data:image/webp;base64," + base64.b64encode(img_bytes).decode("ascii"),
+                "purpose": purpose,
+                "timestamp": timestamp,
+                "screenWidth": screen_width,
+                "screenHeight": screen_height
+            }
+            if business_id:
+                payload["businessId"] = business_id
+            await ws.send(json.dumps(payload))
+            print(f"[MUMU] 已发送 HD 截图, purpose={purpose}")
+        except Exception as e:
+            print(f"[MUMU] 发送 HD 截图失败: {e}")
 
     async def _listen(self, ws, cfg):
         try:
@@ -219,7 +222,7 @@ class MumuClient:
                         timestamp = data.get("timestamp")
                         business_id = data.get("businessId")
                         if timestamp:
-                            await self._send_hd_screenshot(ws, purpose, timestamp, business_id)
+                            asyncio.create_task(self._send_hd_screenshot_async(ws, purpose, timestamp, business_id))
 
                     elif msg_type == "qrcodeResult":
                         success = data.get("success", False)
