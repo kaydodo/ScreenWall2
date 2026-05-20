@@ -173,8 +173,25 @@ const QRCODE_DIR = path.join(__dirname, 'qrcode');
 const QRCODE_OUTPUT_PATH = path.join(QRCODE_DIR, 'last_qrcode.png');
 // 当前正在等待的MUMU客户端连接（用于返回qrcodeResult）
 let _currentMUMUClient = null;
+let _currentMUMUClientDeviceId = null;
+let _currentBusinessId = null;
+let _selfServiceTimeoutId = null;
 
-async function processQrcodeImage(imageBuffer, businessId) {
+// 自助登号超时时间（毫秒）
+const SELF_SERVICE_TIMEOUT_MS = 5000;
+
+// 自助登号超时清理函数
+function clearSelfServiceState() {
+  _currentMUMUClient = null;
+  _currentMUMUClientDeviceId = null;
+  _currentBusinessId = null;
+  if (_selfServiceTimeoutId) {
+    clearTimeout(_selfServiceTimeoutId);
+    _selfServiceTimeoutId = null;
+  }
+}
+
+async function processQrcodeImage(imageBuffer, businessId, currentDeviceId) {
   try {
     const { data, info } = await sharp(imageBuffer)
       .raw()
@@ -182,9 +199,16 @@ async function processQrcodeImage(imageBuffer, businessId) {
 
     const code = jsQR(data, info.width, info.height);
     
+    // 获取设备名称
+    const businessDev = devices.get(businessId);
+    const businessDeviceName = businessDev ? businessDev.deviceName : businessId;
+    
+    const currentDev = devices.get(currentDeviceId);
+    const currentDeviceName = currentDev ? currentDev.deviceName : currentDeviceId;
+    
+    const isSameDevice = businessId === currentDeviceId;
+    
     if (code) {
-      serverLog(`[二维码] 识别成功: ${code.data}`);
-      
       const isAdUrl = code.data.includes('http') && (
         code.data.includes('ad') || code.data.includes('ads') || code.data.includes('promotion'));
       if (isAdUrl) {
@@ -194,13 +218,21 @@ async function processQrcodeImage(imageBuffer, businessId) {
             type: 'qrcodeResult', 
             success: false, 
             error: 'ad_url_detected',
-            businessId: businessId
+            businessId: businessId,
+            message: isSameDevice 
+              ? `${currentDeviceName} 使用了二维码扫码(失败)` 
+              : `${currentDeviceName} 完成了 ${businessDeviceName} 的二维码扫码(失败)`
           }));
         }
+        clearSelfServiceState();
         return;
       }
 
       await saveProcessedQrcode(imageBuffer, code);
+      
+      serverLog(isSameDevice 
+        ? `[自助登号] ${currentDeviceName} 使用了二维码扫码` 
+        : `[自助登号] ${currentDeviceName} 完成了 ${businessDeviceName} 的二维码扫码`);
       
       // 返回成功给MUMU客户端
       if (_currentMUMUClient && _currentMUMUClient.readyState === 1) {
@@ -208,7 +240,10 @@ async function processQrcodeImage(imageBuffer, businessId) {
           type: 'qrcodeResult', 
           success: true, 
           qrcodeData: code.data,
-          businessId: businessId
+          businessId: businessId,
+          message: isSameDevice 
+            ? `${currentDeviceName} 使用了二维码扫码` 
+            : `${currentDeviceName} 完成了 ${businessDeviceName} 的二维码扫码`
         }));
       }
     } else {
@@ -218,20 +253,38 @@ async function processQrcodeImage(imageBuffer, businessId) {
           type: 'qrcodeResult', 
           success: false, 
           error: 'no_qrcode_found',
-          businessId: businessId
+          businessId: businessId,
+          message: isSameDevice 
+            ? `${currentDeviceName} 使用了二维码扫码(失败)` 
+            : `${currentDeviceName} 完成了 ${businessDeviceName} 的二维码扫码(失败)`
         }));
       }
     }
+    clearSelfServiceState();
   } catch (err) {
     serverError('[二维码] 处理失败:', err.message);
+    
+    // 获取设备名称用于提示
+    const businessDev = devices.get(businessId);
+    const businessDeviceName = businessDev ? businessDev.deviceName : businessId;
+    
+    const currentDev = devices.get(currentDeviceId);
+    const currentDeviceName = currentDev ? currentDev.deviceName : currentDeviceId;
+    
+    const isSameDevice = businessId === currentDeviceId;
+    
     if (_currentMUMUClient && _currentMUMUClient.readyState === 1) {
       _currentMUMUClient.send(JSON.stringify({ 
         type: 'qrcodeResult', 
         success: false, 
         error: err.message,
-        businessId: businessId
+        businessId: businessId,
+        message: isSameDevice 
+          ? `${currentDeviceName} 使用了二维码扫码(失败)` 
+          : `${currentDeviceName} 完成了 ${businessDeviceName} 的二维码扫码(失败)`
       }));
     }
+    clearSelfServiceState();
   }
 }
 
@@ -2015,7 +2068,7 @@ wssClient.on('connection', (ws, req) => {
           try {
             const base64Data = image.replace(/^data:image\/\w+;base64,/, '');
             const buffer = Buffer.from(base64Data, 'base64');
-            await processQrcodeImage(buffer, businessId);
+            await processQrcodeImage(buffer, businessId, deviceId);
           } catch (e) {
             serverError('[二维码] 处理自助登号截图失败:', e.message);
           }
@@ -2270,7 +2323,7 @@ wssClient.on('connection', (ws, req) => {
 
     if (msg.type === 'cameraClicked') {
       // MUMU客户端发送的相机点击通知，携带businessId
-      const { businessId, x, y, timestamp } = msg;
+      const { businessId, x, y, timestamp, deviceId } = msg;
       if (!businessId) {
         serverLog('[自助登号] cameraClicked消息缺少businessId');
         return;
@@ -2289,8 +2342,35 @@ wssClient.on('connection', (ws, req) => {
       
       serverLog(`[自助登号] 收到相机点击，向业务设备请求1080P截图: ${businessDev.deviceName}`);
       
-      // 保存当前MUMU客户端连接
+      // 保存当前状态
       _currentMUMUClient = ws;
+      _currentMUMUClientDeviceId = msg.mumuClientId || deviceId || ws._deviceId;
+      _currentBusinessId = businessId;
+      
+      // 设置超时
+      _selfServiceTimeoutId = setTimeout(() => {
+        serverLog(`[自助登号] 请求截图超时（5秒）`);
+        if (_currentMUMUClient && _currentMUMUClient.readyState === 1) {
+          const businessDev = devices.get(_currentBusinessId);
+          const businessDeviceName = businessDev ? businessDev.deviceName : _currentBusinessId;
+          
+          const currentDev = devices.get(_currentMUMUClientDeviceId);
+          const currentDeviceName = currentDev ? currentDev.deviceName : _currentMUMUClientDeviceId;
+          
+          const isSameDevice = _currentBusinessId === _currentMUMUClientDeviceId;
+          
+          _currentMUMUClient.send(JSON.stringify({
+            type: 'qrcodeResult',
+            success: false,
+            error: 'timeout',
+            businessId: _currentBusinessId,
+            message: isSameDevice 
+              ? `${currentDeviceName} 使用了二维码扫码(超时)` 
+              : `${currentDeviceName} 完成了 ${businessDeviceName} 的二维码扫码(超时)`
+          }));
+        }
+        clearSelfServiceState();
+      }, SELF_SERVICE_TIMEOUT_MS);
       
       // 向业务设备请求1080P截图
       for (const client of wssClient.clients) {

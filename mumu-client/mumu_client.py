@@ -226,13 +226,19 @@ class MumuClient:
 
                     elif msg_type == "qrcodeResult":
                         success = data.get("success", False)
+                        message = data.get("message")
                         business_id = data.get("businessId")
-                        if success:
-                            qrcode_data = data.get("qrcodeData", "")
-                            print(f"[MUMU] 二维码已生成: {qrcode_data}")
+                        if message:
+                            # 优先显示服务端返回的完整消息
+                            print(f"[MUMU] {message}")
                         else:
-                            error = data.get("error", "unknown_error")
-                            print(f"[MUMU] 扫码失败: {error}")
+                            # 旧逻辑兼容
+                            if success:
+                                qrcode_data = data.get("qrcodeData", "")
+                                print(f"[MUMU] 二维码已生成: {qrcode_data}")
+                            else:
+                                error = data.get("error", "unknown_error")
+                                print(f"[MUMU] 扫码失败: {error}")
 
                     elif msg_type == "keyClick":
                         key = data.get("key", "")
@@ -633,7 +639,8 @@ class MumuClient:
                 # 构建上报消息
                 msg = {
                     "type": "cameraClicked",
-                    "timestamp": timestamp
+                    "timestamp": timestamp,
+                    "mumuClientId": self.config["device"]["deviceId"]  # MUMU客户端自己的ID
                 }
                 
                 # 如果匹配到点击记录，添加详细信息
