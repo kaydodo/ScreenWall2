@@ -104,7 +104,6 @@ class MumuClient:
                 stderr=asyncio.subprocess.PIPE
             )
             await asyncio.wait_for(proc.communicate(), timeout=5)
-            print(f"[ADB] 点击坐标: ({x}, {y})")
         except Exception as e:
             print(f"[ADB] 点击失败: {e}")
 
@@ -221,11 +220,11 @@ class MumuClient:
                                 self._click_history.pop(0)
                             
                             if device_name and business_name:
-                                print(f"点击坐标: ({x}, {y}) - 设备: {device_name}(业务: {business_name})")
+                                print(f"[ADB] 点击坐标: ({x}, {y}) - 设备: {device_name}(业务: {business_name})")
                             elif device_id and business_id:
-                                print(f"点击坐标: ({x}, {y}) - 设备ID: {device_id}(业务ID: {business_id})")
+                                print(f"[ADB] 点击坐标: ({x}, {y}) - 设备ID: {device_id}(业务ID: {business_id})")
                             else:
-                                print(f"点击坐标: ({x}, {y})")
+                                print(f"[ADB] 点击坐标: ({x}, {y})")
                             await self._adb_click(x, y)
 
                     elif msg_type == "mouseSwipe":
