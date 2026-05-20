@@ -155,7 +155,7 @@ extern "C" __declspec(dllexport) void ResetCameraCompleted() {
     g_LastCameraHWND = NULL;
 }
 
-BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID reserved) {
+BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPARAM reserved) {
     if (reason == DLL_PROCESS_ATTACH) {
         DisableThreadLibraryCalls(hModule);
         // 创建事件对象
@@ -171,5 +171,3 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID reserved) {
     }
     return TRUE;
 }
-
-extern "C" __declspec(dllexport) void Dummy() {}
