@@ -275,21 +275,27 @@ async function processQrcodeImage(imageBuffer, businessId, currentDeviceId) {
 async function saveProcessedQrcode(imageBuffer, qrCode) {
   try {
     const { x, y, width, height } = qrCode.location;
-    const padding = Math.max(width, height) * 0.3;
+    const padding = Math.max(width, height) * 0.1;
     
     const cropX = Math.max(0, Math.floor(x - padding));
     const cropY = Math.max(0, Math.floor(y - padding));
     const cropWidth = Math.floor(width + padding * 2);
     const cropHeight = Math.floor(height + padding * 2);
     
-    const targetWidth = 640;
+    const targetWidth = 200;
     const targetHeight = 360;
+    const qrTargetHeight = 90;
     
     await sharp(imageBuffer)
       .extract({ left: cropX, top: cropY, width: cropWidth, height: cropHeight })
-      .grayscale()
-      .threshold(128)
-      .resize(targetWidth, targetHeight, { fit: 'contain', background: { r: 255, g: 255, b: 255 } })
+      .resize(targetWidth, qrTargetHeight, { fit: 'contain', background: { r: 255, g: 255, b: 255 } })
+      .extend({
+        top: Math.floor((targetHeight - qrTargetHeight) / 2),
+        bottom: Math.floor((targetHeight - qrTargetHeight) / 2),
+        left: 0,
+        right: 0,
+        background: { r: 255, g: 255, b: 255 }
+      })
       .png()
       .toFile(QRCODE_OUTPUT_PATH);
     
