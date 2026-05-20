@@ -532,7 +532,6 @@ class MumuClient:
                                 # 这里我们使用本地当前时间作为参考，实际业务中可以使用NTP同步
                                 local_timestamp = time.time()
                                 notify_queue.put_nowait(local_timestamp)
-                                print(f"[MUMU] 收到相机点击通知: {local_timestamp}")
                             except:
                                 pass
                 finally:
@@ -566,9 +565,10 @@ class MumuClient:
                 # 去重：1秒内的重复通知只处理一次
                 current_time = time.time()
                 if current_time - self._last_camera_notify_time < 1.0:
-                    print(f"[MUMU] 忽略重复相机点击通知")
                     continue
                 self._last_camera_notify_time = current_time
+                
+                print(f"[MUMU] 收到相机点击通知")
                 
                 # 查找最近的点击记录（3秒内）
                 matched_click = None
@@ -599,7 +599,7 @@ class MumuClient:
                 
                 # 向服务端发送相机点击通知
                 await ws.send(json.dumps(msg))
-                print(f"[MUMU] 已上报相机点击: {timestamp}")
+                print(f"[MUMU] 已上报相机点击")
             except websockets.exceptions.ConnectionClosed:
                 break
             except Exception as e:
