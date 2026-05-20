@@ -200,27 +200,17 @@ async function processQrcodeImage(imageBuffer, businessId, currentDeviceId) {
       return;
     }
     
-    // ========== 步骤2: 获取灰度图数据并转换成RGBA格式用于jsQR识别 ==========
-    const { data: greyData, info } = await sharp(imageBuffer)
-      .greyscale()
+    // ========== 步骤2: 获取RGBA格式数据用于jsQR识别 ==========
+    const { data, info } = await sharp(imageBuffer)
       .raw()
       .toBuffer({ resolveWithObject: true });
     
     serverLog(`[二维码] 图片解码成功, 尺寸=${info.width}x${info.height}`);
     
-    // 把单通道灰度图转换成4通道RGBA数据
-    const rgbaData = new Uint8ClampedArray(info.width * info.height * 4);
-    for (let i = 0, j = 0; i < greyData.length; i++, j += 4) {
-      rgbaData[j] = greyData[i];      // R
-      rgbaData[j + 1] = greyData[i];  // G
-      rgbaData[j + 2] = greyData[i];  // B
-      rgbaData[j + 3] = 255;          // A (不透明)
-    }
-    
     // ========== 步骤3: 使用setImmediate异步判定是否存在二维码 ==========
     await new Promise((resolve) => setImmediate(() => {
       try {
-        const code = jsQR(rgbaData, info.width, info.height, { inversionAttempts: 'dontInvert' });
+        const code = jsQR(data, info.width, info.height, { inversionAttempts: 'dontInvert' });
         
         if (!code) {
           serverLog('[二维码] 未识别到二维码');
