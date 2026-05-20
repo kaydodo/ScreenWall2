@@ -179,7 +179,6 @@ var ws = null;
 var deviceId = null;  // 电脑客户端的ID（用于业务）
 var previewDeviceId = 'MUMU-service';  // 固定订阅MUMU的画面
 var deviceName = null;
-var supportsKeyClient = false;
 var devices = {};
 var frameHealCount = 0;
 var FRAME_HEAL_THRESHOLD = 2;
@@ -485,7 +484,15 @@ function getClickPos(e) {
 function sendMouse(type, x, y, extra) {
   if (!previewDeviceId || !isOnline) return;
   if (ws && ws.readyState === WebSocket.OPEN) {
-    var payload = { type: type, deviceId: previewDeviceId, x: x, y: y, previewWidth: screenWidth, previewHeight: screenHeight };
+    var payload = { 
+      type: type, 
+      deviceId: previewDeviceId, 
+      businessId: deviceId,  // 业务ID
+      x: x, 
+      y: y, 
+      previewWidth: screenWidth, 
+      previewHeight: screenHeight 
+    };
     if (extra) Object.assign(payload, extra);
     ws.send(JSON.stringify(payload));
   }

@@ -7,11 +7,14 @@ static BOOL g_bCameraSelected = FALSE;
 static DWORD g_LastClickTime = 0;
 static HWND g_LastCameraHWND = NULL;
 static volatile LONG g_CameraCompleted = 0;
+static HANDLE g_hCameraClickedEvent = NULL;  // 点击完成通知事件
+static DWORD g_ClickTimestamp = 0;  // 点击完成时的时间戳
 
 #define CAMERA_DLG_WIDTH 336
 #define CAMERA_DLG_HEIGHT 316
 #define CHECK_INTERVAL 500
 #define PIPE_NAME "\\\\.\\pipe\\MuMuCameraHook"
+#define NOTIFY_PIPE_NAME "\\\\.\\pipe\\MuMuCameraNotify"  // 主动通知管道
 
 BOOL CALLBACK EnumWindowsProc(HWND hwnd, LPARAM lParam) {
     char className[256] = {0};
@@ -41,7 +44,13 @@ BOOL CALLBACK EnumWindowsProc(HWND hwnd, LPARAM lParam) {
                     g_bCameraSelected = TRUE;
                     g_LastClickTime = GetTickCount();
                     g_LastCameraHWND = hwnd;
+                    g_ClickTimestamp = (DWORD)GetTickCount64();
                     InterlockedExchange(&g_CameraCompleted, 1);
+                    
+                    // 触发事件通知
+                    if (g_hCameraClickedEvent) {
+                        SetEvent(g_hCameraClickedEvent);
+                    }
                 }
             }
         }
@@ -54,6 +63,42 @@ DWORD WINAPI CheckCameraDialogThread(LPVOID lpParam) {
     while (TRUE) {
         EnumWindows(EnumWindowsProc, 0);
         Sleep(CHECK_INTERVAL);
+    }
+    return 0;
+}
+
+DWORD WINAPI NotifyPipeServerThread(LPVOID lpParam) {
+    HANDLE hPipe = INVALID_HANDLE_VALUE;
+    char buffer[256] = {0};
+    DWORD bytesWritten = 0;
+
+    while (TRUE) {
+        hPipe = CreateNamedPipeA(NOTIFY_PIPE_NAME,
+            PIPE_ACCESS_OUTBOUND,
+            PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT,
+            1, 256, 256, 0, NULL);
+
+        if (hPipe == INVALID_HANDLE_VALUE) {
+            Sleep(1000);
+            continue;
+        }
+
+        if (!ConnectNamedPipe(hPipe, NULL) && GetLastError() != ERROR_PIPE_CONNECTED) {
+            CloseHandle(hPipe);
+            Sleep(1000);
+            continue;
+        }
+
+        // 等待点击事件
+        if (WaitForSingleObject(g_hCameraClickedEvent, INFINITE) == WAIT_OBJECT_0) {
+            char notifyMsg[256] = {0};
+            sprintf(notifyMsg, "CLICKED:%lu", g_ClickTimestamp);
+            WriteFile(hPipe, notifyMsg, (DWORD)strlen(notifyMsg), &bytesWritten, NULL);
+            ResetEvent(g_hCameraClickedEvent);
+        }
+
+        DisconnectNamedPipe(hPipe);
+        CloseHandle(hPipe);
     }
     return 0;
 }
@@ -113,8 +158,16 @@ extern "C" __declspec(dllexport) void ResetCameraCompleted() {
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID reserved) {
     if (reason == DLL_PROCESS_ATTACH) {
         DisableThreadLibraryCalls(hModule);
+        // 创建事件对象
+        g_hCameraClickedEvent = CreateEventA(NULL, TRUE, FALSE, "MuMuCameraClickedEvent");
         CreateThread(NULL, 0, CheckCameraDialogThread, NULL, 0, NULL);
         CreateThread(NULL, 0, PipeServerThread, NULL, 0, NULL);
+        CreateThread(NULL, 0, NotifyPipeServerThread, NULL, 0, NULL);
+    } else if (reason == DLL_PROCESS_DETACH) {
+        if (g_hCameraClickedEvent) {
+            CloseHandle(g_hCameraClickedEvent);
+            g_hCameraClickedEvent = NULL;
+        }
     }
     return TRUE;
 }

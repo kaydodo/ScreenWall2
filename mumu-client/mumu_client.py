@@ -198,7 +198,17 @@ class MumuClient:
                     elif msg_type == "mouseClick":
                         x = data.get("x", 0)
                         y = data.get("y", 0)
+                        device_id = data.get("deviceId", "")
+                        device_name = data.get("deviceName", "")
+                        business_id = data.get("businessId", "")
+                        business_name = data.get("businessName", "")
                         if x and y:
+                            if device_name and business_name:
+                                print(f"点击坐标: ({x}, {y}) - 设备: {device_name}(业务: {business_name})")
+                            elif device_id and business_id:
+                                print(f"点击坐标: ({x}, {y}) - 设备ID: {device_id}(业务ID: {business_id})")
+                            else:
+                                print(f"点击坐标: ({x}, {y})")
                             await self._adb_click(x, y)
 
                     elif msg_type == "mouseSwipe":
@@ -463,6 +473,91 @@ class MumuClient:
         
         return self._reset_camera_status_via_pipe()
 
+    def _listen_camera_notify_thread(self, notify_queue):
+        import ctypes
+        import time
+        while self.running:
+            try:
+                pipe_name = r"\\.\pipe\MuMuCameraNotify"
+                handle = ctypes.windll.kernel32.CreateFileW(
+                    pipe_name,
+                    ctypes.c_uint32(0x80000000),  # GENERIC_READ
+                    0,
+                    None,
+                    ctypes.c_uint32(3),  # OPEN_EXISTING
+                    0,
+                    None
+                )
+                
+                if handle == ctypes.c_void_p(-1).value:
+                    time.sleep(0.5)
+                    continue
+                
+                try:
+                    while self.running:
+                        read_buffer = ctypes.create_string_buffer(256)
+                        bytes_read = ctypes.c_uint32(0)
+                        success = ctypes.windll.kernel32.ReadFile(
+                            handle,
+                            read_buffer,
+                            255,
+                            ctypes.byref(bytes_read),
+                            None
+                        )
+                        
+                        if not success or bytes_read.value == 0:
+                            break
+                        
+                        response = read_buffer.value.decode('ascii', errors='ignore')
+                        if response.startswith("CLICKED:"):
+                            try:
+                                timestamp_ms = int(response[8:])
+                                # 将本地时间戳转换为服务端标准时间戳（秒）
+                                # 这里我们使用本地当前时间作为参考，实际业务中可以使用NTP同步
+                                local_timestamp = time.time()
+                                notify_queue.put_nowait(local_timestamp)
+                                print(f"[MUMU] 收到相机点击通知: {local_timestamp}")
+                            except:
+                                pass
+                finally:
+                    ctypes.windll.kernel32.CloseHandle(handle)
+            except Exception as e:
+                time.sleep(0.5)
+
+    async def _camera_notify_worker(self, ws):
+        import asyncio
+        import threading
+        import queue
+        
+        notify_queue = queue.Queue()
+        
+        # 启动监听线程
+        listen_thread = threading.Thread(
+            target=self._listen_camera_notify_thread,
+            args=(notify_queue,),
+            daemon=True
+        )
+        listen_thread.start()
+        
+        while self.running:
+            try:
+                try:
+                    timestamp = notify_queue.get_nowait()
+                except queue.Empty:
+                    await asyncio.sleep(0.05)
+                    continue
+                
+                # 向服务端发送相机点击通知
+                await ws.send(json.dumps({
+                    "type": "cameraClicked",
+                    "timestamp": timestamp
+                }))
+                print(f"[MUMU] 已上报相机点击: {timestamp}")
+            except websockets.exceptions.ConnectionClosed:
+                break
+            except Exception as e:
+                await asyncio.sleep(0.05)
+
     async def run(self):
         self.running = True
 
@@ -514,6 +609,7 @@ class MumuClient:
 
                 listen_task = asyncio.create_task(self._listen(ws, cfg))
                 screenshot_task = asyncio.create_task(self._screenshot_worker())
+                notify_task = asyncio.create_task(self._camera_notify_worker(ws))
 
                 while self.running:
                     try:
@@ -535,12 +631,17 @@ class MumuClient:
 
                 listen_task.cancel()
                 screenshot_task.cancel()
+                notify_task.cancel()
                 try:
                     await listen_task
                 except asyncio.CancelledError:
                     pass
                 try:
                     await screenshot_task
+                except asyncio.CancelledError:
+                    pass
+                try:
+                    await notify_task
                 except asyncio.CancelledError:
                     pass
 
