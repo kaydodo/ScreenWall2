@@ -193,31 +193,43 @@ function clearSelfServiceState() {
 
 async function processQrcodeImage(imageBuffer, businessId, currentDeviceId) {
   try {
+    // ========== 步骤1: 检查图片有效性 ==========
     if (!imageBuffer || imageBuffer.length < 1000) {
       serverLog(`[二维码] 图片数据无效, 长度=${imageBuffer ? imageBuffer.length : 0}`);
-      if (_currentMUMUClient && _currentMUMUClient.readyState === 1) {
-        _currentMUMUClient.send(JSON.stringify({ 
-          type: 'qrcodeResult', 
-          success: false, 
-          error: 'invalid_image',
-          businessId: businessId,
-          status: 'failed'
-        }));
-      }
-      clearSelfServiceState();
+      sendQrcodeResult(false, 'invalid_image', businessId);
       return;
     }
     
+    // ========== 步骤2: 获取灰度图数据用于jsQR识别 ==========
     const { data, info } = await sharp(imageBuffer)
       .greyscale()
       .raw()
       .toBuffer({ resolveWithObject: true });
     
-    serverLog(`[二维码] 图片解码成功, 尺寸=${info.width}x${info.height}, 灰度数据长度=${data.length}`);
-
+    serverLog(`[二维码] 图片解码成功, 尺寸=${info.width}x${info.height}`);
+    
+    // ========== 步骤3: 判定是否存在二维码 ==========
     const code = jsQR(data, info.width, info.height, { inversionAttempts: 'dontInvert' });
     
-    // 获取设备名称（用于日志，不返回给客户端）
+    if (!code) {
+      serverLog('[二维码] 未识别到二维码');
+      sendQrcodeResult(false, 'no_qrcode_found', businessId);
+      return;
+    }
+    
+    serverLog(`[二维码] 识别到二维码, 数据长度=${code.data.length}`);
+    
+    // ========== 步骤4: 排除URL类二维码 ==========
+    const isAdUrl = code.data.includes('http') && (
+      code.data.includes('ad') || code.data.includes('ads') || code.data.includes('promotion'));
+    
+    if (isAdUrl) {
+      serverLog('[二维码] 识别到广告链接，跳过保存');
+      sendQrcodeResult(false, 'ad_url_detected', businessId);
+      return;
+    }
+    
+    // ========== 步骤5: 获取设备名称用于日志 ==========
     const businessDev = devices.get(businessId);
     const businessDeviceName = businessDev ? businessDev.deviceName : businessId;
     
@@ -226,67 +238,40 @@ async function processQrcodeImage(imageBuffer, businessId, currentDeviceId) {
     
     const isSameDevice = businessId === currentDeviceId;
     
-    if (code) {
-      const isAdUrl = code.data.includes('http') && (
-        code.data.includes('ad') || code.data.includes('ads') || code.data.includes('promotion'));
-      if (isAdUrl) {
-        serverLog('[二维码] 识别到广告链接，跳过保存');
-        if (_currentMUMUClient && _currentMUMUClient.readyState === 1) {
-          _currentMUMUClient.send(JSON.stringify({ 
-            type: 'qrcodeResult', 
-            success: false, 
-            error: 'ad_url_detected',
-            businessId: businessId,
-            status: 'failed'
-          }));
-        }
-        clearSelfServiceState();
-        return;
-      }
-
-      await saveProcessedQrcode(imageBuffer, code);
-      
-      // 打印详细日志（服务端显示）
-      serverLog(isSameDevice 
-        ? `[自助登号] ${currentDeviceName} 使用了二维码扫码` 
-        : `[自助登号] ${currentDeviceName} 帮助 ${businessDeviceName} 使用了二维码扫码`);
-      
-      // 返回简单状态给客户端
-      if (_currentMUMUClient && _currentMUMUClient.readyState === 1) {
-        _currentMUMUClient.send(JSON.stringify({ 
-          type: 'qrcodeResult', 
-          success: true, 
-          qrcodeData: code.data,
-          businessId: businessId,
-          status: 'success'
-        }));
-      }
-    } else {
-      serverLog('[二维码] 未识别到二维码');
-      if (_currentMUMUClient && _currentMUMUClient.readyState === 1) {
-        _currentMUMUClient.send(JSON.stringify({ 
-          type: 'qrcodeResult', 
-          success: false, 
-          error: 'no_qrcode_found',
-          businessId: businessId,
-          status: 'failed'
-        }));
-      }
-    }
+    // ========== 步骤6: 裁剪保存二维码 ==========
+    await saveProcessedQrcode(imageBuffer, code);
+    
+    // ========== 步骤7: 返回成功结果 ==========
+    serverLog(isSameDevice 
+      ? `[自助登号] ${currentDeviceName} 使用了二维码扫码` 
+      : `[自助登号] ${currentDeviceName} 帮助 ${businessDeviceName} 使用了二维码扫码`);
+    
+    sendQrcodeResult(true, 'success', businessId, code.data);
     clearSelfServiceState();
+    
   } catch (err) {
     serverError('[二维码] 处理失败:', err.message);
-    
-    if (_currentMUMUClient && _currentMUMUClient.readyState === 1) {
-      _currentMUMUClient.send(JSON.stringify({ 
-        type: 'qrcodeResult', 
-        success: false, 
-        error: err.message,
-        businessId: businessId,
-        status: 'failed'
-      }));
-    }
+    sendQrcodeResult(false, err.message, businessId);
     clearSelfServiceState();
+  }
+}
+
+// 辅助函数：发送二维码结果
+function sendQrcodeResult(success, status, businessId, qrcodeData = null) {
+  if (_currentMUMUClient && _currentMUMUClient.readyState === 1) {
+    const msg = { 
+      type: 'qrcodeResult', 
+      success, 
+      status,
+      businessId 
+    };
+    if (qrcodeData) {
+      msg.qrcodeData = qrcodeData;
+    }
+    if (!success && status !== 'success') {
+      msg.error = status;
+    }
+    _currentMUMUClient.send(JSON.stringify(msg));
   }
 }
 
