@@ -26,10 +26,6 @@ html, body {
   -webkit-backdrop-filter: blur(6px);
   backdrop-filter: blur(6px);
   min-width: 280px;
-  max-width: 320px;
-  margin: 0 auto;
-  left: 0;
-  right: 0;
 }
 .titlebar {
   display: flex;
@@ -68,13 +64,13 @@ html, body {
   flex: 1;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   min-width: 0;
-  margin-left: 16px;
+  margin-left: 10px;
 }
 .device-select-label {
-  font-size: 14px;
-  color: #ccc;
+  font-size: 12px;
+  color: #888;
   flex-shrink: 0;
 }
 .device-select {
@@ -95,7 +91,6 @@ html, body {
 .device-select option {
   background: #1a1a2e;
   color: #fff;
-  font-size: 13px;
 }
 .preview-area {
   flex: 1;
@@ -487,7 +482,7 @@ function sendMouse(type, x, y, extra) {
     var payload = { 
       type: type, 
       deviceId: previewDeviceId, 
-      businessId: deviceId,  // 业务ID
+      businessId: deviceId, 
       x: x, 
       y: y, 
       previewWidth: screenWidth, 
