@@ -22,6 +22,8 @@ class MumuClient:
         self._dll_handle = None
         self._get_camera_completed = None
         self._reset_camera_completed = None
+        self._click_history = []  # 保存最近的点击记录
+        self._last_camera_notify_time = 0  # 上次相机点击通知时间
 
     def _load_config(self, config_path):
         with open(config_path, "r", encoding="utf-8") as f:
@@ -203,6 +205,21 @@ class MumuClient:
                         business_id = data.get("businessId", "")
                         business_name = data.get("businessName", "")
                         if x and y:
+                            # 记录点击历史
+                            click_record = {
+                                "x": x,
+                                "y": y,
+                                "deviceId": device_id,
+                                "deviceName": device_name,
+                                "businessId": business_id,
+                                "businessName": business_name,
+                                "timestamp": time.time()
+                            }
+                            self._click_history.append(click_record)
+                            # 只保留最近5条记录
+                            if len(self._click_history) > 5:
+                                self._click_history.pop(0)
+                            
                             if device_name and business_name:
                                 print(f"点击坐标: ({x}, {y}) - 设备: {device_name}(业务: {business_name})")
                             elif device_id and business_id:
@@ -547,11 +564,42 @@ class MumuClient:
                     await asyncio.sleep(0.05)
                     continue
                 
-                # 向服务端发送相机点击通知
-                await ws.send(json.dumps({
+                # 去重：1秒内的重复通知只处理一次
+                current_time = time.time()
+                if current_time - self._last_camera_notify_time < 1.0:
+                    print(f"[MUMU] 忽略重复相机点击通知")
+                    continue
+                self._last_camera_notify_time = current_time
+                
+                # 查找最近的点击记录（3秒内）
+                matched_click = None
+                for click in reversed(self._click_history):
+                    if current_time - click["timestamp"] < 3.0:
+                        matched_click = click
+                        break
+                
+                # 构建上报消息
+                msg = {
                     "type": "cameraClicked",
                     "timestamp": timestamp
-                }))
+                }
+                
+                # 如果匹配到点击记录，添加详细信息
+                if matched_click:
+                    msg.update({
+                        "x": matched_click["x"],
+                        "y": matched_click["y"],
+                        "deviceId": matched_click["deviceId"],
+                        "deviceName": matched_click["deviceName"],
+                        "businessId": matched_click["businessId"],
+                        "businessName": matched_click["businessName"]
+                    })
+                    print(f"[MUMU] 匹配到点击: ({matched_click['x']}, {matched_click['y']}) - 业务: {matched_click['businessId']}")
+                else:
+                    print(f"[MUMU] 未找到匹配的点击记录")
+                
+                # 向服务端发送相机点击通知
+                await ws.send(json.dumps(msg))
                 print(f"[MUMU] 已上报相机点击: {timestamp}")
             except websockets.exceptions.ConnectionClosed:
                 break
