@@ -2010,23 +2010,6 @@ wssClient.on('connection', (ws, req) => {
       
       const { purpose, timestamp, deviceId, image, businessId } = msg;
       
-      // 检查是否为MU客户端发送的截图（不区分大小写）
-      const isMUMUClient = deviceId.toLowerCase() === 'mumu-service';
-      
-      // MU客户端发送的截图，处理二维码（返回给MU客户端）
-      if (isMUMUClient) {
-        (async () => {
-          try {
-            const base64Data = image.replace(/^data:image\/\w+;base64,/, '');
-            const buffer = Buffer.from(base64Data, 'base64');
-            await processQrcodeImage(buffer, businessId);
-          } catch (e) {
-            serverError('[二维码] 处理 mumu-service 截图失败:', e.message);
-          }
-        })();
-        return;
-      }
-      
       if (purpose === 'selfService') {
         (async () => {
           try {
