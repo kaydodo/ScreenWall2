@@ -226,19 +226,15 @@ class MumuClient:
 
                     elif msg_type == "qrcodeResult":
                         success = data.get("success", False)
-                        message = data.get("message")
+                        status = data.get("status")
                         business_id = data.get("businessId")
-                        if message:
-                            # 优先显示服务端返回的完整消息
-                            print(f"[MUMU] {message}")
+                        if status == "success":
+                            qrcode_data = data.get("qrcodeData", "")
+                            print(f"[MUMU] 二维码生成成功")
+                        elif status == "timeout":
+                            print(f"[MUMU] 二维码生成超时")
                         else:
-                            # 旧逻辑兼容
-                            if success:
-                                qrcode_data = data.get("qrcodeData", "")
-                                print(f"[MUMU] 二维码已生成: {qrcode_data}")
-                            else:
-                                error = data.get("error", "unknown_error")
-                                print(f"[MUMU] 扫码失败: {error}")
+                            print(f"[MUMU] 二维码生成失败")
 
                     elif msg_type == "keyClick":
                         key = data.get("key", "")
