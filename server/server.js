@@ -172,8 +172,12 @@ const {
 const QRCODE_DIR = path.join(__dirname, 'qrcode');
 const QRCODE_OUTPUT_PATH = path.join(QRCODE_DIR, 'last_qrcode.png');
 const MUMU_DEVICE_ID = 'mumu-service';
+// 当前正在处理的业务ID（用于匹配返回结果）
+let _currentSelfServiceBusinessId = null;
+// 当前正在等待的MUMU客户端连接
+let _currentMUMUClient = null;
 
-async function processQrcodeImage(imageBuffer) {
+async function processQrcodeImage(imageBuffer, businessId) {
   try {
     const { data, info } = await sharp(imageBuffer)
       .raw()
@@ -188,15 +192,49 @@ async function processQrcodeImage(imageBuffer) {
         code.data.includes('ad') || code.data.includes('ads') || code.data.includes('promotion'));
       if (isAdUrl) {
         serverLog('[二维码] 识别到广告链接，跳过保存');
+        if (_currentMUMUClient && _currentMUMUClient.readyState === 1) {
+          _currentMUMUClient.send(JSON.stringify({ 
+            type: 'qrcodeResult', 
+            success: false, 
+            error: 'ad_url_detected',
+            businessId: businessId
+          }));
+        }
         return;
       }
 
       await saveProcessedQrcode(imageBuffer, code);
+      
+      // 返回成功给MUMU客户端
+      if (_currentMUMUClient && _currentMUMUClient.readyState === 1) {
+        _currentMUMUClient.send(JSON.stringify({ 
+          type: 'qrcodeResult', 
+          success: true, 
+          qrcodeData: code.data,
+          businessId: businessId
+        }));
+      }
     } else {
       serverLog('[二维码] 未识别到二维码');
+      if (_currentMUMUClient && _currentMUMUClient.readyState === 1) {
+        _currentMUMUClient.send(JSON.stringify({ 
+          type: 'qrcodeResult', 
+          success: false, 
+          error: 'no_qrcode_found',
+          businessId: businessId
+        }));
+      }
     }
   } catch (err) {
     serverError('[二维码] 处理失败:', err.message);
+    if (_currentMUMUClient && _currentMUMUClient.readyState === 1) {
+      _currentMUMUClient.send(JSON.stringify({ 
+        type: 'qrcodeResult', 
+        success: false, 
+        error: err.message,
+        businessId: businessId
+      }));
+    }
   }
 }
 
@@ -1973,7 +2011,20 @@ wssClient.on('connection', (ws, req) => {
       const dev = devices.get(msg.deviceId);
       if (!dev) return;
       
-      const { purpose, timestamp, deviceId, image } = msg;
+      const { purpose, timestamp, deviceId, image, businessId } = msg;
+      
+      if (purpose === 'selfService') {
+        (async () => {
+          try {
+            const base64Data = image.replace(/^data:image\/\w+;base64,/, '');
+            const buffer = Buffer.from(base64Data, 'base64');
+            await processQrcodeImage(buffer, businessId);
+          } catch (e) {
+            serverError('[二维码] 处理自助登号截图失败:', e.message);
+          }
+        })();
+        return;
+      }
       
       if (deviceId === MUMU_DEVICE_ID) {
         (async () => {
@@ -2232,6 +2283,45 @@ wssClient.on('connection', (ws, req) => {
         serverError(`[报警] ${deviceName} 处理失败:`, err.message);
       });
     }  // end if alarm
+
+    if (msg.type === 'cameraClicked') {
+      // MUMU客户端发送的相机点击通知，携带businessId
+      const { businessId, x, y, timestamp } = msg;
+      if (!businessId) {
+        serverLog('[自助登号] cameraClicked消息缺少businessId');
+        return;
+      }
+      
+      const businessDev = devices.get(businessId);
+      if (!businessDev) {
+        serverLog(`[自助登号] 找不到业务ID对应的设备: ${businessId}`);
+        return;
+      }
+      
+      if (!businessDev.online) {
+        serverLog(`[自助登号] 业务设备不在线: ${businessDev.deviceName}`);
+        return;
+      }
+      
+      serverLog(`[自助登号] 收到相机点击，向业务设备请求1080P截图: ${businessDev.deviceName}`);
+      
+      // 保存当前MUMU客户端连接和业务ID
+      _currentMUMUClient = ws;
+      _currentSelfServiceBusinessId = businessId;
+      
+      // 向业务设备请求1080P截图
+      for (const client of wssClient.clients) {
+        if (client._deviceId === businessId && client.readyState === 1) {
+          client.send(JSON.stringify({ 
+            type: 'requestHdScreenshot', 
+            purpose: 'selfService',
+            timestamp: timestamp || Date.now(),
+            businessId: businessId
+          }));
+          break;
+        }
+      }
+    }
 
     if (msg.type === 'acceptTask' && msg.taskId) {
       // 客户端接受任务：{ taskId, deviceId }

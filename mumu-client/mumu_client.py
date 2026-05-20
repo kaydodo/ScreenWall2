@@ -185,7 +185,7 @@ class MumuClient:
         frame = bytes(header) + device_id_bytes + img_bytes
         await ws.send(frame)
 
-    async def _send_hd_screenshot(self, ws, purpose, timestamp):
+    async def _send_hd_screenshot(self, ws, purpose, timestamp, business_id=None):
         img_bytes = await self._adb_screenshot()
         if not img_bytes:
             return
@@ -193,7 +193,7 @@ class MumuClient:
         device_id = self.config["device"]["deviceId"]
         screen_width = getattr(self, '_real_width', 1080)
         screen_height = getattr(self, '_real_height', 1920)
-        await ws.send(json.dumps({
+        payload = {
             "type": "hdScreenshot",
             "deviceId": device_id,
             "image": "data:image/webp;base64," + base64.b64encode(img_bytes).decode("ascii"),
@@ -201,7 +201,10 @@ class MumuClient:
             "timestamp": timestamp,
             "screenWidth": screen_width,
             "screenHeight": screen_height
-        }))
+        }
+        if business_id:
+            payload["businessId"] = business_id
+        await ws.send(json.dumps(payload))
         print(f"[MUMU] 已发送 HD 截图, purpose={purpose}")
 
     async def _listen(self, ws, cfg):
@@ -214,8 +217,19 @@ class MumuClient:
                     if msg_type == "requestHdScreenshot":
                         purpose = data.get("purpose", "collection")
                         timestamp = data.get("timestamp")
+                        business_id = data.get("businessId")
                         if timestamp:
-                            await self._send_hd_screenshot(ws, purpose, timestamp)
+                            await self._send_hd_screenshot(ws, purpose, timestamp, business_id)
+
+                    elif msg_type == "qrcodeResult":
+                        success = data.get("success", False)
+                        business_id = data.get("businessId")
+                        if success:
+                            qrcode_data = data.get("qrcodeData", "")
+                            print(f"[MUMU] 二维码已生成: {qrcode_data}")
+                        else:
+                            error = data.get("error", "unknown_error")
+                            print(f"[MUMU] 扫码失败: {error}")
 
                     elif msg_type == "keyClick":
                         key = data.get("key", "")
