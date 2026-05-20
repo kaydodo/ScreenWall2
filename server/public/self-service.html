@@ -60,6 +60,36 @@ html, body {
   height: 18px;
   fill: #aaa;
 }
+.device-select-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.device-select-label {
+  font-size: 11px;
+  color: #888;
+  margin-bottom: 2px;
+  flex-shrink: 0;
+}
+.device-select {
+  width: 100%;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 6px;
+  color: #fff;
+  font-size: 13px;
+  padding: 6px 8px;
+  outline: none;
+  cursor: pointer;
+}
+.device-select:hover {
+  background: rgba(255,255,255,0.12);
+}
+.device-select option {
+  background: #1a1a2e;
+  color: #fff;
+}
 .preview-area {
   flex: 1;
   position: relative;
@@ -122,6 +152,11 @@ html, body {
     <button class="nav-btn" id="recentsBtn" title="任务">
       <svg viewBox="0 0 24 24"><path d="M4 8h4V4H4v4zm6 12h4v-4h-4v4zm-6 0h4v-4H4v4zm0-6h4v-4H4v4zm6 0h4v-4h-4v4zm6-10v4h4V4h-4zm-6 4h4V4h-4v4zm6 6h4v-4h-4v4zm0 6h4v-4h-4v4z"/></svg>
     </button>
+    <div class="device-select-container">
+      <div class="device-select-label">二维码来源</div>
+      <select class="device-select" id="deviceSelect">
+      </select>
+    </div>
   </div>
   
   <div class="preview-area" id="previewArea">
@@ -146,6 +181,113 @@ var screenWidth = 1920;
 var screenHeight = 1080;
 var PREVIEW_ASPECT = 9 / 16;
 var _previewLayoutTimer = null;
+
+function naturalCompare(a, b) {
+  const strA = String(a);
+  const strB = String(b);
+
+  const replaceCircledNums = (s) => {
+    const map = {
+      '①':1,'②':2,'③':3,'④':4,'⑤':5,'⑥':6,'⑦':7,'⑧':8,'⑨':9,
+      '⑩':10,'⑪':11,'⑫':12,'⑬':13,'⑭':14,'⑮':15,'⑯':16,'⑰':17,'⑱':18,'⑲':19,'⑳':20
+    };
+    return s.replace(/[①-⑳⑩-⑳]/g, c => map[c] !== undefined ? String(map[c]) : c)
+            .replace(/[①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳]/g, c => map[c] !== undefined ? String(map[c]) : c);
+  };
+
+  const split = (s) => {
+    const normalized = replaceCircledNums(s);
+    const m = normalized.match(/^([\D]*?)(\d+)(.*)$/);
+    if (m) {
+      return { prefix: m[1], num: parseInt(m[2], 10), suffix: m[3] };
+    }
+    return { prefix: normalized, num: null, suffix: '' };
+  };
+
+  const pA = split(strA);
+  const pB = split(strB);
+
+  const prefixCmp = pA.prefix.localeCompare(pB.prefix, 'zh-CN');
+  if (prefixCmp !== 0) return prefixCmp;
+
+  if (pA.num !== null && pB.num !== null) {
+    if (pA.num !== pB.num) return pA.num - pB.num;
+    return pA.suffix.localeCompare(pB.suffix, 'zh-CN');
+  }
+  if (pA.num !== null) return -1;
+  if (pB.num !== null) return 1;
+
+  return strA.localeCompare(strB, 'zh-CN');
+}
+
+function updateDeviceSelect() {
+  const select = document.getElementById('deviceSelect');
+  if (!select) return;
+
+  const allDevices = Object.values(devices);
+  const onlineDevices = allDevices.filter(d => d.online);
+
+  const sortedDevices = [...onlineDevices].sort((a, b) => {
+    const aIsMe = a.deviceId === deviceId;
+    const bIsMe = b.deviceId === deviceId;
+    if (aIsMe && !bIsMe) return -1;
+    if (!aIsMe && bIsMe) return 1;
+    return naturalCompare(a.deviceName, b.deviceName);
+  });
+
+  const currentValue = select.value || deviceId;
+
+  select.innerHTML = '';
+  sortedDevices.forEach(d => {
+    const opt = document.createElement('option');
+    opt.value = d.deviceId;
+    if (d.deviceId === deviceId) {
+      opt.textContent = (d.deviceName || d.deviceId) + ' (本机)';
+    } else {
+      opt.textContent = d.deviceName || d.deviceId;
+    }
+    select.appendChild(opt);
+  });
+
+  if (currentValue && sortedDevices.some(d => d.deviceId === currentValue)) {
+    select.value = currentValue;
+  } else if (deviceId && sortedDevices.some(d => d.deviceId === deviceId)) {
+    select.value = deviceId;
+  }
+}
+
+function onDeviceSelectChange() {
+  const select = document.getElementById('deviceSelect');
+  if (!select) return;
+
+  const newDeviceId = select.value;
+  if (!newDeviceId || newDeviceId === previewDeviceId) return;
+
+  const oldPreviewDeviceId = previewDeviceId;
+  previewDeviceId = newDeviceId;
+
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    if (oldPreviewDeviceId) {
+      ws.send(JSON.stringify({ type: 'unsubscribePreview', deviceId: oldPreviewDeviceId }));
+    }
+    ws.send(JSON.stringify({ type: 'subscribePreview', deviceId: previewDeviceId }));
+    ws.send(JSON.stringify({ type: 'setLevel', deviceId: previewDeviceId, level: 2 }));
+  }
+
+  const dev = devices[previewDeviceId];
+  if (dev) {
+    isOnline = dev.online !== false;
+    screenWidth = dev.screenWidth || screenWidth;
+    screenHeight = dev.screenHeight || screenHeight;
+    updateOnlineStatus();
+
+    if (dev.screenshot) {
+      document.getElementById('screenImg').src = dev.screenshot;
+    }
+  }
+
+  ws.send(JSON.stringify({ type: 'selfServiceInit', deviceId: previewDeviceId, deviceName: deviceName }));
+}
 
 function updatePreviewLayout() {
   var area = document.getElementById('previewArea');
@@ -268,6 +410,7 @@ function handleJSONMessage(msg) {
         devices[d.deviceId] = d;
       });
     }
+    updateDeviceSelect();
     if (previewDeviceId && devices[previewDeviceId]) {
       var dev = devices[previewDeviceId];
       isOnline = dev.online !== false;
@@ -285,6 +428,7 @@ function handleJSONMessage(msg) {
     msg.devices.forEach(function(d) {
       devices[d.deviceId] = d;
     });
+    updateDeviceSelect();
     if (previewDeviceId && devices[previewDeviceId]) {
       isOnline = devices[previewDeviceId].online !== false;
       updateOnlineStatus();
@@ -427,6 +571,7 @@ function setupMouseEvents() {
 function init() {
   var params = getQueryParams();
   deviceId = params.deviceId || 'MUMU-service';
+  previewDeviceId = deviceId;
   deviceName = params.deviceName || '';
   
   document.getElementById('backBtn').onclick = function() {
@@ -439,6 +584,10 @@ function init() {
   
   document.getElementById('recentsBtn').onclick = function() {
     sendKey('Recent');
+  };
+  
+  document.getElementById('deviceSelect').onchange = function() {
+    onDeviceSelectChange();
   };
   
   connectWS();
