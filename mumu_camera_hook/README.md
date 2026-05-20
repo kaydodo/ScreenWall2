@@ -36,20 +36,27 @@ ERROR:INJECT_FAILED
 - 只要有成功或已注入，就返回成功，忽略非目标进程失败
 
 **DLL新增功能**：
-- 命名管道通信：`\\\\.\\pipe\\MuMuCameraHook`
-- 管道命令：
+- 命名管道通信：`\\\\.\\pipe\\MuMuCameraHook`（查询/重置状态）
+- 命名管道通信：`\\\\.\\pipe\\MuMuCameraNotify`（主动推送通知）
+- 管道命令（MuMuCameraHook）：
   - `GET_STATUS` → 返回 `STATUS:0` 或 `STATUS:1`
   - `RESET_STATUS` → 返回 `RESET_OK`
+- 管道通知（MuMuCameraNotify）：
+  - 点击完成后主动发送 `CLICKED:时间戳`（时间戳为GetTickCount64()毫秒值）
 - 导出函数：
   - `int GetCameraCompleted()`: 获取摄像头选择状态（0=未完成，1=已完成）
   - `void ResetCameraCompleted()`: 重置摄像头选择状态
 
 **自助登号流程**：
 1. MUMU客户端启动，注入camera_hook49.dll
-2. 客户端加载DLL并连接命名管道
+2. 客户端启动两个线程：
+   - 查询线程：连接`\\\\.\\pipe\\MuMuCameraHook`，用于查询/重置状态
+   - 监听线程：连接`\\\\.\\pipe\\MuMuCameraNotify`，用于接收主动推送
 3. 自助登号页面可通过服务端查询/重置摄像头状态：
    - `getCameraStatus` → 客户端返回 `cameraStatus`
    - `resetCameraStatus` → 客户端返回 `cameraStatusReset`
+4. 当检测到摄像头弹窗点击后，DLL主动通过`MuMuCameraNotify`推送通知
+5. 客户端收到通知后，向服务端发送`cameraClicked`消息，携带统一时间戳
 
 ---
 
@@ -146,8 +153,9 @@ return True
 - 每 500ms 调用 EnumWindows 枚举窗口
 - 检测 336x316 尺寸的 Qt5/Qt6 窗口
 - 使用 PostMessage 发送 WM_LBUTTONDOWN/UP 点击窗口中心
-- 提供命名管道通信接口
+- 提供命名管道通信接口（查询/重置 + 主动通知）
 - 提供导出函数供外部调用
+- 点击完成后通过事件和管道主动推送通知
 
 **导出函数**：
 ```cpp
@@ -159,11 +167,21 @@ extern "C" __declspec(dllexport) int GetCameraCompleted();
 extern "C" __declspec(dllexport) void ResetCameraCompleted();
 ```
 
-**命名管道通信**：
+**命名管道通信（查询/重置）**：
 - 管道名称：`\\\\.\\pipe\\MuMuCameraHook`
 - 命令格式：
   - 发送 `GET_STATUS` → 收到 `STATUS:0` 或 `STATUS:1`
   - 发送 `RESET_STATUS` → 收到 `RESET_OK`
+
+**命名管道通信（主动通知）**：
+- 管道名称：`\\\\.\\pipe\\MuMuCameraNotify`
+- 通知格式：
+  - 点击完成后主动发送 `CLICKED:时间戳`
+  - 时间戳为 `GetTickCount64()` 返回的毫秒值
+- 实现方式：事件对象 + 专用线程
+  - 创建命名事件 `MuMuCameraClickedEvent`
+  - `NotifyPipeServerThread` 线程等待事件触发
+  - 触发后通过管道发送通知消息
 
 ---
 
@@ -175,6 +193,9 @@ extern "C" __declspec(dllexport) void ResetCameraCompleted();
 | 点击方式 | PostMessage 发送 WM_LBUTTONDOWN/UP |
 | 目标窗口 | Qt5/Qt6 窗口，尺寸 336x316 |
 | 注入检测 | EnumProcessModules 枚举模块列表 |
+| 主动通知机制 | 事件对象（MuMuCameraClickedEvent）+ 专用线程（NotifyPipeServerThread） |
+| 状态查询管道 | \\\\.\\pipe\\MuMuCameraHook（双向通信） |
+| 主动通知管道 | \\\\.\\pipe\\MuMuCameraNotify（单向推送） |
 
 ---
 
@@ -182,6 +203,7 @@ extern "C" __declspec(dllexport) void ResetCameraCompleted();
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| v49 | 2026-05-20 | 新增主动推送通知机制，通过 \\\\.\\pipe\\MuMuCameraNotify 管道推送 CLICKED:时间戳；DLL增加事件对象和NotifyPipeServerThread线程；完善自助登号流程支持 |
 | v49 | 2026-05-19 | 注入器移除弹窗，修复进程查重逻辑，完善返回值判断；DLL恢复管道通信和导出函数功能，支持自助登号流程 |
 | v48 | 2026-05-17 | 极简版（去日志） |
 | v47 | 2026-05-17 | 首个稳定版（EnumWindows） |
