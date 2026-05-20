@@ -171,10 +171,7 @@ const {
 // ========== 二维码处理配置 ==========
 const QRCODE_DIR = path.join(__dirname, 'qrcode');
 const QRCODE_OUTPUT_PATH = path.join(QRCODE_DIR, 'last_qrcode.png');
-const MUMU_DEVICE_ID = 'mumu-service';
-// 当前正在处理的业务ID（用于匹配返回结果）
-let _currentSelfServiceBusinessId = null;
-// 当前正在等待的MUMU客户端连接
+// 当前正在等待的MUMU客户端连接（用于返回qrcodeResult）
 let _currentMUMUClient = null;
 
 async function processQrcodeImage(imageBuffer, businessId) {
@@ -2026,19 +2023,6 @@ wssClient.on('connection', (ws, req) => {
         return;
       }
       
-      if (deviceId === MUMU_DEVICE_ID) {
-        (async () => {
-          try {
-            const base64Data = image.replace(/^data:image\/\w+;base64,/, '');
-            const buffer = Buffer.from(base64Data, 'base64');
-            await processQrcodeImage(buffer);
-          } catch (e) {
-            serverError('[二维码] 处理 mumu-service 截图失败:', e.message);
-          }
-        })();
-        return;
-      }
-      
       if (purpose === 'collection') {
         // 收藏截图
         const fav = favorites.find(f => f.deviceId === deviceId);
@@ -2305,9 +2289,8 @@ wssClient.on('connection', (ws, req) => {
       
       serverLog(`[自助登号] 收到相机点击，向业务设备请求1080P截图: ${businessDev.deviceName}`);
       
-      // 保存当前MUMU客户端连接和业务ID
+      // 保存当前MUMU客户端连接
       _currentMUMUClient = ws;
-      _currentSelfServiceBusinessId = businessId;
       
       // 向业务设备请求1080P截图
       for (const client of wssClient.clients) {
