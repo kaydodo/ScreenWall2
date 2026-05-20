@@ -2207,6 +2207,7 @@ class ScreenWallClient:
                     elif msg_type == "requestHdScreenshot":
                         purpose = data.get("purpose", "collection")
                         timestamp = data.get("timestamp")
+                        business_id = data.get("businessId")
                         if timestamp:
                             capt = ScreenCapturer(quality=30, resize_w=1920, resize_h=1080, monitor_index=_current_monitor_index)
                             try:
@@ -2215,7 +2216,7 @@ class ScreenWallClient:
                                 capt.close()
                             if img_bytes:
                                 off_x, off_y, off_w, off_h = _get_current_monitor_offset()
-                                await ws.send(json.dumps({
+                                payload = {
                                     "type": "hdScreenshot",
                                     "deviceId": cfg["deviceId"],
                                     "image": "data:image/webp;base64," + base64.b64encode(img_bytes).decode("ascii"),
@@ -2223,7 +2224,10 @@ class ScreenWallClient:
                                     "timestamp": timestamp,
                                     "screenWidth": off_w,
                                     "screenHeight": off_h,
-                                }))
+                                }
+                                if business_id:
+                                    payload["businessId"] = business_id
+                                await ws.send(json.dumps(payload))
 
                     elif msg_type == "serverMigrate":
                         new_host = data.get("host", "")
