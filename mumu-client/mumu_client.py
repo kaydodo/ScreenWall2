@@ -593,13 +593,17 @@ class MumuClient:
                         "businessId": matched_click["businessId"],
                         "businessName": matched_click["businessName"]
                     })
-                    print(f"[MUMU] 匹配到点击: ({matched_click['x']}, {matched_click['y']}) - 业务: {matched_click['businessId']}")
+                    # 优先显示业务名称，没有名称则显示业务ID
+                    business_display = matched_click["businessName"] or matched_click["businessId"]
+                    if matched_click["businessName"] and matched_click["businessId"]:
+                        business_display = f"{matched_click['businessName']}({matched_click['businessId']})"
+                    print(f"[MUMU] 匹配到点击: ({matched_click['x']}, {matched_click['y']}) - 业务: {business_display}")
                 else:
                     print(f"[MUMU] 未找到匹配的点击记录")
                 
                 # 向服务端发送相机点击通知
                 await ws.send(json.dumps(msg))
-                print(f"[MUMU] 已上报相机点击")
+                print(f"[MUMU] 已上报 扫码服务到服务端")
             except websockets.exceptions.ConnectionClosed:
                 break
             except Exception as e:
