@@ -24,11 +24,31 @@ class MumuClient:
         self._reset_camera_completed = None
         self._click_history = []  # 保存最近的点击记录
         self._last_camera_notify_time = 0  # 上次相机点击通知时间
-        self._camera_trigger_area = {  # 相机触发区域（540P分辨率下的范围）
+        self._camera_trigger_area = {  # 相机触发区域（基于540P分辨率）
             "x_min": 326,
             "x_max": 474,
             "y_min": 38,
             "y_max": 105
+        }
+        self._camera_trigger_base_resolution = (540, 960)  # 基准分辨率
+
+    def _get_camera_trigger_area_scaled(self):
+        """根据当前分辨率计算缩放后的触发区域"""
+        base_w, base_h = self._camera_trigger_base_resolution
+        current_w = getattr(self, '_real_width', base_w)
+        current_h = getattr(self, '_real_height', base_h)
+
+        if current_w == base_w and current_h == base_h:
+            return self._camera_trigger_area
+
+        scale_x = current_w / base_w
+        scale_y = current_h / base_h
+
+        return {
+            "x_min": int(self._camera_trigger_area["x_min"] * scale_x),
+            "x_max": int(self._camera_trigger_area["x_max"] * scale_x),
+            "y_min": int(self._camera_trigger_area["y_min"] * scale_y),
+            "y_max": int(self._camera_trigger_area["y_max"] * scale_y)
         }
 
     def _load_config(self, config_path):
@@ -211,8 +231,8 @@ class MumuClient:
                         business_name = data.get("businessName", "")
 
                         if x and y:
-                            # 检查点击是否在相机触发区域内
-                            area = self._camera_trigger_area
+                            # 获取缩放后的触发区域
+                            area = self._get_camera_trigger_area_scaled()
                             is_in_area = (area["x_min"] <= x <= area["x_max"] and
                                         area["y_min"] <= y <= area["y_max"])
 
