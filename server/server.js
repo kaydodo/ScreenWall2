@@ -193,9 +193,26 @@ function clearSelfServiceState() {
 
 async function processQrcodeImage(imageBuffer, businessId, currentDeviceId) {
   try {
+    if (!imageBuffer || imageBuffer.length < 1000) {
+      serverLog(`[二维码] 图片数据无效, 长度=${imageBuffer ? imageBuffer.length : 0}`);
+      if (_currentMUMUClient && _currentMUMUClient.readyState === 1) {
+        _currentMUMUClient.send(JSON.stringify({ 
+          type: 'qrcodeResult', 
+          success: false, 
+          error: 'invalid_image',
+          businessId: businessId,
+          status: 'failed'
+        }));
+      }
+      clearSelfServiceState();
+      return;
+    }
+    
     const { data, info } = await sharp(imageBuffer)
       .raw()
       .toBuffer({ resolveWithObject: true });
+    
+    serverLog(`[二维码] 图片解码成功, 尺寸=${info.width}x${info.height}`);
 
     const code = jsQR(data, info.width, info.height);
     
@@ -2058,6 +2075,7 @@ wssClient.on('connection', (ws, req) => {
           try {
             const base64Data = image.replace(/^data:image\/\w+;base64,/, '');
             const buffer = Buffer.from(base64Data, 'base64');
+            serverLog(`[二维码] 收到自助登号截图, businessId=${businessId}, buffer长度=${buffer.length}`);
             await processQrcodeImage(buffer, businessId, deviceId);
           } catch (e) {
             serverError('[二维码] 处理自助登号截图失败:', e.message);
