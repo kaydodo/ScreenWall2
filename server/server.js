@@ -210,55 +210,62 @@ async function processQrcodeImage(imageBuffer, businessId, currentDeviceId) {
     
     // ========== 步骤3: 使用setImmediate异步判定是否存在二维码 ==========
     await new Promise((resolve) => setImmediate(() => {
-      const code = jsQR(data, info.width, info.height, { inversionAttempts: 'dontInvert' });
-      
-      if (!code) {
-        serverLog('[二维码] 未识别到二维码');
-        sendQrcodeResult(false, 'no_qrcode_found', businessId);
-        clearSelfServiceState();
-        resolve();
-        return;
-      }
-      
-      serverLog(`[二维码] 识别到二维码, 数据长度=${code.data.length}`);
-      
-      // ========== 步骤4: 排除URL类二维码 ==========
-      const isAdUrl = code.data.includes('http') && (
-        code.data.includes('ad') || code.data.includes('ads') || code.data.includes('promotion'));
-      
-      if (isAdUrl) {
-        serverLog('[二维码] 识别到广告链接，跳过保存');
-        sendQrcodeResult(false, 'ad_url_detected', businessId);
-        clearSelfServiceState();
-        resolve();
-        return;
-      }
-      
-      // ========== 步骤5: 获取设备名称用于日志 ==========
-      const businessDev = devices.get(businessId);
-      const businessDeviceName = businessDev ? businessDev.deviceName : businessId;
-      
-      const currentDev = devices.get(currentDeviceId);
-      const currentDeviceName = currentDev ? currentDev.deviceName : currentDeviceId;
-      
-      const isSameDevice = businessId === currentDeviceId;
-      
-      // ========== 步骤6: 裁剪保存二维码 ==========
-      saveProcessedQrcode(imageBuffer, code).then(() => {
-        // ========== 步骤7: 返回成功结果 ==========
-        serverLog(isSameDevice 
-          ? `[自助登号] ${currentDeviceName} 使用了二维码扫码` 
-          : `[自助登号] ${currentDeviceName} 帮助 ${businessDeviceName} 使用了二维码扫码`);
+      try {
+        const code = jsQR(data, info.width, info.height, { inversionAttempts: 'dontInvert' });
         
-        sendQrcodeResult(true, 'success', businessId, code.data);
+        if (!code) {
+          serverLog('[二维码] 未识别到二维码');
+          sendQrcodeResult(false, 'no_qrcode_found', businessId);
+          clearSelfServiceState();
+          resolve();
+          return;
+        }
+        
+        serverLog(`[二维码] 识别到二维码, 数据长度=${code.data.length}`);
+        
+        // ========== 步骤4: 排除URL类二维码 ==========
+        const isAdUrl = code.data.includes('http') && (
+          code.data.includes('ad') || code.data.includes('ads') || code.data.includes('promotion'));
+        
+        if (isAdUrl) {
+          serverLog('[二维码] 识别到广告链接，跳过保存');
+          sendQrcodeResult(false, 'ad_url_detected', businessId);
+          clearSelfServiceState();
+          resolve();
+          return;
+        }
+        
+        // ========== 步骤5: 获取设备名称用于日志 ==========
+        const businessDev = devices.get(businessId);
+        const businessDeviceName = businessDev ? businessDev.deviceName : businessId;
+        
+        const currentDev = devices.get(currentDeviceId);
+        const currentDeviceName = currentDev ? currentDev.deviceName : currentDeviceId;
+        
+        const isSameDevice = businessId === currentDeviceId;
+        
+        // ========== 步骤6: 裁剪保存二维码 ==========
+        saveProcessedQrcode(imageBuffer, code).then(() => {
+          // ========== 步骤7: 返回成功结果 ==========
+          serverLog(isSameDevice 
+            ? `[自助登号] ${currentDeviceName} 使用了二维码扫码` 
+            : `[自助登号] ${currentDeviceName} 帮助 ${businessDeviceName} 使用了二维码扫码`);
+          
+          sendQrcodeResult(true, 'success', businessId, code.data);
+          clearSelfServiceState();
+          resolve();
+        }).catch((err) => {
+          serverError('[二维码] 保存失败:', err.message);
+          sendQrcodeResult(false, err.message, businessId);
+          clearSelfServiceState();
+          resolve();
+        });
+      } catch (err) {
+        serverError('[二维码] 扫描失败:', err.message);
+        sendQrcodeResult(false, 'scan_failed', businessId);
         clearSelfServiceState();
         resolve();
-      }).catch((err) => {
-        serverError('[二维码] 保存失败:', err.message);
-        sendQrcodeResult(false, err.message, businessId);
-        clearSelfServiceState();
-        resolve();
-      });
+      }
     }));
     
   } catch (err) {
