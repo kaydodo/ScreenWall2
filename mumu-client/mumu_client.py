@@ -24,6 +24,12 @@ class MumuClient:
         self._reset_camera_completed = None
         self._click_history = []  # 保存最近的点击记录
         self._last_camera_notify_time = 0  # 上次相机点击通知时间
+        self._camera_trigger_area = {  # 相机触发区域（540P分辨率下的范围）
+            "x_min": 326,
+            "x_max": 474,
+            "y_min": 38,
+            "y_max": 105
+        }
 
     def _load_config(self, config_path):
         with open(config_path, "r", encoding="utf-8") as f:
@@ -203,8 +209,14 @@ class MumuClient:
                         device_name = data.get("deviceName", "")
                         business_id = data.get("businessId", "")
                         business_name = data.get("businessName", "")
+
                         if x and y:
-                            # 记录点击历史
+                            # 检查点击是否在相机触发区域内
+                            area = self._camera_trigger_area
+                            is_in_area = (area["x_min"] <= x <= area["x_max"] and
+                                        area["y_min"] <= y <= area["y_max"])
+
+                            # 记录点击历史（只在区域内）
                             click_record = {
                                 "x": x,
                                 "y": y,
@@ -212,19 +224,23 @@ class MumuClient:
                                 "deviceName": device_name,
                                 "businessId": business_id,
                                 "businessName": business_name,
-                                "timestamp": time.time()
+                                "timestamp": time.time(),
+                                "in_trigger_area": is_in_area
                             }
                             self._click_history.append(click_record)
                             # 只保留最近5条记录
                             if len(self._click_history) > 5:
                                 self._click_history.pop(0)
-                            
-                            if device_name and business_name:
-                                print(f"[ADB] 点击坐标: ({x}, {y}) - 设备: {device_name}(业务: {business_name})")
-                            elif device_id and business_id:
-                                print(f"[ADB] 点击坐标: ({x}, {y}) - 设备ID: {device_id}(业务ID: {business_id})")
-                            else:
-                                print(f"[ADB] 点击坐标: ({x}, {y})")
+
+                            # 在触发区域内才打印日志
+                            if is_in_area:
+                                if device_name and business_name:
+                                    print(f"[ADB] 点击坐标: ({x}, {y}) - 设备: {device_name}(业务: {business_name})")
+                                elif device_id and business_id:
+                                    print(f"[ADB] 点击坐标: ({x}, {y}) - 设备ID: {device_id}(业务ID: {business_id})")
+                                else:
+                                    print(f"[ADB] 点击坐标: ({x}, {y})")
+
                             await self._adb_click(x, y)
 
                     elif msg_type == "mouseSwipe":
@@ -569,11 +585,11 @@ class MumuClient:
                 self._last_camera_notify_time = current_time
                 
                 print(f"[MUMU] 收到相机点击通知")
-                
-                # 查找最近的点击记录（3秒内）
+
+                # 查找最近的点击记录（3秒内，且在触发区域内）
                 matched_click = None
                 for click in reversed(self._click_history):
-                    if current_time - click["timestamp"] < 3.0:
+                    if current_time - click["timestamp"] < 3.0 and click.get("in_trigger_area", False):
                         matched_click = click
                         break
                 
