@@ -513,6 +513,8 @@ function getClickPos(e) {
 }
 
 function sendMouse(type, x, y, extra) {
+  console.log('[自助登号调试] sendMouse被调用: type=' + type + ', isOnline=' + isOnline + ', ws.readyState=' + (ws ? ws.readyState : 'null') + ', previewDeviceId=' + previewDeviceId);
+  
   if (!previewDeviceId || !isOnline) return;
   if (ws && ws.readyState === WebSocket.OPEN) {
     // 获取当前下拉选择的业务设备名称
