@@ -238,8 +238,6 @@ class MumuClient:
                         business_id = data.get("businessId", "")
                         business_name = data.get("businessName", "")
 
-                        print(f"[MUMU调试] 收到mouseClick: operatorId={operator_id}, operatorName={operator_name}, businessId={business_id}, businessName={business_name}")
-                        
                         if x and y:
                             # 保存当前点击信息，供相机点击时使用
                             self._last_click_info = {
@@ -251,7 +249,6 @@ class MumuClient:
                                 "businessId": business_id,
                                 "businessName": business_name
                             }
-                            print(f"[MUMU调试] 已保存_last_click_info: operatorId={operator_id}, operatorName={operator_name}")
                             await self._adb_click(x, y)
 
                     elif msg_type == "mouseSwipe":
@@ -602,7 +599,6 @@ class MumuClient:
                 }
                 
                 # 直接使用最后一次点击信息，不需要匹配
-                print(f"[MUMU调试] _camera_notify_worker: _last_click_info={self._last_click_info}")
                 if self._last_click_info:
                     msg.update({
                         "x": self._last_click_info["x"],
@@ -612,9 +608,6 @@ class MumuClient:
                         "businessId": self._last_click_info["businessId"],
                         "businessName": self._last_click_info["businessName"]
                     })
-                    print(f"[MUMU调试] 发送cameraClicked: deviceId={msg['deviceId']}, deviceName={msg['deviceName']}, businessId={msg['businessId']}, businessName={msg['businessName']}")
-                else:
-                    print("[MUMU调试] _last_click_info为空，无法发送完整cameraClicked消息")
                 
 
                 await ws.send(json.dumps(msg))

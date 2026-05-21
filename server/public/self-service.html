@@ -513,15 +513,10 @@ function getClickPos(e) {
 }
 
 function sendMouse(type, x, y, extra) {
-  console.log('[自助登号调试] sendMouse被调用: type=' + type + ', isOnline=' + isOnline + ', ws.readyState=' + (ws ? ws.readyState : 'null') + ', previewDeviceId=' + previewDeviceId);
-  
   if (!previewDeviceId || !isOnline) return;
   if (ws && ws.readyState === WebSocket.OPEN) {
-    // 获取当前下拉选择的业务设备名称
     var businessDev = devices[deviceId];
     var businessDevName = businessDev ? businessDev.deviceName : deviceId;
-    
-    console.log('[自助登号调试] 发送mouseClick: originalDeviceId=' + originalDeviceId + ', originalDeviceName=' + originalDeviceName + ', deviceId=' + deviceId + ', businessDevName=' + businessDevName);
     
     var payload = { 
       type: type, 
@@ -607,16 +602,11 @@ function setupMouseEvents() {
 
 function init() {
   var params = getQueryParams();
-  console.log('[自助登号调试] URL参数: ' + JSON.stringify(params));
-  console.log('[自助登号调试] window.location.search: ' + window.location.search);
-  
   originalDeviceId = params.deviceId || 'MUMU-service';
   originalDeviceName = params.deviceName || '';
   deviceId = originalDeviceId;
   previewDeviceId = 'MUMU-service';
   deviceName = originalDeviceName;
-  
-  console.log('[自助登号调试] 初始化变量: originalDeviceId=' + originalDeviceId + ', originalDeviceName=' + originalDeviceName + ', deviceId=' + deviceId);
   
   document.getElementById('backBtn').onclick = function() {
     sendKey('Back');

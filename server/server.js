@@ -246,8 +246,6 @@ function clearSelfServiceState() {
 
 async function processQrcodeImage(imageBuffer, businessId, operatorId) {
   try {
-    serverLog(`[自助登号调试] processQrcodeImage: _currentOperatorName=${_currentOperatorName}, _currentBusinessName=${_currentBusinessName}, operatorId=${operatorId}, businessId=${businessId}`);
-    
     // 使用保存的变量，确保名称在 cameraClicked 时已经保存好
     const operatorName = _currentOperatorName || operatorId;
     const businessDeviceName = _currentBusinessName || businessId;
@@ -2350,9 +2348,6 @@ wssClient.on('connection', (ws, req) => {
         return;
       }
       
-      // 调试日志：检查收到的字段
-      serverLog(`[自助登号调试] 收到cameraClicked消息: operatorId=${operatorId}, operatorName=${operatorName}, businessId=${businessId}, businessName=${businessName}`);
-      
       const businessDev = devices.get(businessId);
       if (!businessDev) {
         serverLog(`[自助登号] 找不到业务ID对应的设备: ${businessId}`);
@@ -2376,7 +2371,6 @@ wssClient.on('connection', (ws, req) => {
       _currentBusinessId = businessId;                    // 业务设备ID
       _currentBusinessName = finalBusinessName;           // 业务设备名称
       
-      serverLog(`[自助登号调试] 已保存状态: _currentOperatorName=${_currentOperatorName}, _currentBusinessName=${_currentBusinessName}`);
       serverLog(`[自助登号] 收到相机点击，向业务设备请求1080P截图: ${_currentBusinessName}`);
       
       // 设置超时
