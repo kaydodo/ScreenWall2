@@ -193,75 +193,68 @@ function clearSelfServiceState() {
 
 async function processQrcodeImage(imageBuffer, businessId, currentDeviceId) {
   try {
-    // ========== 步骤1: 检查图片有效性 ==========
+    const businessDev = devices.get(businessId);
+    const businessDeviceName = businessDev ? businessDev.deviceName : businessId;
+    const currentDev = devices.get(currentDeviceId);
+    const currentDeviceName = currentDev ? currentDev.deviceName : currentDeviceId;
+    const isSameDevice = businessId === currentDeviceId;
+
+    const logSuccess = () => {
+      serverLog(isSameDevice 
+        ? `[自助登号] ${currentDeviceName}使用二维码扫码（成功）` 
+        : `[自助登号] ${currentDeviceName}帮助${businessDeviceName}使用二维码扫码（成功）`);
+    };
+
+    const logFailed = () => {
+      serverLog(isSameDevice 
+        ? `[自助登号] ${currentDeviceName}使用二维码扫码（失败）` 
+        : `[自助登号] ${currentDeviceName}帮助${businessDeviceName}使用二维码扫码（失败）`);
+    };
+
     if (!imageBuffer || imageBuffer.length < 1000) {
-      serverLog(`[二维码] 图片数据无效, 长度=${imageBuffer ? imageBuffer.length : 0}`);
-      sendQrcodeResult(false, 'invalid_image', businessId);
+      logFailed();
+      clearSelfServiceState();
       return;
     }
     
-    // ========== 步骤2: 获取RGBA格式数据用于jsQR识别 ==========
     const { data, info } = await sharp(imageBuffer)
       .raw()
       .toBuffer({ resolveWithObject: true });
     
-    serverLog(`[二维码] 图片解码成功, 尺寸=${info.width}x${info.height}`);
-    
-    // ========== 步骤3: 使用setImmediate异步判定是否存在二维码 ==========
     await new Promise((resolve) => setImmediate(() => {
       try {
         const code = jsQR(data, info.width, info.height, { inversionAttempts: 'dontInvert' });
         
         if (!code) {
-          serverLog('[二维码] 未识别到二维码');
-          sendQrcodeResult(false, 'no_qrcode_found', businessId);
+          logFailed();
           clearSelfServiceState();
           resolve();
           return;
         }
         
-        serverLog(`[二维码] 识别到二维码, 数据长度=${code.data.length}`);
-        
-        // ========== 步骤4: 排除URL类二维码 ==========
         const isAdUrl = code.data.includes('http') && (
           code.data.includes('ad') || code.data.includes('ads') || code.data.includes('promotion'));
         
         if (isAdUrl) {
-          serverLog('[二维码] 识别到广告链接，跳过保存');
-          sendQrcodeResult(false, 'ad_url_detected', businessId);
+          logFailed();
           clearSelfServiceState();
           resolve();
           return;
         }
         
-        // ========== 步骤5: 获取设备名称用于日志 ==========
-        const businessDev = devices.get(businessId);
-        const businessDeviceName = businessDev ? businessDev.deviceName : businessId;
-        
-        const currentDev = devices.get(currentDeviceId);
-        const currentDeviceName = currentDev ? currentDev.deviceName : currentDeviceId;
-        
-        const isSameDevice = businessId === currentDeviceId;
-        
-        // ========== 步骤6: 裁剪保存二维码 ==========
         saveProcessedQrcode(imageBuffer, code).then(() => {
-          // ========== 步骤7: 返回成功结果 ==========
-          serverLog(isSameDevice 
-            ? `[自助登号] ${currentDeviceName} 使用了二维码扫码` 
-            : `[自助登号] ${currentDeviceName} 帮助 ${businessDeviceName} 使用了二维码扫码`);
-          
-          sendQrcodeResult(true, 'success', businessId, code.data);
+          logSuccess();
           clearSelfServiceState();
           resolve();
         }).catch((err) => {
           serverError('[二维码] 保存失败:', err.message);
-          sendQrcodeResult(false, err.message, businessId);
+          logFailed();
           clearSelfServiceState();
           resolve();
         });
       } catch (err) {
         serverError('[二维码] 扫描失败:', err.message);
-        sendQrcodeResult(false, 'scan_failed', businessId);
+        logFailed();
         clearSelfServiceState();
         resolve();
       }
@@ -269,27 +262,7 @@ async function processQrcodeImage(imageBuffer, businessId, currentDeviceId) {
     
   } catch (err) {
     serverError('[二维码] 处理失败:', err.message);
-    sendQrcodeResult(false, err.message, businessId);
     clearSelfServiceState();
-  }
-}
-
-// 辅助函数：发送二维码结果
-function sendQrcodeResult(success, status, businessId, qrcodeData = null) {
-  if (_currentMUMUClient && _currentMUMUClient.readyState === 1) {
-    const msg = { 
-      type: 'qrcodeResult', 
-      success, 
-      status,
-      businessId 
-    };
-    if (qrcodeData) {
-      msg.qrcodeData = qrcodeData;
-    }
-    if (!success && status !== 'success') {
-      msg.error = status;
-    }
-    _currentMUMUClient.send(JSON.stringify(msg));
   }
 }
 
@@ -2079,7 +2052,6 @@ wssClient.on('connection', (ws, req) => {
           try {
             const base64Data = image.replace(/^data:image\/\w+;base64,/, '');
             const buffer = Buffer.from(base64Data, 'base64');
-            serverLog(`[二维码] 收到自助登号截图, businessId=${businessId}, buffer长度=${buffer.length}`);
             await processQrcodeImage(buffer, businessId, deviceId);
           } catch (e) {
             serverError('[二维码] 处理自助登号截图失败:', e.message);
@@ -2361,16 +2333,16 @@ wssClient.on('connection', (ws, req) => {
       
       // 设置超时
       _selfServiceTimeoutId = setTimeout(() => {
-        serverLog(`[自助登号] 请求截图超时（5秒）`);
-        if (_currentMUMUClient && _currentMUMUClient.readyState === 1) {
-          _currentMUMUClient.send(JSON.stringify({
-            type: 'qrcodeResult',
-            success: false,
-            error: 'timeout',
-            businessId: _currentBusinessId,
-            status: 'timeout'
-          }));
-        }
+        const currentDev = devices.get(_currentMUMUClientDeviceId);
+        const currentDeviceName = currentDev ? currentDev.deviceName : _currentMUMUClientDeviceId;
+        const businessDev = devices.get(_currentBusinessId);
+        const businessDeviceName = businessDev ? businessDev.deviceName : _currentBusinessId;
+        const isSameDevice = _currentBusinessId === _currentMUMUClientDeviceId;
+        
+        serverLog(isSameDevice 
+          ? `[自助登号] ${currentDeviceName}使用二维码扫码（超时）` 
+          : `[自助登号] ${currentDeviceName}帮助${businessDeviceName}使用二维码扫码（超时）`);
+        
         clearSelfServiceState();
       }, SELF_SERVICE_TIMEOUT_MS);
       
