@@ -17,6 +17,13 @@ const zlib = require('zlib');
 const sharp = require('sharp');
 const Tesseract = require('tesseract.js');
 const { spawn, execFile } = require('child_process');
+const { promisify } = require('util');
+
+// 异步函数包装
+const fsWriteFile = promisify(fs.writeFile);
+const fsStat = promisify(fs.stat);
+const fsMkdir = promisify(fs.mkdir);
+const execFileAsync = promisify(execFile);
 
 // 服务端版本从 config.json 的 serverVersion 字段读取，无需硬编码
 
@@ -213,19 +220,21 @@ async function processQrcodeImage(imageBuffer, businessId, currentDeviceId) {
 
     // 保存到 qrcode 文件夹，固定文件名
     const qrcodeDir = path.join(__dirname, 'qrcode');
-    if (!fs.existsSync(qrcodeDir)) {
-      fs.mkdirSync(qrcodeDir, { recursive: true });
+    try {
+      await fsMkdir(qrcodeDir, { recursive: true });
+    } catch (err) {
+      // 文件夹已存在，忽略错误
     }
     const screenshotPath = path.join(qrcodeDir, 'screenshot_original.png');
 
     // 记录保存前的时间
     const beforeSaveTime = Date.now();
 
-    // 保存文件
-    fs.writeFileSync(screenshotPath, imageBuffer);
+    // 异步保存文件
+    await fsWriteFile(screenshotPath, imageBuffer);
 
     // 检查文件是否真的被更新（对比修改时间）
-    const stats = fs.statSync(screenshotPath);
+    const stats = await fsStat(screenshotPath);
     const fileModifiedTime = stats.mtimeMs;
 
     if (fileModifiedTime < beforeSaveTime - 1000) {
@@ -235,17 +244,11 @@ async function processQrcodeImage(imageBuffer, businessId, currentDeviceId) {
       return;
     }
 
-    // 调用 Python 脚本处理二维码
+    // 异步调用 Python 脚本处理二维码
     const pythonScript = path.join(__dirname, 'qrcode_processor.py');
-    
-    execFile('python', [pythonScript, screenshotPath], { timeout: 10000 }, (error, stdout, stderr) => {
-      if (error) {
-        serverError('[二维码] Python脚本执行失败:', error.message);
-        logResult('失败');
-        clearSelfServiceState();
-        return;
-      }
-
+    try {
+      const { stdout } = await execFileAsync('python', [pythonScript, screenshotPath], { timeout: 10000 });
+      
       try {
         const result = JSON.parse(stdout);
         if (result.status === 'success') {
@@ -257,11 +260,15 @@ async function processQrcodeImage(imageBuffer, businessId, currentDeviceId) {
         serverError('[二维码] 解析Python输出失败:', e.message);
         logResult('失败');
       }
-      clearSelfServiceState();
-    });
+    } catch (error) {
+      serverError('[二维码] Python脚本执行失败:', error.message);
+      logResult('失败');
+    }
     
   } catch (err) {
     serverError('[二维码] 处理失败:', err.message);
+    logResult('失败');
+  } finally {
     clearSelfServiceState();
   }
 }
