@@ -16,8 +16,7 @@ const crypto = require('crypto');
 const zlib = require('zlib');
 const sharp = require('sharp');
 const Tesseract = require('tesseract.js');
-const jsQR = require('jsqr');
-const { spawn } = require('child_process');
+const { spawn, execFile } = require('child_process');
 
 // 服务端版本从 config.json 的 serverVersion 字段读取，无需硬编码
 
@@ -199,103 +198,61 @@ async function processQrcodeImage(imageBuffer, businessId, currentDeviceId) {
     const currentDeviceName = currentDev ? currentDev.deviceName : currentDeviceId;
     const isSameDevice = businessId === currentDeviceId;
 
-    const logSuccess = () => {
-      serverLog(isSameDevice 
-        ? `[自助登号] ${currentDeviceName}使用二维码扫码（成功）` 
-        : `[自助登号] ${currentDeviceName}帮助${businessDeviceName}使用二维码扫码（成功）`);
-    };
-
-    const logFailed = () => {
-      serverLog(isSameDevice 
-        ? `[自助登号] ${currentDeviceName}使用二维码扫码（失败）` 
-        : `[自助登号] ${currentDeviceName}帮助${businessDeviceName}使用二维码扫码（失败）`);
+    const logResult = (result) => {
+      if (isSameDevice) {
+        serverLog(`[自助登号] ${currentDeviceName}使用二维码扫码（${result}）`);
+      } else {
+        serverLog(`[自助登号] ${currentDeviceName}帮助${businessDeviceName}使用二维码扫码（${result}）`);
+      }
     };
 
     if (!imageBuffer || imageBuffer.length < 1000) {
-      logFailed();
+      logResult('失败');
       clearSelfServiceState();
       return;
     }
+
+    // 保存临时文件
+    const tempDir = path.join(__dirname, 'temp');
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+    const tempPath = path.join(tempDir, `qrcode_${Date.now()}.png`);
+    fs.writeFileSync(tempPath, imageBuffer);
+
+    // 调用 Python 脚本处理二维码
+    const pythonScript = path.join(__dirname, '..', 'qrcode_processor.py');
     
-    const { data, info } = await sharp(imageBuffer)
-      .raw()
-      .toBuffer({ resolveWithObject: true });
-    
-    await new Promise((resolve) => setImmediate(() => {
+    execFile('python', [pythonScript, tempPath], { timeout: 10000 }, (error, stdout, stderr) => {
+      // 清理临时文件
       try {
-        const code = jsQR(data, info.width, info.height, { inversionAttempts: 'dontInvert' });
-        
-        if (!code) {
-          logFailed();
-          clearSelfServiceState();
-          resolve();
-          return;
-        }
-        
-        const isAdUrl = code.data.includes('http') && (
-          code.data.includes('ad') || code.data.includes('ads') || code.data.includes('promotion'));
-        
-        if (isAdUrl) {
-          logFailed();
-          clearSelfServiceState();
-          resolve();
-          return;
-        }
-        
-        saveProcessedQrcode(imageBuffer, code).then(() => {
-          logSuccess();
-          clearSelfServiceState();
-          resolve();
-        }).catch((err) => {
-          serverError('[二维码] 保存失败:', err.message);
-          logFailed();
-          clearSelfServiceState();
-          resolve();
-        });
-      } catch (err) {
-        serverError('[二维码] 扫描失败:', err.message);
-        logFailed();
+        fs.unlinkSync(tempPath);
+      } catch (e) {}
+
+      if (error) {
+        serverError('[二维码] Python脚本执行失败:', error.message);
+        logResult('失败');
         clearSelfServiceState();
-        resolve();
+        return;
       }
-    }));
+
+      try {
+        const result = JSON.parse(stdout);
+        if (result.status === 'success') {
+          logResult('成功');
+        } else {
+          logResult('失败');
+        }
+      } catch (e) {
+        serverError('[二维码] 解析Python输出失败:', e.message);
+        logResult('失败');
+      }
+      clearSelfServiceState();
+    });
     
   } catch (err) {
     serverError('[二维码] 处理失败:', err.message);
     clearSelfServiceState();
-  }
-}
-
-async function saveProcessedQrcode(imageBuffer, qrCode) {
-  try {
-    const { x, y, width, height } = qrCode.location;
-    const padding = Math.max(width, height) * 0.1;
-    
-    const cropX = Math.max(0, Math.floor(x - padding));
-    const cropY = Math.max(0, Math.floor(y - padding));
-    const cropWidth = Math.floor(width + padding * 2);
-    const cropHeight = Math.floor(height + padding * 2);
-    
-    const targetWidth = 200;
-    const targetHeight = 360;
-    const qrTargetHeight = 90;
-    
-    await sharp(imageBuffer)
-      .extract({ left: cropX, top: cropY, width: cropWidth, height: cropHeight })
-      .resize(targetWidth, qrTargetHeight, { fit: 'contain', background: { r: 255, g: 255, b: 255 } })
-      .extend({
-        top: Math.floor((targetHeight - qrTargetHeight) / 2),
-        bottom: Math.floor((targetHeight - qrTargetHeight) / 2),
-        left: 0,
-        right: 0,
-        background: { r: 255, g: 255, b: 255 }
-      })
-      .png()
-      .toFile(QRCODE_OUTPUT_PATH);
-    
-    serverLog(`[二维码] 已保存处理后的二维码: ${QRCODE_OUTPUT_PATH}`);
-  } catch (err) {
-    serverError('[二维码] 保存失败:', err.message);
   }
 }
 
