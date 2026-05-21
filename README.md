@@ -364,6 +364,64 @@ python mumu_client.py
 
 ---
 
+## 前端UI修复记录
+
+### 配置中心输入框稳定性修复
+
+**问题描述**：配置中心的三个输入框在设备列表热刷新时会出现状态丢失问题：
+- 分组名编辑输入框：微刷新会导致输入框被弹出或内容丢失
+- 未分组设备复选框：选中状态会在刷新后消失
+- 开关机场景输入框：编辑内容会被刷新覆盖
+
+**修复方案**：
+1. **状态持久化**：使用 JavaScript 变量保存当前编辑状态，不依赖 DOM
+2. **保存/恢复机制**：渲染前保存焦点元素、输入值和光标位置，渲染后恢复
+3. **微刷新锁定**：输入框获得焦点时锁定自动刷新30秒，避免操作被打断
+4. **复选框状态管理**：使用 Set 集合保存选中的设备ID，渲染时恢复选中状态
+
+**涉及文件**：
+- `server/public/main.html`：`renderConfigGroupList()`、`renderConfigUngroupedList()`、`renderConfigPowerList()` 函数
+
+---
+
+## 服务端异步化优化
+
+### 异步处理改造记录
+
+| 功能模块 | 优化内容 | 涉及函数 |
+|---------|---------|---------|
+| **日志系统** | 将同步文件写入改为异步队列模式，避免阻塞主事件循环 | `serverLog()`、`serverError()` |
+| **配置热加载** | 配置文件重新加载和自更新过程改为异步操作 | `reloadServerConfigAsync()` |
+| **报警截图清理** | 运行时的截图清理任务改为异步执行 | `cleanupOrphaned1080pScreenshotsAsync()` |
+| **二维码处理** | 完整异步化，调用 Python 脚本处理二维码 | `processQrcodeImage()` |
+| **持久化函数** | 所有持久化操作改为 async/await | `persistTasks()`、`persistGrid()`、`persistGroups()` 等 |
+
+### 关键技术点
+
+1. **Promise 包装**：使用 `util.promisify` 包装 Node.js 同步 API：
+   ```javascript
+   const fsWriteFile = promisify(fs.writeFile);
+   const fsStat = promisify(fs.stat);
+   const fsMkdir = promisify(fs.mkdir);
+   const fsReadFile = promisify(fs.readFile);
+   const execFileAsync = promisify(execFile);
+   ```
+
+2. **异步 IIFE**：对于无法直接改为 async 的回调函数，使用异步立即执行函数表达式：
+   ```javascript
+   (async () => {
+     await asyncOperation();
+   })();
+   ```
+
+3. **异常处理**：全局异常拦截防止服务端崩溃：
+   ```javascript
+   process.on('uncaughtException', (err) => { ... });
+   process.on('unhandledRejection', (reason) => { ... });
+   ```
+
+---
+
 ## 内存管理与优化
 
 ### 前端优化
