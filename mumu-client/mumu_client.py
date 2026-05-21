@@ -271,15 +271,6 @@ class MumuClient:
                             if len(self._click_history) > 5:
                                 self._click_history.pop(0)
 
-                            # 在触发区域内才打印日志
-                            if is_in_area:
-                                if device_name and business_name:
-                                    print(f"[ADB] 点击坐标: ({x}, {y}) - 设备: {device_name}(业务: {business_name})")
-                                elif device_id and business_id:
-                                    print(f"[ADB] 点击坐标: ({x}, {y}) - 设备ID: {device_id}(业务ID: {business_id})")
-                                else:
-                                    print(f"[ADB] 点击坐标: ({x}, {y})")
-
                             await self._adb_click(x, y)
 
                     elif msg_type == "mouseSwipe":
@@ -623,23 +614,18 @@ class MumuClient:
                     continue
                 self._last_camera_notify_time = current_time
                 
-                print(f"[MUMU] 收到相机点击通知")
-
-                # 查找最近的点击记录（3秒内，且在触发区域内）
                 matched_click = None
                 for click in reversed(self._click_history):
                     if current_time - click["timestamp"] < 3.0 and click.get("in_trigger_area", False):
                         matched_click = click
                         break
                 
-                # 构建上报消息
                 msg = {
                     "type": "cameraClicked",
                     "timestamp": timestamp,
-                    "mumuClientId": self.config["device"]["deviceId"]  # MUMU客户端自己的ID
+                    "mumuClientId": self.config["device"]["deviceId"]
                 }
                 
-                # 如果匹配到点击记录，添加详细信息
                 if matched_click:
                     msg.update({
                         "x": matched_click["x"],
@@ -649,17 +635,14 @@ class MumuClient:
                         "businessId": matched_click["businessId"],
                         "businessName": matched_click["businessName"]
                     })
-                    # 优先显示业务名称，没有名称则显示业务ID
                     business_display = matched_click["businessName"] or matched_click["businessId"]
                     if matched_click["businessName"] and matched_click["businessId"]:
                         business_display = f"{matched_click['businessName']}({matched_click['businessId']})"
-                    print(f"[MUMU] 匹配到点击: ({matched_click['x']}, {matched_click['y']}) - 业务: {business_display}")
+                    print(f"[MUMU] {matched_click['deviceName']} 使用二维码扫码 - 业务: {business_display}")
                 else:
                     print(f"[MUMU] 未找到匹配的点击记录")
                 
-                # 向服务端发送相机点击通知
                 await ws.send(json.dumps(msg))
-                print(f"[MUMU] 已上报 扫码服务到服务端")
             except websockets.exceptions.ConnectionClosed:
                 break
             except Exception as e:
