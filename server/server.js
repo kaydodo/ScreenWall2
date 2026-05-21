@@ -212,23 +212,34 @@ async function processQrcodeImage(imageBuffer, businessId, currentDeviceId) {
       return;
     }
 
-    // 保存临时文件
-    const tempDir = path.join(__dirname, 'temp');
-    if (!fs.existsSync(tempDir)) {
-      fs.mkdirSync(tempDir, { recursive: true });
+    // 保存到 qrcode 文件夹，固定文件名
+    const qrcodeDir = path.join(__dirname, 'qrcode');
+    if (!fs.existsSync(qrcodeDir)) {
+      fs.mkdirSync(qrcodeDir, { recursive: true });
     }
-    const tempPath = path.join(tempDir, `qrcode_${Date.now()}.png`);
-    fs.writeFileSync(tempPath, imageBuffer);
+    const screenshotPath = path.join(qrcodeDir, 'screenshot_original.png');
+
+    // 记录保存前的时间
+    const beforeSaveTime = Date.now();
+
+    // 保存文件
+    fs.writeFileSync(screenshotPath, imageBuffer);
+
+    // 检查文件是否真的被更新（对比修改时间）
+    const stats = fs.statSync(screenshotPath);
+    const fileModifiedTime = stats.mtimeMs;
+
+    if (fileModifiedTime < beforeSaveTime - 1000) {
+      serverLog('[二维码] 原始截图保存失败，文件未更新');
+      logResult('失败');
+      clearSelfServiceState();
+      return;
+    }
 
     // 调用 Python 脚本处理二维码
     const pythonScript = path.join(__dirname, 'qrcode_processor.py');
     
-    execFile('python', [pythonScript, tempPath], { timeout: 10000 }, (error, stdout, stderr) => {
-      // 清理临时文件
-      try {
-        fs.unlinkSync(tempPath);
-      } catch (e) {}
-
+    execFile('python', [pythonScript, screenshotPath], { timeout: 10000 }, (error, stdout, stderr) => {
       if (error) {
         serverError('[二维码] Python脚本执行失败:', error.message);
         logResult('失败');

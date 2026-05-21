@@ -2,6 +2,7 @@
 import sys
 import os
 import json
+import time
 import warnings
 warnings.filterwarnings('ignore')
 os.environ['OPENCV_LOG_LEVEL'] = '3'
@@ -101,8 +102,19 @@ def process_qrcode(image_path, qr_rect):
         # 确保输出目录存在
         os.makedirs(os.path.dirname(OUTPUT_PATH), exist_ok=True)
         
+        # 记录保存前的时间
+        before_save_time = time.time() * 1000
+        
         # 保存图片
         cv2.imwrite(OUTPUT_PATH, result)
+        
+        # 检查文件是否真的被更新（对比修改时间）
+        if os.path.exists(OUTPUT_PATH):
+            stats = os.stat(OUTPUT_PATH)
+            file_modified_time = stats.st_mtime * 1000
+            
+            if file_modified_time < before_save_time - 1000:
+                return False
         
         return True
     except Exception as e:
