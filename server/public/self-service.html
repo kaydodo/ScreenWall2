@@ -110,6 +110,7 @@ html, body {
   aspect-ratio: 9/16;
   max-width: 100%;
   max-height: 100%;
+  z-index: 2; /* 确保画面在提示文字之上 */
 }
 .preview-img-wrapper img {
   position: absolute;
@@ -130,6 +131,18 @@ html, body {
   pointer-events: none;
   white-space: nowrap;
   text-shadow: 0 0 30px rgba(255,255,255,0.4);
+}
+.no-mumu-hint {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 18px;
+  color: #888;
+  text-align: center;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 1;
 }
 .grayscale {
   filter: grayscale(100%);
@@ -163,6 +176,7 @@ html, body {
   </div>
   
   <div class="preview-area" id="previewArea">
+    <div class="no-mumu-hint">请检查MUMU服务是否启动</div>
     <div class="preview-img-wrapper" id="previewWrapper">
       <img id="screenImg" src="" alt="屏幕画面">
     </div>
@@ -172,7 +186,9 @@ html, body {
 
 <script>
 var ws = null;
-var deviceId = null;  // 电脑客户端的ID（用于业务）
+var originalDeviceId = null;  // 最初从URL获取的电脑客户端ID（业务发起方）
+var originalDeviceName = null;  // 最初从URL获取的电脑客户端名称
+var deviceId = null;  // 当前下拉选择的设备ID（业务设备，需要截图的设备）
 var previewDeviceId = 'MUMU-service';  // 固定订阅MUMU的画面
 var deviceName = null;
 var devices = {};
@@ -227,7 +243,7 @@ function updateDeviceSelect() {
   if (!select) return;
 
   const allDevices = Object.values(devices);
-  const onlineDevices = allDevices.filter(d => d.online);
+  const onlineDevices = allDevices.filter(d => d.online && d.deviceId !== 'MUMU-service');
 
   const sortedDevices = [...onlineDevices].sort((a, b) => {
     const aIsMe = a.deviceId === deviceId;
@@ -268,7 +284,15 @@ function onDeviceSelectChange() {
   deviceId = newDeviceId;
 
   if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'selfServiceInit', deviceId: deviceId, deviceName: deviceName }));
+    var businessDev = devices[deviceId];
+    var businessDevName = businessDev ? businessDev.deviceName : deviceId;
+    ws.send(JSON.stringify({ 
+      type: 'selfServiceInit', 
+      operatorId: originalDeviceId,
+      operatorName: originalDeviceName,
+      businessId: deviceId,
+      businessName: businessDevName 
+    }));
   }
 }
 
@@ -322,8 +346,7 @@ function connectWS() {
   ws.binaryType = 'arraybuffer';
   
   ws.onopen = function() {
-    // 告诉服务器这是自助登号页面
-    ws.send(JSON.stringify({ type: 'selfServiceInit', deviceId: deviceId, deviceName: deviceName }));
+    // 先只发送订阅消息，等收到 state 消息后再发送 selfServiceInit
     if (previewDeviceId) {
       ws.send(JSON.stringify({ type: 'subscribePreview', deviceId: previewDeviceId }));
       ws.send(JSON.stringify({ type: 'setLevel', deviceId: previewDeviceId, level: 2 }));
@@ -394,6 +417,18 @@ function handleJSONMessage(msg) {
       });
     }
     updateDeviceSelect();
+    
+    // 收到 state 消息后发送 selfServiceInit
+    var businessDev = devices[deviceId];
+    var businessDevName = businessDev ? businessDev.deviceName : deviceId;
+    ws.send(JSON.stringify({ 
+      type: 'selfServiceInit', 
+      operatorId: originalDeviceId,
+      operatorName: originalDeviceName,
+      businessId: deviceId,
+      businessName: businessDevName 
+    }));
+    
     if (previewDeviceId && devices[previewDeviceId]) {
       var dev = devices[previewDeviceId];
       isOnline = dev.online !== false;
@@ -480,10 +515,19 @@ function getClickPos(e) {
 function sendMouse(type, x, y, extra) {
   if (!previewDeviceId || !isOnline) return;
   if (ws && ws.readyState === WebSocket.OPEN) {
+    // 获取当前下拉选择的业务设备名称
+    var businessDev = devices[deviceId];
+    var businessDevName = businessDev ? businessDev.deviceName : deviceId;
+    
+    console.log('[自助登号调试] 发送mouseClick: originalDeviceId=' + originalDeviceId + ', originalDeviceName=' + originalDeviceName + ', deviceId=' + deviceId + ', businessDevName=' + businessDevName);
+    
     var payload = { 
       type: type, 
-      deviceId: previewDeviceId, 
-      businessId: deviceId, 
+      deviceId: previewDeviceId,        // 鼠标操作发送给 MU 客户端
+      operatorId: originalDeviceId,      // 业务发起方 ID
+      operatorName: originalDeviceName,    // 业务发起方名称
+      businessId: deviceId,              // 业务设备（下拉选择的设备ID，需要截图的设备）
+      businessName: businessDevName,     // 业务设备名称
       x: x, 
       y: y, 
       previewWidth: screenWidth, 
@@ -561,9 +605,16 @@ function setupMouseEvents() {
 
 function init() {
   var params = getQueryParams();
-  deviceId = params.deviceId || 'MUMU-service';
+  console.log('[自助登号调试] URL参数: ' + JSON.stringify(params));
+  console.log('[自助登号调试] window.location.search: ' + window.location.search);
+  
+  originalDeviceId = params.deviceId || 'MUMU-service';
+  originalDeviceName = params.deviceName || '';
+  deviceId = originalDeviceId;
   previewDeviceId = 'MUMU-service';
-  deviceName = params.deviceName || '';
+  deviceName = originalDeviceName;
+  
+  console.log('[自助登号调试] 初始化变量: originalDeviceId=' + originalDeviceId + ', originalDeviceName=' + originalDeviceName + ', deviceId=' + deviceId);
   
   document.getElementById('backBtn').onclick = function() {
     sendKey('Back');
