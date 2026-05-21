@@ -224,18 +224,6 @@ class MumuClient:
                         if timestamp:
                             asyncio.create_task(self._send_hd_screenshot_async(ws, purpose, timestamp, business_id))
 
-                    elif msg_type == "qrcodeResult":
-                        success = data.get("success", False)
-                        status = data.get("status")
-                        business_id = data.get("businessId")
-                        if status == "success":
-                            qrcode_data = data.get("qrcodeData", "")
-                            print(f"[MUMU] 二维码生成成功")
-                        elif status == "timeout":
-                            print(f"[MUMU] 二维码生成超时")
-                        else:
-                            print(f"[MUMU] 二维码生成失败")
-
                     elif msg_type == "keyClick":
                         key = data.get("key", "")
                         if key:

@@ -169,7 +169,6 @@ const {
 
 // ========== 二维码处理配置 ==========
 const QRCODE_DIR = path.join(__dirname, 'qrcode');
-const QRCODE_OUTPUT_PATH = path.join(QRCODE_DIR, 'last_qrcode.png');
 // 当前正在等待的MUMU客户端连接（用于返回qrcodeResult）
 let _currentMUMUClient = null;
 let _currentMUMUClientDeviceId = null;
