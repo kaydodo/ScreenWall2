@@ -22,7 +22,7 @@ class MumuClient:
         self._dll_handle = None
         self._get_camera_completed = None
         self._reset_camera_completed = None
-        self._click_history = []  # 保存最近的点击记录
+        self._last_click_info = None  # 保存最后一次点击信息
         self._last_camera_notify_time = 0  # 上次相机点击通知时间
         self._camera_trigger_area = {  # 相机触发区域（基于540P分辨率）
             "x_min": 326,
@@ -233,32 +233,25 @@ class MumuClient:
                         x = data.get("x", 0)
                         y = data.get("y", 0)
                         device_id = data.get("deviceId", "")
-                        device_name = data.get("deviceName", "")
+                        operator_id = data.get("operatorId", "")
+                        operator_name = data.get("operatorName", "")
                         business_id = data.get("businessId", "")
                         business_name = data.get("businessName", "")
 
+                        print(f"[MUMU调试] 收到mouseClick: operatorId={operator_id}, operatorName={operator_name}, businessId={business_id}, businessName={business_name}")
+                        
                         if x and y:
-                            # 获取缩放后的触发区域
-                            area = self._get_camera_trigger_area_scaled()
-                            is_in_area = (area["x_min"] <= x <= area["x_max"] and
-                                        area["y_min"] <= y <= area["y_max"])
-
-                            # 记录点击历史（只在区域内）
-                            click_record = {
+                            # 保存当前点击信息，供相机点击时使用
+                            self._last_click_info = {
                                 "x": x,
                                 "y": y,
                                 "deviceId": device_id,
-                                "deviceName": device_name,
+                                "operatorId": operator_id,
+                                "operatorName": operator_name,
                                 "businessId": business_id,
-                                "businessName": business_name,
-                                "timestamp": time.time(),
-                                "in_trigger_area": is_in_area
+                                "businessName": business_name
                             }
-                            self._click_history.append(click_record)
-                            # 只保留最近5条记录
-                            if len(self._click_history) > 5:
-                                self._click_history.pop(0)
-
+                            print(f"[MUMU调试] 已保存_last_click_info: operatorId={operator_id}, operatorName={operator_name}")
                             await self._adb_click(x, y)
 
                     elif msg_type == "mouseSwipe":
@@ -602,34 +595,28 @@ class MumuClient:
                     continue
                 self._last_camera_notify_time = current_time
                 
-                matched_click = None
-                for click in reversed(self._click_history):
-                    if current_time - click["timestamp"] < 3.0 and click.get("in_trigger_area", False):
-                        matched_click = click
-                        break
-                
                 msg = {
                     "type": "cameraClicked",
                     "timestamp": timestamp,
                     "mumuClientId": self.config["device"]["deviceId"]
                 }
                 
-                if matched_click:
+                # 直接使用最后一次点击信息，不需要匹配
+                print(f"[MUMU调试] _camera_notify_worker: _last_click_info={self._last_click_info}")
+                if self._last_click_info:
                     msg.update({
-                        "x": matched_click["x"],
-                        "y": matched_click["y"],
-                        "deviceId": matched_click["deviceId"],
-                        "deviceName": matched_click["deviceName"],
-                        "businessId": matched_click["businessId"],
-                        "businessName": matched_click["businessName"]
+                        "x": self._last_click_info["x"],
+                        "y": self._last_click_info["y"],
+                        "deviceId": self._last_click_info["operatorId"],
+                        "deviceName": self._last_click_info["operatorName"],
+                        "businessId": self._last_click_info["businessId"],
+                        "businessName": self._last_click_info["businessName"]
                     })
-                    business_display = matched_click["businessName"] or matched_click["businessId"]
-                    if matched_click["businessName"] and matched_click["businessId"]:
-                        business_display = f"{matched_click['businessName']}({matched_click['businessId']})"
-                    print(f"[MUMU] {matched_click['deviceName']} 使用二维码扫码 - 业务: {business_display}")
+                    print(f"[MUMU调试] 发送cameraClicked: deviceId={msg['deviceId']}, deviceName={msg['deviceName']}, businessId={msg['businessId']}, businessName={msg['businessName']}")
                 else:
-                    print(f"[MUMU] 未找到匹配的点击记录")
+                    print("[MUMU调试] _last_click_info为空，无法发送完整cameraClicked消息")
                 
+
                 await ws.send(json.dumps(msg))
             except websockets.exceptions.ConnectionClosed:
                 break
