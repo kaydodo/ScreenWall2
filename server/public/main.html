@@ -5784,6 +5784,9 @@ document.getElementById('btnMonitor').onclick = openMonitorDialog;
 var _taskDialogCellIndex = -1;   // 当前打开弹窗的格子索引
 var _taskDialogDeviceId = null;  // 当前打开弹窗的设备ID
 var _taskCurrentTab = 'device';  // 当前 tab: 'device' | 'all'
+var _taskChatScrollTop = 0;      // 聊天区滚动位置
+var _taskAllScrollTop = 0;       // 所有任务区滚动位置
+var _taskInputValue = '';        // 输入框内容
 
 // 格式化时间戳
 function fmtTaskTime(ts) {
@@ -5811,8 +5814,29 @@ function openTaskDialog(cellIndex, evt) {
   _taskDialogCellIndex = cellIndex;
   _taskDialogDeviceId = cell.deviceId;
   _taskCurrentTab = 'device';
+  // 关闭再打开时重置到默认位置
+  _taskChatScrollTop = 0;
+  _taskAllScrollTop = 0;
+  _taskInputValue = '';
   document.getElementById('taskOverlay').classList.add('open');
+  
+  // 绑定滚动事件
+  bindTaskScrollEvents();
+  
   renderTaskDialog(true);  // true=强制重置为 device tab
+}
+
+// 绑定任务弹窗滚动事件
+function bindTaskScrollEvents() {
+  var chatArea = document.getElementById('taskChatArea');
+  var allArea = document.getElementById('taskAllArea');
+  
+  if (chatArea) {
+    chatArea.addEventListener('scroll', saveTaskChatScroll);
+  }
+  if (allArea) {
+    allArea.addEventListener('scroll', saveTaskAllScroll);
+  }
 }
 
 // 关闭任务弹窗
@@ -5835,6 +5859,13 @@ function switchTaskTab(tab) {
 // forceReset=false/undefined: 仅刷新内容，保持当前 tab
 function renderTaskDialog(forceReset) {
   if (forceReset) _taskCurrentTab = 'device';
+  
+  // 保存输入框内容
+  var taskInput = document.getElementById('taskInput');
+  if (taskInput && _taskCurrentTab === 'device') {
+    _taskInputValue = taskInput.value;
+  }
+  
   var cell = _taskDialogDeviceId ? gridCells.find(function(c) { return c && c.deviceId === _taskDialogDeviceId; }) : null;
   var dev = _taskDialogDeviceId ? devices.find(function(d) { return d.deviceId === _taskDialogDeviceId; }) : null;
   var deviceName = dev ? dev.deviceName : (cell ? cell.deviceName : '未知设备');
@@ -5857,12 +5888,13 @@ function renderTaskDialog(forceReset) {
   inputArea.style.display = _taskCurrentTab === 'device' ? 'flex' : 'none';
 
   // 输入框禁用
-  var taskInput = document.getElementById('taskInput');
   var sendBtn = document.getElementById('taskSendBtn');
   if (_taskCurrentTab === 'device') {
     taskInput.disabled = !isOnline;
     sendBtn.disabled = !isOnline;
     taskInput.placeholder = isOnline ? '输入任务内容...' : '设备已离线，无法发布任务';
+    // 恢复输入框内容
+    taskInput.value = _taskInputValue;
   }
 
   if (_taskCurrentTab === 'device') {
@@ -5880,6 +5912,10 @@ function renderTaskDialog(forceReset) {
 function renderTaskChatArea() {
   var el = document.getElementById('taskChatArea');
   if (!el) return;
+  
+  // 保存当前滚动位置
+  var currentScrollTop = el.scrollTop;
+  
   var deviceTasks = tasks.filter(function(t) { return t.deviceId === _taskDialogDeviceId; })
     .sort(function(a, b) { return a.timestamp - b.timestamp; });
   if (deviceTasks.length === 0) {
@@ -5904,8 +5940,23 @@ function renderTaskChatArea() {
       '</div>';
   });
   el.innerHTML = html;
-  // 滚动到底
-  el.scrollTop = el.scrollHeight;
+  
+  // 判断是否需要恢复滚动位置
+  if (_taskChatScrollTop > 0 && currentScrollTop > 0) {
+    // 有之前的滚动记录，恢复位置
+    el.scrollTop = _taskChatScrollTop;
+  } else {
+    // 新打开弹窗或未滚动过，滚动到底部
+    el.scrollTop = el.scrollHeight;
+  }
+}
+
+// 保存聊天区滚动位置
+function saveTaskChatScroll() {
+  var el = document.getElementById('taskChatArea');
+  if (el) {
+    _taskChatScrollTop = el.scrollTop;
+  }
 }
 
 // 渲染所有任务记录区
@@ -5914,7 +5965,10 @@ function renderTaskAllArea() {
   var body = document.getElementById('taskAllBody');
   var countEl = document.getElementById('taskAllCount');
   if (!wrap || !body) return;
-  wrap.scrollTop = 0;
+  
+  // 保存当前滚动位置
+  var currentScrollTop = wrap.scrollTop;
+  
   if (countEl) countEl.textContent = tasks.length;
   if (tasks.length === 0) {
     body.innerHTML = '<div style="text-align:center;color:var(--text-muted);font-size:12px;padding:24px 0;">暂无任务记录</div>';
@@ -5969,6 +6023,19 @@ function renderTaskAllArea() {
       '</div>';
   });
   body.innerHTML = html;
+  
+  // 恢复滚动位置
+  if (_taskAllScrollTop > 0 || currentScrollTop > 0) {
+    wrap.scrollTop = _taskAllScrollTop || currentScrollTop;
+  }
+}
+
+// 保存所有任务区滚动位置
+function saveTaskAllScroll() {
+  var wrap = document.getElementById('taskAllArea');
+  if (wrap) {
+    _taskAllScrollTop = wrap.scrollTop;
+  }
 }
 
 // 发送任务
