@@ -222,8 +222,10 @@ const {
 const QRCODE_DIR = path.join(__dirname, 'qrcode');
 // 当前正在等待的MUMU客户端连接（用于返回qrcodeResult）
 let _currentMUMUClient = null;
-let _currentMUMUClientDeviceId = null;
+let _currentOperatorId = null;
+let _currentOperatorName = null;
 let _currentBusinessId = null;
+let _currentBusinessName = null;
 let _selfServiceTimeoutId = null;
 
 // 自助登号超时时间（毫秒）
@@ -232,27 +234,30 @@ const SELF_SERVICE_TIMEOUT_MS = 5000;
 // 自助登号超时清理函数
 function clearSelfServiceState() {
   _currentMUMUClient = null;
-  _currentMUMUClientDeviceId = null;
+  _currentOperatorId = null;
+  _currentOperatorName = null;
   _currentBusinessId = null;
+  _currentBusinessName = null;
   if (_selfServiceTimeoutId) {
     clearTimeout(_selfServiceTimeoutId);
     _selfServiceTimeoutId = null;
   }
 }
 
-async function processQrcodeImage(imageBuffer, businessId, currentDeviceId) {
+async function processQrcodeImage(imageBuffer, businessId, operatorId) {
   try {
-    const businessDev = devices.get(businessId);
-    const businessDeviceName = businessDev ? businessDev.deviceName : businessId;
-    const currentDev = devices.get(currentDeviceId);
-    const currentDeviceName = currentDev ? currentDev.deviceName : currentDeviceId;
-    const isSameDevice = businessId === currentDeviceId;
+    serverLog(`[自助登号调试] processQrcodeImage: _currentOperatorName=${_currentOperatorName}, _currentBusinessName=${_currentBusinessName}, operatorId=${operatorId}, businessId=${businessId}`);
+    
+    // 使用保存的变量，确保名称在 cameraClicked 时已经保存好
+    const operatorName = _currentOperatorName || operatorId;
+    const businessDeviceName = _currentBusinessName || businessId;
+    const isSameDevice = businessId === operatorId;
 
     const logResult = (result) => {
       if (isSameDevice) {
-        serverLog(`[自助登号] ${currentDeviceName}使用二维码扫码（${result}）`);
+        serverLog(`[自助登号] ${operatorName}使用二维码扫码（${result}）`);
       } else {
-        serverLog(`[自助登号] ${currentDeviceName}帮助${businessDeviceName}使用二维码扫码（${result}）`);
+        serverLog(`[自助登号] ${operatorName}帮助${businessDeviceName}使用二维码扫码（${result}）`);
       }
     };
 
@@ -2077,7 +2082,8 @@ wssClient.on('connection', (ws, req) => {
           try {
             const base64Data = image.replace(/^data:image\/\w+;base64,/, '');
             const buffer = Buffer.from(base64Data, 'base64');
-            await processQrcodeImage(buffer, businessId, deviceId);
+            // 使用 cameraClicked 时保存的 operatorId 和 businessId
+            await processQrcodeImage(buffer, _currentBusinessId || businessId, _currentOperatorId);
           } catch (e) {
             serverError('[二维码] 处理自助登号截图失败:', e.message);
           }
@@ -2333,12 +2339,19 @@ wssClient.on('connection', (ws, req) => {
     }  // end if alarm
 
     if (msg.type === 'cameraClicked') {
-      // MUMU客户端发送的相机点击通知，携带businessId
-      const { businessId, x, y, timestamp, deviceId } = msg;
+      // MUMU客户端发送的相机点击通知
+      // deviceId: 业务发起方ID（从self-service.html发送过来的originalDeviceId）
+      // deviceName: 业务发起方名称
+      // businessId: 业务设备ID（从下拉框选择的需要截图的设备ID）
+      // businessName: 业务设备名称
+      const { businessId, businessName, x, y, timestamp, deviceId: operatorId, deviceName: operatorName } = msg;
       if (!businessId) {
         serverLog('[自助登号] cameraClicked消息缺少businessId');
         return;
       }
+      
+      // 调试日志：检查收到的字段
+      serverLog(`[自助登号调试] 收到cameraClicked消息: operatorId=${operatorId}, operatorName=${operatorName}, businessId=${businessId}, businessName=${businessName}`);
       
       const businessDev = devices.get(businessId);
       if (!businessDev) {
@@ -2351,24 +2364,28 @@ wssClient.on('connection', (ws, req) => {
         return;
       }
       
-      serverLog(`[自助登号] 收到相机点击，向业务设备请求1080P截图: ${businessDev.deviceName}`);
+      // 从devices字典中获取设备名称，确保即使收到的名称为空也能正确显示
+      const operatorDev = operatorId ? devices.get(operatorId) : null;
+      const finalOperatorName = operatorName || (operatorDev ? operatorDev.deviceName : operatorId);
+      const finalBusinessName = businessName || businessDev.deviceName;
       
       // 保存当前状态
       _currentMUMUClient = ws;
-      _currentMUMUClientDeviceId = msg.mumuClientId || deviceId || ws._deviceId;
-      _currentBusinessId = businessId;
+      _currentOperatorId = operatorId;                    // 业务发起方ID
+      _currentOperatorName = finalOperatorName;          // 业务发起方名称
+      _currentBusinessId = businessId;                    // 业务设备ID
+      _currentBusinessName = finalBusinessName;           // 业务设备名称
+      
+      serverLog(`[自助登号调试] 已保存状态: _currentOperatorName=${_currentOperatorName}, _currentBusinessName=${_currentBusinessName}`);
+      serverLog(`[自助登号] 收到相机点击，向业务设备请求1080P截图: ${_currentBusinessName}`);
       
       // 设置超时
       _selfServiceTimeoutId = setTimeout(() => {
-        const currentDev = devices.get(_currentMUMUClientDeviceId);
-        const currentDeviceName = currentDev ? currentDev.deviceName : _currentMUMUClientDeviceId;
-        const businessDev = devices.get(_currentBusinessId);
-        const businessDeviceName = businessDev ? businessDev.deviceName : _currentBusinessId;
-        const isSameDevice = _currentBusinessId === _currentMUMUClientDeviceId;
+        const isSameDevice = _currentOperatorId === _currentBusinessId;
         
         serverLog(isSameDevice 
-          ? `[自助登号] ${currentDeviceName}使用二维码扫码（超时）` 
-          : `[自助登号] ${currentDeviceName}帮助${businessDeviceName}使用二维码扫码（超时）`);
+          ? `[自助登号] ${_currentOperatorName}使用二维码扫码（超时）` 
+          : `[自助登号] ${_currentOperatorName}帮助${_currentBusinessName}使用二维码扫码（超时）`);
         
         clearSelfServiceState();
       }, SELF_SERVICE_TIMEOUT_MS);
@@ -3397,10 +3414,19 @@ wssBrowser.on('connection', (ws) => {
 
     if (msg.type === 'selfServiceInit') {
       ws._isSelfService = true;
-      ws._selfServiceDeviceId = msg.deviceId;
-      ws._selfServiceDeviceName = msg.deviceName;
-      const displayName = msg.deviceName || msg.deviceId || '未知设备';
-      serverLog(`[自助登号] ${displayName} 开始使用`);
+      _currentOperatorId = msg.operatorId;
+      _currentBusinessId = msg.businessId;
+      const operatorDev = devices.get(msg.operatorId);
+      const businessDev = devices.get(msg.businessId);
+      // 优先使用从devices字典获取的名称，确保准确性
+      _currentOperatorName = operatorDev ? operatorDev.deviceName : (msg.operatorName || msg.operatorId);
+      _currentBusinessName = businessDev ? businessDev.deviceName : (msg.businessName || msg.businessId);
+      
+      if (msg.operatorId === msg.businessId) {
+        serverLog(`[自助登号] ${_currentOperatorName} 开始使用`);
+      } else {
+        serverLog(`[自助登号] ${_currentOperatorName} 开始使用，业务设备: ${_currentBusinessName}`);
+      }
     }
 
     if (msg.type === 'getWalledDevices') {
