@@ -130,8 +130,8 @@ class MumuClient:
                 stderr=asyncio.subprocess.PIPE
             )
             await asyncio.wait_for(proc.communicate(), timeout=5)
-        except Exception as e:
-            print(f"[ADB] 点击失败: {e}")
+        except Exception:
+            pass
 
     async def _adb_swipe(self, x1, y1, x2, y2, duration=300):
         try:
@@ -142,9 +142,8 @@ class MumuClient:
                 stderr=asyncio.subprocess.PIPE
             )
             await asyncio.wait_for(proc.communicate(), timeout=5)
-            print(f"[ADB] 滑动: ({x1}, {y1}) -> ({x2}, {y2})")
-        except Exception as e:
-            print(f"[ADB] 滑动失败: {e}")
+        except Exception:
+            pass
 
     async def _adb_keyevent(self, keycode):
         try:
@@ -163,9 +162,8 @@ class MumuClient:
                 stderr=asyncio.subprocess.PIPE
             )
             await asyncio.wait_for(proc.communicate(), timeout=5)
-            print(f"[ADB] 按键: {keycode} (keycode: {android_key})")
-        except Exception as e:
-            print(f"[ADB] 按键失败: {e}")
+        except Exception:
+            pass
 
     async def _send_binary_frame(self, ws, img_bytes):
         device_id = self.config["device"]["deviceId"]
@@ -264,9 +262,9 @@ class MumuClient:
                         center_x = 180
                         center_y = 320
                         if delta > 0:
-                            await self._adb_swipe(center_x, center_y + 50, center_x, center_y - 50, 200)
-                        else:
                             await self._adb_swipe(center_x, center_y - 50, center_x, center_y + 50, 200)
+                        else:
+                            await self._adb_swipe(center_x, center_y + 50, center_x, center_y - 50, 200)
 
                     elif msg_type == "getCameraStatus":
                         status = self.get_camera_status()
