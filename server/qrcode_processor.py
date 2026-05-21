@@ -11,7 +11,7 @@ import cv2
 from pyzbar.pyzbar import decode
 
 # 输出路径
-OUTPUT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'server', 'qrcode', 'last_qrcode.png')
+OUTPUT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'qrcode', 'last_qrcode.png')
 
 def is_url_or_ad(data):
     """检查是否为URL或广告内容"""

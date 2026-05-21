@@ -221,7 +221,7 @@ async function processQrcodeImage(imageBuffer, businessId, currentDeviceId) {
     fs.writeFileSync(tempPath, imageBuffer);
 
     // 调用 Python 脚本处理二维码
-    const pythonScript = path.join(__dirname, '..', 'qrcode_processor.py');
+    const pythonScript = path.join(__dirname, 'qrcode_processor.py');
     
     execFile('python', [pythonScript, tempPath], { timeout: 10000 }, (error, stdout, stderr) => {
       // 清理临时文件
