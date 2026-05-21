@@ -2515,10 +2515,10 @@ wssBrowser.on('connection', (ws) => {
     }
 
     if (msg.type === 'mouseClick') {
-      // 鼠标点击：{ deviceId, businessId, x, y, previewWidth, previewHeight }
+      // 鼠标点击：{ deviceId, operatorId, operatorName, businessId, businessName, x, y, previewWidth, previewHeight }
       // x,y 是浏览器预览画面坐标，previewWidth/Height 是预览时的分辨率（可能已过时）
       // 服务端用自己最新的 dev.screenWidth/screenHeight（心跳频繁更新）校正坐标
-      const { deviceId: mDevId, businessId, x, y, previewWidth, previewHeight } = msg;
+      const { deviceId: mDevId, operatorId, operatorName, businessId, businessName, x, y, previewWidth, previewHeight } = msg;
       if (!mDevId) return;
       const dev = devices.get(mDevId);
       if (!dev || !dev.online) return;
@@ -2548,7 +2548,7 @@ wssBrowser.on('connection', (ws) => {
 
       // 获取业务设备名称
       const businessDev = devices.get(businessId);
-      const businessName = businessDev ? businessDev.deviceName : (businessId || '');
+      const finalBusinessName = businessDev ? businessDev.deviceName : (businessName || businessId || '');
 
       for (const client of wssClient.clients) {
         if (client._deviceId === mDevId && client.readyState === 1) {
@@ -2558,8 +2558,10 @@ wssBrowser.on('connection', (ws) => {
             y: actualY, 
             deviceId: mDevId, 
             deviceName: dev.deviceName,
+            operatorId: operatorId,
+            operatorName: operatorName,
             businessId: businessId,
-            businessName: businessName
+            businessName: finalBusinessName
           }));
           break;
         }
