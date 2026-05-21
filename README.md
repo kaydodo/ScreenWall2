@@ -54,6 +54,9 @@ ScreenWall2 是一套多设备屏幕监控与远控系统，支持同时监控�
 - 安卓三键控制（返回/主页/任务）
 - 摄像头Hook自动选择
 - 业务ID指定（URL参数传入）
+- Python二维码处理（pyzbar）
+- 自动裁剪与200×360输出
+- 时间戳验证确保文件更新
 
 ---
 
@@ -63,6 +66,10 @@ ScreenWall2 是一套多设备屏幕监控与远控系统，支持同时监控�
 D:\ScreenWall2\
 ├── server/                          # 服务端
 │   ├── server.js                    # 主服务程序
+│   ├── qrcode_processor.py         # 二维码处理脚本
+│   ├── qrcode/                     # 二维码输出目录
+│   │   ├── screenshot_original.png # 原始截图
+│   │   └── last_qrcode.png         # 处理后的二维码
 │   ├── public/                      # 前端静态资源
 │   │   ├── main.html               # 主页面
 │   │   ├── monitor-wall.html       # 监控墙页面
@@ -250,6 +257,9 @@ D:\ScreenWall2\
 | | d2e577c | 监控墙同样移除裁剪，修复调度阻塞 |
 | **v1.9.2** | 4c19387 | 自助登号基础功能 |
 | **v1.9.3** | 4940466 | 自助登号完善 |
+| **v1.9.4** | d17be7b | 移除jsqr，改用Python+pyzbar处理二维码 |
+| **v1.9.5** | 5047f64 | 二维码保存逻辑：固定位置+时间戳验证 |
+| **v1.9.6** | b48153b | 清理未使用代码：移除客户端qrcodeResult处理 |
 
 ---
 
@@ -284,6 +294,67 @@ python mumu_client.py
 ```
 - 启动时会自动检测并注入摄像头Hook v49
 - 如未检测到模拟器会弹窗提示
+
+### 自助登号完整流程
+
+#### 前置准备
+1. **MUMU摄像头Hook注入**
+   - 启动MUMU模拟器
+   - 运行注入器 `injector49.exe` 或启动MUMU客户端自动注入
+   - 注入成功后会返回提示
+
+2. **Python环境准备**
+   ```bash
+   pip install pyzbar opencv-python numpy
+   ```
+
+#### 完整操作步骤
+1. **启动服务端**
+   ```bash
+   cd D:\ScreenWall2\server
+   node server.js
+   ```
+
+2. **启动业务设备**（要扫码的游戏账号所在设备）
+
+3. **启动MUMU模拟器和客户端**
+   - 打开MUMU模拟器
+   - 运行 `mumu_client.py`
+
+4. **打开自助登号页面**
+   - 在浏览器访问：`http://localhost:3000/self-service.html`
+   - URL可选参数：`?businessId=设备ID` 指定业务设备
+
+5. **触发扫码操作**
+   - 在自助登号页面中点击对应位置
+   - 鼠标点击会传递到MUMU模拟器
+   - 点击区域需在相机触发区（右上角）
+
+6. **自动处理流程**
+   ```
+   用户点击 → MU客户端记录
+   相机弹窗通知 → 匹配点击记录
+   服务端接收 cameraClicked 消息
+   向业务设备发送 requestHdScreenshot
+   业务设备返回 hdScreenshot (selfService目的)
+   服务端保存原始截图到 qrcode/screenshot_original.png
+   调用 qrcode_processor.py 处理
+   Python脚本识别二维码、过滤URL广告
+   裁剪、缩放、添加白色边框（200×360）
+   保存到 qrcode/last_qrcode.png
+   通过修改时间戳验证文件更新成功
+   服务端记录日志（成功/失败/超时）
+   ```
+
+7. **扫码显示**
+   - 使用虚拟摄像头软件（如SplitCam、OBS Virtual Camera）
+   - 将 `qrcode/last_qrcode.png` 设置为虚拟摄像头源
+   - 在实际扫码框中选择该虚拟摄像头即可完成登录
+
+#### 日志查看
+- 成功：`[自助登号] 设备名使用二维码扫码（成功）`
+- 失败：`[自助登号] 设备名使用二维码扫码（失败）`
+- 超时：`[自助登号] 设备名使用二维码扫码（超时）`
 
 ---
 
