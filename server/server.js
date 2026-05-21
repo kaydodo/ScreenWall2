@@ -23,6 +23,10 @@ const { promisify } = require('util');
 const fsWriteFile = promisify(fs.writeFile);
 const fsStat = promisify(fs.stat);
 const fsMkdir = promisify(fs.mkdir);
+const fsReadFile = promisify(fs.readFile);
+const fsCopyFile = promisify(fs.copyFile);
+const fsUnlink = promisify(fs.unlink);
+const fsReaddir = promisify(fs.readdir);
 const execFileAsync = promisify(execFile);
 
 // 服务端版本从 config.json 的 serverVersion 字段读取，无需硬编码
@@ -40,19 +44,49 @@ try {
   }
 } catch(e) {}
 
-// ========== 日志模块 ==========
+// ========== 异步日志模块 ==========
 const LOGS_DIR = path.join(__dirname, 'logs');
-let _logFd = null;
+let _logQueue = [];
+let _logWriting = false;
+let _logFileHandle = null;
 let _logDate = null;
+const fsAppendFile = promisify(fs.appendFile);
 
-function _openLog() {
+async function _ensureLogFile() {
     const today = new Date().toISOString().slice(0, 10);
-    if (_logFd && _logDate === today) return;
-    if (_logFd) { try { fs.closeSync(_logFd); } catch(e) {} _logFd = null; }
-    if (!fs.existsSync(LOGS_DIR)) fs.mkdirSync(LOGS_DIR, { recursive: true });
+    if (_logFileHandle && _logDate === today) return _logFileHandle;
+    
+    if (_logFileHandle) {
+        try { _logFileHandle.close(); } catch(e) {}
+        _logFileHandle = null;
+    }
+    
+    try {
+        await fsMkdir(LOGS_DIR, { recursive: true });
+    } catch(e) {}
+    
     const logPath = path.join(LOGS_DIR, `${today}.log`);
-    _logFd = fs.openSync(logPath, 'a');
     _logDate = today;
+    return logPath;
+}
+
+async function _flushLogQueue() {
+    if (_logWriting || _logQueue.length === 0) return;
+    _logWriting = true;
+    
+    try {
+        const lines = _logQueue.splice(0, _logQueue.length);
+        const content = lines.join('');
+        const logPath = await _ensureLogFile();
+        await fsAppendFile(logPath, content);
+    } catch(e) {
+        process.stderr.write('[日志写入失败] ' + e.message + '\n');
+    } finally {
+        _logWriting = false;
+        if (_logQueue.length > 0) {
+            _flushLogQueue();
+        }
+    }
 }
 
 function serverLog(...args) {
@@ -62,10 +96,17 @@ function serverLog(...args) {
     try {
         process.stdout.write(line);  // 自动处理Windows控制台编码
     } catch(e) { /* ignore */ }
-    try {
-        _openLog();
-        fs.writeSync(_logFd, line);
-    } catch(e) { process.stderr.write('[日志写入失败] ' + e.message + '\n'); }
+    _logQueue.push(line);
+    _flushLogQueue();
+}
+
+function serverError(...args) {
+    const ts = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
+    const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+    const line = `[${ts}] [ERROR] ${msg}\n`;
+    process.stderr.write(line);
+    _logQueue.push(line);
+    _flushLogQueue();
 }
 
 // ========== 公共配置文件（网页和客户端共享）==========
@@ -94,48 +135,60 @@ _lastServerVersion = SERVER_CONFIG.serverVersion || null;
 
 // 热更新：监听 config.json 变化，无需重启自动重载
 const SERVER_CONFIG_PATH = path.join(__dirname, 'public', 'config.json');
-function reloadServerConfig() {
+async function reloadServerConfigAsync() {
   try {
-    if (fs.existsSync(SERVER_CONFIG_PATH)) {
-      const raw = JSON.parse(fs.readFileSync(SERVER_CONFIG_PATH, 'utf8'));
-      SERVER_CONFIG = raw;
-      if (SERVER_CONFIG.uuDownloadUrl && !SERVER_CONFIG.uuVersion) {
-        const fileName = SERVER_CONFIG.uuDownloadUrl.replace(/^\//, '');
-        const m = fileName.match(/(\d+\.\d+\.\d+\.\d+)/);
-        if (m) SERVER_CONFIG.uuVersion = m[1];
-      }
-      serverLog(`[配置] config.json 已重新加载: 屏幕墙版本=${SERVER_CONFIG.serverVersion || '未知'} | UU版本=${SERVER_CONFIG.uuVersion || '未知'}`);
+    let raw;
+    try {
+      raw = await fsReadFile(SERVER_CONFIG_PATH, 'utf8');
+    } catch (e) {
+      return;
+    }
+    SERVER_CONFIG = JSON.parse(raw);
+    if (SERVER_CONFIG.uuDownloadUrl && !SERVER_CONFIG.uuVersion) {
+      const fileName = SERVER_CONFIG.uuDownloadUrl.replace(/^\//, '');
+      const m = fileName.match(/(\d+\.\d+\.\d+\.\d+)/);
+      if (m) SERVER_CONFIG.uuVersion = m[1];
+    }
+    serverLog(`[配置] config.json 已重新加载: 屏幕墙版本=${SERVER_CONFIG.serverVersion || '未知'} | UU版本=${SERVER_CONFIG.uuVersion || '未知'}`);
 
 
-      // 服务端自更新检测
-      if (SERVER_CONFIG.serverSelfUpdate === '1') {
-        serverLog(`[自更新] 检测到自更新指令，从 public/server.js 更新服务端...`);
+    // 服务端自更新检测
+    if (SERVER_CONFIG.serverSelfUpdate === '1') {
+      serverLog(`[自更新] 检测到自更新指令，从 public/server.js 更新服务端...`);
+      try {
+        const serverJsSrc = path.join(__dirname, 'public', 'server.js');
+        const serverJsDest = path.join(__dirname, 'server.js');
+        let srcExists = true;
         try {
-          const serverJsSrc = path.join(__dirname, 'public', 'server.js');
-          const serverJsDest = path.join(__dirname, 'server.js');
-          if (fs.existsSync(serverJsSrc)) {
-            fs.copyFileSync(serverJsSrc, serverJsDest);
-            fs.unlinkSync(serverJsSrc);
-            SERVER_CONFIG.serverSelfUpdate = '0';
-            fs.writeFileSync(SERVER_CONFIG_PATH, JSON.stringify(SERVER_CONFIG, null, 2), 'utf8');
-            serverLog('[自更新] 更新完成，即将退出（看门狗会自动重启）...');
-            setTimeout(() => { process.exit(0); }, 1000);
-          } else {
-            serverError('[自更新] public/server.js 不存在，跳过');
-          }
-        } catch (err) {
-          serverError('[自更新] 失败:', err.message);
+          await fsStat(serverJsSrc);
+        } catch (e) {
+          srcExists = false;
         }
+        if (srcExists) {
+          await fsCopyFile(serverJsSrc, serverJsDest);
+          await fsUnlink(serverJsSrc);
+          SERVER_CONFIG.serverSelfUpdate = '0';
+          await fsWriteFile(SERVER_CONFIG_PATH, JSON.stringify(SERVER_CONFIG, null, 2), 'utf8');
+          serverLog('[自更新] 更新完成，即将退出（看门狗会自动重启）...');
+          setTimeout(() => { process.exit(0); }, 1000);
+        } else {
+          serverError('[自更新] public/server.js 不存在，跳过');
+        }
+      } catch (err) {
+        serverError('[自更新] 失败:', err.message);
       }
-      // serverVersion 变化时广播给浏览器更新版本显示
-      if (SERVER_CONFIG.serverVersion && SERVER_CONFIG.serverVersion !== _lastServerVersion) {
-        _lastServerVersion = SERVER_CONFIG.serverVersion;
-        broadcastToBrowsers({ type: 'serverVersionUpdate', serverVersion: SERVER_CONFIG.serverVersion });
-      }
+    }
+    // serverVersion 变化时广播给浏览器更新版本显示
+    if (SERVER_CONFIG.serverVersion && SERVER_CONFIG.serverVersion !== _lastServerVersion) {
+      _lastServerVersion = SERVER_CONFIG.serverVersion;
+      broadcastToBrowsers({ type: 'serverVersionUpdate', serverVersion: SERVER_CONFIG.serverVersion });
     }
   } catch (err) {
     serverError('[配置] 重载 config.json 失败:', err.message);
   }
+}
+function reloadServerConfig() {
+  reloadServerConfigAsync();
 }
 // 使用 fs.watchFile 轮询监听（兼容 FTP/SFTP 上传场景）
 // FTP 上传常用「删除旧文件 → 写入新文件」或「重命名临时文件」方式，fs.watch 会丢失事件
@@ -146,16 +199,7 @@ fs.watchFile(SERVER_CONFIG_PATH, { interval: 5000 }, (curr, prev) => {
   }
 });
 
-function serverError(...args) {
-    const ts = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
-    const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
-    const line = `[${ts}] [ERROR] ${msg}\n`;
-    process.stderr.write(line);
-    try {
-        _openLog();
-        fs.writeSync(_logFd, line);
-    } catch(e) {}
-}
+
 
 // ========== 配置加载 ==========
 const CONFIG_PATH = path.join(__dirname, 'config.json');
@@ -600,9 +644,9 @@ try {
   serverLog(`[任务] 从 tasks.json 恢复了 ${tasks.length} 条记录`);
 } catch (e) {}
 
-function persistTasks() {
+async function persistTasks() {
   try {
-    fs.writeFileSync(TASKS_PERSIST_PATH, JSON.stringify(tasks, null, 2), 'utf8');
+    await fsWriteFile(TASKS_PERSIST_PATH, JSON.stringify(tasks, null, 2), 'utf8');
   } catch (e) { serverError('[任务] 持久化失败:', e.message); }
 }
 
@@ -696,19 +740,19 @@ try {
 } catch (e) {}
 
 // 保存收藏数据
-function saveFavorites() {
+async function saveFavorites() {
   try {
-    fs.writeFileSync(FAVORITES_PATH, JSON.stringify(favorites, null, 2), 'utf8');
+    await fsWriteFile(FAVORITES_PATH, JSON.stringify(favorites, null, 2), 'utf8');
   } catch (e) {
     serverError('[ScreenWall] 保存收藏数据失败:', e.message);
   }
 }
 
 // 保存截图集合
-function saveCollections() {
+async function saveCollections() {
   try {
     const obj = Object.fromEntries(collections);
-    fs.writeFileSync(COLLECTIONS_PATH, JSON.stringify(obj, null, 2), 'utf8');
+    await fsWriteFile(COLLECTIONS_PATH, JSON.stringify(obj, null, 2), 'utf8');
   } catch (e) {
     serverError('[ScreenWall] 保存截图集合失败:', e.message);
   }
@@ -861,25 +905,25 @@ try {
 } catch (e) {}
 
 // ========== 工具函数 ==========
-function persistGrid() {
+async function persistGrid() {
   try {
-    fs.writeFileSync(GRID_PERSIST_PATH, JSON.stringify(gridLayout, null, 2), 'utf8');
+    await fsWriteFile(GRID_PERSIST_PATH, JSON.stringify(gridLayout, null, 2), 'utf8');
   } catch (e) { serverError('Grid布局持久化失败:', e.message); }
 }
 
-function persistGridSize() {
+async function persistGridSize() {
   try {
-    fs.writeFileSync(GRID_SIZE_PATH, JSON.stringify(gridSizeSetting), 'utf8');
+    await fsWriteFile(GRID_SIZE_PATH, JSON.stringify(gridSizeSetting), 'utf8');
   } catch (e) { serverError('布局大小持久化失败:', e.message); }
 }
 
-function persistGroups() {
+async function persistGroups() {
   try {
-    fs.writeFileSync(GROUPS_PERSIST_PATH, JSON.stringify(groups, null, 2), 'utf8');
+    await fsWriteFile(GROUPS_PERSIST_PATH, JSON.stringify(groups, null, 2), 'utf8');
   } catch (e) { serverError('分组持久化失败:', e.message); }
 }
 
-function persistDevices() {
+async function persistDevices() {
   try {
     const arr = Array.from(devices.values())
       .filter(d => d.deviceId !== 'MUMU-service')  // 排除MUMU，不持久化
@@ -893,13 +937,13 @@ function persistDevices() {
         // 持久化时 Buffer 转 base64（避免存成巨大数组），加载后直接可用
         screenshot: d.screenshot ? (Buffer.isBuffer(d.screenshot) ? 'data:image/webp;base64,' + d.screenshot.toString('base64') : d.screenshot) : null,
       }));
-    fs.writeFileSync(DEVICES_PERSIST_PATH, JSON.stringify(arr, null, 2), 'utf8');
+    await fsWriteFile(DEVICES_PERSIST_PATH, JSON.stringify(arr, null, 2), 'utf8');
   } catch (e) { serverError('[设备] 持久化失败:', e.message); }
 }
 
-function persistAlarmRecords() {
+async function persistAlarmRecords() {
   try {
-    fs.writeFileSync(ALARM_RECORDS_PATH, JSON.stringify(alarmRecords, null, 2), 'utf8');
+    await fsWriteFile(ALARM_RECORDS_PATH, JSON.stringify(alarmRecords, null, 2), 'utf8');
   } catch (e) { serverError('[报警] 持久化失败:', e.message); }
 }
 
@@ -923,9 +967,9 @@ function getCellIndexForDevice(deviceId) {
   return -1;
 }
 
-function persistPowerScenes() {
+async function persistPowerScenes() {
   try {
-    fs.writeFileSync(POWER_SCENES_PATH, JSON.stringify(powerScenes, null, 2), 'utf8');
+    await fsWriteFile(POWER_SCENES_PATH, JSON.stringify(powerScenes, null, 2), 'utf8');
   } catch (e) { serverError('[开关机场景] 持久化失败:', e.message); }
 }
 
@@ -958,25 +1002,32 @@ function cleanupOldAlarmRecords() {
 }
 
 // 清理不在 alarmRecords 中的独立 1080P 截图文件
-function cleanupOrphaned1080pScreenshots() {
+async function cleanupOrphaned1080pScreenshotsAsync() {
   try {
-    if (!fs.existsSync(ALARM_SCREENSHOTS_DIR)) return;
+    let files;
+    try {
+      files = await fsReaddir(ALARM_SCREENSHOTS_DIR);
+    } catch (e) {
+      return;
+    }
     const validScreenshotIds = new Set(alarmRecords.map(r => r.screenshotId).filter(Boolean));
-    const files = fs.readdirSync(ALARM_SCREENSHOTS_DIR);
     for (const file of files) {
       // 只清理不在 alarmRecords 中的截图文件（这些是延迟到达的1080P截图）
       if (!validScreenshotIds.has(file.replace('.png', ''))) {
         try {
           const filePath = path.join(ALARM_SCREENSHOTS_DIR, file);
-          const stat = fs.statSync(filePath);
+          const stat = await fsStat(filePath);
           // 超过 2 小时仍未被 alarmRecords 引用的文件，删除（说明匹配失败）
           if (Date.now() - stat.mtimeMs > 2 * 60 * 60 * 1000) {
-            fs.unlinkSync(filePath);
+            await fsUnlink(filePath);
           }
         } catch (e) {}
       }
     }
   } catch (e) {}
+}
+function cleanupOrphaned1080pScreenshots() {
+  cleanupOrphaned1080pScreenshotsAsync();
 }
 
 // ========== 新报警系统辅助函数 ==========
@@ -1429,7 +1480,7 @@ async function processAlarmImage(deviceId, imageBuffer, deviceInfo) {
   // 10. 临时保存 640×360 截图（等 1080P 回来后替换）
   const screenshotId = crypto.randomUUID();
   const screenshotPath = path.join(ALARM_SCREENSHOTS_DIR, `${screenshotId}.png`);
-  fs.writeFileSync(screenshotPath, imageBuffer);
+  await fsWriteFile(screenshotPath, imageBuffer);
   
   // 11. 计算本日报警次数
   const dayStart = new Date(now).setHours(0, 0, 0, 0);
@@ -1463,7 +1514,7 @@ async function processAlarmImage(deviceId, imageBuffer, deviceInfo) {
   };
   
   alarmRecords.push(record);
-  persistAlarmRecords();
+  await persistAlarmRecords();
   
   serverLog(`[报警] ${deviceInfo.deviceName} 触发报警 (第${occurrenceCount}次)`);
   
@@ -2074,7 +2125,7 @@ wssClient.on('connection', (ws, req) => {
               } else {
                 items.push(newItem);
               }
-              saveCollections();
+              await saveCollections();
               const collectionsArr = [];
               collections.forEach((its, ts) => {
                 collectionsArr.push({ timestamp: ts, items: its });
@@ -2086,34 +2137,36 @@ wssClient.on('connection', (ws, req) => {
         }
       } else if (purpose === 'alarm') {
         // 高清报警截图
-        const imageData = image;
-        let matchedRecord = alarmRecords.find(r =>
-          r.deviceId === deviceId && r.timestamp === timestamp
-        );
-        
-        if (matchedRecord) {
-          const imgBuffer = Buffer.from(imageData.replace(/^data:image\/\w+;base64,/, ''), 'base64');
-          fs.writeFileSync(matchedRecord.screenshotPath, imgBuffer);
-          matchedRecord.isFullScreenshot = true;
-          serverLog(`[报警] ${matchedRecord.deviceName} 1080P截图已保存`);
-        } else {
-          matchedRecord = alarmRecords.find(r =>
-            r.deviceId === deviceId && !r.isFullScreenshot
+        (async () => {
+          const imageData = image;
+          let matchedRecord = alarmRecords.find(r =>
+            r.deviceId === deviceId && r.timestamp === timestamp
           );
           
           if (matchedRecord) {
             const imgBuffer = Buffer.from(imageData.replace(/^data:image\/\w+;base64,/, ''), 'base64');
-            fs.writeFileSync(matchedRecord.screenshotPath, imgBuffer);
+            await fsWriteFile(matchedRecord.screenshotPath, imgBuffer);
             matchedRecord.isFullScreenshot = true;
-            serverLog(`[报警] ${matchedRecord.deviceName} 1080P截图已保存（延迟到达）`);
+            serverLog(`[报警] ${matchedRecord.deviceName} 1080P截图已保存`);
           } else {
-            const screenshotId = crypto.randomUUID();
-            const screenshotPath = path.join(ALARM_SCREENSHOTS_DIR, `${screenshotId}.png`);
-            const imgBuffer = Buffer.from(imageData.replace(/^data:image\/\w+;base64,/, ''), 'base64');
-            fs.writeFileSync(screenshotPath, imgBuffer);
-            serverLog(`[报警] ${deviceId} 1080P截图保存失败（无匹配记录），独立保存为 ${screenshotId}.png`);
+            matchedRecord = alarmRecords.find(r =>
+              r.deviceId === deviceId && !r.isFullScreenshot
+            );
+            
+            if (matchedRecord) {
+              const imgBuffer = Buffer.from(imageData.replace(/^data:image\/\w+;base64,/, ''), 'base64');
+              await fsWriteFile(matchedRecord.screenshotPath, imgBuffer);
+              matchedRecord.isFullScreenshot = true;
+              serverLog(`[报警] ${matchedRecord.deviceName} 1080P截图已保存（延迟到达）`);
+            } else {
+              const screenshotId = crypto.randomUUID();
+              const screenshotPath = path.join(ALARM_SCREENSHOTS_DIR, `${screenshotId}.png`);
+              const imgBuffer = Buffer.from(imageData.replace(/^data:image\/\w+;base64,/, ''), 'base64');
+              await fsWriteFile(screenshotPath, imgBuffer);
+              serverLog(`[报警] ${deviceId} 1080P截图保存失败（无匹配记录），独立保存为 ${screenshotId}.png`);
+            }
           }
-        }
+        })();
       }
     }
 
@@ -2618,18 +2671,23 @@ wssBrowser.on('connection', (ws) => {
       persistAlarmRecords();
       
       // 清除所有报警截图文件
-      if (fs.existsSync(ALARM_SCREENSHOTS_DIR)) {
-        const files = fs.readdirSync(ALARM_SCREENSHOTS_DIR);
-        let deletedCount = 0;
-        for (const file of files) {
+      (async () => {
+        try {
+          let files;
           try {
-            fs.unlinkSync(path.join(ALARM_SCREENSHOTS_DIR, file));
-            deletedCount++;
+            files = await fsReaddir(ALARM_SCREENSHOTS_DIR);
           } catch (e) {
-            serverError(`[报警] 删除截图失败: ${file}`, e.message);
+            return;
           }
-        }
-      }
+          for (const file of files) {
+            try {
+              await fsUnlink(path.join(ALARM_SCREENSHOTS_DIR, file));
+            } catch (e) {
+              serverError(`[报警] 删除截图失败: ${file}`, e.message);
+            }
+          }
+        } catch (e) {}
+      })();
       
       broadcastToBrowsers({ type: 'alarmsCleared' });
     }

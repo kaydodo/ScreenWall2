@@ -585,6 +585,9 @@ function getGroupColor(groupId) {
 let powerScenes = {};     // 开关机场景配置 { deviceId: sceneName }
 let editingPowerDeviceId = null;  // 当前编辑的设备ID
 let editingGroupId = null;        // 当前编辑的分组ID
+let configGroupEditingInputId = null;  // 正在编辑的分组输入框ID
+let configPowerEditingInputId = null;  // 正在编辑的开关机输入框ID
+let configUngroupedSelectedIds = new Set();  // 未分组设备选中的设备ID集合
 let favorites = [];       // 收藏设备列表 [{ deviceId, deviceName, groupId, cellIndex }]
 let collections = [];     // 截图集合 [{ timestamp, items: [...] }]
 let collectionDialog = null;  // 收藏弹窗元素
@@ -3958,6 +3961,20 @@ function renderConfigGroupList() {
   var el = document.getElementById('configGroupList');
   if (!el) return;
 
+  // Save active element info before render
+  var activeEl = document.activeElement;
+  var activeInputId = null;
+  var activeInputValue = null;
+  var activeSelectionStart = null;
+  var activeSelectionEnd = null;
+  
+  if (activeEl && activeEl.id && activeEl.id.startsWith('groupName_')) {
+    activeInputId = activeEl.id;
+    activeInputValue = activeEl.value;
+    activeSelectionStart = activeEl.selectionStart;
+    activeSelectionEnd = activeEl.selectionEnd;
+  }
+
   var html = '';
   if (!groups || groups.length === 0) {
     el.innerHTML = '<div style="color:var(--text-muted);font-size:13px;padding:8px 0;">暂无分组</div>';
@@ -4013,6 +4030,43 @@ function renderConfigGroupList() {
     html += '</div>';
   });
   el.innerHTML = html;
+  
+  // Restore focus and value
+  if (activeInputId) {
+    var inputEl = document.getElementById(activeInputId);
+    if (inputEl) {
+      if (activeInputValue !== null) {
+        inputEl.value = activeInputValue;
+      }
+      inputEl.focus();
+      if (activeSelectionStart !== null && activeSelectionEnd !== null) {
+        try {
+          inputEl.setSelectionRange(activeSelectionStart, activeSelectionEnd);
+        } catch(e) {}
+      }
+    }
+  }
+  
+  // Bind focus events to lock refresh
+  el.querySelectorAll('input[name="groupName"]').forEach(function(input) {
+    input.addEventListener('focus', function() {
+      configGroupEditingInputId = this.id;
+      inputFocused = true;
+      lockMicroRefresh(30000);
+    });
+    input.addEventListener('blur', function() {
+      // Don't clear immediately, wait to allow clicking save button
+      setTimeout(function() {
+        var stillFocused = document.activeElement && document.activeElement.id === input.id;
+        if (!stillFocused) {
+          configGroupEditingInputId = null;
+          if (!configPowerEditingInputId) {
+            inputFocused = false;
+          }
+        }
+      }, 100);
+    });
+  });
 }
 
 function renderConfigUngroupedList() {
@@ -4022,6 +4076,20 @@ function renderConfigUngroupedList() {
   var countEl = document.getElementById('configUngroupedCount');
   var countEl2 = document.getElementById('configUngroupedCount2');
   if (!el) return;
+
+  // Save current selection state
+  var selectedIds = new Set(configUngroupedSelectedIds);
+  
+  // Update selection set from current DOM state
+  var currentCbs = el.querySelectorAll('.ungrouped-device-cb:checked');
+  currentCbs.forEach(function(cb) {
+    selectedIds.add(cb.value);
+  });
+  var currentCbs2 = el2 ? el2.querySelectorAll('.ungrouped-device-cb:checked') : [];
+  currentCbs2.forEach(function(cb) {
+    selectedIds.add(cb.value);
+  });
+  configUngroupedSelectedIds = selectedIds;
 
   var ungrouped = devices.filter(function(d) { return !d.groupId; })
     .sort(function(a, b) { return naturalCompare(a.deviceName || '', b.deviceName || ''); });
@@ -4038,8 +4106,9 @@ function renderConfigUngroupedList() {
   ungrouped.forEach(function(d) {
     var cellInfo = getDeviceCellInfo(d.deviceId);
     var groupName = '';
+    var isChecked = configUngroupedSelectedIds.has(d.deviceId) ? ' checked' : '';
     html += '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);">';
-    html += '<input type="checkbox" name="ungroupedDevice" aria-label="选择设备" class="ungrouped-device-cb" value="' + d.deviceId + '" style="cursor:pointer;flex-shrink:0;" />';
+    html += '<input type="checkbox" name="ungroupedDevice" aria-label="选择设备" class="ungrouped-device-cb" value="' + d.deviceId + '" style="cursor:pointer;flex-shrink:0;"' + isChecked + ' />';
     html += '<span style="width:10px;height:10px;border-radius:50%;background:' + (d.online ? 'var(--online)' : 'var(--offline)') + ';flex-shrink:0;"></span>';
     html += '<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;">' + escHtml(d.deviceName) + '</span>';
     if (cellInfo) {
@@ -4049,6 +4118,22 @@ function renderConfigUngroupedList() {
   });
   el.innerHTML = html;
   if (el2) el2.innerHTML = html;
+  
+  // Bind change events to update our selection set
+  function bindCheckboxEvents(container) {
+    if (!container) return;
+    container.querySelectorAll('.ungrouped-device-cb').forEach(function(cb) {
+      cb.addEventListener('change', function() {
+        if (this.checked) {
+          configUngroupedSelectedIds.add(this.value);
+        } else {
+          configUngroupedSelectedIds.delete(this.value);
+        }
+      });
+    });
+  }
+  bindCheckboxEvents(el);
+  bindCheckboxEvents(el2);
   
   // 控制左栏未分组列表显示/隐藏
   if (el2Container) {
@@ -4138,6 +4223,20 @@ function renderConfigPowerList() {
   var el = document.getElementById('configPowerList');
   if (!el) return;
 
+  // Save active element info before render
+  var activeEl = document.activeElement;
+  var activeInputDeviceId = null;
+  var activeInputValue = null;
+  var activeSelectionStart = null;
+  var activeSelectionEnd = null;
+  
+  if (activeEl && activeEl.name === 'powerScene') {
+    activeInputDeviceId = activeEl.getAttribute('data-deviceid');
+    activeInputValue = activeEl.value;
+    activeSelectionStart = activeEl.selectionStart;
+    activeSelectionEnd = activeEl.selectionEnd;
+  }
+
   var allDevices = devices.slice().sort(function(a, b) { return naturalCompare(a.deviceName, b.deviceName); });
 
   if (allDevices.length === 0) {
@@ -4170,6 +4269,45 @@ function renderConfigPowerList() {
   });
   html += '</div>';
   el.innerHTML = html;
+  
+  // Restore focus and value
+  if (activeInputDeviceId) {
+    var inputEl = el.querySelector('input[data-deviceid="' + activeInputDeviceId + '"]');
+    if (inputEl) {
+      if (activeInputValue !== null) {
+        inputEl.value = activeInputValue;
+      }
+      inputEl.focus();
+      if (activeSelectionStart !== null && activeSelectionEnd !== null) {
+        try {
+          inputEl.setSelectionRange(activeSelectionStart, activeSelectionEnd);
+        } catch(e) {}
+      }
+    }
+  }
+  
+  // Bind focus events to lock refresh
+  el.querySelectorAll('input[name="powerScene"]').forEach(function(input) {
+    input.addEventListener('focus', function() {
+      configPowerEditingInputId = this.getAttribute('data-deviceid');
+      inputFocused = true;
+      lockMicroRefresh(30000);
+    });
+    input.addEventListener('blur', function() {
+      // Don't clear immediately, wait to allow clicking save button
+      setTimeout(function() {
+        var stillFocused = document.activeElement && 
+          (document.activeElement.name === 'powerScene' && 
+          document.activeElement.getAttribute('data-deviceid') === input.getAttribute('data-deviceid'));
+        if (!stillFocused) {
+          configPowerEditingInputId = null;
+          if (!configGroupEditingInputId) {
+            inputFocused = false;
+          }
+        }
+      }, 100);
+    });
+  });
 }
 
 function openMigrateDialog() {
@@ -4383,10 +4521,12 @@ function addToGroup(groupId) {
   var g = groups.find(function(gg) { return gg.id === groupId; });
   if (!g) return;
 
+  var movedDeviceIds = [];
   checkboxes.forEach(function(cb) {
     var deviceId = cb.value;
     var dev = devices.find(function(d) { return d.deviceId === deviceId; });
     if (dev) {
+      movedDeviceIds.push(deviceId);
       // Remove from old group
       if (dev.groupId && dev.groupId !== groupId) {
         var oldGroup = groups.find(function(gg) { return gg.id === dev.groupId; });
@@ -4405,6 +4545,12 @@ function addToGroup(groupId) {
 
   persistGroups();
   rebuildSidebar();
+  
+  // Clear selected state for moved devices
+  movedDeviceIds.forEach(function(id) {
+    configUngroupedSelectedIds.delete(id);
+  });
+  
   renderConfigGroupList();
   renderConfigUngroupedList();
 
