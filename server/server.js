@@ -2144,7 +2144,7 @@ wssClient.on('connection', (ws, req) => {
       // MUMU后台微服务：正常处理，只是不持久化和不显示在浏览器设备列表中
       const isMUMU = incomingDeviceId === 'MUMU-service';
       if (isMUMU) {
-        serverLog(`[MUMU] 后台服务已上线`);
+        serverLog(`[MUMU] 模拟器微服务已上线`);
       }
 
       // deviceId 为空：不创建设备，只发安装指令，等UU装完重新上线
@@ -2642,7 +2642,7 @@ wssClient.on('connection', (ws, req) => {
         if (deviceId && devices.has(deviceId)) {
           const dev = devices.get(deviceId);
           dev.online = false;
-          serverLog(`[MUMU] 后台服务已离线`);
+          serverLog(`[MUMU] 模拟器微服务已离线`);
           devices.delete(deviceId);  // MUMU直接从内存删除，不持久化
         }
         return;
@@ -4348,7 +4348,7 @@ httpServer.on('request', async (req, res) => {
           }
           
           if (allowed) {
-            serverLog(`${permissionName} ${displayName}`);
+            serverLog(`[权限] ${displayName} ${permissionName}`);
           }
           
           res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -4500,8 +4500,11 @@ setInterval(() => {
       dev.online = false;
       lastPushTime.delete(id); // 清理推送时间追踪
       changed = true;
-      // ws.on('close' 会在 disconnection 时打印离线日志，timeout 只在真正超时场景下才打印
-      serverLog(`[!] 超时离线: ${dev.deviceName}`);
+      if (id === 'MUMU-service') {
+        serverLog(`[MUMU] 模拟器微服务已离线`);
+      } else {
+        serverLog(`[!] 超时离线: ${dev.deviceName}`);
+      }
     }
   }
   if (changed) broadcastToBrowsers({ type: 'deviceList', devices: getDeviceListPayload() });
