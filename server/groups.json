@@ -3,12 +3,20 @@
     "id": "1779448733312",
     "name": "226",
     "color": "#EBC5E0",
-    "deviceIds": []
+    "deviceIds": [
+      "aeawtmgwtiau3yfl-admin"
+    ]
   },
   {
     "id": "1779449089282",
     "name": "666",
     "color": "#EBCDC5",
+    "deviceIds": []
+  },
+  {
+    "id": "1779455217409",
+    "name": "555556",
+    "color": "#EBC5CD",
     "deviceIds": []
   }
 ]
