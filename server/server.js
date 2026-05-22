@@ -1721,6 +1721,15 @@ let renderBatch = []; // 待发送消息队列
 let renderTimer = null;
 
 function broadcastToBrowsers(data, forceAll = false) {
+  // 非截图消息也需要检查浏览器连接状态
+  if (data.type !== 'screenshot') {
+    if (browserClients.size === 0) {
+      serverLog(`[广播] broadcastToBrowsers - 无浏览器连接，跳过消息 ${data.type}`);
+      return;
+    }
+    serverLog(`[广播] broadcastToBrowsers - 收到${data.type}消息，加入批次队列，当前队列长度${renderBatch.length + 1}`);
+  }
+  
   // 截图消息根据视口过滤
   if (data.type === 'screenshot' && !forceAll) {
     const deviceId = data.deviceId;
@@ -1753,6 +1762,8 @@ function flushRenderBatch() {
   renderTimer = null;
   if (renderBatch.length === 0) return;
   
+  serverLog(`[广播] flushRenderBatch - 开始处理队列，队列长度=${renderBatch.length}`);
+  
   // 按类型分组，减少消息数量
   const screenshots = {};
   const others = [];
@@ -1763,6 +1774,7 @@ function flushRenderBatch() {
       screenshots[data.deviceId] = data;
     } else {
       others.push(data);
+      serverLog(`[广播] flushRenderBatch - 非截图消息: ${data.type}`);
     }
   }
   
@@ -1772,6 +1784,7 @@ function flushRenderBatch() {
   const screenshotList = Object.values(screenshots);
   if (screenshotList.length > 0) {
     const msg = JSON.stringify({ type: 'screenshotBatch', screenshots: screenshotList });
+    serverLog(`[广播] flushRenderBatch - 发送screenshotBatch给${browserClients.size}个浏览器`);
     for (const ws of browserClients) {
       if (ws.readyState === 1) {
         try { ws.send(msg); } catch (e) { /* ignore */ }
@@ -1782,6 +1795,7 @@ function flushRenderBatch() {
   // 发送其他消息（非截图消息直接发送，确保及时性）
   for (const data of others) {
     const msg = JSON.stringify(data);
+    serverLog(`[广播] flushRenderBatch - 发送${data.type}给${browserClients.size}个浏览器`);
     for (const ws of browserClients) {
       if (ws.readyState === 1) {
         try { ws.send(msg); } catch (e) { /* ignore */ }
@@ -1830,7 +1844,9 @@ function sendToClient(deviceId, data) {
 
 // 统一广播所有配置中心相关数据（分组、开关机、设备列表）
 function broadcastAllConfigUpdates() {
-  broadcastToBrowsers({ type: 'deviceList', devices: getDeviceListPayload() });
+  const deviceListPayload = getDeviceListPayload();
+  serverLog(`[广播] broadcastAllConfigUpdates - deviceList包含${deviceListPayload.length}个设备, groups包含${groups.length}个分组, powerScenes包含${Object.keys(powerScenes).length}个场景`);
+  broadcastToBrowsers({ type: 'deviceList', devices: deviceListPayload });
   broadcastToBrowsers({ type: 'groups', groups: groups });
   broadcastToBrowsers({ type: 'powerScenes', powerScenes: powerScenes });
   notifyWallClients('configChanged', {});
