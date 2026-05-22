@@ -4682,6 +4682,12 @@ function removeDeviceFromGroup(deviceId, groupId) {
   var dev = devices.find(function(d) { return d.deviceId === deviceId; });
   if (dev) {
     dev.groupId = null;
+    // 从分组的 deviceIds 中移除该设备
+    var g = groups.find(function(gg) { return gg.id === groupId; });
+    if (g && g.deviceIds) {
+      var idx = g.deviceIds.indexOf(deviceId);
+      if (idx !== -1) g.deviceIds.splice(idx, 1);
+    }
     persistGroups();
     ws.send(JSON.stringify({ type: 'groupUpdate', groups: groups }));
     renderConfigGroupList();
@@ -4738,9 +4744,9 @@ function addToGroup(groupId) {
   renderConfigGroupList();
   renderConfigUngroupedList();
 
-  // Broadcast (deviceList update is needed separately since persistGroups only sends groups)
+  // Broadcast groups update
   if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'deviceList', devices: devices }));
+    ws.send(JSON.stringify({ type: 'groupUpdate', groups: groups }));
   }
   showToast('已加入 ' + checkboxes.length + ' 台设备到分组', 'success');
 }
