@@ -263,7 +263,9 @@ async function setDevicePermission(deviceId, allowScreenWall, allowSelfService) 
     allowSelfService: allowSelfService === true
   };
   await persistPermissions();
-  serverLog(`[权限] 设备 ${deviceId} 权限已更新: 屏幕墙=${allowScreenWall}, 自助登号=${allowSelfService}`);
+  const deviceInfo = devices.get(deviceId);
+  const deviceName = deviceInfo?.deviceName || deviceInfo?.name || deviceId;
+  serverLog(`[权限] 设备 ${deviceName} (${deviceId}) 权限已更新: 屏幕墙=${allowScreenWall}, 自助登号=${allowSelfService}`);
 }
 
 // 删除设备权限（删除设备时调用）
@@ -271,7 +273,9 @@ async function removeDevicePermission(deviceId) {
   if (devicePermissions[deviceId]) {
     delete devicePermissions[deviceId];
     await persistPermissions();
-    serverLog(`[权限] 已删除设备 ${deviceId} 的权限配置`);
+    const deviceInfo = devices.get(deviceId);
+    const deviceName = deviceInfo?.deviceName || deviceInfo?.name || deviceId;
+    serverLog(`[权限] 已删除设备 ${deviceName} (${deviceId}) 的权限配置`);
   }
 }
 
@@ -281,7 +285,11 @@ async function migrateDevicePermission(oldDeviceId, newDeviceId) {
     devicePermissions[newDeviceId] = { ...devicePermissions[oldDeviceId] };
     delete devicePermissions[oldDeviceId];
     await persistPermissions();
-    serverLog(`[权限] 已迁移设备权限 ${oldDeviceId} → ${newDeviceId}`);
+    const oldDeviceInfo = devices.get(oldDeviceId);
+    const oldDeviceName = oldDeviceInfo?.deviceName || oldDeviceInfo?.name || oldDeviceId;
+    const newDeviceInfo = devices.get(newDeviceId);
+    const newDeviceName = newDeviceInfo?.deviceName || newDeviceInfo?.name || newDeviceId;
+    serverLog(`[权限] 已迁移设备权限 ${oldDeviceName} (${oldDeviceId}) → ${newDeviceName} (${newDeviceId})`);
   }
 }
 
