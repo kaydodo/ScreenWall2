@@ -3123,24 +3123,8 @@ wssBrowser.on('connection', (ws) => {
       // 浏览器发来分组数据更新（颜色、名称等变更）
       if (Array.isArray(msg.groups)) {
         groups = msg.groups;
-        // 同步更新 devices 中的 groupId（根据 groups.deviceIds）
-        for (const dev of devices.values()) {
-          let found = false;
-          for (const g of groups) {
-            if (g.deviceIds && g.deviceIds.includes(dev.deviceId)) {
-              dev.groupId = g.id;
-              found = true;
-              break;
-            }
-          }
-          if (!found) {
-            dev.groupId = null;
-          }
-        }
         await persistGroups();
-        await persistDevices();
         broadcastToBrowsers({ type: 'groupUpdate', groups: groups });
-        broadcastToBrowsers({ type: 'deviceList', devices: getDeviceListPayload() });
       }
     }
 
@@ -3432,7 +3416,6 @@ wssBrowser.on('connection', (ws) => {
     
     if (msg.type === 'groups') {
       // 浏览器发来分组更新
-      serverLog(`[分组] 收到分组更新, ${msg.groups ? msg.groups.length : 0} 个分组, browserClients数量: ${browserClients.size}`);
       groups = msg.groups || [];
       // 同步 groupId 到 devices Map
       for (const dev of devices.values()) { dev.groupId = null; }
@@ -3445,8 +3428,7 @@ wssBrowser.on('connection', (ws) => {
         }
       }
       await persistGroups();
-      await persistDevices();  // 分组变化时同步更新设备列表
-      serverLog(`[分组] 广播groups消息, 分组数: ${groups.length}`);
+      await persistDevices();
       broadcastToBrowsers({ type: 'groups', groups });
       notifyWallClients('groupsChanged', { groups });
       
