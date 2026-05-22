@@ -719,9 +719,64 @@ messagebox.showwarning(
 - **新设备**：默认没有任何权限（allowScreenWall = false, allowSelfService = false）
 - **管理员需要在权限管理页面手动开启**相应权限后，设备才能使用对应功能
 
+---
+
+### 统一的设备ID迁移和删除接口函数
+
+为了确保在设备重装或删除时，所有相关数据（包括权限）都能被正确处理，新增了两个统一的接口函数：
+
+#### `migrateDeviceId(oldDeviceId, newDeviceId)`
+
+**用途**：设备重装上线时，将旧设备的所有关联数据迁移到新设备ID
+
+**处理的数据项**：
+1. `gridLayout` - 格子位置映射
+2. `groups` - 分组的 deviceIds 数组
+3. `collections` - 截图集合
+4. `wallDevices` - 监控墙持久化追踪
+5. `monitorWallDevices` - 监控墙白名单
+6. `alarmRecords` - 历史报警记录
+7. `lastAlarmTime` - 报警时间 Map
+8. `favorites` - 格子上收藏的星星图标
+9. `powerScenes` - 开关机场景
+10. `tasks` - 任务记录
+11. `devicePermissions` - 设备权限配置（包含屏幕墙和自助登号权限）
+
+**调用场景**：设备注册时，通过 MAC 地址 + 设备名匹配到旧设备后自动调用
+
+**代码位置**：[server/server.js#L305-L391](file:///d:/ScreenWall2/server/server.js#L305-L391)
+
+---
+
+#### `deleteDeviceCompletely(deviceId)`
+
+**用途**：从所有持久化数据和内存数据中彻底删除该设备
+
+**处理的数据项**（与迁移函数一致，12项）：
+1. `gridLayout` - 格子位置映射
+2. `groups` - 分组的 deviceIds 数组
+3. `collections` - 截图集合标记为已删除
+4. `wallDevices` - 监控墙持久化追踪
+5. `monitorWallDevices` - 监控墙白名单
+6. `alarmRecords` - 历史报警记录
+7. `lastAlarmTime` / `alarmStates` / `pending_alarms` - 报警相关状态
+8. `favorites` - 格子上收藏的星星图标
+9. `powerScenes` - 开关机场景
+10. `tasks` - 任务记录（标记为 deviceDeleted）
+11. `devicePermissions` - 设备权限配置
+12. ALARM_SCREENSHOTS_DIR 下的报警截图文件
+
+**调用场景**：配置中心删除离线设备时调用
+
+**返回值**：`{ deviceName, deviceId }` - 删除的设备名和设备ID
+
+**代码位置**：[server/server.js#L397-L487](file:///d:/ScreenWall2/server/server.js#L397-L487)
+
+---
+
 ### 相关文件
 - **服务端**：
-  - server/server.js：权限 API 和权限管理逻辑
+  - server/server.js：权限 API、权限管理逻辑、统一迁移/删除函数
   - server/permissions.json：权限数据持久化文件
 - **前端**：
   - server/public/main.html：权限管理页面 UI 和交互
