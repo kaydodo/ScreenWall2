@@ -3842,9 +3842,10 @@ document.addEventListener('keydown', (e) => {
 // ─────────────────────────────────────────
 // 启动
 // ─────────────────────────────────────────
-// 检查登录（客户端打开时跳过验证）
+// 检查登录（客户端打开时通过 auto=1 参数跳过验证）
 const fromClient = new URLSearchParams(location.search).get('from') === 'client';
-if (fromClient) {
+const isAutoLogin = new URLSearchParams(location.search).get('auto') === '1';
+if (fromClient || isAutoLogin) {
   connectWS();
 } else if (!SESSION) {
   window.location.href = '/index.html';
