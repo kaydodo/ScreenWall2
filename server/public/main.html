@@ -4707,9 +4707,9 @@ function addToGroup(groupId) {
   renderConfigGroupList();
   renderConfigUngroupedList();
 
-  // Broadcast groups update
+  // Broadcast (deviceList update is needed separately since persistGroups only sends groups)
   if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'groupUpdate', groups: groups }));
+    ws.send(JSON.stringify({ type: 'deviceList', devices: devices }));
   }
   showToast('已加入 ' + checkboxes.length + ' 台设备到分组', 'success');
 }

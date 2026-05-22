@@ -1,6 +1,6 @@
 {
   "0": {
-    "allowScreenWall": true,
-    "allowSelfService": true
+    "allowScreenWall": false,
+    "allowSelfService": false
   }
 }
