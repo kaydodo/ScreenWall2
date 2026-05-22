@@ -1107,11 +1107,18 @@ function connectWS() {
           });
         }
       });
+      // 强制刷新格子和侧边栏（忽略锁机制，因为是服务端推送的数据）
+      var prevInputFocused = inputFocused;
+      var prevLockUntil = microRefreshLockUntil;
+      inputFocused = false;
+      microRefreshLockUntil = 0;
       // 刷新格子名字（分组变了，名字后的括号分组要更新）
       gridCells.forEach(function(c, idx) {
         if (c && c.deviceId) updateCellElement(idx);
       });
       rebuildSidebar();
+      inputFocused = prevInputFocused;
+      microRefreshLockUntil = prevLockUntil;
       renderAlarmPanel();  // 分组变更时刷新报警面板的分组显示
       // 重建筛选面板（分组名称/设备归属变化）
       rebuildFilterPanel();
