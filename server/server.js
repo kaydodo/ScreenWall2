@@ -4140,20 +4140,6 @@ httpServer.on('request', (req, res) => {
     return;
   }
 
-  // QR Code 图片服务
-  if (cleanPath.startsWith('/qrcode/')) {
-    const fileName = cleanPath.slice('/qrcode/'.length);
-    // 安全检查：只允许文件名，不允许路径遍历
-    if (!fileName || fileName.includes('..') || fileName.includes('/') || fileName.includes('\\')) {
-      res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' });
-      res.end('Invalid filename');
-      return;
-    }
-    const filePath = path.join(QRCODE_DIR, fileName);
-    serveFile(filePath, res, req);
-    return;
-  }
-
   // MJPEG 流端点（已禁用，新架构使用 WebSocket 三通道推送）
   /*
   if (cleanPath.startsWith('/mjpeg/')) {
