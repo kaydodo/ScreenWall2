@@ -4348,7 +4348,7 @@ httpServer.on('request', async (req, res) => {
           }
           
           if (allowed) {
-            serverLog(`[权限] ${displayName} ${permissionName}`);
+            serverLog(`[客户端] ${displayName} ${permissionName}`);
           }
           
           res.writeHead(200, { 'Content-Type': 'application/json' });
