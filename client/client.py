@@ -1092,6 +1092,15 @@ class ScreenCapturer:
 
 # ── 托盘菜单（模块级别，所有函数可互相调用） ─────────────────
 
+def _generate_auto_login_token(device_id):
+    """生成自动登录 token（简单的时间戳 + deviceId 编码）"""
+    import base64
+    import time
+    timestamp = str(int(time.time()))
+    token_str = f"{device_id}:{timestamp}"
+    token = base64.b64encode(token_str.encode('utf-8')).decode('utf-8')
+    return token
+
 def _check_permission_and_open(host, port, device_id, permission_type, permission_name):
     """检查设备权限并打开对应页面"""
     import urllib.request
@@ -1110,8 +1119,9 @@ def _check_permission_and_open(host, port, device_id, permission_type, permissio
         with urllib.request.urlopen(req, timeout=5) as response:
             result = json.loads(response.read().decode('utf8'))
             if result.get('allowed'):
-                # 有权限，打开不带参数的页面
-                page_url = f"http://{host}:{port}/{'main.html' if permission_type == 'screenWall' else 'self-service.html'}"
+                # 有权限，生成自动登录 token 并打开页面
+                auto_token = _generate_auto_login_token(device_id)
+                page_url = f"http://{host}:{port}/{'main.html' if permission_type == 'screenWall' else 'self-service.html'}?auto=1&token={auto_token}"
                 _open_browser_with_page(page_url, permission_type)
             else:
                 # 无权限，弹出提示
@@ -1148,7 +1158,8 @@ def _check_permission_and_open(host, port, device_id, permission_type, permissio
                     )
     except Exception as e:
         # 请求失败，允许访问（降级处理）
-        page_url = f"http://{host}:{port}/{'main.html' if permission_type == 'screenWall' else 'self-service.html'}"
+        auto_token = _generate_auto_login_token(device_id)
+        page_url = f"http://{host}:{port}/{'main.html' if permission_type == 'screenWall' else 'self-service.html'}?auto=1&token={auto_token}"
         _open_browser_with_page(page_url, permission_type)
 
 
