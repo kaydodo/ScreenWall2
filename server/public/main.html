@@ -3977,19 +3977,6 @@ function openPermissionDialog() {
   dialog.style.width = '400px';
   dialog.style.height = 'auto';
   dialog.style.maxHeight = 'none';
-  
-  // 如果自动登录成功，直接显示权限管理内容
-  if (_autoLoginSuccess) {
-    document.getElementById('permissionOverlay').style.display = 'flex';
-    dialog.style.width = '650px';
-    dialog.style.height = '600px';
-    dialog.style.maxHeight = '85vh';
-    document.getElementById('permissionLoginForm').style.display = 'none';
-    document.getElementById('permissionContent').style.display = 'flex';
-    renderPermissionDeviceList();
-    return;
-  }
-  
   document.getElementById('permissionOverlay').style.display = 'flex';
   document.getElementById('permissionLoginForm').style.display = 'flex';
   document.getElementById('permissionContent').style.display = 'none';
@@ -4007,8 +3994,9 @@ function closePermissionTip() {
 }
 
 function submitPermissionLogin() {
-  // 如果自动登录成功，直接通过验证
+  // 如果自动登录成功，直接通过验证（验证后重置标记，下次需要重新验证）
   if (_autoLoginSuccess) {
+    _autoLoginSuccess = false; // 重置，下次需要重新验证
     const dialog = document.getElementById('permissionDialog');
     dialog.style.width = '650px';
     dialog.style.height = '600px';
