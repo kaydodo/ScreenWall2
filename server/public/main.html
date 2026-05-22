@@ -502,7 +502,6 @@ const FRAME_HEAL_THRESHOLD = 2;   // 至少收到2帧才恢复离线格子
 // 全局状态
 // ─────────────────────────────────────────
 const SESSION = sessionStorage.getItem('sw_session') || '';
-let _autoLoginSuccess = false; // 自动登录成功标记
 
 // 清理过大的 localStorage 数据（防止请求头过大）
 (function checkStorage() {
@@ -626,39 +625,6 @@ function getGroupColor(groupId) {
 let powerScenes = {};     // 开关机场景配置 { deviceId: sceneName }
 let editingPowerDeviceId = null;  // 当前编辑的设备ID
 
-// 检查 URL 参数中的自动登录 token
-function checkAutoLoginToken() {
-  const params = new URLSearchParams(window.location.search);
-  const auto = params.get('auto');
-  const token = params.get('token');
-  
-  if (auto === '1' && token) {
-    try {
-      // 解码 token（格式：base64(deviceId:timestamp)）
-      const decoded = atob(token);
-      const parts = decoded.split(':');
-      if (parts.length >= 2) {
-        const deviceId = parts[0];
-        const timestamp = parseInt(parts[1]);
-        const now = Math.floor(Date.now() / 1000);
-        // token 有效期 30 秒
-        if (now - timestamp < 30) {
-          _autoLoginSuccess = true;
-          console.log('[自动登录] token 验证成功，设备ID:', deviceId);
-          return true;
-        } else {
-          console.warn('[自动登录] token 已过期');
-        }
-      }
-    } catch (e) {
-      console.error('[自动登录] token 解析失败:', e.message);
-    }
-  }
-  return false;
-}
-
-// 页面加载时自动检查自动登录
-checkAutoLoginToken();
 let editingGroupId = null;        // 当前编辑的分组ID
 let configGroupEditingInputId = null;  // 正在编辑的分组输入框ID
 let configPowerEditingInputId = null;  // 正在编辑的开关机输入框ID
@@ -3876,10 +3842,9 @@ document.addEventListener('keydown', (e) => {
 // ─────────────────────────────────────────
 // 启动
 // ─────────────────────────────────────────
-// 检查登录（客户端打开时跳过验证，自动登录也跳过）
+// 检查登录（客户端打开时跳过验证）
 const fromClient = new URLSearchParams(location.search).get('from') === 'client';
-const hasAutoLogin = new URLSearchParams(location.search).get('auto') === '1';
-if (fromClient || hasAutoLogin) {
+if (fromClient) {
   connectWS();
 } else if (!SESSION) {
   window.location.href = '/index.html';
