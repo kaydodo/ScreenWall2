@@ -992,6 +992,7 @@ function connectWS() {
         if (c && c.deviceId) updateCellElement(c.index);
       });
       updateStats();
+      rebuildSidebar();  // 刷新侧边栏设备列表
       requestRender();
       refreshConfigDialogIfOpen();  // 配置对话框打开时刷新
       // 刷新监控弹窗设备列表
@@ -1114,6 +1115,11 @@ function connectWS() {
       if (document.getElementById('powerOverlay').style.display === 'flex') {
         renderPowerBody();
       }
+      // 刷新配置中心弹窗中的分组列表和未分组设备列表
+      if (document.getElementById('configOverlay').style.display === 'flex') {
+        renderConfigGroupList();
+        renderConfigUngroupedList();
+      }
       refreshConfigDialogIfOpen();  // 配置对话框打开时刷新
       // 刷新监控弹窗设备列表
       if (document.getElementById('monitorOverlay').style.display === 'flex') {
@@ -1139,6 +1145,10 @@ function connectWS() {
       // 如果开关机弹窗打开，刷新显示
       if (document.getElementById('powerOverlay').style.display === 'flex') {
         renderPowerBody();
+      }
+      // 刷新配置中心弹窗中的开关机列表
+      if (document.getElementById('configOverlay').style.display === 'flex') {
+        renderConfigPowerList();
       }
       refreshConfigDialogIfOpen();  // 配置对话框打开时刷新
     }
@@ -4707,9 +4717,9 @@ function addToGroup(groupId) {
   renderConfigGroupList();
   renderConfigUngroupedList();
 
-  // Broadcast (deviceList update is needed separately since persistGroups only sends groups)
+  // Broadcast groups update
   if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'deviceList', devices: devices }));
+    ws.send(JSON.stringify({ type: 'groupUpdate', groups: groups }));
   }
   showToast('已加入 ' + checkboxes.length + ' 台设备到分组', 'success');
 }
@@ -5172,20 +5182,6 @@ function renderPowerBody() {
   var body = document.getElementById('powerBody');
   if (!body) return;
 
-  // Save active element info before render
-  var activeEl = document.activeElement;
-  var activeInputId = null;
-  var activeInputValue = null;
-  var activeSelectionStart = null;
-  var activeSelectionEnd = null;
-  
-  if (activeEl && activeEl.id && activeEl.id.startsWith('powerInput_')) {
-    activeInputId = activeEl.id;
-    activeInputValue = activeEl.value;
-    activeSelectionStart = activeEl.selectionStart;
-    activeSelectionEnd = activeEl.selectionEnd;
-  }
-
   // 按分组聚合设备
   var groupedByGroup = {};
   devices.forEach(function(d) {
@@ -5250,16 +5246,6 @@ function renderPowerBody() {
   }
 
   body.innerHTML = html;
-
-  // Restore active element after render
-  if (activeInputId) {
-    var newInput = document.getElementById(activeInputId);
-    if (newInput) {
-      newInput.value = activeInputValue;
-      newInput.focus();
-      newInput.setSelectionRange(activeSelectionStart, activeSelectionEnd);
-    }
-  }
 }
 
 function savePowerSceneInline(deviceId) {
