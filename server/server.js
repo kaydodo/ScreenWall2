@@ -1921,8 +1921,9 @@ wssClient.on('connection', (ws, req) => {
     }
     
     try {
-    
-    if (msg.type === 'register') {
+      await (async () => {
+        
+        if (msg.type === 'register') {
       const incomingUU = String(msg.uuDeviceId || '');
       const incomingDeviceId = String(msg.deviceId || '');
 
@@ -2011,7 +2012,7 @@ wssClient.on('connection', (ws, req) => {
             gridLayout[idx] = deviceId;
           }
         }
-        persistGrid();
+        await persistGrid();
 
         // 2. groups：分组的 deviceIds 数组，旧 → 新
         for (const group of groups) {
@@ -2020,7 +2021,7 @@ wssClient.on('connection', (ws, req) => {
             group.deviceIds[pos] = deviceId;
           }
         }
-        persistGroups();
+        await persistGroups();
 
         // 3. collections：截图集合的 deviceId，旧 → 新
         collections.forEach((items) => {
@@ -2030,7 +2031,7 @@ wssClient.on('connection', (ws, req) => {
             }
           }
         });
-        saveCollections();
+        await saveCollections();
 
         // 4. wallDevices：监控墙持久化追踪
         if (wallDevices.has(matchedOldDeviceId)) {
@@ -2050,7 +2051,7 @@ wssClient.on('connection', (ws, req) => {
             rec.deviceId = deviceId;
           }
         }
-        persistAlarmRecords();
+        await persistAlarmRecords();
 
         // 7. lastAlarmTime：报警时间 Map
         if (lastAlarmTime.has(matchedOldDeviceId)) {
@@ -2067,13 +2068,13 @@ wssClient.on('connection', (ws, req) => {
             fav.deviceId = deviceId;
           }
         }
-        if (favorites.some(f => f.deviceId === deviceId)) saveFavorites();
+        if (favorites.some(f => f.deviceId === deviceId)) await saveFavorites();
 
         // 9. powerScenes：开关机场景（旧 deviceId → 新 deviceId）
         if (powerScenes[matchedOldDeviceId]) {
           powerScenes[deviceId] = powerScenes[matchedOldDeviceId];
           delete powerScenes[matchedOldDeviceId];
-          persistPowerScenes();
+          await persistPowerScenes();
         }
 
         // 10. tasks：任务记录（旧 deviceId → 新 deviceId）
@@ -2085,14 +2086,14 @@ wssClient.on('connection', (ws, req) => {
           }
         }
         if (taskChanged) {
-          persistTasks();
+          await persistTasks();
         }
 
         // 11. devicePermissions：设备权限配置（旧 deviceId → 新 deviceId）
         await migrateDevicePermission(matchedOldDeviceId, deviceId);
       }
 
-      persistDevices();  // 持久化设备列表
+      await persistDevices();  // 持久化设备列表
       broadcastToBrowsers({ type: 'deviceList', devices: getDeviceListPayload() });
       // 广播设备预览状态变更（让所有浏览器刷新预览大图，移除离线/删除状态）
       broadcastToBrowsers({ type: 'devicePreviewStatus', deviceId, status: 'online' });
@@ -2492,10 +2493,11 @@ wssClient.on('connection', (ws, req) => {
       if (task && !task.accepted && !task.revoked) {
         task.accepted = true;
         task.acceptedAt = Date.now();
-        persistTasks();
+        await persistTasks();
         broadcastToBrowsers({ type: 'tasksUpdate', tasks: getTasksPayload() });
       }
     }
+      })();
     } catch (err) {
       serverError(`[设备消息] 处理消息 ${msg.type} 时发生未捕获错误: ${err.message}`, err.stack);
     }
@@ -2563,7 +2565,7 @@ wssBrowser.on('connection', (ws) => {
     browserClients.delete(ws);
   });
 
-  ws.on('message', (raw) => {
+  ws.on('message', async (raw) => {
     let msg;
     try { msg = JSON.parse(raw); } catch { return; }
     try {
@@ -2769,7 +2771,7 @@ wssBrowser.on('connection', (ws) => {
       alarmRecords = [];
       lastAlarmTime = new Map(); // 清除去重状态，重置计数
       pending_alarms = new Map(); // 清除所有 pending
-      persistAlarmRecords();
+      await persistAlarmRecords();
       
       // 清除所有报警截图文件
       (async () => {
@@ -2799,7 +2801,7 @@ wssBrowser.on('connection', (ws) => {
       const rec = alarmRecords.find(r => r.id === alarmId);
       if (rec) {
         rec.viewed = true;
-        persistAlarmRecords();
+        await persistAlarmRecords();
         broadcastToBrowsers({ type: 'alarmViewed', alarmId });
       }
     }
@@ -2833,7 +2835,7 @@ wssBrowser.on('connection', (ws) => {
         deviceDeleted: false,
       };
       tasks.push(task);
-      persistTasks();
+      await persistTasks();
       broadcastToBrowsers({ type: 'tasksUpdate', tasks: getTasksPayload() });
       // 推送给对应客户端
       for (const client of wssClient.clients) {
@@ -2850,7 +2852,7 @@ wssBrowser.on('connection', (ws) => {
       const task = tasks.find(t => t.id === taskId);
       if (!task || task.revoked || task.accepted) return;
       task.revoked = true;
-      persistTasks();
+      await persistTasks();
       broadcastToBrowsers({ type: 'tasksUpdate', tasks: getTasksPayload() });
       // 通知客户端撤回泡泡
       for (const client of wssClient.clients) {
@@ -2867,7 +2869,7 @@ wssBrowser.on('connection', (ws) => {
       const idx = tasks.findIndex(t => t.id === taskId);
       if (idx < 0) return;
       tasks.splice(idx, 1);
-      persistTasks();
+      await persistTasks();
       broadcastToBrowsers({ type: 'tasksUpdate', tasks: getTasksPayload() });
     }
 
@@ -2875,14 +2877,14 @@ wssBrowser.on('connection', (ws) => {
       // 删除某设备所有任务记录：{ deviceId }
       const { deviceId: tDevId } = msg;
       tasks = tasks.filter(t => t.deviceId !== tDevId);
-      persistTasks();
+      await persistTasks();
       broadcastToBrowsers({ type: 'tasksUpdate', tasks: getTasksPayload() });
     }
 
     if (msg.type === 'deleteAllTasks') {
       // 删除所有任务记录
       tasks = [];
-      persistTasks();
+      await persistTasks();
       broadcastToBrowsers({ type: 'tasksUpdate', tasks: [] });
     }
 
@@ -2937,7 +2939,7 @@ wssBrowser.on('connection', (ws) => {
       // 仅记录当前显示列数，不影响格子内容（统一 01-100 存储）
       if (msg.gridSize) {
         gridSizeSetting = msg.gridSize;
-        try { require('fs').writeFileSync(GRID_SIZE_PATH, JSON.stringify({ gridSize: gridSizeSetting }), 'utf8'); } catch(e) {}
+        await persistGridSize();
       }
     }
 
@@ -2976,7 +2978,7 @@ wssBrowser.on('connection', (ws) => {
         updateCollectionsDeviceStatus(deviceId, {});
       }
       
-      persistGrid();
+      await persistGrid();
 
       // 广播给所有浏览器，让所有客户端同步格子变更
       broadcastToBrowsers({
@@ -2994,7 +2996,7 @@ wssBrowser.on('connection', (ws) => {
       for (let i = 0; i < 100; i++) {
         delete gridLayout[i];
       }
-      persistGrid();
+      await persistGrid();
       broadcastToBrowsers({
         type: 'grid',
         gridSize: msg.gridSize,
@@ -3029,7 +3031,7 @@ wssBrowser.on('connection', (ws) => {
             // 删除收藏
             if (idx >= 0) {
               favorites.splice(idx, 1);
-              saveFavorites();
+              await saveFavorites();
               broadcastToBrowsers({ type: 'favorites', favorites });
             }
           } else {
@@ -3039,7 +3041,7 @@ wssBrowser.on('connection', (ws) => {
             } else {
               favorites.push({ deviceId, deviceName, groupId, cellIndex });
             }
-            saveFavorites();
+            await saveFavorites();
             broadcastToBrowsers({ type: 'favorites', favorites });
           }
         }
@@ -3083,8 +3085,7 @@ wssBrowser.on('connection', (ws) => {
         const timestamp = parseInt(matchTimestamp[1]);
         if (collections.has(timestamp)) {
           collections.delete(timestamp);
-          saveCollections();
-          // 广播更新后的截图集合
+          await saveCollections();
           const collectionsArr = [];
           collections.forEach((items, ts) => {
             collectionsArr.push({ timestamp: ts, items });
@@ -3105,8 +3106,7 @@ wssBrowser.on('connection', (ws) => {
             } else {
               collections.set(timestamp, newItems);
             }
-            saveCollections();
-            // 广播更新后的截图集合
+            await saveCollections();
             const collectionsArr = [];
             collections.forEach((its, ts) => {
               collectionsArr.push({ timestamp: ts, items: its });
@@ -3123,7 +3123,7 @@ wssBrowser.on('connection', (ws) => {
       // 浏览器发来分组数据更新（颜色、名称等变更）
       if (Array.isArray(msg.groups)) {
         groups = msg.groups;
-        persistGroups();
+        await persistGroups();
         // 广播给所有浏览器
         broadcastToClients({ type: 'groupUpdate', groups: groups });
       }
@@ -3145,19 +3145,19 @@ wssBrowser.on('connection', (ws) => {
       const dev = devices.get(deviceId);
       if (dev && deviceName) {
         dev.deviceName = deviceName;
-        persistDevices();
+        await persistDevices();
         // 同步更新报警记录里的设备名
         for (const r of alarmRecords) {
           if (r.deviceId === deviceId) r.deviceName = deviceName;
         }
-        persistAlarmRecords();
+        await persistAlarmRecords();
         // 同步更新任务记录里的设备名
         let taskChanged = false;
         for (const t of tasks) {
           if (t.deviceId === deviceId) { t.deviceName = deviceName; taskChanged = true; }
         }
         if (taskChanged) {
-          persistTasks();
+          await persistTasks();
           broadcastToBrowsers({ type: 'tasksUpdate', tasks: getTasksPayload() });
         }
         broadcastToBrowsers({ type: 'deviceRenamed', deviceId, deviceName });
@@ -3197,9 +3197,9 @@ wssBrowser.on('connection', (ws) => {
             g.deviceIds = g.deviceIds.filter(id => id !== deviceId);
           }
         }
-        persistDevices();
-        persistGrid();
-        persistGroups();
+        await persistDevices();
+        await persistGrid();
+        await persistGroups();
         // 广播完整的设备列表和格子布局
         broadcastToBrowsers({
           type: 'deviceList',
@@ -3231,20 +3231,26 @@ wssBrowser.on('connection', (ws) => {
         const oldAlarmLen = alarmRecords.length;
         alarmRecords = alarmRecords.filter(r => r.deviceId !== deviceId);
         if (alarmRecords.length !== oldAlarmLen) {
-          fs.writeFileSync(ALARM_RECORDS_PATH, JSON.stringify(alarmRecords, null, 2), 'utf8');
+          await persistAlarmRecords();
         }
         
         // 清理报警截图文件
-        try {
-          const screenshotFiles = fs.readdirSync(ALARM_SCREENSHOTS_DIR);
-          for (const file of screenshotFiles) {
-            if (file.startsWith(deviceId + '_')) {
-              fs.unlinkSync(path.join(ALARM_SCREENSHOTS_DIR, file));
+        (async () => {
+          try {
+            const screenshotFiles = await fsReaddir(ALARM_SCREENSHOTS_DIR);
+            for (const file of screenshotFiles) {
+              if (file.startsWith(deviceId + '_')) {
+                try {
+                  await fsUnlink(path.join(ALARM_SCREENSHOTS_DIR, file));
+                } catch (e) {
+                  logger.error(`[清理] 删除报警截图失败: ${file} - ${e.message}`);
+                }
+              }
             }
+          } catch (e) {
+            logger.error(`[清理] 读取报警截图目录失败: ${e.message}`);
           }
-        } catch (e) {
-          logger.error(`[清理] 删除报警截图失败: ${e.message}`);
-        }
+        })();
         
         // 标记该设备任务记录为 deviceDeleted
         let taskDelChanged = false;
@@ -3255,7 +3261,7 @@ wssBrowser.on('connection', (ws) => {
           }
         }
         if (taskDelChanged) {
-          persistTasks();
+          await persistTasks();
           broadcastToBrowsers({ type: 'tasksUpdate', tasks: getTasksPayload() });
         }
         
@@ -3326,9 +3332,9 @@ wssBrowser.on('connection', (ws) => {
           }
         }
       }
-      persistDevices();
-      persistGrid();
-      persistGroups();
+      await persistDevices();
+      await persistGrid();
+      await persistGroups();
       // 广播完整的设备列表和格子布局
       broadcastToBrowsers({
         type: 'deviceList',
@@ -3348,7 +3354,7 @@ wssBrowser.on('connection', (ws) => {
         }
       }
       if (batchTaskChanged) {
-        persistTasks();
+        await persistTasks();
         broadcastToBrowsers({ type: 'tasksUpdate', tasks: getTasksPayload() });
       }
     }
@@ -3422,8 +3428,8 @@ wssBrowser.on('connection', (ws) => {
           }
         }
       }
-      persistGroups();
-      persistDevices();  // 分组变化时同步更新设备列表
+      await persistGroups();
+      await persistDevices();  // 分组变化时同步更新设备列表
       broadcastToBrowsers({ type: 'groups', groups });
       notifyWallClients('groupsChanged', { groups });
       
@@ -3441,7 +3447,7 @@ wssBrowser.on('connection', (ws) => {
       } else {
         delete powerScenes[deviceId];
       }
-      persistPowerScenes();
+      await persistPowerScenes();
       broadcastToBrowsers({ type: 'powerScenes', powerScenes });
     }
 
@@ -3625,7 +3631,7 @@ httpServer.on('upgrade', (req, socket, head) => {
   socket.destroy();
 });
 
-httpServer.on('request', (req, res) => {
+httpServer.on('request', async (req, res) => {
   // 安全解析 URL，防止 host 头为空或无效导致崩溃
   let pathname = '/';
   let urlObj = null;
@@ -3773,15 +3779,14 @@ httpServer.on('request', (req, res) => {
     if (cleanPath === '/api/gridSize' && req.method === 'POST') {
       let body = '';
       req.on('data', chunk => body += chunk);
-      req.on('end', () => {
+      req.on('end', async () => {
         const data = JSON.parse(body || '{}');
         gridSizeSetting = parseInt(data.gridSize) || 4;
-        persistGridSize();
-        // 如果同时传了布局数据，也保存
+        await persistGridSize();
         if (data.layout) {
           const key = String(gridSizeSetting);
           gridLayout[key] = data.layout;
-          persistGrid();
+          await persistGrid();
         }
         res.end(JSON.stringify({ ok: true, gridSize: gridSizeSetting }));
       });
@@ -3797,11 +3802,10 @@ httpServer.on('request', (req, res) => {
     if (cleanPath === '/api/groups' && req.method === 'POST') {
       let body = '';
       req.on('data', chunk => body += chunk);
-      req.on('end', () => {
+      req.on('end', async () => {
         const data = JSON.parse(body || '{}');
-        // data = { groups: [...] }
         groups = data.groups || [];
-        persistGroups();
+        await persistGroups();
         broadcastToBrowsers({ type: 'groups', groups });
         res.end(JSON.stringify({ ok: true }));
       });
@@ -3823,7 +3827,6 @@ httpServer.on('request', (req, res) => {
         return;
       }
       devices.delete(deviceIdToDelete);
-      // 从所有分组的 deviceIds 中移除
       let groupChanged = false;
       for (const g of groups) {
         if (g.deviceIds && g.deviceIds.includes(deviceIdToDelete)) {
@@ -3831,24 +3834,21 @@ httpServer.on('request', (req, res) => {
           groupChanged = true;
         }
       }
-      if (groupChanged) persistGroups();
-      // 从 gridLayout 中移除该设备（扁平结构：cellIndex -> deviceId）
+      if (groupChanged) await persistGroups();
       for (const idx of Object.keys(gridLayout)) {
         if (gridLayout[idx] === deviceIdToDelete) {
           delete gridLayout[idx];
         }
       }
-      persistGrid();
-      persistDevices();
-      // 清理报警记录
+      await persistGrid();
+      await persistDevices();
       const beforeAlarmLen = alarmRecords.length;
       alarmRecords = alarmRecords.filter(r => r.deviceId !== deviceIdToDelete);
-      if (alarmRecords.length !== beforeAlarmLen) persistAlarmRecords();
+      if (alarmRecords.length !== beforeAlarmLen) await persistAlarmRecords();
       lastAlarmTime.delete(deviceIdToDelete);
-      // 清理开关机场景
       if (powerScenes[deviceIdToDelete]) {
         delete powerScenes[deviceIdToDelete];
-        persistPowerScenes();
+        await persistPowerScenes();
       }
       broadcastToBrowsers({ type: 'deviceList', devices: getDeviceListPayload() });
       broadcastToBrowsers({ type: 'groups', groups });
@@ -3884,7 +3884,7 @@ httpServer.on('request', (req, res) => {
     if (cleanPath === '/api/favorites' && req.method === 'POST') {
       let body = '';
       req.on('data', chunk => body += chunk);
-      req.on('end', () => {
+      req.on('end', async () => {
         const data = JSON.parse(body || '{}');
         const { deviceId, deviceName, groupId, cellIndex } = data;
         if (!deviceId) {
@@ -3892,16 +3892,13 @@ httpServer.on('request', (req, res) => {
           res.end(JSON.stringify({ ok: false, msg: '缺少 deviceId' }));
           return;
         }
-        // 查找是否已存在
         const idx = favorites.findIndex(f => f.deviceId === deviceId);
         if (idx >= 0) {
-          // 更新
           favorites[idx] = { deviceId, deviceName, groupId, cellIndex };
         } else {
-          // 添加
           favorites.push({ deviceId, deviceName, groupId, cellIndex });
         }
-        saveFavorites();
+        await saveFavorites();
         broadcastToBrowsers({ type: 'favorites', favorites });
         res.end(JSON.stringify({ ok: true }));
       });
@@ -3915,7 +3912,7 @@ httpServer.on('request', (req, res) => {
       const oldLen = favorites.length;
       favorites = favorites.filter(f => f.deviceId !== deviceId);
       if (favorites.length !== oldLen) {
-        saveFavorites();
+        await saveFavorites();
         broadcastToBrowsers({ type: 'favorites', favorites });
       }
       res.end(JSON.stringify({ ok: true }));
@@ -3937,21 +3934,17 @@ httpServer.on('request', (req, res) => {
 
     // POST /api/collections/screenshot - 请求截图（通知客户端发送1帧）
     if (cleanPath === '/api/collections/screenshot' && req.method === 'POST') {
-      // 生成时间戳
       const timestamp = Date.now();
-      // 确保该时间戳的数组存在
       if (!collections.has(timestamp)) {
         collections.set(timestamp, []);
       }
-      saveCollections();
-      // 广播截图请求给所有客户端（只有被收藏的在线设备会响应）
+      await saveCollections();
       const favoriteDeviceIds = favorites.map(f => f.deviceId);
       broadcastToClients({
         type: 'requestCollectionScreenshot',
         timestamp,
         deviceIds: favoriteDeviceIds
       });
-      // 广播更新后的截图集合
       const collectionsArr = [];
       collections.forEach((items, ts) => {
         collectionsArr.push({ timestamp: ts, items });
@@ -3968,8 +3961,7 @@ httpServer.on('request', (req, res) => {
       const timestamp = parseInt(colDeleteMatch[1]);
       if (collections.has(timestamp)) {
         collections.delete(timestamp);
-        saveCollections();
-        // 广播更新后的截图集合
+        await saveCollections();
         const collectionsArr = [];
         collections.forEach((items, ts) => {
           collectionsArr.push({ timestamp: ts, items });
@@ -3995,8 +3987,7 @@ httpServer.on('request', (req, res) => {
           } else {
             collections.set(timestamp, newItems);
           }
-          saveCollections();
-          // 广播更新后的截图集合
+          await saveCollections();
           const collectionsArr = [];
           collections.forEach((its, ts) => {
             collectionsArr.push({ timestamp: ts, items: its });
@@ -4034,11 +4025,11 @@ httpServer.on('request', (req, res) => {
         if (powerScenes[id]) delete powerScenes[id];
       }
       if (offlineIds.length > 0) {
-        persistDevices();
-        persistGroups();
-        persistGrid();
-        persistAlarmRecords();
-        persistPowerScenes();
+        await persistDevices();
+        await persistGroups();
+        await persistGrid();
+        await persistAlarmRecords();
+        await persistPowerScenes();
       }
       broadcastToBrowsers({ type: 'deviceList', devices: getDeviceListPayload() });
       broadcastToBrowsers({ type: 'groups', groups });
