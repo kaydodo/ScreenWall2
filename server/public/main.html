@@ -4775,9 +4775,9 @@ function deleteGroupConfirm(groupId) {
   renderConfigGroupList();
   renderConfigUngroupedList();
 
-  // Broadcast (deviceList update is needed separately since persistGroups only sends groups)
+  // Broadcast groups update
   if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'deviceList', devices: devices }));
+    ws.send(JSON.stringify({ type: 'groupUpdate', groups: groups }));
   }
   showToast('分组已删除', 'success');
 }
