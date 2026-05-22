@@ -780,8 +780,10 @@ function connectWS() {
     _taskName = 'ws:' + (msg.type || 'unknown');
     const msgStart = performance.now();
     
-    // [调试] 记录收到的消息类型
-    console.log('[前端] 收到WebSocket消息:', msg.type, msg);
+    // [调试] 记录收到的消息类型（屏蔽 ping/latency）
+    if (msg.type !== 'ping' && msg.type !== 'latency') {
+      console.log('[前端] 收到WebSocket消息:', msg.type, msg);
+    }
 
     // 响应服务器 ping，计算延迟
     if (msg.type === 'ping') {
