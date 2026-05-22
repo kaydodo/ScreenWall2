@@ -420,7 +420,7 @@
 
 <!-- ========== 权限管理弹窗 ========== -->
 <div id="permissionOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:10000;align-items:center;justify-content:center;">
-  <div id="permissionDialog" style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:24px 28px;width:650px;max-width:95vw;box-shadow:0 8px 32px rgba(0,0,0,0.3);">
+  <div id="permissionDialog" style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:24px 28px;width:400px;max-width:95vw;box-shadow:0 8px 32px rgba(0,0,0,0.3);">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
       <span style="font-size:17px;font-weight:600;color:var(--text);">🔑 权限管理</span>
       <button class="dialog-close" onclick="closePermissionDialog()">✕</button>
@@ -3937,6 +3937,7 @@ function closeConfigDialog() {
 // 权限管理相关函数
 // ─────────────────────────────────────────
 function openPermissionDialog() {
+  document.getElementById('permissionDialog').style.width = '400px';
   document.getElementById('permissionOverlay').style.display = 'flex';
   document.getElementById('permissionLoginForm').style.display = 'flex';
   document.getElementById('permissionContent').style.display = 'none';
@@ -3963,6 +3964,7 @@ function submitPermissionLogin() {
     body: JSON.stringify({ username, password })
   }).then(res => res.json()).then(data => {
     if (data.success) {
+      document.getElementById('permissionDialog').style.width = '650px';
       document.getElementById('permissionLoginForm').style.display = 'none';
       document.getElementById('permissionContent').style.display = 'block';
       renderPermissionDeviceList();
