@@ -1828,6 +1828,14 @@ function sendToClient(deviceId, data) {
   return false;
 }
 
+// 统一广播所有配置中心相关数据（分组、开关机、设备列表）
+function broadcastAllConfigUpdates() {
+  broadcastToBrowsers({ type: 'deviceList', devices: getDeviceListPayload() });
+  broadcastToBrowsers({ type: 'groups', groups: groups });
+  broadcastToBrowsers({ type: 'powerScenes', powerScenes: powerScenes });
+  notifyWallClients('configChanged', {});
+}
+
 // 通知所有监控墙窗口状态变化
 function notifyWallClients(eventType, data) {
   // 处理 screenshot Buffer -> base64
@@ -3115,8 +3123,23 @@ wssBrowser.on('connection', (ws) => {
       // 浏览器发来分组数据更新（颜色、名称等变更）
       if (Array.isArray(msg.groups)) {
         groups = msg.groups;
+        // 同步更新 devices 中的 groupId
+        for (const dev of devices.values()) {
+          let found = false;
+          for (const g of groups) {
+            if (g.deviceIds && g.deviceIds.includes(dev.deviceId)) {
+              dev.groupId = g.id;
+              found = true;
+              break;
+            }
+          }
+          if (!found) {
+            dev.groupId = null;
+          }
+        }
         await persistGroups();
-        broadcastToBrowsers({ type: 'groupUpdate', groups: groups });
+        await persistDevices();
+        broadcastAllConfigUpdates();
       }
     }
 
@@ -3421,13 +3444,13 @@ wssBrowser.on('connection', (ws) => {
       }
       await persistGroups();
       await persistDevices();
-      broadcastToBrowsers({ type: 'groups', groups });
-      notifyWallClients('groupsChanged', { groups });
       
       // 更新所有设备的集合状态（分组信息可能影响多个设备）
       for (const deviceId of devices.keys()) {
         updateCollectionsDeviceStatus(deviceId, {});
       }
+      
+      broadcastAllConfigUpdates();
     }
 
     if (msg.type === 'setPowerScene') {
@@ -3439,7 +3462,7 @@ wssBrowser.on('connection', (ws) => {
         delete powerScenes[deviceId];
       }
       await persistPowerScenes();
-      broadcastToBrowsers({ type: 'powerScenes', powerScenes });
+      broadcastAllConfigUpdates();
     }
 
     if (msg.type === 'executePowerScene') {

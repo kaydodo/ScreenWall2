@@ -5172,6 +5172,20 @@ function renderPowerBody() {
   var body = document.getElementById('powerBody');
   if (!body) return;
 
+  // Save active element info before render
+  var activeEl = document.activeElement;
+  var activeInputId = null;
+  var activeInputValue = null;
+  var activeSelectionStart = null;
+  var activeSelectionEnd = null;
+  
+  if (activeEl && activeEl.id && activeEl.id.startsWith('powerInput_')) {
+    activeInputId = activeEl.id;
+    activeInputValue = activeEl.value;
+    activeSelectionStart = activeEl.selectionStart;
+    activeSelectionEnd = activeEl.selectionEnd;
+  }
+
   // 按分组聚合设备
   var groupedByGroup = {};
   devices.forEach(function(d) {
@@ -5236,6 +5250,16 @@ function renderPowerBody() {
   }
 
   body.innerHTML = html;
+
+  // Restore active element after render
+  if (activeInputId) {
+    var newInput = document.getElementById(activeInputId);
+    if (newInput) {
+      newInput.value = activeInputValue;
+      newInput.focus();
+      newInput.setSelectionRange(activeSelectionStart, activeSelectionEnd);
+    }
+  }
 }
 
 function savePowerSceneInline(deviceId) {
