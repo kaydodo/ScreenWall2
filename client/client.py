@@ -19,7 +19,7 @@ import time
 import webbrowser
 
 # 客户端版本号（每次功能更新时手动递增）
-CLIENT_VERSION = "1.9.8"
+CLIENT_VERSION = "1.9.9"
 
 
 def _get_mac_address():
@@ -1116,7 +1116,61 @@ def _check_permission_and_open(host, port, device_id, permission_type, permissio
             else:
                 # 无权限，弹出提示
                 import ctypes
-                ctypes.windll.user32.MessageBoxW(0, f"没有{permission_name}权限，请联系管理员", "权限不足", 0x10)
+                import threading
+                
+                def show_message_box():
+                    MB_ICONWARNING = 0x30
+                    MB_OK = 0x0
+                    MB_TOPMOST = 0x40000
+                    MB_SETFOREGROUND = 0x10000
+                    
+                    # 创建一个临时的隐藏窗口作为父窗口
+                    SW_HIDE = 0
+                    CW_USEDEFAULT = 0x80000000
+                    
+                    WNDCLASS = ctypes.c_void_p * 8
+                    
+                    class WNDCLASSEX(ctypes.Structure):
+                        _fields_ = [
+                            ("cbSize", ctypes.c_uint),
+                            ("style", ctypes.c_uint),
+                            ("lpfnWndProc", ctypes.c_void_p),
+                            ("cbClsExtra", ctypes.c_int),
+                            ("cbWndExtra", ctypes.c_int),
+                            ("hInstance", ctypes.c_void_p),
+                            ("hIcon", ctypes.c_void_p),
+                            ("hCursor", ctypes.c_void_p),
+                            ("hbrBackground", ctypes.c_void_p),
+                            ("lpszMenuName", ctypes.c_wchar_p),
+                            ("lpszClassName", ctypes.c_wchar_p),
+                            ("hIconSm", ctypes.c_void_p)
+                    
+                    # 显示消息框
+                    ctypes.windll.user32.MessageBoxW(
+                        None,
+                        f"没有{permission_name}权限，请联系管理员",
+                        "权限不足",
+                        MB_ICONWARNING | MB_OK | MB_TOPMOST | MB_SETFOREGROUND
+                    )
+                
+                # 尝试多种方式，先直接显示弹窗
+                try:
+                    import tkinter as tk
+                    from tkinter import messagebox
+                    
+                    # 使用 tkinter 显示弹窗
+                    root = tk.Tk()
+                    root.withdraw()  # 隐藏主窗口
+                    root.attributes('-topmost', True)
+                    
+                    messagebox.showwarning(
+                        "权限不足",
+                        f"没有{permission_name}权限，请联系管理员"
+                    )
+                    root.destroy()
+                except Exception:
+                    # 如果 tkinter 不可用，回退到 MessageBox
+                    show_message_box()
     except Exception as e:
         # 请求失败，允许访问（降级处理）
         page_url = f"http://{host}:{port}/{'main.html' if permission_type == 'screenWall' else 'self-service.html'}"
