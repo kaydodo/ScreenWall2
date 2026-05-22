@@ -420,7 +420,7 @@
 
 <!-- ========== 权限管理弹窗 ========== -->
 <div id="permissionOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:10000;align-items:center;justify-content:center;">
-  <div id="permissionDialog" style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:24px 28px;width:400px;max-width:95vw;box-shadow:0 8px 32px rgba(0,0,0,0.3);">
+  <div id="permissionDialog" style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:24px 28px;width:650px;max-width:95vw;box-shadow:0 8px 32px rgba(0,0,0,0.3);">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
       <span style="font-size:17px;font-weight:600;color:var(--text);">🔑 权限管理</span>
       <button class="dialog-close" onclick="closePermissionDialog()">✕</button>
@@ -3978,17 +3978,14 @@ function renderPermissionDeviceList(filter = '') {
   const list = document.getElementById('permissionDeviceList');
   list.innerHTML = '';
   
-  const deviceList = [];
-  devices.forEach((dev, id) => {
-    if (dev.deviceName.toLowerCase().includes(filter.toLowerCase()) ||
-        id.toLowerCase().includes(filter.toLowerCase())) {
-      deviceList.push({ id, ...dev });
-    }
+  const deviceList = devices.filter(dev => {
+    return (dev.deviceName && dev.deviceName.toLowerCase().includes(filter.toLowerCase())) ||
+           (dev.deviceId && dev.deviceId.toLowerCase().includes(filter.toLowerCase()));
   });
   
   deviceList.sort((a, b) => {
-    const nameA = a.deviceName || a.id;
-    const nameB = b.deviceName || b.id;
+    const nameA = a.deviceName || a.deviceId || '';
+    const nameB = b.deviceName || b.deviceId || '';
     return nameA.localeCompare(nameB, 'zh-CN');
   });
   
@@ -3998,30 +3995,30 @@ function renderPermissionDeviceList(filter = '') {
     item.style.display = 'flex';
     item.style.alignItems = 'center';
     item.style.justifyContent = 'space-between';
-    item.style.padding = '12px 16px';
+    item.style.padding = '10px 14px';
     item.style.background = 'var(--bg-page)';
     item.style.borderRadius = '8px';
     item.style.border = '1px solid var(--border)';
     
     item.innerHTML = `
-      <div style="display:flex;flex-direction:column;">
-        <span style="font-size:14px;color:var(--text);font-weight:500;">${device.deviceName || device.id}</span>
-        <span style="font-size:12px;color:var(--text-muted);">${device.id}</span>
+      <div style="display:flex;flex-direction:column;flex:1;min-width:0;">
+        <span style="font-size:14px;color:var(--text);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${device.deviceName || device.deviceId}">${device.deviceName || device.deviceId}</span>
+        <span style="font-size:11px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${device.deviceId}">${device.deviceId}</span>
       </div>
-      <div style="display:flex;flex-direction:column;gap:8px;">
-        <div style="display:flex;align-items:center;gap:8px;">
-          <span style="font-size:12px;color:var(--text-muted);width:70px;">屏幕墙</span>
+      <div style="display:flex;align-items:center;gap:16px;flex-shrink:0;">
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="font-size:12px;color:var(--text-muted);">屏幕墙</span>
           <label class="permission-switch">
             <input type="checkbox" ${permissions.allowScreenWall ? 'checked' : ''} 
-                   onchange="togglePermissionSwitch('${device.id}', 'screenWall', this.checked)"/>
+                   onchange="togglePermissionSwitch('${device.deviceId}', 'screenWall', this.checked)"/>
             <span class="permission-slider"></span>
           </label>
         </div>
-        <div style="display:flex;align-items:center;gap:8px;">
-          <span style="font-size:12px;color:var(--text-muted);width:70px;">自助登号</span>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="font-size:12px;color:var(--text-muted);">自助登号</span>
           <label class="permission-switch">
             <input type="checkbox" ${permissions.allowSelfService ? 'checked' : ''}
-                   onchange="togglePermissionSwitch('${device.id}', 'selfService', this.checked)"/>
+                   onchange="togglePermissionSwitch('${device.deviceId}', 'selfService', this.checked)"/>
             <span class="permission-slider"></span>
           </label>
         </div>
@@ -4032,13 +4029,24 @@ function renderPermissionDeviceList(filter = '') {
 }
 
 function togglePermissionSwitch(deviceId, permissionType, enabled) {
+  const localDevice = devices.find(d => d.deviceId === deviceId);
+  if (localDevice) {
+    if (permissionType === 'screenWall') {
+      if (!localDevice.permissions) localDevice.permissions = { allowScreenWall: false, allowSelfService: false };
+      localDevice.permissions.allowScreenWall = enabled;
+    } else if (permissionType === 'selfService') {
+      if (!localDevice.permissions) localDevice.permissions = { allowScreenWall: false, allowSelfService: false };
+      localDevice.permissions.allowSelfService = enabled;
+    }
+  }
+  
   fetch('/api/setPermission', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       deviceId,
-      allowScreenWall: permissionType === 'screenWall' ? enabled : undefined,
-      allowSelfService: permissionType === 'selfService' ? enabled : undefined
+      allowScreenWall: permissionType === 'screenWall' ? enabled : (localDevice?.permissions?.allowScreenWall ?? false),
+      allowSelfService: permissionType === 'selfService' ? enabled : (localDevice?.permissions?.allowSelfService ?? false)
     })
   });
 }
