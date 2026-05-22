@@ -784,7 +784,7 @@ function connectWS() {
     if (msg.type !== 'ping' && msg.type !== 'latency') {
       console.log('[前端] 收到WebSocket消息:', msg.type, msg);
     }
-
+  
     // 响应服务器 ping，计算延迟
     if (msg.type === 'ping') {
       ws.send(JSON.stringify({ type: 'pong', clientTimestamp: msg.timestamp }));
@@ -1095,9 +1095,7 @@ function connectWS() {
 
     if (msg.type === 'groups') {
       // 收到服务器广播的 groups，只更新本地状态（不再发回服务器，避免循环）
-      console.log('[前端] groups消息 - 收到新数据:', msg.groups);
       groups = msg.groups || [];
-      console.log('[前端] groups消息 - 更新后的groups:', groups);
       localStorage.setItem('sw_groups', JSON.stringify(groups));
       // 从 groups.deviceIds 恢复每个设备的 groupId
       devices.forEach(function(d) { d.groupId = null; });
@@ -1123,9 +1121,7 @@ function connectWS() {
         renderPowerBody();
       }
       // 刷新配置中心弹窗中的分组列表和未分组设备列表
-      console.log('[前端] groups消息处理 - configOverlay.style.display =', document.getElementById('configOverlay').style.display);
       if (document.getElementById('configOverlay').style.display === 'flex') {
-        console.log('[前端] groups消息处理 - 调用 renderConfigGroupList() 和 renderConfigUngroupedList()');
         renderConfigGroupList();
         renderConfigUngroupedList();
       }
@@ -1156,9 +1152,7 @@ function connectWS() {
         renderPowerBody();
       }
       // 刷新配置中心弹窗中的开关机列表
-      console.log('[前端] powerScenes消息处理 - configOverlay.style.display =', document.getElementById('configOverlay').style.display);
       if (document.getElementById('configOverlay').style.display === 'flex') {
-        console.log('[前端] powerScenes消息处理 - 调用 renderConfigPowerList()');
         renderConfigPowerList();
       }
       refreshConfigDialogIfOpen();  // 配置对话框打开时刷新
@@ -4163,12 +4157,8 @@ function addGroupFromInline() {
 }
 
 function renderConfigGroupList() {
-  console.log('[前端] renderConfigGroupList 被调用');
   var el = document.getElementById('configGroupList');
-  if (!el) {
-    console.log('[前端] renderConfigGroupList - configGroupList 元素不存在');
-    return;
-  }
+  if (!el) return;
 
   // Save active element info before render
   var activeEl = document.activeElement;
@@ -4429,12 +4419,8 @@ function renderConfigDeleteList() {
 }
 
 function renderConfigPowerList() {
-  console.log('[前端] renderConfigPowerList 被调用');
   var el = document.getElementById('configPowerList');
-  if (!el) {
-    console.log('[前端] renderConfigPowerList - configPowerList 元素不存在');
-    return;
-  }
+  if (!el) return;
 
   // Save active element info before render
   var activeEl = document.activeElement;
