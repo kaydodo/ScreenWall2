@@ -4344,7 +4344,7 @@ httpServer.on('request', async (req, res) => {
             permissionName = '打开屏幕墙';
           } else if (type === 'selfService') {
             allowed = hasSelfServicePermission(deviceId);
-            permissionName = '打开自助登号';
+            permissionName = '自助登号';
           }
           
           if (allowed) {
