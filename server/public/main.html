@@ -3991,11 +3991,7 @@ function renderPermissionDeviceList(filter = '') {
            (dev.deviceId && dev.deviceId.toLowerCase().includes(filter.toLowerCase()));
   });
   
-  deviceList.sort((a, b) => {
-    const nameA = a.deviceName || a.deviceId || '';
-    const nameB = b.deviceName || b.deviceId || '';
-    return nameA.localeCompare(nameB, 'zh-CN');
-  });
+  deviceList.sort((a, b) => naturalCompare(a.deviceName, b.deviceName));
   
   deviceList.forEach(device => {
     const permissions = device.permissions || { allowScreenWall: false, allowSelfService: false };
