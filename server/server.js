@@ -295,6 +295,197 @@ async function migrateDevicePermission(oldDeviceId, newDeviceId) {
 
 loadPermissions();
 
+// ========== 设备ID迁移和删除的统一处理函数 ==========
+
+/**
+ * 统一的设备ID迁移函数：将所有持久化数据中的旧 deviceId 替换为新 deviceId
+ * @param {string} oldDeviceId - 旧设备ID
+ * @param {string} newDeviceId - 新设备ID
+ */
+async function migrateDeviceId(oldDeviceId, newDeviceId) {
+  if (oldDeviceId === newDeviceId) return;
+
+  const oldDeviceInfo = devices.get(oldDeviceId);
+  const newDeviceInfo = devices.get(newDeviceId);
+  const oldDeviceName = oldDeviceInfo?.deviceName || oldDeviceInfo?.name || oldDeviceId;
+  const newDeviceName = newDeviceInfo?.deviceName || newDeviceInfo?.name || newDeviceId;
+
+  serverLog(`[迁移] 开始迁移设备ID: ${oldDeviceName} (${oldDeviceId}) → ${newDeviceName} (${newDeviceId})`);
+
+  // 1. gridLayout：格子位置映射，旧 deviceId → 新 deviceId
+  for (const idx of Object.keys(gridLayout)) {
+    if (gridLayout[idx] === oldDeviceId) {
+      gridLayout[idx] = newDeviceId;
+    }
+  }
+  await persistGrid();
+
+  // 2. groups：分组的 deviceIds 数组，旧 → 新
+  for (const group of groups) {
+    const pos = group.deviceIds.indexOf(oldDeviceId);
+    if (pos !== -1) {
+      group.deviceIds[pos] = newDeviceId;
+    }
+  }
+  await persistGroups();
+
+  // 3. collections：截图集合的 deviceId，旧 → 新
+  collections.forEach((items) => {
+    for (const item of items) {
+      if (item.deviceId === oldDeviceId) {
+        item.deviceId = newDeviceId;
+      }
+    }
+  });
+  await saveCollections();
+
+  // 4. wallDevices：监控墙持久化追踪
+  if (wallDevices.has(oldDeviceId)) {
+    wallDevices.delete(oldDeviceId);
+    wallDevices.set(newDeviceId, true);
+  }
+
+  // 5. monitorWallDevices：监控墙白名单
+  if (monitorWallDevices.delete(oldDeviceId) && monitorWallDevices.add(newDeviceId));
+
+  // 6. alarmRecords：历史报警记录
+  for (const rec of alarmRecords) {
+    if (rec.deviceId === oldDeviceId) {
+      rec.deviceId = newDeviceId;
+    }
+  }
+  await persistAlarmRecords();
+
+  // 7. lastAlarmTime：报警时间 Map
+  if (lastAlarmTime.has(oldDeviceId) && lastAlarmTime.set(newDeviceId, lastAlarmTime.get(oldDeviceId)) && lastAlarmTime.delete(oldDeviceId));
+
+  // 8. favorites：格子上收藏的星星图标
+  for (const fav of favorites) {
+    if (fav.deviceId === oldDeviceId) {
+      fav.deviceId = newDeviceId;
+    }
+  }
+  if (favorites.some(f => f.deviceId === newDeviceId)) await saveFavorites();
+
+  // 9. powerScenes：开关机场景（旧 deviceId → 新 deviceId）
+  if (powerScenes[oldDeviceId]) {
+    powerScenes[newDeviceId] = powerScenes[oldDeviceId];
+    delete powerScenes[oldDeviceId];
+    await persistPowerScenes();
+  }
+
+  // 10. tasks：任务记录（旧 deviceId → 新 deviceId
+  let taskChanged = false;
+  for (const task of tasks) {
+    if (task.deviceId === oldDeviceId) {
+      task.deviceId = newDeviceId;
+      taskChanged = true;
+    }
+  }
+  if (taskChanged) await persistTasks();
+
+  // 11. devicePermissions：设备权限配置（旧 deviceId → 新 deviceId）
+  await migrateDevicePermission(oldDeviceId, newDeviceId);
+
+  serverLog(`[迁移] 完成设备ID迁移: ${oldDeviceName} (${oldDeviceId}) → ${newDeviceName} (${newDeviceId})`);
+}
+
+/**
+ * 统一的设备删除函数：从所有持久化数据和内存数据中彻底删除该设备
+ * @param {string} deviceId - 要删除的设备ID
+ */
+async function deleteDeviceCompletely(deviceId) {
+  const deviceInfo = devices.get(deviceId);
+  const deviceName = deviceInfo?.deviceName || deviceInfo?.name || deviceId;
+
+  serverLog(`[删除] 开始彻底删除设备: ${deviceName} (${deviceId})`);
+
+  // 从 devices Map
+  if (devices.delete(deviceId));
+
+  // 1. gridLayout：格子位置映射
+  for (const idx of Object.keys(gridLayout)) {
+    if (gridLayout[idx] === deviceId) {
+      delete gridLayout[idx];
+    }
+  }
+  await persistGrid();
+
+  // 2. groups：分组的 deviceIds 数组
+  for (const g of groups) {
+    if (g.deviceIds && Array.isArray(g.deviceIds)) {
+      g.deviceIds = g.deviceIds.filter(id => id !== deviceId);
+    }
+  }
+  await persistGroups();
+
+  // 3. collections：截图集合标记为已删除
+  updateCollectionsDeviceStatus(deviceId, { deleted: true });
+
+  // 4. wallDevices：监控墙持久化追踪
+  wallDevices.delete(deviceId);
+
+  // 5. monitorWallDevices：监控墙白名单
+  monitorWallDevices.delete(deviceId);
+
+  // 6. alarmRecords：历史报警记录
+  const oldAlarmLen = alarmRecords.length;
+  alarmRecords = alarmRecords.filter(r => r.deviceId !== deviceId);
+  if (alarmRecords.length !== oldAlarmLen) await persistAlarmRecords();
+
+  // 7. 清理报警状态
+  alarmStates.delete(deviceId);
+  pending_alarms.delete(deviceId);
+  lastAlarmTime.delete(deviceId);
+
+  // 8. favorites：清理收藏状态
+  cleanupDeviceFromFavorites(deviceId);
+
+  // 9. powerScenes：开关机场景
+  if (powerScenes[deviceId]) {
+    delete powerScenes[deviceId];
+    await persistPowerScenes();
+  }
+
+  // 10. tasks：任务记录标记为 deviceDeleted
+  let taskDelChanged = false;
+  for (const t of tasks) {
+    if (t.deviceId === deviceId && !t.deviceDeleted) {
+      t.deviceDeleted = true;
+      taskDelChanged = true;
+    }
+  }
+  if (taskDelChanged) await persistTasks();
+
+  // 11. devicePermissions：设备权限配置
+  await removeDevicePermission(deviceId);
+
+  // 12. 清理报警截图文件
+  (async () => {
+    try {
+      const screenshotFiles = await fsReaddir(ALARM_SCREENSHOTS_DIR);
+      for (const file of screenshotFiles) {
+        if (file.startsWith(deviceId + '_')) {
+          try {
+            await fsUnlink(path.join(ALARM_SCREENSHOTS_DIR, file));
+          } catch (e) {
+            logger.error(`[清理] 删除报警截图失败: ${file} - ${e.message}`);
+          }
+        }
+      }
+    } catch (e) {
+      logger.error(`[清理] 读取报警截图目录失败: ${e.message}`);
+    }
+  })();
+
+  // 持久化设备列表
+  await persistDevices();
+
+  serverLog(`[删除] 完成彻底删除设备: ${deviceName} (${deviceId})`);
+
+  return { deviceName, deviceId };
+}
+
 // ========== 二维码处理配置 ==========
 const QRCODE_DIR = path.join(__dirname, 'qrcode');
 // 当前正在等待的MUMU客户端连接（用于返回qrcodeResult）
@@ -2020,93 +2211,10 @@ wssClient.on('connection', (ws, req) => {
         const kbTag = msg.supportsKeyClient ? '远控' : '—';
         serverLog(`[+] 上线: ${newDev.deviceName} (${deviceId}) uuId=${newDev.uuDeviceId} | IP: ${ip} | ${kbTag} | 显示器${newDev.monitorIndex} | ${newDev.screenWidth || '?'}×${newDev.screenHeight || '?'}`);
       }
-      // 如果匹配到了旧设备，迁移所有以旧 deviceId 为 key 的关联数据，然后删除旧记录
+      // 如果匹配到了旧设备，统一迁移所有关联数据，然后删除旧记录
       if (matchedOldDeviceId && matchedOldDeviceId !== deviceId) {
-        // 1. gridLayout：格子位置映射，旧 deviceId → 新 deviceId
-        for (const idx of Object.keys(gridLayout)) {
-          if (gridLayout[idx] === matchedOldDeviceId) {
-            gridLayout[idx] = deviceId;
-          }
-        }
-        await persistGrid();
-
-        // 2. groups：分组的 deviceIds 数组，旧 → 新
-        for (const group of groups) {
-          const pos = group.deviceIds.indexOf(matchedOldDeviceId);
-          if (pos !== -1) {
-            group.deviceIds[pos] = deviceId;
-          }
-        }
-        await persistGroups();
-
-        // 3. collections：截图集合的 deviceId，旧 → 新
-        collections.forEach((items) => {
-          for (const item of items) {
-            if (item.deviceId === matchedOldDeviceId) {
-              item.deviceId = deviceId;
-            }
-          }
-        });
-        await saveCollections();
-
-        // 4. wallDevices：监控墙持久化追踪
-        if (wallDevices.has(matchedOldDeviceId)) {
-          wallDevices.delete(matchedOldDeviceId);
-          wallDevices.set(deviceId, true);
-        }
-
-        // 5. monitorWallDevices：监控墙白名单
-        if (monitorWallDevices.has(matchedOldDeviceId)) {
-          monitorWallDevices.delete(matchedOldDeviceId);
-          monitorWallDevices.add(deviceId);
-        }
-
-        // 6. alarmRecords：历史报警记录
-        for (const rec of alarmRecords) {
-          if (rec.deviceId === matchedOldDeviceId) {
-            rec.deviceId = deviceId;
-          }
-        }
-        await persistAlarmRecords();
-
-        // 7. lastAlarmTime：报警时间 Map
-        if (lastAlarmTime.has(matchedOldDeviceId)) {
-          lastAlarmTime.set(deviceId, lastAlarmTime.get(matchedOldDeviceId));
-          lastAlarmTime.delete(matchedOldDeviceId);
-        }
-
         devices.delete(matchedOldDeviceId);
-        serverLog(`[识别] 已迁移旧设备 ${matchedOldDeviceId} → ${deviceId}（格子/分组/集合/监控墙/报警）`);
-
-        // 8. favorites：格子上收藏的星星图标
-        for (const fav of favorites) {
-          if (fav.deviceId === matchedOldDeviceId) {
-            fav.deviceId = deviceId;
-          }
-        }
-        if (favorites.some(f => f.deviceId === deviceId)) await saveFavorites();
-
-        // 9. powerScenes：开关机场景（旧 deviceId → 新 deviceId）
-        if (powerScenes[matchedOldDeviceId]) {
-          powerScenes[deviceId] = powerScenes[matchedOldDeviceId];
-          delete powerScenes[matchedOldDeviceId];
-          await persistPowerScenes();
-        }
-
-        // 10. tasks：任务记录（旧 deviceId → 新 deviceId）
-        let taskChanged = false;
-        for (const task of tasks) {
-          if (task.deviceId === matchedOldDeviceId) {
-            task.deviceId = deviceId;
-            taskChanged = true;
-          }
-        }
-        if (taskChanged) {
-          await persistTasks();
-        }
-
-        // 11. devicePermissions：设备权限配置（旧 deviceId → 新 deviceId）
-        await migrateDevicePermission(matchedOldDeviceId, deviceId);
+        await migrateDeviceId(matchedOldDeviceId, deviceId);
       }
 
       await persistDevices();  // 持久化设备列表
@@ -3209,27 +3317,9 @@ wssBrowser.on('connection', (ws) => {
       // 删除单个离线设备
       const { deviceId } = msg;
       if (deviceId && devices.has(deviceId)) {
-        // 删除前保存设备名，用于广播
-        const deletedDeviceName = devices.get(deviceId).deviceName;
-        devices.delete(deviceId);
-        // 清理该设备的收藏状态
-        cleanupDeviceFromFavorites(deviceId);
-        updateCollectionsDeviceStatus(deviceId, { deleted: true });
-        // 从格子布局中移除该设备
-        for (let i = 0; i < 100; i++) {
-          if (gridLayout[i] === deviceId) {
-            delete gridLayout[i];
-          }
-        }
-        // 从所有分组的 deviceIds 中移除
-        for (const g of groups) {
-          if (g.deviceIds && Array.isArray(g.deviceIds)) {
-            g.deviceIds = g.deviceIds.filter(id => id !== deviceId);
-          }
-        }
-        await persistDevices();
-        await persistGrid();
-        await persistGroups();
+        // 使用统一的删除函数
+        const { deviceName: deletedDeviceName } = await deleteDeviceCompletely(deviceId);
+        
         // 广播完整的设备列表和格子布局
         broadcastToBrowsers({
           type: 'deviceList',
@@ -3252,51 +3342,9 @@ wssBrowser.on('connection', (ws) => {
         // 广播设备预览状态变更（让所有浏览器刷新预览大图）
         broadcastToBrowsers({ type: 'devicePreviewStatus', deviceId, status: 'deleted', deviceName: deletedDeviceName });
         notifyWallClients('deviceDeleted', { deviceId });
-        // 清理报警相关状态
-        alarmStates.delete(deviceId);
-        pending_alarms.delete(deviceId);
-        lastAlarmTime.delete(deviceId);
-        
-        // 清理报警记录
-        const oldAlarmLen = alarmRecords.length;
-        alarmRecords = alarmRecords.filter(r => r.deviceId !== deviceId);
-        if (alarmRecords.length !== oldAlarmLen) {
-          await persistAlarmRecords();
-        }
-        
-        // 清理报警截图文件
-        (async () => {
-          try {
-            const screenshotFiles = await fsReaddir(ALARM_SCREENSHOTS_DIR);
-            for (const file of screenshotFiles) {
-              if (file.startsWith(deviceId + '_')) {
-                try {
-                  await fsUnlink(path.join(ALARM_SCREENSHOTS_DIR, file));
-                } catch (e) {
-                  logger.error(`[清理] 删除报警截图失败: ${file} - ${e.message}`);
-                }
-              }
-            }
-          } catch (e) {
-            logger.error(`[清理] 读取报警截图目录失败: ${e.message}`);
-          }
-        })();
-        
-        // 标记该设备任务记录为 deviceDeleted
-        let taskDelChanged = false;
-        for (const t of tasks) {
-          if (t.deviceId === deviceId && !t.deviceDeleted) {
-            t.deviceDeleted = true;
-            taskDelChanged = true;
-          }
-        }
-        if (taskDelChanged) {
-          await persistTasks();
-          broadcastToBrowsers({ type: 'tasksUpdate', tasks: getTasksPayload() });
-        }
-        
-        // 清理设备权限配置
-        await removeDevicePermission(deviceId);
+        // 广播任务更新
+        broadcastToBrowsers({ type: 'tasksUpdate', tasks: getTasksPayload() });
+        broadcastToBrowsers({ type: 'powerScenes', powerScenes });
       }
     }
 
