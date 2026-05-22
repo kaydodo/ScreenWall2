@@ -10,5 +10,13 @@
     "name": "666",
     "color": "#EBCDC5",
     "deviceIds": []
+  },
+  {
+    "id": "1779450239144",
+    "name": "555",
+    "color": "#C5EBCD",
+    "deviceIds": [
+      "aeawtmgwtiau3yfl"
+    ]
   }
 ]

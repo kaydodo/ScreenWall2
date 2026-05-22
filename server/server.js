@@ -1750,7 +1750,8 @@ function broadcastToBrowsers(data, forceAll = false) {
 }
 
 function flushRenderBatch() {
-  if (renderBatch.length === 0) { renderTimer = null; return; }
+  renderTimer = null;
+  if (renderBatch.length === 0) return;
   
   // 按类型分组，减少消息数量
   const screenshots = {};
@@ -1765,37 +1766,28 @@ function flushRenderBatch() {
     }
   }
   
+  renderBatch = [];
+  
   // 发送截图批量消息
   const screenshotList = Object.values(screenshots);
   if (screenshotList.length > 0) {
-    try {
-      const msg = JSON.stringify({ type: 'screenshotBatch', screenshots: screenshotList });
-      for (const ws of browserClients) {
-        try {
-          if (ws.readyState === 1) ws.send(msg);
-        } catch (e) { /* ignore */ }
+    const msg = JSON.stringify({ type: 'screenshotBatch', screenshots: screenshotList });
+    for (const ws of browserClients) {
+      if (ws.readyState === 1) {
+        try { ws.send(msg); } catch (e) { /* ignore */ }
       }
-    } catch (e) {
-      logger.error(`[Batch] screenshotBatch stringify failed: ${e.message}`);
     }
   }
   
-  // 发送其他消息
+  // 发送其他消息（非截图消息直接发送，确保及时性）
   for (const data of others) {
-    try {
-      const msg = JSON.stringify(data);
-      for (const ws of browserClients) {
-        try {
-          if (ws.readyState === 1) ws.send(msg);
-        } catch (e) { /* ignore */ }
+    const msg = JSON.stringify(data);
+    for (const ws of browserClients) {
+      if (ws.readyState === 1) {
+        try { ws.send(msg); } catch (e) { /* ignore */ }
       }
-    } catch (e) {
-      logger.error(`[Batch] broadcast stringify failed: ${e.message}`);
     }
   }
-  
-  renderBatch = [];
-  renderTimer = null;
 }
 
 // 处理浏览器上报视口（当前可见格子）
