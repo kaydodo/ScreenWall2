@@ -439,11 +439,11 @@
       </div>
       <button onclick="submitPermissionLogin()" style="width:100%;height:50px;margin-bottom:8px;background:linear-gradient(135deg, #4f8ef7, #6c63ff);color:#fff;border:none;border-radius:14px;font-size:16px;font-weight:700;letter-spacing:2px;cursor:pointer;transition:transform 0.2s, box-shadow 0.2s, opacity 0.2s;box-shadow:0 6px 20px rgba(79,142,247,0.35);font-family:inherit;" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 10px 28px rgba(79,142,247,0.4)'" onmouseout="this.style.transform='translateY(0)';this.style.boxShadow='0 6px 20px rgba(79,142,247,0.35)'" onmousedown="this.style.transform='translateY(0)'">登 录</button>
     </div>
-    <div id="permissionContent" style="display:none;">
-      <div style="margin-bottom:12px;">
+    <div id="permissionContent" style="display:none;flex-direction:column;flex:1;min-height:0;overflow:hidden;">
+      <div style="margin-bottom:12px;flex-shrink:0;">
         <input type="text" id="permissionSearch" placeholder="搜索设备..." style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-page);color:var(--text);font-size:13px;box-sizing:border-box;"/>
       </div>
-      <div id="permissionDeviceList" style="display:flex;flex-direction:column;gap:8px;max-height:400px;overflow-y:auto;"></div>
+      <div id="permissionDeviceList" style="display:flex;flex-direction:column;gap:8px;flex:1;min-height:0;overflow-y:auto;"></div>
     </div>
   </div>
 </div>
@@ -3973,9 +3973,6 @@ function submitPermissionLogin() {
       dialog.style.maxHeight = '85vh';
       document.getElementById('permissionLoginForm').style.display = 'none';
       document.getElementById('permissionContent').style.display = 'flex';
-      document.getElementById('permissionContent').style.flexDirection = 'column';
-      document.getElementById('permissionContent').style.flex = '1';
-      document.getElementById('permissionContent').style.overflow = 'hidden';
       renderPermissionDeviceList();
     } else {
       document.getElementById('permissionLoginError').style.display = 'block';
