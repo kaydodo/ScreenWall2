@@ -1095,7 +1095,9 @@ function connectWS() {
 
     if (msg.type === 'groups') {
       // 收到服务器广播的 groups，只更新本地状态（不再发回服务器，避免循环）
+      console.log('[前端] groups消息 - 收到新数据:', msg.groups);
       groups = msg.groups || [];
+      console.log('[前端] groups消息 - 更新后的groups:', groups);
       localStorage.setItem('sw_groups', JSON.stringify(groups));
       // 从 groups.deviceIds 恢复每个设备的 groupId
       devices.forEach(function(d) { d.groupId = null; });
