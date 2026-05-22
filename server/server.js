@@ -3123,9 +3123,24 @@ wssBrowser.on('connection', (ws) => {
       // 浏览器发来分组数据更新（颜色、名称等变更）
       if (Array.isArray(msg.groups)) {
         groups = msg.groups;
+        // 同步更新 devices 中的 groupId（根据 groups.deviceIds）
+        for (const dev of devices.values()) {
+          let found = false;
+          for (const g of groups) {
+            if (g.deviceIds && g.deviceIds.includes(dev.deviceId)) {
+              dev.groupId = g.id;
+              found = true;
+              break;
+            }
+          }
+          if (!found) {
+            dev.groupId = null;
+          }
+        }
         await persistGroups();
-        // 广播给所有浏览器
-        broadcastToClients({ type: 'groupUpdate', groups: groups });
+        await persistDevices();
+        broadcastToBrowsers({ type: 'groups', groups });
+        broadcastToBrowsers({ type: 'deviceList', devices: getDeviceListPayload() });
       }
     }
 

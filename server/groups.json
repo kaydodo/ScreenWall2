@@ -1,19 +1,5 @@
 [
   {
-    "id": "1775730265174",
-    "name": "5555666",
-    "color": "#C5C5EB",
-    "deviceIds": [
-      "aeawtmgwtiau3yfl"
-    ]
-  },
-  {
-    "id": "1777310882267",
-    "name": "5555",
-    "color": "#C5EBCD",
-    "deviceIds": []
-  },
-  {
     "id": "1777638625017",
     "name": "223333",
     "color": "#D8C5EB",
@@ -23,6 +9,12 @@
     "id": "1778398173346",
     "name": "2233335555",
     "color": "#C5CDEB",
+    "deviceIds": []
+  },
+  {
+    "id": "1779444738137",
+    "name": "222",
+    "color": "#EBCDC5",
     "deviceIds": []
   }
 ]
