@@ -198,6 +198,8 @@ D:\ScreenWall2\
 |------|------|------|
 | `state` | `cells, devices, groups, alarms, favorites` | 初始状态 |
 | `deviceList` | `devices[]` | 设备列表更新 |
+| `groups` | `groups[]` | 分组列表更新 |
+| `powerScenes` | `powerScenes{}` | 开关机场景更新 |
 | `devicePreviewStatus` | `deviceId, status` | 预览状态 |
 | `wallStateUpdate` | `devices, groups` | 监控墙状态 |
 | `screenshotBatch` | `screenshots[]` | 批量截图帧 |
@@ -514,6 +516,39 @@ python mumu_client.py
 | 可维护性 | 逻辑清晰，易于理解 | 需要维护状态同步 |
 
 > **结论**：当前方案是合理的临时解决方案，在不进行大规模重构的情况下解决了用户体验问题。建议未来根据实际需求再考虑引入前端框架或重构为增量更新模式。
+
+### 统一广播函数 `broadcastAllConfigUpdates()`
+
+为解决配置中心修改后前端微刷新失效问题，服务端实现了统一的广播函数：
+
+**函数定义**（`server/server.js`）：
+```javascript
+function broadcastAllConfigUpdates() {
+  const deviceListPayload = getDeviceListPayload();
+  broadcastToBrowsers({ type: 'deviceList', devices: deviceListPayload });
+  broadcastToBrowsers({ type: 'groups', groups: groups });
+  broadcastToBrowsers({ type: 'powerScenes', powerScenes: powerScenes });
+  notifyWallClients('configChanged', {});
+}
+```
+
+**调用场景**：
+| 场景 | 调用位置 |
+|------|----------|
+| 添加分组 | `addGroup()` |
+| 移除分组 | `removeGroup()` |
+| 修改分组 | `updateGroupName()` |
+
+**设计特点**（按此方法实现）：
+1. **统一广播**：一次性发送 `deviceList`、`groups`、`powerScenes` 三种消息
+2. **模块化拆分**：`broadcastToBrowsers()` 支持单独发送任意类型消息
+3. **前端按需订阅**：其他前端页面可单独订阅需要的消息类型，不受统一广播影响
+4. **微刷新支持**：前端收到广播后，根据消息类型强制刷新对应区域（忽略锁机制）
+
+**前端处理逻辑**（`server/public/main.html`）：
+- `groups` 消息 → 更新分组数据 + 强制刷新格子/侧边栏 + 刷新配置中心
+- `powerScenes` 消息 → 更新开关机数据 + 强制刷新格子/侧边栏 + 刷新配置中心
+- `deviceList` 消息 → 同步设备数据（无需强制刷新）
 
 ---
 
