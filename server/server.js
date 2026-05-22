@@ -218,52 +218,22 @@ const {
   client: CLIENT_CFG
 } = config;
 
-// ========== 权限管理配置 ==========
+// ========== 设备权限管理配置 ==========
 const PERMISSIONS_PATH = path.join(__dirname, 'permissions.json');
 
-// 权限定义（bitmask）
-const PERMISSIONS = {
-  VIEW_DEVICES: 1 << 0,      // 查看设备列表
-  CONTROL_DEVICE: 1 << 1,    // 控制设备（开关、远控等）
-  MANAGE_GROUPS: 1 << 2,     // 管理分组
-  MANAGE_TASKS: 1 << 3,      // 管理任务
-  VIEW_ALARMS: 1 << 4,       // 查看报警记录
-  MANAGE_PERMISSIONS: 1 << 5, // 管理权限
-  SELF_SERVICE: 1 << 6,      // 自助登号
-  MANAGE_COLLECTIONS: 1 << 7, // 管理收藏/截图集合
-};
-
-// 角色定义
-const ROLES = {
-  ADMIN: {
-    name: '管理员',
-    permissions: 0xFF // 所有权限
-  },
-  OPERATOR: {
-    name: '操作员',
-    permissions: PERMISSIONS.VIEW_DEVICES | PERMISSIONS.CONTROL_DEVICE | PERMISSIONS.VIEW_ALARMS | PERMISSIONS.SELF_SERVICE
-  },
-  VIEWER: {
-    name: '查看者',
-    permissions: PERMISSIONS.VIEW_DEVICES | PERMISSIONS.VIEW_ALARMS
-  }
-};
-
-// 用户角色映射: userId -> roleName
-let userRoles = {};
-
-// 设备级权限: deviceId -> { userId -> permissions }
+// 设备权限配置: deviceId -> { allowScreenWall: boolean, allowSelfService: boolean }
 let devicePermissions = {};
+
+// 管理员密码（硬编码，用于前端权限管理页面登录）
+const ADMIN_PASSWORD = 'admin123';
 
 // 加载权限配置
 function loadPermissions() {
   if (fs.existsSync(PERMISSIONS_PATH)) {
     try {
       const raw = fs.readFileSync(PERMISSIONS_PATH, 'utf8');
-      const data = JSON.parse(raw);
-      userRoles = data.userRoles || {};
-      devicePermissions = data.devicePermissions || {};
-      serverLog(`[权限] 已加载 ${Object.keys(userRoles).length} 个用户角色, ${Object.keys(devicePermissions).length} 个设备权限`);
+      devicePermissions = JSON.parse(raw);
+      serverLog(`[权限] 已加载 ${Object.keys(devicePermissions).length} 个设备权限配置`);
     } catch (e) {
       serverError('[权限] 加载权限配置失败:', e.message);
     }
@@ -273,55 +243,30 @@ function loadPermissions() {
 // 保存权限配置
 async function persistPermissions() {
   try {
-    await fsWriteFile(PERMISSIONS_PATH, JSON.stringify({
-      userRoles,
-      devicePermissions
-    }, null, 2), 'utf8');
+    await fsWriteFile(PERMISSIONS_PATH, JSON.stringify(devicePermissions, null, 2), 'utf8');
   } catch (e) {
     serverError('[权限] 保存权限配置失败:', e.message);
   }
 }
 
-// 检查用户是否有指定权限
-function hasPermission(userId, permission) {
-  const roleName = userRoles[userId];
-  if (!roleName || !ROLES[roleName]) {
-    return false;
-  }
-  return (ROLES[roleName].permissions & permission) !== 0;
+// 检查设备是否有打开屏幕墙权限
+function hasScreenWallPermission(deviceId) {
+  return devicePermissions[deviceId]?.allowScreenWall === true;
 }
 
-// 检查用户对特定设备是否有指定权限（先检查设备级权限，再检查角色权限）
-function hasDevicePermission(userId, deviceId, permission) {
-  // 先检查设备级权限
-  if (devicePermissions[deviceId] && devicePermissions[deviceId][userId]) {
-    if ((devicePermissions[deviceId][userId] & permission) !== 0) {
-      return true;
-    }
-  }
-  // 再检查角色权限
-  return hasPermission(userId, permission);
+// 检查设备是否有自助登号权限
+function hasSelfServicePermission(deviceId) {
+  return devicePermissions[deviceId]?.allowSelfService === true;
 }
 
-// 设置用户角色
-async function setUserRole(userId, roleName) {
-  if (!ROLES[roleName]) {
-    return false;
-  }
-  userRoles[userId] = roleName;
+// 设置设备权限
+async function setDevicePermission(deviceId, allowScreenWall, allowSelfService) {
+  devicePermissions[deviceId] = {
+    allowScreenWall: allowScreenWall === true,
+    allowSelfService: allowSelfService === true
+  };
   await persistPermissions();
-  serverLog(`[权限] 用户 ${userId} 角色已设置为 ${roleName}`);
-  return true;
-}
-
-// 设置设备级权限
-async function setDevicePermission(deviceId, userId, permissions) {
-  if (!devicePermissions[deviceId]) {
-    devicePermissions[deviceId] = {};
-  }
-  devicePermissions[deviceId][userId] = permissions;
-  await persistPermissions();
-  serverLog(`[权限] 设备 ${deviceId} 用户 ${userId} 权限已设置为 ${permissions}`);
+  serverLog(`[权限] 设备 ${deviceId} 权限已更新: 屏幕墙=${allowScreenWall}, 自助登号=${allowSelfService}`);
 }
 
 // 删除设备权限（删除设备时调用）
@@ -336,7 +281,7 @@ async function removeDevicePermission(deviceId) {
 // 迁移设备权限（设备继承时调用）
 async function migrateDevicePermission(oldDeviceId, newDeviceId) {
   if (devicePermissions[oldDeviceId]) {
-    devicePermissions[newDeviceId] = devicePermissions[oldDeviceId];
+    devicePermissions[newDeviceId] = { ...devicePermissions[oldDeviceId] };
     delete devicePermissions[oldDeviceId];
     await persistPermissions();
     serverLog(`[权限] 已迁移设备权限 ${oldDeviceId} → ${newDeviceId}`);
@@ -1731,25 +1676,29 @@ function getDeviceListPayload() {
   return Array.from(devices.values())
     .filter(d => d.deviceId !== 'MUMU-service')  // 排除MUMU，不显示在浏览器中
     .sort((a, b) => a.deviceName.localeCompare(b.deviceName, 'zh-CN'))
-    .map(d => ({
-      deviceId: d.deviceId,
-      deviceName: d.deviceName,
-      uuDeviceId: d.uuDeviceId,
-      macAddress: d.macAddress || null,
-      online: d.online,
-      lastSeen: d.lastSeen,
-      screenshot: d.screenshot ? (Buffer.isBuffer(d.screenshot) ? 'data:image/webp;base64,' + d.screenshot.toString('base64') : d.screenshot) : null,
-      groupId: d.groupId || null,
-      supportsKeyClient: d.supportsKeyClient || false,
-      monitorIndex: d.monitorIndex || 1,
-      monitorCount: d.monitorCount || 1,
-      screenWidth: d.screenWidth || null,
-      screenHeight: d.screenHeight || null,
-      monitorOffsetX: d.monitorOffsetX || 0,
-      monitorOffsetY: d.monitorOffsetY || 0,
-      version: d.version || null,
-      uuVersion: d.uuVersion || null,
-    }));
+    .map(d => {
+      const perms = devicePermissions[d.deviceId] || { allowScreenWall: false, allowSelfService: false };
+      return {
+        deviceId: d.deviceId,
+        deviceName: d.deviceName,
+        uuDeviceId: d.uuDeviceId,
+        macAddress: d.macAddress || null,
+        online: d.online,
+        lastSeen: d.lastSeen,
+        screenshot: d.screenshot ? (Buffer.isBuffer(d.screenshot) ? 'data:image/webp;base64,' + d.screenshot.toString('base64') : d.screenshot) : null,
+        groupId: d.groupId || null,
+        supportsKeyClient: d.supportsKeyClient || false,
+        monitorIndex: d.monitorIndex || 1,
+        monitorCount: d.monitorCount || 1,
+        screenWidth: d.screenWidth || null,
+        screenHeight: d.screenHeight || null,
+        monitorOffsetX: d.monitorOffsetX || 0,
+        monitorOffsetY: d.monitorOffsetY || 0,
+        version: d.version || null,
+        uuVersion: d.uuVersion || null,
+        permissions: perms,
+      };
+    });
 }
 
 function getGridPayload(gridSize) {
@@ -4285,6 +4234,75 @@ httpServer.on('request', (req, res) => {
       try {
         const data = JSON.parse(body);
 
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true }));
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: e.message }));
+      }
+    });
+    return;
+  }
+
+  // POST /api/checkAdmin - 验证管理员密码
+  if (cleanPath === '/api/checkAdmin' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', () => {
+      try {
+        const { username, password } = JSON.parse(body);
+        // 硬编码管理员账号：admin/admin123
+        if (username === 'admin' && password === ADMIN_PASSWORD) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true }));
+        } else {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: false }));
+        }
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false }));
+      }
+    });
+    return;
+  }
+
+  // POST /api/checkPermission - 检查设备权限
+  if (cleanPath === '/api/checkPermission' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', () => {
+      try {
+        const { deviceId, type } = JSON.parse(body);
+        let allowed = false;
+        if (type === 'screenWall') {
+          allowed = hasScreenWallPermission(deviceId);
+        } else if (type === 'selfService') {
+          allowed = hasSelfServicePermission(deviceId);
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ allowed }));
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ allowed: false }));
+      }
+    });
+    return;
+  }
+
+  // POST /api/setPermission - 设置设备权限
+  if (cleanPath === '/api/setPermission' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', () => {
+      try {
+        const { deviceId, allowScreenWall, allowSelfService } = JSON.parse(body);
+        const current = devicePermissions[deviceId] || { allowScreenWall: false, allowSelfService: false };
+        setDevicePermission(
+          deviceId,
+          allowScreenWall !== undefined ? allowScreenWall : current.allowScreenWall,
+          allowSelfService !== undefined ? allowSelfService : current.allowSelfService
+        );
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true }));
       } catch (e) {

@@ -19,7 +19,7 @@ import time
 import webbrowser
 
 # 客户端版本号（每次功能更新时手动递增）
-CLIENT_VERSION = "1.9.7"
+CLIENT_VERSION = "1.9.8"
 
 
 def _get_mac_address():
@@ -1092,72 +1092,97 @@ class ScreenCapturer:
 
 # ── 托盘菜单（模块级别，所有函数可互相调用） ─────────────────
 
-def _tray_on_open_screenwall(icon, item):
-    """点击"打开屏幕墙"，读取服务端配置并用默认浏览器打开"""
-    cfg = load_config()
-    srv = cfg.get("server", {})
-    dev = cfg.get("device", {})
-    host = srv.get("host", "localhost").replace("http://", "").replace("https://", "").rstrip("/")
-    port = srv.get("port", 3000)
+def _check_permission_and_open(host, port, device_id, permission_type, permission_name):
+    """检查设备权限并打开对应页面"""
+    import urllib.request
+    import json
     
-    ini_path = Path("C:/ProgramData/Netease/GameViewer/user_info.ini")
-    ini_device_id = ""
-    if ini_path.exists():
-        user_info = read_ini_section(ini_path)
-        if "General" in user_info:
-            ini_device_id = user_info["General"].get("deviceId", "").strip()
-    
-    device_id = dev.get("deviceId", "").strip() or ini_device_id
-    if _CURRENT_USER.lower() not in ("administrator", ""):
-        device_id = f"{device_id}-{_CURRENT_USER}"
-    
-    import urllib.parse
-    params = urllib.parse.urlencode({
-        "from": "client",
-        "deviceId": device_id
-    })
-    url = f"http://{host}:{port}/main.html?{params}"
-    webbrowser.open(url)
+    try:
+        url = f"http://{host}:{port}/api/checkPermission"
+        data = json.dumps({
+            "deviceId": device_id,
+            "type": permission_type
+        }).encode('utf8')
+        
+        req = urllib.request.Request(url, data=data, method='POST')
+        req.add_header('Content-Type', 'application/json')
+        
+        with urllib.request.urlopen(req, timeout=5) as response:
+            result = json.loads(response.read().decode('utf8'))
+            if result.get('allowed'):
+                # 有权限，打开不带参数的页面
+                page_url = f"http://{host}:{port}/{'main.html' if permission_type == 'screenWall' else 'self-service.html'}"
+                _open_browser_with_page(page_url, permission_type)
+            else:
+                # 无权限，弹出提示
+                import ctypes
+                ctypes.windll.user32.MessageBoxW(0, f"没有{permission_name}权限，请联系管理员", "权限不足", 0x10)
+    except Exception as e:
+        # 请求失败，允许访问（降级处理）
+        page_url = f"http://{host}:{port}/{'main.html' if permission_type == 'screenWall' else 'self-service.html'}"
+        _open_browser_with_page(page_url, permission_type)
 
-def _tray_on_open_self_service(icon, item):
-    cfg = load_config()
-    srv = cfg.get("server", {})
-    dev = cfg.get("device", {})
-    host = srv.get("host", "localhost").replace("http://", "").replace("https://", "").rstrip("/")
-    port = srv.get("port", 3000)
-    
-    ini_path = Path("C:/ProgramData/Netease/GameViewer/user_info.ini")
-    ini_device_id = ""
-    if ini_path.exists():
-        user_info = read_ini_section(ini_path)
-        if "General" in user_info:
-            ini_device_id = user_info["General"].get("deviceId", "").strip()
-    
-    device_id = dev.get("deviceId", "").strip() or ini_device_id
-    if _CURRENT_USER.lower() not in ("administrator", ""):
-        device_id = f"{device_id}-{_CURRENT_USER}"
-    
-    device_name = dev.get("deviceName", "").strip() or os.environ.get("COMPUTERNAME", "UnknownPC")
-    if _CURRENT_USER.lower() not in ("administrator", ""):
-        device_name = f"{device_name}-{_CURRENT_USER}"
-    
-    import urllib.parse
-    params = urllib.parse.urlencode({
-        "deviceId": device_id,
-        "deviceName": device_name
-    })
-    url = f"http://{host}:{port}/self-service.html?{params}"
-    
-    import subprocess
-    browser_path = _get_chromium_browser_path() or _get_default_browser_path()
-    if browser_path:
-        exe_name = os.path.basename(browser_path).lower()
-        if exe_name in ("chrome.exe", "msedge.exe"):
-            subprocess.Popen([browser_path, "--app=" + url, "--window-size=420,780", "--new-window"])
+
+def _open_browser_with_page(url, permission_type):
+    """根据权限类型用不同方式打开浏览器"""
+    if permission_type == 'selfService':
+        # 自助登号使用特殊窗口模式
+        import subprocess
+        browser_path = _get_chromium_browser_path() or _get_default_browser_path()
+        if browser_path:
+            exe_name = os.path.basename(browser_path).lower()
+            if exe_name in ("chrome.exe", "msedge.exe"):
+                subprocess.Popen([browser_path, "--app=" + url, "--window-size=420,780", "--new-window"])
+            else:
+                webbrowser.open(url)
         else:
             webbrowser.open(url)
     else:
+        # 屏幕墙使用默认浏览器打开
         webbrowser.open(url)
+
+
+def _tray_on_open_screenwall(icon, item):
+    """点击"打开屏幕墙"，读取服务端配置并用默认浏览器打开（需权限检查）"""
+    cfg = load_config()
+    srv = cfg.get("server", {})
+    dev = cfg.get("device", {})
+    host = srv.get("host", "localhost").replace("http://", "").replace("https://", "").rstrip("/")
+    port = srv.get("port", 3000)
+    
+    ini_path = Path("C:/ProgramData/Netease/GameViewer/user_info.ini")
+    ini_device_id = ""
+    if ini_path.exists():
+        user_info = read_ini_section(ini_path)
+        if "General" in user_info:
+            ini_device_id = user_info["General"].get("deviceId", "").strip()
+    
+    device_id = dev.get("deviceId", "").strip() or ini_device_id
+    if _CURRENT_USER.lower() not in ("administrator", ""):
+        device_id = f"{device_id}-{_CURRENT_USER}"
+    
+    _check_permission_and_open(host, port, device_id, 'screenWall', '打开屏幕墙')
+
+def _tray_on_open_self_service(icon, item):
+    """点击"自助登号"，读取服务端配置并用浏览器打开（需权限检查）"""
+    cfg = load_config()
+    srv = cfg.get("server", {})
+    dev = cfg.get("device", {})
+    host = srv.get("host", "localhost").replace("http://", "").replace("https://", "").rstrip("/")
+    port = srv.get("port", 3000)
+    
+    ini_path = Path("C:/ProgramData/Netease/GameViewer/user_info.ini")
+    ini_device_id = ""
+    if ini_path.exists():
+        user_info = read_ini_section(ini_path)
+        if "General" in user_info:
+            ini_device_id = user_info["General"].get("deviceId", "").strip()
+    
+    device_id = dev.get("deviceId", "").strip() or ini_device_id
+    if _CURRENT_USER.lower() not in ("administrator", ""):
+        device_id = f"{device_id}-{_CURRENT_USER}"
+    
+    _check_permission_and_open(host, port, device_id, 'selfService', '自助登号')
 
 def _get_chromium_browser_path():
     common_paths = [
