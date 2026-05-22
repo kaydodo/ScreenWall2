@@ -1,22 +1,14 @@
 [
   {
     "id": "1779448733312",
-    "name": "22",
+    "name": "226",
     "color": "#EBC5E0",
-    "deviceIds": [
-      "aeawtmgwtiau3yfl-admin"
-    ]
+    "deviceIds": []
   },
   {
     "id": "1779449089282",
     "name": "666",
     "color": "#EBCDC5",
-    "deviceIds": []
-  },
-  {
-    "id": "1779450239144",
-    "name": "555554555",
-    "color": "#C5EBCD",
     "deviceIds": []
   }
 ]
