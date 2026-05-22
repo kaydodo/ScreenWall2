@@ -619,3 +619,112 @@ function broadcastAllConfigUpdates() {
 | 同一设备操作 | `[自助登号] 设备名使用二维码扫码（状态）` |
 | 帮助其他设备 | `[自助登号] 设备名A帮助设备名B使用二维码扫码（状态）` |
 
+
+---
+
+## 权限管理与弹窗优化（v1.9.9）
+
+### 版本信息
+- **客户端版本**：v1.9.9
+- **更新日期**：2026-05-22
+
+### 新增功能
+
+#### 1. 权限管理系统
+- **服务端权限API**：新增 /api/checkPermission 和 /api/setPermission 接口
+- **权限数据结构**：permissions.json 文件持久化存储设备权限
+- **两种权限类型**：
+  - llowScreenWall：屏幕墙访问权限
+  - llowSelfService：自助登号访问权限
+- **前端权限管理页面**：
+  - 独立登录入口（管理员验证）
+  - 设备列表展示与搜索
+  - 屏幕墙/自助登号两个开关独立控制
+  - 开关状态实时同步到服务端
+
+#### 2. 客户端权限检查
+- 托盘菜单"打开屏幕墙"和"自助登号"点击时自动检查权限
+- 无权限时弹出提示弹窗，不打开目标页面
+- 权限检查通过后正常打开页面
+
+### 修复内容
+
+#### 1. 权限弹窗可点击性问题
+- **问题**：原生的 Windows MessageBox 在某些情况下无法点击确定按钮
+- **原因**：窗口焦点问题，需要先将小弹窗切换为选中状态才能点击
+- **解决方案**：改用 Tkinter 的 messagebox.showwarning() 实现弹窗
+  - 设置 	opmost 确保窗口始终在最前
+  - 使用 lift() 和 ocus_force() 获取窗口焦点
+  - 确保弹窗显示后确定按钮可以直接点击
+  - 提供回退机制：Tkinter 不可用时自动回退到原生 MessageBox
+
+#### 2. 监控上墙弹窗背景颜色
+- **问题**：监控上墙弹窗的背景蒙版颜色为 gba(0,0,0,0.7)，比其他弹窗 gba(0,0,0,0.6) 更深
+- **修复**：统一调整为 gba(0,0,0,0.6)，保持视觉一致性
+
+#### 3. 权限管理页面布局优化
+- **登录页面**：保持 400px 固定宽度不变
+- **权限管理页面**：
+  - 宽度调整为 650px，高度固定为 600px（最大 85vh）
+  - 使用 flex 布局确保内容区域可滚动
+  - 设备列表支持垂直滚动，内容较多时显示正常滚动条
+
+#### 4. 主页面动物锁相关修复
+- 修复了主页面中动物锁（游戏掉线报警）相关的问题
+- 确保报警检测和显示功能正常工作
+
+### 技术实现
+
+#### 服务端权限管理
+`javascript
+// 权限检查接口
+POST /api/checkPermission
+Request: { deviceId: string, type: 'screenWall' | 'selfService' }
+Response: { allowed: boolean }
+
+// 权限设置接口
+POST /api/setPermission
+Request: { deviceId: string, allowScreenWall: boolean, allowSelfService: boolean }
+Response: { ok: true }
+`
+
+#### 客户端权限检查流程
+`
+用户点击托盘菜单 → _tray_on_open_screenwall() / _tray_on_open_self_service()
+  ↓
+调用 _check_permission_and_open()
+  ↓
+请求服务端 /api/checkPermission
+  ↓
+├─ 有权限 → _open_browser_with_page() 打开目标页面
+└─ 无权限 → Tkinter messagebox.showwarning() 显示提示
+`
+
+#### 弹窗实现核心代码
+`python
+# 使用 Tkinter 显示弹窗 - 更可靠的方式
+root = tk.Tk()
+root.withdraw()
+root.attributes('-topmost', True)
+root.lift()
+root.focus_force()
+
+messagebox.showwarning(
+    "权限不足",
+    f"没有{permission_name}权限，请联系管理员"
+)
+`
+
+### 权限默认策略
+- **新设备**：默认没有任何权限（allowScreenWall = false, allowSelfService = false）
+- **管理员需要在权限管理页面手动开启**相应权限后，设备才能使用对应功能
+
+### 相关文件
+- **服务端**：
+  - server/server.js：权限 API 和权限管理逻辑
+  - server/permissions.json：权限数据持久化文件
+- **前端**：
+  - server/public/main.html：权限管理页面 UI 和交互
+- **客户端**：
+  - client/client.py：权限检查和弹窗显示逻辑
+  - client/dist2/ScreenWallClient/：打包输出目录
