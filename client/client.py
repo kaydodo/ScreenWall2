@@ -1123,7 +1123,7 @@ def _check_permission_and_open(host, port, device_id, permission_type, permissio
                 # 有权限，生成自动登录 token 并打开页面
                 auto_token = _generate_auto_login_token(device_id)
                 base_url = f"http://{host}:{port}/{'main.html' if permission_type == 'screenWall' else 'self-service.html'}"
-                params = [f"auto=1&token={auto_token}"]
+                params = ["auto=1", f"token={auto_token}"]
                 # 自助登号页面需要额外的 deviceId 和 deviceName 参数
                 if permission_type == 'selfService':
                     params.append(f"deviceId={urllib.parse.quote(device_id)}")
@@ -1168,7 +1168,7 @@ def _check_permission_and_open(host, port, device_id, permission_type, permissio
         # 请求失败，允许访问（降级处理）
         auto_token = _generate_auto_login_token(device_id)
         base_url = f"http://{host}:{port}/{'main.html' if permission_type == 'screenWall' else 'self-service.html'}"
-        params = [f"auto=1&token={auto_token}"]
+        params = ["auto=1", f"token={auto_token}"]
         # 自助登号页面需要额外的 deviceId 和 deviceName 参数
         if permission_type == 'selfService':
             params.append(f"deviceId={urllib.parse.quote(device_id)}")
