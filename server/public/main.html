@@ -1122,8 +1122,11 @@ function connectWS() {
       }
       // 刷新配置中心弹窗中的分组列表和未分组设备列表
       if (document.getElementById('configOverlay').style.display === 'flex') {
+        console.log('[调试] configOverlay 打开中，调用 renderConfigGroupList');
         renderConfigGroupList();
         renderConfigUngroupedList();
+      } else {
+        console.log('[调试] configOverlay 未打开，display =', document.getElementById('configOverlay').style.display);
       }
       refreshConfigDialogIfOpen();  // 配置对话框打开时刷新
       // 刷新监控弹窗设备列表
