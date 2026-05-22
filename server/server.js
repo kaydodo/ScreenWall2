@@ -3625,12 +3625,6 @@ wssBrowser.on('connection', (ws) => {
       // 优先使用从devices字典获取的名称，确保准确性
       _currentOperatorName = operatorDev ? operatorDev.deviceName : (msg.operatorName || msg.operatorId);
       _currentBusinessName = businessDev ? businessDev.deviceName : (msg.businessName || msg.businessId);
-      
-      if (msg.operatorId === msg.businessId) {
-        serverLog(`[自助登号] ${formatDeviceName(_currentOperatorName, msg.operatorId)} 开始使用`);
-      } else {
-        serverLog(`[自助登号] ${formatDeviceName(_currentOperatorName, msg.operatorId)} 开始使用，业务设备: ${formatDeviceName(_currentBusinessName, msg.businessId)}`);
-      }
     }
 
     if (msg.type === 'getWalledDevices') {
@@ -3665,11 +3659,6 @@ wssBrowser.on('connection', (ws) => {
   });
 
   ws.on('close', () => {
-    if (ws._isSelfService) {
-      const operatorDev = ws._selfServiceDeviceId ? devices.get(ws._selfServiceDeviceId) : null;
-      const displayName = operatorDev ? formatDeviceName(operatorDev.deviceName, ws._selfServiceDeviceId) : formatDeviceName(ws._selfServiceDeviceName, ws._selfServiceDeviceId) || '未知设备';
-      serverLog(`[自助登号] ${displayName} 退出`);
-    }
     const wallSubscription = wallClients.get(ws);
     if (wallSubscription) {
       serverLog(`[监控墙] 断开连接`);
@@ -4344,12 +4333,24 @@ httpServer.on('request', async (req, res) => {
       req.on('end', () => {
         try {
           const { deviceId, type } = JSON.parse(body);
+          const dev = devices.get(deviceId);
+          const deviceName = dev ? dev.deviceName : deviceId;
+          const displayName = formatDeviceName(deviceName, deviceId);
+          
           let allowed = false;
+          let permissionName = '';
           if (type === 'screenWall') {
             allowed = hasScreenWallPermission(deviceId);
+            permissionName = '打开屏幕墙';
           } else if (type === 'selfService') {
             allowed = hasSelfServicePermission(deviceId);
+            permissionName = '打开自助登号';
           }
+          
+          if (allowed) {
+            serverLog(`${permissionName} ${displayName}`);
+          }
+          
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ allowed }));
         } catch (e) {
