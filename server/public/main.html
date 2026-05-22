@@ -3976,6 +3976,18 @@ function openPermissionDialog() {
   dialog.style.width = '400px';
   dialog.style.height = 'auto';
   dialog.style.maxHeight = 'none';
+  
+  // 如果自动登录成功，直接显示权限管理内容
+  if (_autoLoginSuccess) {
+    dialog.style.width = '650px';
+    dialog.style.height = '600px';
+    dialog.style.maxHeight = '85vh';
+    document.getElementById('permissionLoginForm').style.display = 'none';
+    document.getElementById('permissionContent').style.display = 'flex';
+    renderPermissionDeviceList();
+    return;
+  }
+  
   document.getElementById('permissionOverlay').style.display = 'flex';
   document.getElementById('permissionLoginForm').style.display = 'flex';
   document.getElementById('permissionContent').style.display = 'none';

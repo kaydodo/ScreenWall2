@@ -4501,8 +4501,8 @@ setInterval(() => {
       lastPushTime.delete(id); // 清理推送时间追踪
       changed = true;
       if (id === 'MUMU-service') {
-        serverLog(`[MUMU] 模拟器微服务已离线`);
-      } else {
+         serverLog(`[MUMU] 模拟器微服务超时离线`);
+       } else {
         serverLog(`[!] 超时离线: ${dev.deviceName}`);
       }
     }
