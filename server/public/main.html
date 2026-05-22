@@ -3994,19 +3994,6 @@ function closePermissionTip() {
 }
 
 function submitPermissionLogin() {
-  // 如果自动登录成功，直接通过验证（验证后重置标记，下次需要重新验证）
-  if (_autoLoginSuccess) {
-    _autoLoginSuccess = false; // 重置，下次需要重新验证
-    const dialog = document.getElementById('permissionDialog');
-    dialog.style.width = '650px';
-    dialog.style.height = '600px';
-    dialog.style.maxHeight = '85vh';
-    document.getElementById('permissionLoginForm').style.display = 'none';
-    document.getElementById('permissionContent').style.display = 'flex';
-    renderPermissionDeviceList();
-    return;
-  }
-  
   const username = document.getElementById('permissionUsername').value;
   const password = document.getElementById('permissionPassword').value;
   
@@ -4111,15 +4098,6 @@ document.addEventListener('DOMContentLoaded', () => {
     searchInput.addEventListener('input', (e) => {
       renderPermissionDeviceList(e.target.value);
     });
-  }
-  
-  // 如果自动登录成功，自动打开权限管理弹窗
-  if (_autoLoginSuccess) {
-    setTimeout(() => {
-      openPermissionDialog();
-      // 自动提交登录（会直接通过）
-      submitPermissionLogin();
-    }, 300);
   }
 });
 
