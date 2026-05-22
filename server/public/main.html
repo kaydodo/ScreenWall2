@@ -4161,7 +4161,11 @@ function addGroupFromInline() {
 
 function renderConfigGroupList() {
   var el = document.getElementById('configGroupList');
-  if (!el) return;
+  if (!el) {
+    console.log('[调试] renderConfigGroupList - el 不存在');
+    return;
+  }
+  console.log('[调试] renderConfigGroupList - 开始渲染，当前 groups:', groups);
 
   // Save active element info before render
   var activeEl = document.activeElement;
@@ -4184,6 +4188,7 @@ function renderConfigGroupList() {
   }
 
   groups.forEach(function(g) {
+    console.log('[调试] 渲染分组:', g.id, g.name);
     // Get devices in this group, sorted by name
     var groupDevices = devices.filter(function(d) { return d.groupId === g.id; })
       .sort(function(a, b) { return naturalCompare(a.deviceName || '', b.deviceName || ''); });
@@ -4231,7 +4236,9 @@ function renderConfigGroupList() {
     }
     html += '</div>';
   });
+  console.log('[调试] 生成的HTML长度:', html.length, '内容预览:', html.substring(0, 500));
   el.innerHTML = html;
+  console.log('[调试] el.innerHTML 已设置，el.innerHTML 前100字符:', el.innerHTML.substring(0, 100));
   
   // Restore focus and selection (don't restore value, it should show new data)
   if (activeInputId) {
