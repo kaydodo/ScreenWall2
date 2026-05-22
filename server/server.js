@@ -3139,7 +3139,7 @@ wssBrowser.on('connection', (ws) => {
         }
         await persistGroups();
         await persistDevices();
-        broadcastToBrowsers({ type: 'groups', groups });
+        broadcastToBrowsers({ type: 'groupUpdate', groups: groups });
         broadcastToBrowsers({ type: 'deviceList', devices: getDeviceListPayload() });
       }
     }

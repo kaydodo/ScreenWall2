@@ -4738,9 +4738,9 @@ function deleteGroupConfirm(groupId) {
   renderConfigGroupList();
   renderConfigUngroupedList();
 
-  // Broadcast (deviceList update is needed separately since persistGroups only sends groups)
+  // Broadcast groups update
   if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'deviceList', devices: devices }));
+    ws.send(JSON.stringify({ type: 'groupUpdate', groups: groups }));
   }
   showToast('分组已删除', 'success');
 }
@@ -5247,6 +5247,20 @@ function savePowerSceneInline(deviceId) {
   // 发送到服务器（服务器会广播更新）
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'setPowerScene', deviceId: deviceId, sceneName: sceneName }));
+    if (sceneName && sceneName.trim()) {
+      powerScenes[deviceId] = sceneName.trim();
+    } else {
+      delete powerScenes[deviceId];
+    }
+    localStorage.setItem('sw_powerScenes', JSON.stringify(powerScenes));
+    gridCells.forEach(function(c, idx) {
+      if (c && c.deviceId) updateCellElement(idx);
+    });
+    rebuildSidebar();
+    if (document.getElementById('powerOverlay').style.display === 'flex') {
+      renderPowerBody();
+    }
+    refreshConfigDialogIfOpen();
     showToast('场景已保存: ' + (sceneName || '(未配置)'), 'success');
   } else {
     showToast('连接断开，保存失败', 'error');
@@ -5259,6 +5273,20 @@ function saveConfigPowerScene(deviceId) {
   var sceneName = input.value.trim();
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'setPowerScene', deviceId: deviceId, sceneName: sceneName }));
+    if (sceneName && sceneName.trim()) {
+      powerScenes[deviceId] = sceneName.trim();
+    } else {
+      delete powerScenes[deviceId];
+    }
+    localStorage.setItem('sw_powerScenes', JSON.stringify(powerScenes));
+    gridCells.forEach(function(c, idx) {
+      if (c && c.deviceId) updateCellElement(idx);
+    });
+    rebuildSidebar();
+    if (document.getElementById('powerOverlay').style.display === 'flex') {
+      renderPowerBody();
+    }
+    refreshConfigDialogIfOpen();
     showToast('场景已保存: ' + (sceneName || '(未配置)'), 'success');
   } else {
     showToast('连接断开，保存失败', 'error');
