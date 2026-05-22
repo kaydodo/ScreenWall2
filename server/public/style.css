@@ -1545,7 +1545,8 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
 
 /* 权限按钮 */
 .permission-btn {
-  padding: 5px 12px;
+  height: 28px;
+  padding: 0 12px;
   background: var(--bg-page);
   border: 1px solid var(--border);
   border-radius: 20px;
@@ -1554,6 +1555,9 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
   cursor: pointer;
   transition: all 0.2s;
   white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 .permission-btn:hover {
   background: var(--bg-hover);
@@ -1563,7 +1567,8 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
 
 /* 迁移按钮 */
 .migrate-btn {
-  padding: 5px 12px;
+  height: 28px;
+  padding: 0 12px;
   background: var(--bg-page);
   border: 1px solid var(--border);
   border-radius: 20px;
@@ -1572,26 +1577,30 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
   cursor: pointer;
   transition: all 0.2s;
   white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 .migrate-btn:hover {
   background: var(--bg-hover);
-  border-color: var(--primary);
-  color: var(--primary);
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 /* 下载按钮 */
 .download-btn {
-  padding: 5px 12px;
+  height: 28px;
+  padding: 0 12px;
   background: var(--bg-page);
   border: 1px solid var(--border);
   border-radius: 20px;
+  color: var(--text-secondary);
+  font-size: 12px;
   cursor: pointer;
   transition: all 0.2s;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  line-height: 1;
-  font-size: 0;
 }
 .download-btn:hover {
   background: var(--bg-hover);
