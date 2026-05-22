@@ -488,6 +488,13 @@ async function deleteDeviceCompletely(deviceId) {
 
 // ========== 二维码处理配置 ==========
 const QRCODE_DIR = path.join(__dirname, 'qrcode');
+
+function formatDeviceName(name, id) {
+  if (!name) return id;
+  if (!id) return name;
+  return `${name}（${id}）`;
+}
+
 // 当前正在等待的MUMU客户端连接（用于返回qrcodeResult）
 let _currentMUMUClient = null;
 let _currentOperatorId = null;
@@ -521,9 +528,9 @@ async function processQrcodeImage(imageBuffer, businessId, operatorId) {
 
     const logResult = (result) => {
       if (isSameDevice) {
-        serverLog(`[自助登号] ${operatorName}使用二维码扫码（${result}）`);
+        serverLog(`[自助登号] ${formatDeviceName(operatorName, operatorId)}使用二维码扫码（${result}）`);
       } else {
-        serverLog(`[自助登号] ${operatorName}帮助${businessDeviceName}使用二维码扫码（${result}）`);
+        serverLog(`[自助登号] ${formatDeviceName(operatorName, operatorId)}帮助${formatDeviceName(businessDeviceName, businessId)}使用二维码扫码（${result}）`);
       }
     };
 
@@ -2568,7 +2575,7 @@ wssClient.on('connection', (ws, req) => {
       }
       
       if (!businessDev.online) {
-        serverLog(`[自助登号] 业务设备不在线: ${businessDev.deviceName}`);
+        serverLog(`[自助登号] 业务设备不在线: ${formatDeviceName(businessDev.deviceName, businessId)}`);
         return;
       }
       
@@ -2584,15 +2591,15 @@ wssClient.on('connection', (ws, req) => {
       _currentBusinessId = businessId;                    // 业务设备ID
       _currentBusinessName = finalBusinessName;           // 业务设备名称
       
-      serverLog(`[自助登号] 收到相机点击，向业务设备请求1080P截图: ${_currentBusinessName}`);
+      serverLog(`[自助登号] 收到相机点击，向业务设备请求1080P截图: ${formatDeviceName(_currentBusinessName, _currentBusinessId)}`);
       
       // 设置超时
       _selfServiceTimeoutId = setTimeout(() => {
         const isSameDevice = _currentOperatorId === _currentBusinessId;
         
         serverLog(isSameDevice 
-          ? `[自助登号] ${_currentOperatorName}使用二维码扫码（超时）` 
-          : `[自助登号] ${_currentOperatorName}帮助${_currentBusinessName}使用二维码扫码（超时）`);
+          ? `[自助登号] ${formatDeviceName(_currentOperatorName, _currentOperatorId)}使用二维码扫码（超时）` 
+          : `[自助登号] ${formatDeviceName(_currentOperatorName, _currentOperatorId)}帮助${formatDeviceName(_currentBusinessName, _currentBusinessId)}使用二维码扫码（超时）`);
         
         clearSelfServiceState();
       }, SELF_SERVICE_TIMEOUT_MS);
@@ -3609,6 +3616,8 @@ wssBrowser.on('connection', (ws) => {
 
     if (msg.type === 'selfServiceInit') {
       ws._isSelfService = true;
+      ws._selfServiceDeviceId = msg.operatorId;
+      ws._selfServiceDeviceName = msg.operatorName;
       _currentOperatorId = msg.operatorId;
       _currentBusinessId = msg.businessId;
       const operatorDev = devices.get(msg.operatorId);
@@ -3618,9 +3627,9 @@ wssBrowser.on('connection', (ws) => {
       _currentBusinessName = businessDev ? businessDev.deviceName : (msg.businessName || msg.businessId);
       
       if (msg.operatorId === msg.businessId) {
-        serverLog(`[自助登号] ${_currentOperatorName} 开始使用`);
+        serverLog(`[自助登号] ${formatDeviceName(_currentOperatorName, msg.operatorId)} 开始使用`);
       } else {
-        serverLog(`[自助登号] ${_currentOperatorName} 开始使用，业务设备: ${_currentBusinessName}`);
+        serverLog(`[自助登号] ${formatDeviceName(_currentOperatorName, msg.operatorId)} 开始使用，业务设备: ${formatDeviceName(_currentBusinessName, msg.businessId)}`);
       }
     }
 
@@ -3657,7 +3666,8 @@ wssBrowser.on('connection', (ws) => {
 
   ws.on('close', () => {
     if (ws._isSelfService) {
-      const displayName = ws._selfServiceDeviceName || ws._selfServiceDeviceId || '未知设备';
+      const operatorDev = ws._selfServiceDeviceId ? devices.get(ws._selfServiceDeviceId) : null;
+      const displayName = operatorDev ? formatDeviceName(operatorDev.deviceName, ws._selfServiceDeviceId) : formatDeviceName(ws._selfServiceDeviceName, ws._selfServiceDeviceId) || '未知设备';
       serverLog(`[自助登号] ${displayName} 退出`);
     }
     const wallSubscription = wallClients.get(ws);
