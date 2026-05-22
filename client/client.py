@@ -1101,10 +1101,11 @@ def _generate_auto_login_token(device_id):
     token = base64.b64encode(token_str.encode('utf-8')).decode('utf-8')
     return token
 
-def _check_permission_and_open(host, port, device_id, permission_type, permission_name):
+def _check_permission_and_open(host, port, device_id, permission_type, permission_name, device_name=None):
     """检查设备权限并打开对应页面"""
     import urllib.request
     import json
+    import urllib.parse
     
     try:
         url = f"http://{host}:{port}/api/checkPermission"
@@ -1121,7 +1122,14 @@ def _check_permission_and_open(host, port, device_id, permission_type, permissio
             if result.get('allowed'):
                 # 有权限，生成自动登录 token 并打开页面
                 auto_token = _generate_auto_login_token(device_id)
-                page_url = f"http://{host}:{port}/{'main.html' if permission_type == 'screenWall' else 'self-service.html'}?auto=1&token={auto_token}"
+                base_url = f"http://{host}:{port}/{'main.html' if permission_type == 'screenWall' else 'self-service.html'}"
+                params = [f"auto=1&token={auto_token}"]
+                # 自助登号页面需要额外的 deviceId 和 deviceName 参数
+                if permission_type == 'selfService':
+                    params.append(f"deviceId={urllib.parse.quote(device_id)}")
+                    if device_name:
+                        params.append(f"deviceName={urllib.parse.quote(device_name)}")
+                page_url = f"{base_url}?{'&'.join(params)}"
                 _open_browser_with_page(page_url, permission_type)
             else:
                 # 无权限，弹出提示
@@ -1159,7 +1167,14 @@ def _check_permission_and_open(host, port, device_id, permission_type, permissio
     except Exception as e:
         # 请求失败，允许访问（降级处理）
         auto_token = _generate_auto_login_token(device_id)
-        page_url = f"http://{host}:{port}/{'main.html' if permission_type == 'screenWall' else 'self-service.html'}?auto=1&token={auto_token}"
+        base_url = f"http://{host}:{port}/{'main.html' if permission_type == 'screenWall' else 'self-service.html'}"
+        params = [f"auto=1&token={auto_token}"]
+        # 自助登号页面需要额外的 deviceId 和 deviceName 参数
+        if permission_type == 'selfService':
+            params.append(f"deviceId={urllib.parse.quote(device_id)}")
+            if device_name:
+                params.append(f"deviceName={urllib.parse.quote(device_name)}")
+        page_url = f"{base_url}?{'&'.join(params)}"
         _open_browser_with_page(page_url, permission_type)
 
 
@@ -1201,7 +1216,9 @@ def _tray_on_open_screenwall(icon, item):
     if _CURRENT_USER.lower() not in ("administrator", ""):
         device_id = f"{device_id}-{_CURRENT_USER}"
     
-    _check_permission_and_open(host, port, device_id, 'screenWall', '打开屏幕墙')
+    device_name = dev.get("deviceName", "")
+    
+    _check_permission_and_open(host, port, device_id, 'screenWall', '打开屏幕墙', device_name)
 
 def _tray_on_open_self_service(icon, item):
     """点击"自助登号"，读取服务端配置并用浏览器打开（需权限检查）"""
@@ -1222,7 +1239,9 @@ def _tray_on_open_self_service(icon, item):
     if _CURRENT_USER.lower() not in ("administrator", ""):
         device_id = f"{device_id}-{_CURRENT_USER}"
     
-    _check_permission_and_open(host, port, device_id, 'selfService', '自助登号')
+    device_name = dev.get("deviceName", "")
+    
+    _check_permission_and_open(host, port, device_id, 'selfService', '自助登号', device_name)
 
 def _get_chromium_browser_path():
     common_paths = [
