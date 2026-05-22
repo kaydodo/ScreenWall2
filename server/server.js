@@ -4216,97 +4216,96 @@ httpServer.on('request', (req, res) => {
       return;
     }
 
-    res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8' });
-    res.end(JSON.stringify({ error: 'not found' }));
-    return;
-  }
+    // POST /api/wall-close - 监控墙页面关闭通知（sendBeacon 调用）
+    // 注意：实际资源清理由 WebSocket close 延迟清理统一处理，此接口仅做日志记录
+    // 避免 sendBeacon 和 close 延迟清理双重减引用计数的问题
+    if (cleanPath === '/api/wall-close' && req.method === 'POST') {
+      let body = '';
+      req.on('data', chunk => body += chunk);
+      req.on('end', () => {
+        try {
+          const data = JSON.parse(body);
 
-  // POST /api/wall-close - 监控墙页面关闭通知（sendBeacon 调用）
-  // 注意：实际资源清理由 WebSocket close 延迟清理统一处理，此接口仅做日志记录
-  // 避免 sendBeacon 和 close 延迟清理双重减引用计数的问题
-  if (cleanPath === '/api/wall-close' && req.method === 'POST') {
-    let body = '';
-    req.on('data', chunk => body += chunk);
-    req.on('end', () => {
-      try {
-        const data = JSON.parse(body);
-
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ ok: true }));
-      } catch (e) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ ok: false, error: e.message }));
-      }
-    });
-    return;
-  }
-
-  // POST /api/checkAdmin - 验证管理员密码
-  if (cleanPath === '/api/checkAdmin' && req.method === 'POST') {
-    let body = '';
-    req.on('data', chunk => body += chunk);
-    req.on('end', () => {
-      try {
-        const { username, password } = JSON.parse(body);
-        // 硬编码管理员账号：admin/admin123
-        if (username === AUTH_CFG.username && password === AUTH_CFG.password) {
           res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ success: true }));
-        } else {
-          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: true }));
+        } catch (e) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: e.message }));
+        }
+      });
+      return;
+    }
+
+    // POST /api/checkAdmin - 验证管理员密码
+    if (cleanPath === '/api/checkAdmin' && req.method === 'POST') {
+      let body = '';
+      req.on('data', chunk => body += chunk);
+      req.on('end', () => {
+        try {
+          const { username, password } = JSON.parse(body);
+          if (username === AUTH_CFG.username && password === AUTH_CFG.password) {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: true }));
+          } else {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: false }));
+          }
+        } catch (e) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ success: false }));
         }
-      } catch (e) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: false }));
-      }
-    });
-    return;
-  }
+      });
+      return;
+    }
 
-  // POST /api/checkPermission - 检查设备权限
-  if (cleanPath === '/api/checkPermission' && req.method === 'POST') {
-    let body = '';
-    req.on('data', chunk => body += chunk);
-    req.on('end', () => {
-      try {
-        const { deviceId, type } = JSON.parse(body);
-        let allowed = false;
-        if (type === 'screenWall') {
-          allowed = hasScreenWallPermission(deviceId);
-        } else if (type === 'selfService') {
-          allowed = hasSelfServicePermission(deviceId);
+    // POST /api/checkPermission - 检查设备权限
+    if (cleanPath === '/api/checkPermission' && req.method === 'POST') {
+      let body = '';
+      req.on('data', chunk => body += chunk);
+      req.on('end', () => {
+        try {
+          const { deviceId, type } = JSON.parse(body);
+          let allowed = false;
+          if (type === 'screenWall') {
+            allowed = hasScreenWallPermission(deviceId);
+          } else if (type === 'selfService') {
+            allowed = hasSelfServicePermission(deviceId);
+          }
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ allowed }));
+        } catch (e) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ allowed: false }));
         }
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ allowed }));
-      } catch (e) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ allowed: false }));
-      }
-    });
-    return;
-  }
+      });
+      return;
+    }
 
-  // POST /api/setPermission - 设置设备权限
-  if (cleanPath === '/api/setPermission' && req.method === 'POST') {
-    let body = '';
-    req.on('data', chunk => body += chunk);
-    req.on('end', () => {
-      try {
-        const { deviceId, allowScreenWall, allowSelfService } = JSON.parse(body);
-        const current = devicePermissions[deviceId] || { allowScreenWall: false, allowSelfService: false };
-        setDevicePermission(
-          deviceId,
-          allowScreenWall !== undefined ? allowScreenWall : current.allowScreenWall,
-          allowSelfService !== undefined ? allowSelfService : current.allowSelfService
-        );
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ ok: true }));
-      } catch (e) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ ok: false, error: e.message }));
-      }
-    });
+    // POST /api/setPermission - 设置设备权限
+    if (cleanPath === '/api/setPermission' && req.method === 'POST') {
+      let body = '';
+      req.on('data', chunk => body += chunk);
+      req.on('end', () => {
+        try {
+          const { deviceId, allowScreenWall, allowSelfService } = JSON.parse(body);
+          const current = devicePermissions[deviceId] || { allowScreenWall: false, allowSelfService: false };
+          setDevicePermission(
+            deviceId,
+            allowScreenWall !== undefined ? allowScreenWall : current.allowScreenWall,
+            allowSelfService !== undefined ? allowSelfService : current.allowSelfService
+          );
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: true }));
+        } catch (e) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: e.message }));
+        }
+      });
+      return;
+    }
+
+    res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({ error: 'not found' }));
     return;
   }
 
