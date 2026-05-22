@@ -218,6 +218,133 @@ const {
   client: CLIENT_CFG
 } = config;
 
+// ========== 权限管理配置 ==========
+const PERMISSIONS_PATH = path.join(__dirname, 'permissions.json');
+
+// 权限定义（bitmask）
+const PERMISSIONS = {
+  VIEW_DEVICES: 1 << 0,      // 查看设备列表
+  CONTROL_DEVICE: 1 << 1,    // 控制设备（开关、远控等）
+  MANAGE_GROUPS: 1 << 2,     // 管理分组
+  MANAGE_TASKS: 1 << 3,      // 管理任务
+  VIEW_ALARMS: 1 << 4,       // 查看报警记录
+  MANAGE_PERMISSIONS: 1 << 5, // 管理权限
+  SELF_SERVICE: 1 << 6,      // 自助登号
+  MANAGE_COLLECTIONS: 1 << 7, // 管理收藏/截图集合
+};
+
+// 角色定义
+const ROLES = {
+  ADMIN: {
+    name: '管理员',
+    permissions: 0xFF // 所有权限
+  },
+  OPERATOR: {
+    name: '操作员',
+    permissions: PERMISSIONS.VIEW_DEVICES | PERMISSIONS.CONTROL_DEVICE | PERMISSIONS.VIEW_ALARMS | PERMISSIONS.SELF_SERVICE
+  },
+  VIEWER: {
+    name: '查看者',
+    permissions: PERMISSIONS.VIEW_DEVICES | PERMISSIONS.VIEW_ALARMS
+  }
+};
+
+// 用户角色映射: userId -> roleName
+let userRoles = {};
+
+// 设备级权限: deviceId -> { userId -> permissions }
+let devicePermissions = {};
+
+// 加载权限配置
+function loadPermissions() {
+  if (fs.existsSync(PERMISSIONS_PATH)) {
+    try {
+      const raw = fs.readFileSync(PERMISSIONS_PATH, 'utf8');
+      const data = JSON.parse(raw);
+      userRoles = data.userRoles || {};
+      devicePermissions = data.devicePermissions || {};
+      serverLog(`[权限] 已加载 ${Object.keys(userRoles).length} 个用户角色, ${Object.keys(devicePermissions).length} 个设备权限`);
+    } catch (e) {
+      serverError('[权限] 加载权限配置失败:', e.message);
+    }
+  }
+}
+
+// 保存权限配置
+async function persistPermissions() {
+  try {
+    await fsWriteFile(PERMISSIONS_PATH, JSON.stringify({
+      userRoles,
+      devicePermissions
+    }, null, 2), 'utf8');
+  } catch (e) {
+    serverError('[权限] 保存权限配置失败:', e.message);
+  }
+}
+
+// 检查用户是否有指定权限
+function hasPermission(userId, permission) {
+  const roleName = userRoles[userId];
+  if (!roleName || !ROLES[roleName]) {
+    return false;
+  }
+  return (ROLES[roleName].permissions & permission) !== 0;
+}
+
+// 检查用户对特定设备是否有指定权限（先检查设备级权限，再检查角色权限）
+function hasDevicePermission(userId, deviceId, permission) {
+  // 先检查设备级权限
+  if (devicePermissions[deviceId] && devicePermissions[deviceId][userId]) {
+    if ((devicePermissions[deviceId][userId] & permission) !== 0) {
+      return true;
+    }
+  }
+  // 再检查角色权限
+  return hasPermission(userId, permission);
+}
+
+// 设置用户角色
+async function setUserRole(userId, roleName) {
+  if (!ROLES[roleName]) {
+    return false;
+  }
+  userRoles[userId] = roleName;
+  await persistPermissions();
+  serverLog(`[权限] 用户 ${userId} 角色已设置为 ${roleName}`);
+  return true;
+}
+
+// 设置设备级权限
+async function setDevicePermission(deviceId, userId, permissions) {
+  if (!devicePermissions[deviceId]) {
+    devicePermissions[deviceId] = {};
+  }
+  devicePermissions[deviceId][userId] = permissions;
+  await persistPermissions();
+  serverLog(`[权限] 设备 ${deviceId} 用户 ${userId} 权限已设置为 ${permissions}`);
+}
+
+// 删除设备权限（删除设备时调用）
+async function removeDevicePermission(deviceId) {
+  if (devicePermissions[deviceId]) {
+    delete devicePermissions[deviceId];
+    await persistPermissions();
+    serverLog(`[权限] 已删除设备 ${deviceId} 的权限配置`);
+  }
+}
+
+// 迁移设备权限（设备继承时调用）
+async function migrateDevicePermission(oldDeviceId, newDeviceId) {
+  if (devicePermissions[oldDeviceId]) {
+    devicePermissions[newDeviceId] = devicePermissions[oldDeviceId];
+    delete devicePermissions[oldDeviceId];
+    await persistPermissions();
+    serverLog(`[权限] 已迁移设备权限 ${oldDeviceId} → ${newDeviceId}`);
+  }
+}
+
+loadPermissions();
+
 // ========== 二维码处理配置 ==========
 const QRCODE_DIR = path.join(__dirname, 'qrcode');
 // 当前正在等待的MUMU客户端连接（用于返回qrcodeResult）
@@ -2002,6 +2129,21 @@ wssClient.on('connection', (ws, req) => {
           delete powerScenes[matchedOldDeviceId];
           persistPowerScenes();
         }
+
+        // 10. tasks：任务记录（旧 deviceId → 新 deviceId）
+        let taskChanged = false;
+        for (const task of tasks) {
+          if (task.deviceId === matchedOldDeviceId) {
+            task.deviceId = deviceId;
+            taskChanged = true;
+          }
+        }
+        if (taskChanged) {
+          persistTasks();
+        }
+
+        // 11. devicePermissions：设备权限配置（旧 deviceId → 新 deviceId）
+        migrateDevicePermission(matchedOldDeviceId, deviceId);
       }
 
       persistDevices();  // 持久化设备列表
@@ -3134,6 +3276,30 @@ wssBrowser.on('connection', (ws) => {
         // 广播设备预览状态变更（让所有浏览器刷新预览大图）
         broadcastToBrowsers({ type: 'devicePreviewStatus', deviceId, status: 'deleted', deviceName: deletedDeviceName });
         notifyWallClients('deviceDeleted', { deviceId });
+        // 清理报警相关状态
+        alarmStates.delete(deviceId);
+        pending_alarms.delete(deviceId);
+        lastAlarmTime.delete(deviceId);
+        
+        // 清理报警记录
+        const oldAlarmLen = alarmRecords.length;
+        alarmRecords = alarmRecords.filter(r => r.deviceId !== deviceId);
+        if (alarmRecords.length !== oldAlarmLen) {
+          fs.writeFileSync(ALARM_RECORDS_PATH, JSON.stringify(alarmRecords, null, 2), 'utf8');
+        }
+        
+        // 清理报警截图文件
+        try {
+          const screenshotFiles = fs.readdirSync(ALARM_SCREENSHOTS_DIR);
+          for (const file of screenshotFiles) {
+            if (file.startsWith(deviceId + '_')) {
+              fs.unlinkSync(path.join(ALARM_SCREENSHOTS_DIR, file));
+            }
+          }
+        } catch (e) {
+          logger.error(`[清理] 删除报警截图失败: ${e.message}`);
+        }
+        
         // 标记该设备任务记录为 deviceDeleted
         let taskDelChanged = false;
         for (const t of tasks) {
@@ -3146,6 +3312,9 @@ wssBrowser.on('connection', (ws) => {
           persistTasks();
           broadcastToBrowsers({ type: 'tasksUpdate', tasks: getTasksPayload() });
         }
+        
+        // 清理设备权限配置
+        removeDevicePermission(deviceId);
       }
     }
 
