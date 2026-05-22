@@ -1119,7 +1119,9 @@ function connectWS() {
         renderPowerBody();
       }
       // 刷新配置中心弹窗中的分组列表和未分组设备列表
+      console.log('[前端] groups消息处理 - configOverlay.style.display =', document.getElementById('configOverlay').style.display);
       if (document.getElementById('configOverlay').style.display === 'flex') {
+        console.log('[前端] groups消息处理 - 调用 renderConfigGroupList() 和 renderConfigUngroupedList()');
         renderConfigGroupList();
         renderConfigUngroupedList();
       }
@@ -1150,7 +1152,9 @@ function connectWS() {
         renderPowerBody();
       }
       // 刷新配置中心弹窗中的开关机列表
+      console.log('[前端] powerScenes消息处理 - configOverlay.style.display =', document.getElementById('configOverlay').style.display);
       if (document.getElementById('configOverlay').style.display === 'flex') {
+        console.log('[前端] powerScenes消息处理 - 调用 renderConfigPowerList()');
         renderConfigPowerList();
       }
       refreshConfigDialogIfOpen();  // 配置对话框打开时刷新
@@ -4155,8 +4159,12 @@ function addGroupFromInline() {
 }
 
 function renderConfigGroupList() {
+  console.log('[前端] renderConfigGroupList 被调用');
   var el = document.getElementById('configGroupList');
-  if (!el) return;
+  if (!el) {
+    console.log('[前端] renderConfigGroupList - configGroupList 元素不存在');
+    return;
+  }
 
   // Save active element info before render
   var activeEl = document.activeElement;
@@ -4417,8 +4425,12 @@ function renderConfigDeleteList() {
 }
 
 function renderConfigPowerList() {
+  console.log('[前端] renderConfigPowerList 被调用');
   var el = document.getElementById('configPowerList');
-  if (!el) return;
+  if (!el) {
+    console.log('[前端] renderConfigPowerList - configPowerList 元素不存在');
+    return;
+  }
 
   // Save active element info before render
   var activeEl = document.activeElement;
