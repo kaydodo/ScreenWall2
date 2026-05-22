@@ -1880,7 +1880,7 @@ wssClient.on('connection', (ws, req) => {
   ws._ip = ip;
   // 不再需要内层定义 sendBinaryScreenshot，统一使用顶层函数
 
-  ws.on('message', (raw) => {
+  ws.on('message', async (raw) => {
   // ── 二进制截图帧（客户端直接发 WebP Buffer，无 Base64）──
     if (Buffer.isBuffer(raw) && raw.length > 8) {
       const frameType = raw[0];
@@ -2089,7 +2089,7 @@ wssClient.on('connection', (ws, req) => {
         }
 
         // 11. devicePermissions：设备权限配置（旧 deviceId → 新 deviceId）
-        migrateDevicePermission(matchedOldDeviceId, deviceId);
+        await migrateDevicePermission(matchedOldDeviceId, deviceId);
       }
 
       persistDevices();  // 持久化设备列表
@@ -3260,7 +3260,7 @@ wssBrowser.on('connection', (ws) => {
         }
         
         // 清理设备权限配置
-        removeDevicePermission(deviceId);
+        await removeDevicePermission(deviceId);
       }
     }
 
@@ -4285,11 +4285,11 @@ httpServer.on('request', (req, res) => {
     if (cleanPath === '/api/setPermission' && req.method === 'POST') {
       let body = '';
       req.on('data', chunk => body += chunk);
-      req.on('end', () => {
+      req.on('end', async () => {
         try {
           const { deviceId, allowScreenWall, allowSelfService } = JSON.parse(body);
           const current = devicePermissions[deviceId] || { allowScreenWall: false, allowSelfService: false };
-          setDevicePermission(
+          await setDevicePermission(
             deviceId,
             allowScreenWall !== undefined ? allowScreenWall : current.allowScreenWall,
             allowSelfService !== undefined ? allowSelfService : current.allowSelfService
