@@ -1295,20 +1295,7 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
   transform: translateX(20px);
 }
 
-/* ── 权限按钮样式 ── */
-.permission-btn {
-  background: transparent;
-  border: none;
-  font-size: 18px;
-  cursor: pointer;
-  padding: 6px 10px;
-  border-radius: 6px;
-  transition: background 0.2s;
-}
 
-.permission-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-}
 
 .dialog-search {
   padding: 10px 14px;

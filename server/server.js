@@ -224,9 +224,6 @@ const PERMISSIONS_PATH = path.join(__dirname, 'permissions.json');
 // 设备权限配置: deviceId -> { allowScreenWall: boolean, allowSelfService: boolean }
 let devicePermissions = {};
 
-// 管理员密码（硬编码，用于前端权限管理页面登录）
-const ADMIN_PASSWORD = 'admin123';
-
 // 加载权限配置
 function loadPermissions() {
   if (fs.existsSync(PERMISSIONS_PATH)) {
@@ -4252,7 +4249,7 @@ httpServer.on('request', (req, res) => {
       try {
         const { username, password } = JSON.parse(body);
         // 硬编码管理员账号：admin/admin123
-        if (username === 'admin' && password === ADMIN_PASSWORD) {
+        if (username === AUTH_CFG.username && password === AUTH_CFG.password) {
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ success: true }));
         } else {
