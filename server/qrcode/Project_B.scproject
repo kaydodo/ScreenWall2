@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<project name="我的项目" ver="1.4">
+  <scenes>
+    <scene name="舞台 1" id="744556be-dca7-47cf-8664-26167b4648e4">
+      <vcontext active="1" alwaysActive="0">
+        <pause type="0">
+          <text>Be Right Back</text>
+          <path></path>
+          <icon>1</icon>
+          <blur enabled="1">5.000000</blur>
+          <clr>0</clr>
+        </pause>
+        <canvas fps="24.00">
+          <size>
+            <width>640</width>
+            <height>360</height>
+          </size>
+          <effects></effects>
+        </canvas>
+        <sources>
+          <source name="last_qrcode.png" id="0b693495-da58-423e-8e89-e10237614d5e" locked="0" type="3">
+            <layer zorder="0" visible="1" rtl="0" rtr="0" rbr="0" rbl="0" rotx="-1" roty="-1" rota="0">
+              <position_props type="0" direction="0" speed="30" bodyDetect="0"></position_props>
+              <position>
+                <x>220</x>
+                <y>0</y>
+              </position>
+              <size>
+                <width>200</width>
+                <height>360</height>
+              </size>
+              <zoom x="0" y="0" w="200" h="360"></zoom>
+              <crop left="0" top="0" right="200" bottom="360"></crop>
+              <effects></effects>
+            </layer>
+            <image>
+              <size>
+                <width>200</width>
+                <height>360</height>
+              </size>
+              <path>blank.png</path>
+              <num>0</num>
+            </image>
+          </source>
+        </sources>
+        <vertical_vcontext active="1" alwaysActive="0">
+          <pause type="0">
+            <text>Be Right Back</text>
+            <path></path>
+            <icon>1</icon>
+            <blur enabled="1">5.000000</blur>
+            <clr>0</clr>
+          </pause>
+          <canvas fps="24.00">
+            <size>
+              <width>360</width>
+              <height>640</height>
+            </size>
+            <effects></effects>
+          </canvas>
+        </vertical_vcontext>
+      </vcontext>
+      <acontext>
+        <vertical_acontext></vertical_acontext>
+      </acontext>
+    </scene>
+  </scenes>
+  <vcamInput type="0"></vcamInput>
+  <nproviders></nproviders>
+  <presets></presets>
+  <preset name="" sid="default">
+    <audio enc="libfdk_aac"></audio>
+    <video enc="libx264" w="1920" h="1080" fps="30.000000">
+      <rc name="CBR"></rc>
+    </video>
+  </preset>
+</project>

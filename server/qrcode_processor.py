@@ -3,6 +3,7 @@ import sys
 import os
 import json
 import time
+import subprocess
 import warnings
 warnings.filterwarnings('ignore')
 os.environ['OPENCV_LOG_LEVEL'] = '3'
@@ -11,8 +12,41 @@ import numpy as np
 import cv2
 from pyzbar.pyzbar import decode
 
-# 输出路径
+# 路径配置
 OUTPUT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'qrcode', 'last_qrcode.png')
+script_dir = os.path.dirname(os.path.abspath(__file__))
+project_a = os.path.join(script_dir, "qrcode", "Project_A.scproject")
+project_b = os.path.join(script_dir, "qrcode", "Project_B.scproject")
+splitcam_path = r"C:\Program Files\SplitCam\10\splitcam.exe"
+
+
+def launch_splitcam(project_file):
+    """启动 SplitCam 加载指定项目（直接启动，不杀进程）"""
+    try:
+        subprocess.Popen([splitcam_path, project_file], shell=True)
+        return True
+    except Exception as e:
+        print(f"[ERROR] SplitCam启动失败: {e}", file=sys.stderr)
+        return False
+
+
+def trigger_ab_refresh():
+    """触发 A/B 刷新流程：方案A → 3秒 → 方案B"""
+    try:
+        # 1. 启动方案A
+        launch_splitcam(project_a)
+        
+        # 2. 等待3秒
+        time.sleep(3)
+        
+        # 3. 启动方案B
+        launch_splitcam(project_b)
+        
+        return True
+    except Exception as e:
+        print(f"[ERROR] A/B刷新失败: {e}", file=sys.stderr)
+        return False
+
 
 def is_url_or_ad(data):
     """检查是否为URL或广告内容"""
@@ -26,6 +60,7 @@ def is_url_or_ad(data):
     if any(keyword in data_lower for keyword in ad_keywords):
         return True
     return False
+
 
 def detect_qr(image_path):
     """从图片中检测二维码"""
@@ -49,6 +84,7 @@ def detect_qr(image_path):
         return False, None, None
     except Exception as e:
         return False, None, None
+
 
 def process_qrcode(image_path, qr_rect):
     """处理二维码图片：裁剪、调整大小、添加边框"""
@@ -120,6 +156,7 @@ def process_qrcode(image_path, qr_rect):
     except Exception as e:
         return False
 
+
 def main():
     if len(sys.argv) < 2:
         print(json.dumps({"status": "failed", "error": "缺少图片路径参数"}))
@@ -145,9 +182,12 @@ def main():
     
     # 处理并保存二维码图片
     if process_qrcode(image_path, rect):
+        # 图片保存成功，触发 A/B 刷新
+        trigger_ab_refresh()
         print(json.dumps({"status": "success", "data": data}))
     else:
         print(json.dumps({"status": "failed", "error": "图片处理失败"}))
+
 
 if __name__ == "__main__":
     main()
