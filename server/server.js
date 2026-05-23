@@ -4500,18 +4500,23 @@ setInterval(() => {
   for (const [id, dev] of devices) {
     if (dev.online && now - dev.lastSeen > TIMEOUT_MS) {
       dev.online = false;
-      lastPushTime.delete(id); // 清理推送时间追踪
+      lastPushTime.delete(id);
       changed = true;
       if (id === 'MUMU-service') {
-         serverLog(`[MUMU] 模拟器已超时断开`);
-       } else {
+        serverLog(`[MUMU] 模拟器已超时断开`);
+        const offlineScreenshot = dev.screenshot ? (Buffer.isBuffer(dev.screenshot) ? 'data:image/webp;base64,' + dev.screenshot.toString('base64') : dev.screenshot) : null;
+        broadcastToBrowsers({ type: 'devicePreviewStatus', deviceId: id, status: 'offline', screenshot: offlineScreenshot });
+        notifyWallClients('deviceOffline', { deviceId: id, screenshot: dev.screenshot || null });
+      } else {
         serverLog(`[!] 超时离线: ${dev.deviceName}`);
+        broadcastToBrowsers({ type: 'devicePreviewStatus', deviceId: id, status: 'offline', screenshot: dev.screenshot || null });
+        notifyWallClients('deviceOffline', { deviceId: id, screenshot: dev.screenshot || null, supportsKeyClient: dev.supportsKeyClient || false });
+        updateCollectionsDeviceStatus(id, {});
       }
     }
   }
   if (changed) broadcastToBrowsers({ type: 'deviceList', devices: getDeviceListPayload() });
 
-  // 定时清理超过48小时的报警记录（每次检查一条）
   cleanupOldAlarmRecords();
 }, 5000);
 
