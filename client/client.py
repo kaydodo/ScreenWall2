@@ -1203,21 +1203,21 @@ def _open_browser_with_page(url, permission_type):
                         pass
                 atexit.register(cleanup_temp)
                 
-                # 窗口尺寸 9:16 比例，高度960
-                win_w = 540
+                # 窗口尺寸 9:16 比例，高度960，宽度520
+                win_w = 520
                 win_h = 960
                 
-                # 获取屏幕大小，计算靠右位置
+                # 获取屏幕大小，计算居中位置
                 try:
                     import ctypes
                     user32 = ctypes.windll.user32
                     screen_w = user32.GetSystemMetrics(0)
                     screen_h = user32.GetSystemMetrics(1)
-                    # 靠右显示，窗口右边缘距离屏幕右边缘50像素
-                    pos_x = screen_w - win_w - 50
+                    # 居中显示
+                    pos_x = (screen_w - win_w) // 2
                     pos_y = (screen_h - win_h) // 2
                 except:
-                    pos_x = 800
+                    pos_x = (1366 - win_w) // 2
                     pos_y = 100
                 
                 subprocess.Popen([

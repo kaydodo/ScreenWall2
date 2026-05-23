@@ -5,37 +5,33 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>自助登号</title>
 <script>
-// 强制设置窗口大小 540x960 (9:16比例，高度960)
+// 强制设置窗口大小 520x960 (9:16比例，高度960)
 window.addEventListener('load', function() {
   setTimeout(function() {
     try {
-      window.resizeTo(540, 960);
+      window.resizeTo(520, 960);
       setTimeout(function() {
-        window.resizeTo(540, 960);
-        // 强制移动窗口到屏幕右侧
-        moveToRight();
+        window.resizeTo(520, 960);
+        // 强制移动窗口到屏幕中央
+        moveToCenter();
       }, 300);
     } catch(e) {}
   }, 500);
 });
 
-// 移动窗口到屏幕右侧
-function moveToRight() {
+// 移动窗口到屏幕中央
+function moveToCenter() {
   try {
-    // 获取屏幕尺寸
     var screenW = window.screen.availWidth;
     var screenH = window.screen.availHeight;
-    var winW = 540;
+    var winW = 520;
     var winH = 960;
     
-    // 计算靠右位置：右边缘距离屏幕右边缘50像素
-    var posX = screenW - winW - 50;
+    var posX = Math.floor((screenW - winW) / 2);
     var posY = Math.floor((screenH - winH) / 2);
     
-    // 移动窗口
     window.moveTo(posX, posY);
     
-    // 再次尝试确保生效
     setTimeout(function() {
       window.moveTo(posX, posY);
     }, 500);
