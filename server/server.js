@@ -2288,6 +2288,14 @@ wssClient.on('connection', (ws, req) => {
       ws.send(JSON.stringify({ type: 'deviceNameSync', deviceName: newDev.deviceName }));
     }
 
+    // MUMU设备重连上线通知
+    if (msg.type === 'deviceOnline' && msg.deviceId) {
+      const dev = devices.get(msg.deviceId);
+      if (dev) {
+        serverLog(`[MUMU] ${dev.deviceName}（${msg.deviceId}）模拟器已重新连接上线`);
+      }
+    }
+
     // 高清截图（统一消息类型，根据 purpose 分发）
     if (msg.type === 'hdScreenshot' && msg.deviceId && msg.image) {
       const dev = devices.get(msg.deviceId);
