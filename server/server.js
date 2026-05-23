@@ -2676,8 +2676,6 @@ wssClient.on('connection', (ws, req) => {
 
 // 浏览器连接
 wssBrowser.on('connection', (ws, req) => {
-  const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
-  serverLog(`[浏览器] 连接: ${req.url} from ${clientIp}`);
   browserClients.add(ws);
   ws._lastPing = Date.now();  // 用于计算延迟
   ws._lastPingTs = 0; // 记录最新发出的 ping timestamp，防止旧 pong 乱序导致延迟虚高
@@ -4506,7 +4504,7 @@ setInterval(() => {
       lastPushTime.delete(id);
       changed = true;
       if (id === 'MUMU-service') {
-        serverLog(`[MUMU] 模拟器已超时断开, browserClients=${browserClients.size}`);
+        serverLog(`[MUMU] 模拟器已超时断开`);
         broadcastToBrowsers({ type: 'mumuOffline', deviceId: id });
       } else {
         serverLog(`[!] 超时离线: ${dev.deviceName}`);
