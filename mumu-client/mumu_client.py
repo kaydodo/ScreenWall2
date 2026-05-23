@@ -377,8 +377,8 @@ class MumuClient:
                 self._is_reconnecting = True
                 
                 stable_count = 0
-                while self.running and stable_count < 3:
-                    await asyncio.sleep(2)
+                while self.running and stable_count < 5:
+                    await asyncio.sleep(3)
                     try:
                         adb_path = self.config['adb'].get('path', 'adb')
                         proc = await asyncio.create_subprocess_exec(
@@ -395,11 +395,10 @@ class MumuClient:
                     except Exception:
                         stable_count = 0
                 
-                if stable_count >= 3:
+                if stable_count >= 5:
                     print("[MUMU] ADB已稳定重连")
                     self._is_reconnecting = False
                     self._status_notify_queue.put_nowait({"type": "deviceOnline"})
-                    print("[MUMU] 尝试重新注入DLL...")
                     self._inject_camera_hook()
                 else:
                     self._is_reconnecting = False
