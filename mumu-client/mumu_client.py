@@ -22,15 +22,17 @@ class MumuClient:
         self._dll_handle = None
         self._get_camera_completed = None
         self._reset_camera_completed = None
-        self._last_click_info = None  # 保存最后一次点击信息
-        self._last_camera_notify_time = 0  # 上次相机点击通知时间
-        self._camera_trigger_area = {  # 相机触发区域（基于540P分辨率）
+        self._last_click_info = None
+        self._last_camera_notify_time = 0
+        self._camera_trigger_area = {
             "x_min": 326,
             "x_max": 474,
             "y_min": 38,
             "y_max": 105
         }
-        self._camera_trigger_base_resolution = (540, 960)  # 基准分辨率
+        self._camera_trigger_base_resolution = (540, 960)
+        self._is_reconnecting = False
+        self._reconnect_stable_ok = False
 
     def _get_camera_trigger_area_scaled(self):
         """根据当前分辨率计算缩放后的触发区域"""
@@ -309,6 +311,7 @@ class MumuClient:
             
             if consecutive_errors >= 3:
                 consecutive_errors = 0
+                self._is_reconnecting = True
                 while self.running:
                     await asyncio.sleep(2)
                     try:
@@ -321,7 +324,6 @@ class MumuClient:
                         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=5)
                         result = stdout.decode('utf-8', errors='ignore').strip()
                         if 'connected' in result.lower() or 'already connected' in result.lower():
-                            print("[MUMU] 模拟器已重新连接")
                             break
                     except:
                         pass
@@ -742,21 +744,26 @@ class MumuClient:
                 if self.running:
                     print("[MUMU] 等待模拟器重新连接...")
                     reconnect_wait = 0
+                    reconnect_success = False
                     while self.running and reconnect_wait < 30:
                         await asyncio.sleep(2)
                         reconnect_wait += 2
                         if await self._check_adb_connection(silent=True):
-                            sw, sh = await self._get_device_resolution()
-                            if sw and sh and sw != 1080 and sh != 1920:
-                                screen_width, screen_height = sw, sh
-                                print(f"[MUMU] 模拟器已恢复，检测到分辨率: {screen_width}x{screen_height}")
-                                break
-                            elif sw and sh:
-                                screen_width, screen_height = sw, sh
-                                print(f"[MUMU] 模拟器已恢复，使用分辨率: {screen_width}x{screen_height}")
-                                break
-                        if screen_width and screen_height:
-                            is_reconnected = True
+                            await asyncio.sleep(2)
+                            if await self._check_adb_connection(silent=True):
+                                sw, sh = await self._get_device_resolution()
+                                if sw and sh and sw != 1080 and sh != 1920:
+                                    screen_width, screen_height = sw, sh
+                                    print(f"[MUMU] 模拟器已恢复，检测到分辨率: {screen_width}x{screen_height}")
+                                    reconnect_success = True
+                                    break
+                                elif sw and sh:
+                                    screen_width, screen_height = sw, sh
+                                    print(f"[MUMU] 模拟器已恢复，使用分辨率: {screen_width}x{screen_height}")
+                                    reconnect_success = True
+                                    break
+                    if reconnect_success:
+                        is_reconnected = True
                     if not self.running:
                         break
 
