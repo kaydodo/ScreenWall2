@@ -3,8 +3,8 @@
     "allowScreenWall": true,
     "allowSelfService": true
   },
-  "aeawtmgwtiau3yfl": {
+  "aeawtmgwtiau3yfl-admin": {
     "allowScreenWall": true,
-    "allowSelfService": true
+    "allowSelfService": false
   }
 }
