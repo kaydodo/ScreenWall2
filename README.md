@@ -58,6 +58,24 @@ ScreenWall2 是一套多设备屏幕监控与远控系统，支持同时监控�
 - 自动裁剪与200×360输出
 - 时间戳验证确保文件更新
 
+### 8. 权限管理
+- 设备级别的权限控制
+- 两项核心权限：
+  - 打开屏幕墙权限
+  - 自助登号权限
+- 权限管理界面需要登录验证（用户名/密码）
+- 权限配置持久化存储（permissions.json）
+- 设备重装后自动继承原有权限
+- 客户端右键操作时自动检查权限
+
+### 9. 设备开关机管理
+- 基于米家智能家居场景
+- 集成 mijiaAPI 开源项目（通过 `pip install mijiaAPI` 安装）
+- 支持一键执行场景（设备批量开机/关机）
+- 独立的 mijia-bridge.py 脚本封装
+- 扫码登录米家账户获取设备列表
+- 配置后即可在服务端调用米家API
+
 ---
 
 ## 目录结构
@@ -67,6 +85,7 @@ D:\ScreenWall2\
 ├── server/                          # 服务端
 │   ├── server.js                    # 主服务程序
 │   ├── qrcode_processor.py          # 二维码处理脚本
+│   ├── mijia-bridge.py              # 米家API桥接脚本
 │   ├── qrcode/                      # 二维码输出目录
 │   │   ├── screenshot_original.png  # 原始截图
 │   │   └── last_qrcode.png         # 处理后的二维码
@@ -79,6 +98,8 @@ D:\ScreenWall2\
 │   │   ├── config.json              # 配置文件
 │   │   └── devices.json             # 设备数据持久化
 │   ├── logs/                        # 日志目录
+│   ├── permissions.json             # 设备权限配置
+│   ├── mijia-auth.json              # 米家API认证信息（自动生成）
 │   └── package.json                 # 依赖配置
 │
 ├── client/                          # 电脑客户端
@@ -232,6 +253,72 @@ D:\ScreenWall2\
 | 消息 | 参数 | 说明 |
 |------|------|------|
 | `hdScreenshot` | `purpose, timestamp, deviceId, image, businessId, businessName, operatorId, operatorName` | 高清截图（自助登号携带全部6个参数） |
+
+---
+
+## 米家API集成说明
+
+### 开源项目来源
+
+**项目名称**：mijiaAPI  
+**原作者/仓库**：https://github.heygears.com/Do1e/mijia-api  
+**开源协议**：开源项目，可免费使用  
+**安装方式**：`pip install mijiaAPI`
+
+### 集成方式
+
+本项目通过独立的桥接脚本封装米家API，避免直接在 Node.js 服务端中引入 Python 依赖，保持架构清晰：
+
+```
+Node.js 服务端（server.js）
+    └─ 异步调用 mijia-bridge.py [独立 Python 进程]
+       └─ 导入 mijiaAPI 库
+          └─ 米家云服务 API
+```
+
+### 核心功能
+
+| 功能 | API 接口 | 说明 |
+|------|---------|------|
+| 扫码登录 | `GET /api/mijia/login` | 获取二维码登录米家账户 |
+| 登录状态检查 | `GET /api/mijia/status` | 检查是否已登录米家 |
+| 获取家庭列表 | `GET /api/mijia/homes` | 获取米家账户下的家庭列表 |
+| 获取设备列表 | `GET /api/mijia/devices?homeId=xxx` | 获取指定家庭下的设备列表 |
+| 获取场景列表 | `GET /api/mijia/scenes?homeId=xxx` | 获取家庭下的自动化场景列表 |
+| 执行场景 | `POST /api/mijia/run_scene` | 执行指定场景（如批量开关设备） |
+| 设置设备属性 | `POST /api/mijia/set_prop` | 直接控制设备属性 |
+
+### 目录结构
+
+```
+server/
+├── mijia-bridge.py       # 米家API桥接脚本（独立进程）
+├── mijia-auth.json       # 米家认证信息（自动生成，不提交Git）
+└── server.js            # 服务端，通过 API 调用桥接脚本
+```
+
+### 异步架构设计
+
+所有米家 API 调用都是异步的，不会阻塞服务端事件循环：
+
+```javascript
+// server.js 中的调用方式
+async function callMijiaBridge(args, callback) {
+  const { stdout } = await execFileAsync(
+    'python', 
+    ['mijia-bridge.py', ...args], 
+    { timeout: 30000 }
+  );
+  // ... 处理返回结果
+}
+```
+
+### 注意事项
+
+- ✅ **开源免费使用**：mijiaAPI 为开源项目，可免费调用
+- ✅ **法律合规**：项目仅调用米家官方公开 API，未进行逆向工程
+- ✅ **数据隔离**：米家认证信息保存在本地 `mijia-auth.json`，不上传
+- ⚠️ **不建议提取商业软件**：如 SplitCam 等闭源商业软件，请勿提取或反向工程
 
 ---
 
