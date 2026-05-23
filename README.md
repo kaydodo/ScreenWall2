@@ -1555,6 +1555,50 @@ messagebox.showwarning(
 
 ---
 
+### 设备重装自动继承流程
+
+**触发场景**：设备重装系统后重新上线，客户端会生成新的 deviceId
+
+**匹配机制**：
+- MAC地址：网卡MAC地址（重装后一般不变）
+- 设备名：完全匹配或包含关系（允许设备名略有变化）
+
+**继承流程图**：
+```
+1. 客户端重装后首次注册
+   ↓
+2. 服务端先尝试按 deviceId 查找（没找到）
+   ↓
+3. 服务端通过 MAC地址 + 设备名 匹配旧设备
+   ↓
+4. 找到旧设备记录 → 继承其所有数据
+   ↓
+5. 迁移所有关联数据到新 deviceId
+   ↓
+6. 删除旧设备记录
+   ↓
+7. 新设备上线（打印 [继承] 日志）
+```
+
+**继承的数据项（完整列表）**：
+1. 格子位置映射 (gridLayout)
+2. 分组关系 (groups)
+3. 截图集合 (collections)
+4. 监控墙配置 (wallDevices, monitorWallDevices)
+5. 历史报警记录 (alarmRecords)
+6. 收藏状态 (favorites)
+7. 开关机场景 (powerScenes)
+8. 任务记录 (tasks)
+9. 权限配置 (devicePermissions)
+
+**日志示例**（优化后，简洁）：
+```
+[+] 上线: 9UXW干一天刚过同感同感 (aeawtmgwtiau3yfl-admin2) ...
+[继承] 9UXW干一天刚过同感同感 (aeawtmgwtiau3yfl-admin) → 9UXW干一天刚过同感同感 (aeawtmgwtiau3yfl-admin2)（含权限）
+```
+
+---
+
 ### 统一的设备ID迁移和删除接口函数
 
 为了确保在设备重装或删除时，所有相关数据（包括权限）都能被正确处理，新增了两个统一的接口函数：
