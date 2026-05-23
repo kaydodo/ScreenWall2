@@ -2645,7 +2645,8 @@ wssClient.on('connection', (ws, req) => {
           const dev = devices.get(deviceId);
           dev.online = false;
           serverLog(`[MUMU] 模拟器微服务已离线`);
-          devices.delete(deviceId);  // MUMU直接从内存删除，不持久化
+          broadcastToBrowsers({ type: 'mumuOffline', deviceId });
+          devices.delete(deviceId);
         }
         return;
       }
