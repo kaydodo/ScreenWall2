@@ -1794,9 +1794,7 @@ async function processAlarmImage(deviceId, imageBuffer, deviceInfo) {
   alarmRecords.push(record);
   await persistAlarmRecords();
   
-  serverLog(`[报警] ${deviceInfo.deviceName} 触发报警 (第${occurrenceCount}次)`);
-  
-  // 11. 更新状态为查重阶段
+  // 更新状态为查重阶段
   alarmStates.set(deviceId, {
     state: 'verifying',
     verifyCount: 0,
@@ -2590,8 +2588,6 @@ wssClient.on('connection', (ws, req) => {
       _currentOperatorName = finalOperatorName;          // 业务发起方名称
       _currentBusinessId = businessId;                    // 业务设备ID
       _currentBusinessName = finalBusinessName;           // 业务设备名称
-      
-      serverLog(`[自助登号] 收到相机点击，向业务设备请求1080P截图: ${formatDeviceName(_currentBusinessName, _currentBusinessId)}`);
       
       // 设置超时
       _selfServiceTimeoutId = setTimeout(() => {

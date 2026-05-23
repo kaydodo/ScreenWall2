@@ -1186,15 +1186,12 @@ def _open_browser_with_page(url, permission_type):
         if browser_path:
             exe_name = os.path.basename(browser_path).lower()
             if exe_name in ("chrome.exe", "msedge.exe"):
-                # 使用临时用户数据目录 + 居中显示窗口
                 import subprocess
                 import tempfile
                 import atexit
                 
-                # 创建临时目录
                 temp_dir = tempfile.mkdtemp(prefix="screenwall_")
                 
-                # 清理临时目录（程序退出时删除）
                 def cleanup_temp():
                     try:
                         import shutil
@@ -1203,7 +1200,9 @@ def _open_browser_with_page(url, permission_type):
                         pass
                 atexit.register(cleanup_temp)
                 
-                # 窗口尺寸动态计算：基准510×960，屏幕更大时按比例放大
+                def kill_browser_processes():
+                    pass
+                
                 base_w = 510
                 base_h = 960
                 screen_ratio = 0.7
@@ -1231,10 +1230,9 @@ def _open_browser_with_page(url, permission_type):
                 
                 subprocess.Popen([
                     browser_path, 
-                    "--app=" + url, 
-                    "--window-size=" + str(win_w) + "," + str(win_h), 
+                    "--app=" + url,
+                    "--window-size=510,960",
                     "--window-position=" + str(pos_x) + "," + str(pos_y),
-                    "--start-minimized",
                     "--new-window",
                     "--disable-session-crashed-bubble",
                     "--no-first-run",

@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>自助登号</title>
 <script>
-// 窗口尺寸动态计算：最小高度960，屏幕更大时按60%屏幕高度，保持9:16比例
 (function() {
   var baseW = 510;
   var baseH = 960;
@@ -26,44 +25,18 @@
   
   window.addEventListener('load', function() {
     var size = calculateSize();
+    var screenW = window.screen.width;
+    var screenH = window.screen.height;
+    var posX = Math.floor((screenW - size.w) / 2);
+    var posY = Math.floor((screenH - size.h) / 2);
     
     setTimeout(function() {
       try {
+        window.moveTo(posX, posY);
         window.resizeTo(size.w, size.h);
-        setTimeout(function() {
-          window.resizeTo(size.w, size.h);
-          moveToCenter(size.w, size.h);
-          showWindow();
-        }, 300);
       } catch(e) {}
     }, 500);
   });
-  
-  function showWindow() {
-    try {
-      window.focus();
-      window.blur();
-      setTimeout(function() {
-        window.focus();
-      }, 100);
-    } catch(e) {}
-  }
-  
-  function moveToCenter(winW, winH) {
-    try {
-      var screenW = window.screen.availWidth;
-      var screenH = window.screen.availHeight;
-      
-      var posX = Math.floor((screenW - winW) / 2);
-      var posY = Math.floor((screenH - winH) / 2);
-      
-      window.moveTo(posX, posY);
-      
-      setTimeout(function() {
-        window.moveTo(posX, posY);
-      }, 500);
-    } catch(e) {}
-  }
 })();
 </script>
 <style>
