@@ -4504,14 +4504,9 @@ setInterval(() => {
       changed = true;
       if (id === 'MUMU-service') {
         serverLog(`[MUMU] 模拟器已超时断开`);
-        const offlineScreenshot = dev.screenshot ? (Buffer.isBuffer(dev.screenshot) ? 'data:image/webp;base64,' + dev.screenshot.toString('base64') : dev.screenshot) : null;
-        broadcastToBrowsers({ type: 'devicePreviewStatus', deviceId: id, status: 'offline', screenshot: offlineScreenshot });
-        notifyWallClients('deviceOffline', { deviceId: id, screenshot: dev.screenshot || null });
+        broadcastToBrowsers({ type: 'mumuOffline', deviceId: id });
       } else {
         serverLog(`[!] 超时离线: ${dev.deviceName}`);
-        broadcastToBrowsers({ type: 'devicePreviewStatus', deviceId: id, status: 'offline', screenshot: dev.screenshot || null });
-        notifyWallClients('deviceOffline', { deviceId: id, screenshot: dev.screenshot || null, supportsKeyClient: dev.supportsKeyClient || false });
-        updateCollectionsDeviceStatus(id, {});
       }
     }
   }

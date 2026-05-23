@@ -467,6 +467,7 @@ function handleBinaryFrame(data) {
     if (oldUrl) URL.revokeObjectURL(oldUrl);
     
     img.classList.remove('grayscale');
+    img.style.opacity = '1';
     document.getElementById('offlineWatermark').style.display = 'none';
     
     if (!isOnline) {
@@ -528,6 +529,13 @@ function handleJSONMessage(msg) {
       }
       updateOnlineStatus();
     }
+  }
+  
+  if (msg.type === 'mumuOffline' && msg.deviceId === 'MUMU-service') {
+    isOnline = false;
+    frameHealCount = 0;
+    document.getElementById('screenImg').src = '';
+    document.getElementById('screenImg').style.opacity = '0';
   }
   
   if (msg.type === 'wallStateUpdate') {
