@@ -98,8 +98,11 @@ class MumuClient:
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=10)
             adb_time = (time.time() - adb_start) * 1000
 
-            if stdout and len(stdout) > 0:
-                process_start = time.time()
+            if not stdout or len(stdout) == 0:
+                return None
+
+            process_start = time.time()
+            try:
                 img = Image.open(io.BytesIO(stdout))
                 self._real_width = img.width
                 self._real_height = img.height
@@ -116,10 +119,15 @@ class MumuClient:
 
                 process_time = (time.time() - process_start) * 1000
                 return img_bytes
+            except Exception as pil_error:
+                print(f"[ADB] PIL处理失败: {pil_error}, 数据长度={len(stdout)}")
+                return None
 
+        except asyncio.TimeoutError:
+            print("[ADB] 截图超时")
             return None
         except Exception as e:
-            print(f"[ADB] 截图失败: {e}")
+            print(f"[ADB] 截图异常: {e}")
             return None
 
     async def _adb_click(self, x, y):
@@ -294,7 +302,12 @@ class MumuClient:
         consecutive_errors = 0
         while self.running:
             try:
-                img_bytes = await self._adb_screenshot(compress=True)
+                try:
+                    img_bytes = await self._adb_screenshot(compress=True)
+                except Exception as screenshot_error:
+                    print(f"[MUMU] 截图Worker异常: {screenshot_error}")
+                    img_bytes = None
+
                 if img_bytes:
                     consecutive_errors = 0
                     current_time = time.time()
@@ -306,10 +319,15 @@ class MumuClient:
                         self._frame_queue.put_nowait((current_time, img_bytes))
                 else:
                     consecutive_errors += 1
+                    if consecutive_errors < 3:
+                        await asyncio.sleep(0.5)
             except Exception as e:
                 consecutive_errors += 1
-            
+                print(f"[MUMU] ScreenshotWorker错误: {e}")
+                await asyncio.sleep(1)
+
             if consecutive_errors >= 3:
+                print("[MUMU] ADB连续失败，开始重连...")
                 consecutive_errors = 0
                 self._is_reconnecting = True
                 while self.running:
@@ -324,9 +342,12 @@ class MumuClient:
                         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=5)
                         result = stdout.decode('utf-8', errors='ignore').strip()
                         if 'connected' in result.lower() or 'already connected' in result.lower():
+                            print("[MUMU] ADB重连成功")
+                            self._is_reconnecting = False
                             break
-                    except:
-                        pass
+                    except Exception as reconnect_error:
+                        print(f"[MUMU] ADB重连失败: {reconnect_error}")
+                self._is_reconnecting = False
 
     async def _get_device_resolution(self):
         try:
@@ -717,12 +738,19 @@ class MumuClient:
                         if age > 2.0:
                             continue
 
-                        await self._send_binary_frame(ws, img_bytes)
+                        try:
+                            await self._send_binary_frame(ws, img_bytes)
+                        except websockets.exceptions.ConnectionClosed:
+                            break
+                        except Exception as send_error:
+                            print(f"[MUMU] 发送帧失败: {send_error}")
+                            continue
                     except asyncio.TimeoutError:
                         continue
                     except websockets.exceptions.ConnectionClosed:
                         break
                     except Exception as e:
+                        print(f"[MUMU] 主循环异常: {e}")
                         break
 
                 listen_task.cancel()

@@ -19,7 +19,7 @@ import time
 import webbrowser
 
 # 客户端版本号（每次功能更新时手动递增）
-CLIENT_VERSION = "1.10.1"
+CLIENT_VERSION = "1.10.2"
 
 
 def _get_mac_address():
@@ -2269,8 +2269,11 @@ class ScreenWallClient:
                 hq = False
                 hq_limit = 720
             capt = ScreenCapturer(cfg["quality"], cfg["resizeW"], cfg["resizeH"], monitor_index=_current_monitor_index)
+            img_bytes = None
             try:
                 img_bytes = capt.capture(hq=hq, hq_limit=hq_limit, hq_quality=30)
+            except Exception as e:
+                print(f"[截图] 异常: {e}")
             finally:
                 capt.close()
 
