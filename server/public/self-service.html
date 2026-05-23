@@ -159,13 +159,15 @@ html, body {
   position: absolute;
   top: 50%;
   left: 50%;
-  transform: translate(-50%, -50%) rotate(-15deg) scale(3);
-  font-size: 52px;
+  transform: translate(-50%, -50%);
+  font-size: 36px;
   font-weight: 300;
-  color: rgba(160,160,160,0.7);
+  font-style: italic;
+  color: rgba(180,180,180,0.85);
   pointer-events: none;
   white-space: nowrap;
-  text-shadow: 0 0 30px rgba(255,255,255,0.4);
+  text-shadow: 0 0 40px rgba(255,255,255,0.5);
+  z-index: 10;
 }
 .no-mumu-hint {
   position: absolute;
@@ -215,7 +217,7 @@ html, body {
     <div class="preview-img-wrapper" id="previewWrapper">
       <img id="screenImg" src="" alt="屏幕画面">
     </div>
-    <div class="offline-watermark" id="offlineWatermark">设备已离线</div>
+    <div class="offline-watermark" id="offlineWatermark">模拟器已离线</div>
   </div>
 </div>
 
@@ -236,7 +238,33 @@ var PREVIEW_ASPECT = 9 / 16;
 var _previewLayoutTimer = null;
 var _autoLoginSuccess = false;
 var _lastFrameTime = 0;
-var _frameThrottleMs = 300; // 自动登录成功标记
+var _frameThrottleMs = 300;
+var _offlineCheckTimer = null;
+var OFFLINE_CHECK_INTERVAL = 5000;
+
+function _checkOfflineStatus() {
+  var now = Date.now();
+  if (now - _lastFrameTime >= OFFLINE_CHECK_INTERVAL && isOnline) {
+    isOnline = false;
+    frameHealCount = 0;
+    var img = document.getElementById('screenImg');
+    img.classList.add('grayscale');
+    img.style.opacity = '0.3';
+    document.getElementById('offlineWatermark').style.display = 'block';
+  }
+}
+
+function _startOfflineCheck() {
+  if (_offlineCheckTimer) clearInterval(_offlineCheckTimer);
+  _offlineCheckTimer = setInterval(_checkOfflineStatus, 1000);
+}
+
+function _stopOfflineCheck() {
+  if (_offlineCheckTimer) {
+    clearInterval(_offlineCheckTimer);
+    _offlineCheckTimer = null;
+  }
+}
 
 // 检查 URL 参数中的自动登录 token
 function checkAutoLoginToken() {
@@ -472,16 +500,19 @@ function handleBinaryFrame(data) {
     img._blobUrl = blobUrl;
     if (oldUrl) URL.revokeObjectURL(oldUrl);
     
-    img.classList.remove('grayscale');
-    img.style.opacity = '1';
-    document.getElementById('offlineWatermark').style.display = 'none';
-    
     if (!isOnline) {
       frameHealCount++;
       if (frameHealCount >= FRAME_HEAL_THRESHOLD) {
         isOnline = true;
-        updateOnlineStatus();
+        frameHealCount = 0;
+        img.classList.remove('grayscale');
+        img.style.opacity = '1';
+        document.getElementById('offlineWatermark').style.display = 'none';
       }
+    } else {
+      img.classList.remove('grayscale');
+      img.style.opacity = '1';
+      document.getElementById('offlineWatermark').style.display = 'none';
     }
   }
 }
@@ -575,9 +606,11 @@ function updateOnlineStatus() {
   
   if (isOnline) {
     img.classList.remove('grayscale');
+    img.style.opacity = '1';
     watermark.style.display = 'none';
   } else {
     img.classList.add('grayscale');
+    img.style.opacity = '0.3';
     watermark.style.display = 'block';
   }
 }
@@ -713,6 +746,7 @@ function init() {
   connectWS();
   setupMouseEvents();
   updatePreviewLayout();
+  _startOfflineCheck();
   window.addEventListener('resize', scheduleUpdatePreviewLayout);
 
   window.addEventListener('beforeunload', function() {
@@ -724,6 +758,7 @@ function init() {
     if (_previewLayoutTimer) {
       clearTimeout(_previewLayoutTimer);
     }
+    _stopOfflineCheck();
   });
 }
 
