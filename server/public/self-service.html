@@ -33,10 +33,21 @@
         setTimeout(function() {
           window.resizeTo(size.w, size.h);
           moveToCenter(size.w, size.h);
+          showWindow();
         }, 300);
       } catch(e) {}
     }, 500);
   });
+  
+  function showWindow() {
+    try {
+      window.focus();
+      window.blur();
+      setTimeout(function() {
+        window.focus();
+      }, 100);
+    } catch(e) {}
+  }
   
   function moveToCenter(winW, winH) {
     try {

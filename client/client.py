@@ -1234,6 +1234,7 @@ def _open_browser_with_page(url, permission_type):
                     "--app=" + url, 
                     "--window-size=" + str(win_w) + "," + str(win_h), 
                     "--window-position=" + str(pos_x) + "," + str(pos_y),
+                    "--start-minimized",
                     "--new-window",
                     "--disable-session-crashed-bubble",
                     "--no-first-run",
