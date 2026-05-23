@@ -1203,8 +1203,8 @@ def _open_browser_with_page(url, permission_type):
                         pass
                 atexit.register(cleanup_temp)
                 
-                # 窗口尺寸 9:16 比例，高度960，宽度490
-                win_w = 490
+                # 窗口尺寸 9:16 比例，高度960，宽度510
+                win_w = 510
                 win_h = 960
                 
                 # 获取屏幕大小，计算居中位置

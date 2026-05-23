@@ -5,13 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>自助登号</title>
 <script>
-// 强制设置窗口大小 490x960 (9:16比例，高度960)
+// 强制设置窗口大小 510x960 (9:16比例，高度960)
 window.addEventListener('load', function() {
   setTimeout(function() {
     try {
-      window.resizeTo(490, 960);
+      window.resizeTo(510, 960);
       setTimeout(function() {
-        window.resizeTo(490, 960);
+        window.resizeTo(510, 960);
         // 强制移动窗口到屏幕中央
         moveToCenter();
       }, 300);
@@ -24,7 +24,7 @@ function moveToCenter() {
   try {
     var screenW = window.screen.availWidth;
     var screenH = window.screen.availHeight;
-    var winW = 490;
+    var winW = 510;
     var winH = 960;
     
     var posX = Math.floor((screenW - winW) / 2);
