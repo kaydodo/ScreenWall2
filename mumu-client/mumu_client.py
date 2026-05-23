@@ -32,9 +32,8 @@ class MumuClient:
         }
         self._camera_trigger_base_resolution = (540, 960)
         self._is_reconnecting = False
-        self._reconnect_stable_ok = False
         self._cmd_queue = asyncio.Queue()
-        self._ws_ref = None
+        self._status_notify_queue = asyncio.Queue()
 
     def _get_camera_trigger_area_scaled(self):
         base_w, base_h = self._camera_trigger_base_resolution
@@ -373,6 +372,7 @@ class MumuClient:
 
             if consecutive_errors >= 3:
                 print("[MUMU] ADB连接断开，等待恢复...")
+                self._status_notify_queue.put_nowait({"type": "deviceOffline"})
                 consecutive_errors = 0
                 self._is_reconnecting = True
                 
@@ -398,17 +398,7 @@ class MumuClient:
                 if stable_count >= 3:
                     print("[MUMU] ADB已稳定重连")
                     self._is_reconnecting = False
-                    
-                    if self._ws_ref:
-                        try:
-                            self._ws_ref.send(json.dumps({
-                                "type": "deviceOnline",
-                                "deviceId": self.config["device"]["deviceId"]
-                            }))
-                            print("[MUMU] 已通知服务端重连成功")
-                        except:
-                            pass
-                    
+                    self._status_notify_queue.put_nowait({"type": "deviceOnline"})
                     print("[MUMU] 尝试重新注入DLL...")
                     self._inject_camera_hook()
                 else:
@@ -758,7 +748,6 @@ class MumuClient:
             try:
                 ws = await websockets.connect(ws_uri, ping_interval=30, ping_timeout=10)
                 print("[MUMU] 已连接到服务端")
-                self._ws_ref = ws
 
                 device_id = cfg["device"]["deviceId"]
                 device_name = cfg["device"]["deviceName"]
@@ -793,21 +782,47 @@ class MumuClient:
 
                 while self.running:
                     try:
-                        timestamp, img_bytes = await asyncio.wait_for(
-                            self._frame_queue.get(), timeout=self._send_timeout
+                        done, pending = await asyncio.wait(
+                            [
+                                asyncio.create_task(self._frame_queue.get()),
+                                asyncio.create_task(self._status_notify_queue.get())
+                            ],
+                            timeout=self._send_timeout,
+                            return_when=asyncio.FIRST_COMPLETED
                         )
 
-                        age = time.time() - timestamp
-                        if age > 2.0:
-                            continue
+                        for task in pending:
+                            task.cancel()
 
-                        try:
-                            await self._send_binary_frame(ws, img_bytes)
-                        except websockets.exceptions.ConnectionClosed:
-                            break
-                        except Exception as send_error:
-                            print(f"[MUMU] 发送帧失败: {send_error}")
-                            continue
+                        for task in done:
+                            result = task.result()
+                            if isinstance(result, tuple):
+                                timestamp, img_bytes = result
+                                age = time.time() - timestamp
+                                if age > 2.0:
+                                    continue
+
+                                try:
+                                    await self._send_binary_frame(ws, img_bytes)
+                                except websockets.exceptions.ConnectionClosed:
+                                    raise
+                                except Exception as send_error:
+                                    print(f"[MUMU] 发送帧失败: {send_error}")
+                            elif isinstance(result, dict):
+                                notify_type = result.get("type")
+                                if notify_type == "deviceOffline":
+                                    await ws.send(json.dumps({
+                                        "type": "deviceOffline",
+                                        "deviceId": device_id
+                                    }))
+                                    print("[MUMU] 已通知服务端模拟器断开")
+                                elif notify_type == "deviceOnline":
+                                    await ws.send(json.dumps({
+                                        "type": "deviceOnline",
+                                        "deviceId": device_id
+                                    }))
+                                    print("[MUMU] 已通知服务端模拟器重连成功")
+
                     except asyncio.TimeoutError:
                         continue
                     except websockets.exceptions.ConnectionClosed:

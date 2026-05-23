@@ -2295,6 +2295,11 @@ wssClient.on('connection', (ws, req) => {
       ws.send(JSON.stringify({ type: 'deviceNameSync', deviceName: newDev.deviceName }));
     }
 
+    // MUMU设备断开通知
+    if (msg.type === 'deviceOffline' && msg.deviceId) {
+      serverLog(`[MUMU] 模拟器已断开连接`);
+    }
+
     // MUMU设备重连上线通知
     if (msg.type === 'deviceOnline' && msg.deviceId) {
       serverLog(`[MUMU] 模拟器已重新连接`);
