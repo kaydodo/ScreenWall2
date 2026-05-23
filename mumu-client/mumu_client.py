@@ -183,7 +183,7 @@ class MumuClient:
         frame = bytes(header) + device_id_bytes + img_bytes
         await ws.send(frame)
 
-    async def _send_hd_screenshot_async(self, ws, purpose, timestamp, business_id=None):
+    async def _send_hd_screenshot_async(self, ws, purpose, timestamp, business_id=None, operator_id=None):
         try:
             img_bytes = await self._adb_screenshot()
             if not img_bytes:
@@ -203,6 +203,8 @@ class MumuClient:
             }
             if business_id:
                 payload["businessId"] = business_id
+            if operator_id:
+                payload["operatorId"] = operator_id
             await ws.send(json.dumps(payload))
             print(f"[MUMU] 已发送 HD 截图, purpose={purpose}")
         except Exception as e:
@@ -219,8 +221,9 @@ class MumuClient:
                         purpose = data.get("purpose", "collection")
                         timestamp = data.get("timestamp")
                         business_id = data.get("businessId")
+                        operator_id = data.get("operatorId")
                         if timestamp:
-                            asyncio.create_task(self._send_hd_screenshot_async(ws, purpose, timestamp, business_id))
+                            asyncio.create_task(self._send_hd_screenshot_async(ws, purpose, timestamp, business_id, operator_id))
 
                     elif msg_type == "keyClick":
                         key = data.get("key", "")

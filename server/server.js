@@ -2300,8 +2300,10 @@ wssClient.on('connection', (ws, req) => {
           try {
             const base64Data = image.replace(/^data:image\/\w+;base64,/, '');
             const buffer = Buffer.from(base64Data, 'base64');
-            // 使用 cameraClicked 时保存的 operatorId 和 businessId
-            await processQrcodeImage(buffer, _currentBusinessId || businessId, _currentOperatorId);
+            // 使用消息中携带的businessId和operatorId，不再依赖全局变量
+            const actualBusinessId = businessId || _currentBusinessId;
+            const actualOperatorId = msg.operatorId || _currentOperatorId;
+            await processQrcodeImage(buffer, actualBusinessId, actualOperatorId);
           } catch (e) {
             serverError('[二维码] 处理自助登号截图失败:', e.message);
           }
@@ -2605,7 +2607,8 @@ wssClient.on('connection', (ws, req) => {
             type: 'requestHdScreenshot', 
             purpose: 'selfService',
             timestamp: timestamp || Date.now(),
-            businessId: businessId
+            businessId: businessId,
+            operatorId: operatorId
           }));
           break;
         }
