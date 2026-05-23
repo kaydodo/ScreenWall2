@@ -4081,7 +4081,7 @@ httpServer.on('request', async (req, res) => {
 
     // DELETE /api/devices?offline=1 - 批量删除所有离线设备
     if (cleanPath === '/api/devices' && req.method === 'DELETE' && urlObj.searchParams.get('offline') === '1') {
-      const TIMEOUT_MS = CLIENT_CFG.timeoutMs || 30000;
+      const TIMEOUT_MS = CLIENT_CFG.timeoutMs || 10000;
       const now = Date.now();
       const offlineIds = [];
       for (const [id, dev] of devices) {
@@ -4493,7 +4493,7 @@ function serveFile(filePath, res, req) {
 }
 
 // ========== 离线检测 ==========
-const TIMEOUT_MS = CLIENT_CFG.timeoutMs || 30000;
+const TIMEOUT_MS = CLIENT_CFG.timeoutMs || 10000;
 setInterval(() => {
   const now = Date.now();
   let changed = false;
