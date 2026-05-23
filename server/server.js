@@ -496,7 +496,7 @@ function formatDeviceName(name, id) {
 const SELF_SERVICE_TIMEOUT_MS = 5000;
 
 // 自助登号点击时间窗口（毫秒）
-const SELF_SERVICE_CLICK_WINDOW_MS = 2000;
+const SELF_SERVICE_CLICK_WINDOW_MS = 3000;
 
 // 自助登号状态管理器（按业务设备ID存储状态，避免多个连接混淆）
 const selfServiceStateByBusinessId = new Map(); // businessId -> { operatorId, operatorName, businessName, mumuClient, timeoutId, clickTimestamp }

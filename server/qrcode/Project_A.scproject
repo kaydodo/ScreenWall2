@@ -66,7 +66,56 @@
     </scene>
   </scenes>
   <vcamInput type="0"></vcamInput>
-  <nproviders></nproviders>
+  <nproviders>
+    <nprovider prov="0" id="mfc" name="MyFreeCams" user="" active="0">
+      <notify from="1" to="99" durtype="1" dur="6000">
+        <image>C:\Users\Administrator\AppData\Local\Splitcam\img01.gif</image>
+        <textAbove></textAbove>
+        <textOver></textOver>
+        <textBelow></textBelow>
+      </notify>
+    </nprovider>
+    <nprovider prov="1" id="bonga" name="BongaCams" user="" active="0">
+      <notify from="1" to="99" durtype="1" dur="6000">
+        <image>C:\Users\Administrator\AppData\Local\Splitcam\img01.gif</image>
+        <textAbove></textAbove>
+        <textOver></textOver>
+        <textBelow></textBelow>
+      </notify>
+    </nprovider>
+    <nprovider prov="2" id="cam4" name="Cam4" user="" active="0">
+      <notify from="1" to="99" durtype="1" dur="6000">
+        <image>C:\Users\Administrator\AppData\Local\Splitcam\img01.gif</image>
+        <textAbove></textAbove>
+        <textOver></textOver>
+        <textBelow></textBelow>
+      </notify>
+    </nprovider>
+    <nprovider prov="3" id="camsoda" name="CamSoda" user="" active="0">
+      <notify from="1" to="99" durtype="1" dur="6000">
+        <image>C:\Users\Administrator\AppData\Local\Splitcam\img01.gif</image>
+        <textAbove></textAbove>
+        <textOver></textOver>
+        <textBelow></textBelow>
+      </notify>
+    </nprovider>
+    <nprovider prov="4" id="chatur" name="Chaturbate" user="" active="0">
+      <notify from="1" to="99" durtype="1" dur="6000">
+        <image>C:\Users\Administrator\AppData\Local\Splitcam\img01.gif</image>
+        <textAbove></textAbove>
+        <textOver></textOver>
+        <textBelow></textBelow>
+      </notify>
+    </nprovider>
+    <nprovider prov="5" id="stripchat" name="StripChat" user="" active="0">
+      <notify from="1" to="99" durtype="1" dur="6000">
+        <image>C:\Users\Administrator\AppData\Local\Splitcam\img01.gif</image>
+        <textAbove></textAbove>
+        <textOver></textOver>
+        <textBelow></textBelow>
+      </notify>
+    </nprovider>
+  </nproviders>
   <presets></presets>
   <preset name="" sid="default">
     <audio enc="libfdk_aac"></audio>

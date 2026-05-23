@@ -697,7 +697,7 @@ class MumuClient:
                 
                 if self._last_click_info:
                     click_time = self._last_click_info.get("timestamp", 0)
-                    if current_time - click_time <= 2:
+                    if current_time - click_time <= 3:
                         msg.update({
                             "x": self._last_click_info["x"],
                             "y": self._last_click_info["y"],
