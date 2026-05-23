@@ -537,6 +537,8 @@ if (id === 'MUMU-service') {
 | | 56a7cde | 自助登号隐藏启动：--start-minimized启动后由JS显示窗口 |
 | | 3822195 | 自助登号窗口尺寸：1080p基准510×960，更大屏幕按比例放大 |
 | **v1.10.1** | - | 自助登号修复：时间戳单位检测逻辑（秒级是<10000000000），电脑客户端hdScreenshot补充完整参数（operatorId/operatorName/businessName） |
+| **v1.10.2** | - | 修复电脑客户端截图异常处理：添加try-except捕获，防止截图失败时主进程中断 |
+| **v1.10.3** | e33a253 | 完善MUMU客户端异常处理：截图Worker添加异常捕获、主循环发送帧添加try-except、添加详细日志、MUMU超时断开不触发mumuOffline、超时时间改为5秒 |
 
 ---
 
@@ -714,6 +716,139 @@ if operator_id:
     payload["operatorId"] = operator_id
 if operator_name:
     payload["operatorName"] = operator_name
+```
+
+---
+
+## v1.10.2 详细更新说明
+
+### 电脑客户端截图异常处理修复
+
+#### 问题背景
+- 电脑客户端在截图过程中如果出现异常（如PIL处理错误、ADB截图失败），会直接中断主进程
+- 没有异常捕获机制，导致程序崩溃无法恢复
+
+#### 修复方案
+```python
+# 在主循环截图代码中添加try-except
+capt = ScreenCapturer(cfg["quality"], cfg["resizeW"], cfg["resizeH"], monitor_index=_current_monitor_index)
+img_bytes = None
+try:
+    img_bytes = capt.capture(hq=hq, hq_limit=hq_limit, hq_quality=30)
+except Exception as e:
+    print(f"[截图] 异常: {e}")
+finally:
+    capt.close()
+```
+
+#### 关键逻辑
+- 添加`img_bytes = None`初始化，防止异常后变量未定义
+- 捕获所有异常并打印日志
+- 异常发生后程序继续运行，不会中断主进程
+- `finally`确保`capt.close()`始终被调用
+
+---
+
+## v1.10.3 详细更新说明
+
+### MUMU客户端异常处理完善
+
+#### 问题背景
+- MUMU客户端在ADB截图失败时会中断主进程
+- 发送帧失败时没有异常捕获
+- 缺少详细的日志输出，难以排查问题
+
+#### 修复内容
+
+1. **ADB截图函数异常处理**
+   - 分离`Image.open()`的异常处理
+   - 添加`asyncio.TimeoutError`专门捕获
+   - 添加详细的日志输出，包含数据长度
+
+2. **截图Worker异常捕获**
+   - 双层`try-except`保护
+   - 添加失败间隔`sleep(0.5)`，防止CPU空转
+   - 添加详细的日志输出
+
+3. **主循环发送帧异常处理**
+   - 为`_send_binary_frame()`添加`try-except`
+   - 发送失败时打印日志并`continue`，不会中断连接
+   - 只有`ConnectionClosed`才会`break`
+
+4. **服务端MUMU超时断开优化**
+   - 超时时间从10秒改为5秒
+   - 超时断开时不再发送`mumuOffline`消息
+   - 区分"MUMU微服务离线"和"超时断开"两种状态
+
+#### 关键代码
+
+**ADB截图异常处理**
+```python
+async def _adb_screenshot(self, compress=True):
+    try:
+        # ... ADB调用 ...
+        if stdout and len(stdout) > 0:
+            try:
+                img = Image.open(io.BytesIO(stdout))
+                # ... 处理图片 ...
+                return img_bytes
+            except Exception as pil_error:
+                print(f"[ADB] PIL处理失败: {pil_error}, 数据长度={len(stdout)}")
+                return None
+    except asyncio.TimeoutError:
+        print("[ADB] 截图超时")
+        return None
+    except Exception as e:
+        print(f"[ADB] 截图异常: {e}")
+        return None
+```
+
+**截图Worker优化**
+```python
+async def _screenshot_worker(self):
+    consecutive_errors = 0
+    while self.running:
+        try:
+            try:
+                img_bytes = await self._adb_screenshot(compress=True)
+            except Exception as screenshot_error:
+                print(f"[MUMU] 截图Worker异常: {screenshot_error}")
+                img_bytes = None
+            # ... 处理图片 ...
+            else:
+                consecutive_errors += 1
+                if consecutive_errors < 3:
+                    await asyncio.sleep(0.5)
+        except Exception as e:
+            consecutive_errors += 1
+            print(f"[MUMU] ScreenshotWorker错误: {e}")
+            await asyncio.sleep(1)
+        # ... 重连逻辑 ...
+```
+
+**主循环发送帧保护**
+```python
+try:
+    timestamp, img_bytes = await asyncio.wait_for(
+        self._frame_queue.get(), timeout=self._send_timeout
+    )
+    age = time.time() - timestamp
+    if age > 2.0:
+        continue
+    try:
+        await self._send_binary_frame(ws, img_bytes)
+    except websockets.exceptions.ConnectionClosed:
+        break
+    except Exception as send_error:
+        print(f"[MUMU] 发送帧失败: {send_error}")
+        continue
+except asyncio.TimeoutError:
+    continue
+except websockets.exceptions.ConnectionClosed:
+    break
+except Exception as e:
+    print(f"[MUMU] 主循环异常: {e}")
+    break
 ```
 
 ---
