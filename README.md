@@ -584,9 +584,9 @@ function serverLog(msg) {
 
 ##### 2. 双层超时保护机制
 
-**5秒超时保护**（`SELF_SERVICE_TIMEOUT_MS = 5000`）：
+**6秒超时保护**（`SELF_SERVICE_TIMEOUT_MS = 6000`）：
 - 收到 `cameraClicked` 后启动定时器
-- 5秒内未收到截图则清理状态，防止状态挂死
+- 6秒内未收到截图则清理状态，防止状态挂死
 
 **3秒点击时间窗口**（`SELF_SERVICE_CLICK_WINDOW_MS = 3000`）：
 - 检查点击时间和收到截图的时间差
@@ -665,7 +665,7 @@ function serverLog(msg) {
    │    clickTimestamp: timestamp,
    │    timeoutId: setTimeout(...)
    │  }
-   ├─ 启动5秒超时定时器
+   ├─ 启动6秒超时定时器
    └─ 向业务设备发送 requestHdScreenshot：
       {
         type: 'requestHdScreenshot',
@@ -714,7 +714,7 @@ function serverLog(msg) {
 |--------|------|------|
 | `clearSelfServiceState(businessId)` | server.js | 清理指定业务设备的状态 |
 | `processQrcodeImage(buffer, businessId, operatorId, operatorName, businessName, clickTimestamp)` | server.js | 处理二维码图片（含时间窗口检查） |
-| `SELF_SERVICE_TIMEOUT_MS` | server.js | 自助登号超时时间（5000ms） |
+| `SELF_SERVICE_TIMEOUT_MS` | server.js | 自助登号超时时间（6000ms） |
 | `SELF_SERVICE_CLICK_WINDOW_MS` | server.js | 点击时间窗口（3000ms） |
 | `selfServiceStateByBusinessId` | server.js | 状态存储Map |
 
@@ -865,6 +865,8 @@ if (id === 'MUMU-service') {
 | | | 396759f | docs: 更新README，补充SplitCam A/B刷新方案说明 |
 | | | f2fe42e | 调整二维码生成位置：向下移动40像素 |
 | | | 46a4ea5 | 调整超时窗口：2秒→3秒 |
+| | | 802f7a7 | 修复自助登号同时报超时和成功的bug：点击时间检查通过后立即取消超时定时器 |
+| | | | 调整超时时间：5秒→6秒 |
 
 ---
 
@@ -895,9 +897,9 @@ if (id === 'MUMU-service') {
 
 ##### 点击时间窗口检查（双层保护）
 
-**5秒超时保护**：
-- `SELF_SERVICE_TIMEOUT_MS = 5000`
-- 收到 `cameraClicked` 后启动定时器，5秒内未收到截图则清理状态
+**6秒超时保护**：
+- `SELF_SERVICE_TIMEOUT_MS = 6000`
+- 收到 `cameraClicked` 后启动定时器，6秒内未收到截图则清理状态
 
 **3秒点击时间窗口**：
 - `SELF_SERVICE_CLICK_WINDOW_MS = 3000`
@@ -1517,7 +1519,7 @@ python mumu_client.py
 6. **收藏状态**持久化到服务端，刷新页面不丢失
 7. **帧超时**设置为2秒，防止网络波动累积旧帧
 8. **历史帧率**：早期逐步调整（1fps→3fps→5fps→8fps），v1.7.9 后稳定为**6fps**
-9. **自助登号超时机制**：5秒超时保护 + 3秒点击时间窗口
+9. **自助登号超时机制**：6秒超时保护 + 3秒点击时间窗口
 
 ---
 

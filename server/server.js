@@ -493,7 +493,7 @@ function formatDeviceName(name, id) {
 }
 
 // 自助登号超时时间（毫秒）
-const SELF_SERVICE_TIMEOUT_MS = 5000;
+const SELF_SERVICE_TIMEOUT_MS = 6000;
 
 // 自助登号点击时间窗口（毫秒）
 const SELF_SERVICE_CLICK_WINDOW_MS = 3000;
