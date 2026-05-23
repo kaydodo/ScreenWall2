@@ -588,9 +588,9 @@ function serverLog(msg) {
 - 收到 `cameraClicked` 后启动定时器
 - 5秒内未收到截图则清理状态，防止状态挂死
 
-**2秒点击时间窗口**（`SELF_SERVICE_CLICK_WINDOW_MS = 2000`）：
+**3秒点击时间窗口**（`SELF_SERVICE_CLICK_WINDOW_MS = 3000`）：
 - 检查点击时间和收到截图的时间差
-- 超过2秒的截图请求被丢弃
+- 超过3秒的截图请求被丢弃
 
 **时间戳单位统一**：
 - 服务端使用 `Date.now()`（毫秒）
@@ -692,8 +692,8 @@ function serverLog(msg) {
 
 9. 服务端收到 hdScreenshot
    ├─ 从 selfServiceStateByBusinessId 获取状态（或使用消息参数）
-   ├─ 检查时间窗口：now - clickTimestamp <= 2000ms
-   │  └─ 超过2秒：丢弃，打印超时日志
+   ├─ 检查时间窗口：now - clickTimestamp <= 3000ms
+   │  └─ 超过3秒：丢弃，打印超时日志
    └─ 调用 processQrcodeImage() 处理截图
 
 10. processQrcodeImage() 处理
@@ -715,7 +715,7 @@ function serverLog(msg) {
 | `clearSelfServiceState(businessId)` | server.js | 清理指定业务设备的状态 |
 | `processQrcodeImage(buffer, businessId, operatorId, operatorName, businessName, clickTimestamp)` | server.js | 处理二维码图片（含时间窗口检查） |
 | `SELF_SERVICE_TIMEOUT_MS` | server.js | 自助登号超时时间（5000ms） |
-| `SELF_SERVICE_CLICK_WINDOW_MS` | server.js | 点击时间窗口（2000ms） |
+| `SELF_SERVICE_CLICK_WINDOW_MS` | server.js | 点击时间窗口（3000ms） |
 | `selfServiceStateByBusinessId` | server.js | 状态存储Map |
 
 #### 修改的文件
@@ -841,11 +841,11 @@ if (id === 'MUMU-service') {
 | | | 064add5 | 修复：客户端打开时跳过登录但权限管理每次都需要输入密码 |
 | | | 138997e | 清理：删除不再使用的自动登录相关代码 |
 | | | ccc2889 | 修复：恢复客户端通过auto=1参数跳过登录的功能 |
-| **v1.10.0** | - | d2715d3 | 自助登号系统重构：消除全局变量，添加2秒点击时间窗口检查 |
+| **v1.10.0** | - | d2715d3 | 自助登号系统重构：消除全局变量，添加3秒点击时间窗口检查 |
 | | | 6c6c984 | MUMU离线遮罩优化：移除多余遮罩层，离线时显示黑色遮罩 |
 | | | 46bcbe8 | 自助登号页面自愈逻辑：MUMU恢复后自动通知服务端更新状态 |
 | | | bfc31a6 | MUMU客户端自愈和断线重连：心跳机制与自动重连优化 |
-| | | c7928be | 点击时间窗口检查：超过2秒的点击操作不生效 |
+| | | c7928be | 点击时间窗口检查：超过3秒的点击操作不生效 |
 | | | c440229 | 自助登号并发修复：hdScreenshot携带operatorId，不再依赖全局变量 |
 | | | c252238 | 修复时间戳单位不匹配：自动检测秒级时间戳并转换毫秒 |
 | | | 56a7cde | 自助登号隐藏启动：--start-minimized启动后由JS显示窗口 |
@@ -863,6 +863,8 @@ if (id === 'MUMU-service') {
 | | | c0c09a3 | 优化 client.py 中4处 time.sleep，提升异步架构一致性 |
 | **v1.10.6** | 2026-05-24 | 4cb66fb | SplitCam A/B 刷新方案：解决虚拟摄像头缓存问题 |
 | | | 396759f | docs: 更新README，补充SplitCam A/B刷新方案说明 |
+| | | f2fe42e | 调整二维码生成位置：向下移动40像素 |
+| | | 46a4ea5 | 调整超时窗口：2秒→3秒 |
 
 ---
 
@@ -897,8 +899,8 @@ if (id === 'MUMU-service') {
 - `SELF_SERVICE_TIMEOUT_MS = 5000`
 - 收到 `cameraClicked` 后启动定时器，5秒内未收到截图则清理状态
 
-**2秒点击时间窗口**：
-- `SELF_SERVICE_CLICK_WINDOW_MS = 2000`
+**3秒点击时间窗口**：
+- `SELF_SERVICE_CLICK_WINDOW_MS = 3000`
 - 检查点击时间和收到截图的时间差
 
 **时间戳单位修复**：
@@ -962,7 +964,7 @@ if (id === 'MUMU-service') {
 #### MUMU客户端断线重连
 - **心跳机制**：定时发送心跳检测连接状态
 - **自动重连**：连接断开后自动尝试重连，避免长时间离线
-- **时间窗口验证**：点击操作需在2秒内完成，超时操作不生效
+- **时间窗口验证**：点击操作需在3秒内完成，超时操作不生效
 
 ---
 
@@ -982,11 +984,11 @@ if (id === 'MUMU-service') {
 ### 点击时间窗口机制
 
 #### 服务端限制
-- 点击时间窗口调整为**2秒**
-- 超过2秒的点击信息不再处理
+- 点击时间窗口调整为**3秒**
+- 超过3秒的点击信息不再处理
 
 #### 客户端限制
-- 点击操作超过**2秒**的记录不发送
+- 点击操作超过**3秒**的记录不发送
 - 确保操作实时性
 
 ---
@@ -998,7 +1000,7 @@ if (id === 'MUMU-service') {
 #### 问题背景
 - MUMU客户端发送秒级时间戳（`time.time()`）
 - 服务端使用毫秒级时间戳（`Date.now()`）
-- 导致计算时间差时差值约为17亿毫秒，永远超过2秒窗口
+- 导致计算时间差时差值约为17亿毫秒，永远超过3秒窗口
 
 #### 修复方案
 ```javascript
@@ -1395,7 +1397,7 @@ python mumu_client.py
    服务端保存 → 业务发起方和业务设备信息到 Map
    请求截图 → 向业务设备发送 requestHdScreenshot（带5参数）
    业务设备返回 → hdScreenshot (selfService目的，带6参数)
-   服务端检查时间窗口 → 超过2秒丢弃
+   服务端检查时间窗口 → 超过3秒丢弃
    处理二维码 → 保存原始截图、调用Python处理
    二维码处理 → 识别、裁剪、缩放、添加边框（200×360）
    验证文件更新 → 通过修改时间戳确认
@@ -1501,7 +1503,7 @@ python mumu_client.py
 |--------|------|
 | 帧队列限制 | maxsize=3，防止内存膨胀 |
 | 异步队列 | 截图Worker独立线程，主循环只处理发送 |
-| 点击时间窗口 | 2秒内的截图请求有效，超时被丢弃 |
+| 点击时间窗口 | 3秒内的截图请求有效，超时被丢弃 |
 
 ---
 
@@ -1515,7 +1517,7 @@ python mumu_client.py
 6. **收藏状态**持久化到服务端，刷新页面不丢失
 7. **帧超时**设置为2秒，防止网络波动累积旧帧
 8. **历史帧率**：早期逐步调整（1fps→3fps→5fps→8fps），v1.7.9 后稳定为**6fps**
-9. **自助登号超时机制**：5秒超时保护 + 2秒点击时间窗口
+9. **自助登号超时机制**：5秒超时保护 + 3秒点击时间窗口
 
 ---
 
