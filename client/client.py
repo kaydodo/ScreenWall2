@@ -1203,9 +1203,9 @@ def _open_browser_with_page(url, permission_type):
                         pass
                 atexit.register(cleanup_temp)
                 
-                # 窗口尺寸动态计算：最小高度960，屏幕更大时按60%屏幕高度，保持9:16比例
+                # 窗口尺寸动态计算：最小高度960，屏幕更大时按70%屏幕高度，保持9:16比例(510:960)
                 min_h = 960
-                screen_ratio = 0.6
+                screen_ratio = 0.7
                 
                 try:
                     import ctypes
