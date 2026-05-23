@@ -189,28 +189,6 @@ html, body {
 #screenImg:not([src]) {
   opacity: 0;
 }
-.mumu-offline-overlay {
-  display: none;
-  position: absolute;
-  inset: 0;
-  background: #000;
-  z-index: 100;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  color: #666;
-}
-.mumu-offline-overlay.visible {
-  display: flex;
-}
-.mumu-offline-text {
-  font-size: 20px;
-  margin-bottom: 16px;
-}
-.mumu-offline-hint {
-  font-size: 14px;
-  color: #444;
-}
 </style>
 </head>
 <body>
@@ -238,10 +216,6 @@ html, body {
       <img id="screenImg" src="" alt="屏幕画面">
     </div>
     <div class="offline-watermark" id="offlineWatermark">设备已离线</div>
-    <div class="mumu-offline-overlay" id="mumuOfflineOverlay">
-      <div class="mumu-offline-text">模拟器服务未启动</div>
-      <div class="mumu-offline-hint">请启动MUMU客户端后画面将自动恢复</div>
-    </div>
   </div>
 </div>
 
@@ -499,7 +473,6 @@ function handleBinaryFrame(data) {
       frameHealCount++;
       if (frameHealCount >= FRAME_HEAL_THRESHOLD) {
         isOnline = true;
-        document.getElementById('mumuOfflineOverlay').classList.remove('visible');
         updateOnlineStatus();
       }
     }
@@ -552,9 +525,6 @@ function handleJSONMessage(msg) {
         document.getElementById('screenImg').src = '';
         document.getElementById('screenImg').classList.add('grayscale');
         document.getElementById('offlineWatermark').style.display = 'flex';
-        document.getElementById('mumuOfflineOverlay').classList.add('visible');
-      } else if (isOnline && !wasOnline) {
-        document.getElementById('mumuOfflineOverlay').classList.remove('visible');
       }
       updateOnlineStatus();
     }
