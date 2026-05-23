@@ -33,9 +33,10 @@ class MumuClient:
         self._camera_trigger_base_resolution = (540, 960)
         self._is_reconnecting = False
         self._reconnect_stable_ok = False
+        self._cmd_queue = asyncio.Queue()
+        self._ws_ref = None
 
     def _get_camera_trigger_area_scaled(self):
-        """根据当前分辨率计算缩放后的触发区域"""
         base_w, base_h = self._camera_trigger_base_resolution
         current_w = getattr(self, '_real_width', base_w)
         current_h = getattr(self, '_real_height', base_h)
@@ -219,6 +220,35 @@ class MumuClient:
         except Exception as e:
             print(f"[MUMU] 发送 HD 截图失败: {e}")
 
+    async def _cmd_worker(self):
+        while self.running:
+            try:
+                cmd = await asyncio.wait_for(self._cmd_queue.get(), timeout=1.0)
+                cmd_type = cmd.get("type")
+                cmd_time = cmd.get("time", 0)
+                
+                if time.time() - cmd_time > 3:
+                    continue
+                
+                if cmd_type == "click":
+                    await self._adb_click(cmd["x"], cmd["y"])
+                elif cmd_type == "swipe":
+                    await self._adb_swipe(cmd["x1"], cmd["y1"], cmd["x2"], cmd["y2"], cmd["duration"])
+                elif cmd_type == "scroll":
+                    delta = cmd["delta"]
+                    center_x = 180
+                    center_y = 320
+                    if delta > 0:
+                        await self._adb_swipe(center_x, center_y - 50, center_x, center_y + 50, 200)
+                    else:
+                        await self._adb_swipe(center_x, center_y + 50, center_x, center_y - 50, 200)
+                elif cmd_type == "keyevent":
+                    await self._adb_keyevent(cmd["key"])
+            except asyncio.TimeoutError:
+                continue
+            except Exception as e:
+                print(f"[MUMU] 命令执行错误: {e}")
+
     async def _listen(self, ws, cfg):
         try:
             async for msg in ws:
@@ -237,7 +267,11 @@ class MumuClient:
                     elif msg_type == "keyClick":
                         key = data.get("key", "")
                         if key:
-                            await self._adb_keyevent(key)
+                            self._cmd_queue.put_nowait({
+                                "type": "keyevent",
+                                "key": key,
+                                "time": time.time()
+                            })
 
                     elif msg_type == "mouseClick":
                         x = data.get("x", 0)
@@ -249,7 +283,6 @@ class MumuClient:
                         business_name = data.get("businessName", "")
 
                         if x and y:
-                            # 保存当前点击信息，供相机点击时使用
                             self._last_click_info = {
                                 "x": x,
                                 "y": y,
@@ -260,7 +293,12 @@ class MumuClient:
                                 "businessName": business_name,
                                 "timestamp": time.time()
                             }
-                            await self._adb_click(x, y)
+                            self._cmd_queue.put_nowait({
+                                "type": "click",
+                                "x": x,
+                                "y": y,
+                                "time": time.time()
+                            })
 
                     elif msg_type == "mouseSwipe":
                         x1 = data.get("x", 0)
@@ -268,16 +306,23 @@ class MumuClient:
                         x2 = data.get("x2", 0)
                         y2 = data.get("y2", 0)
                         duration = data.get("duration", 300)
-                        await self._adb_swipe(x1, y1, x2, y2, duration)
+                        self._cmd_queue.put_nowait({
+                            "type": "swipe",
+                            "x1": x1,
+                            "y1": y1,
+                            "x2": x2,
+                            "y2": y2,
+                            "duration": duration,
+                            "time": time.time()
+                        })
 
                     elif msg_type == "mouseScroll":
                         delta = data.get("delta", 120)
-                        center_x = 180
-                        center_y = 320
-                        if delta > 0:
-                            await self._adb_swipe(center_x, center_y - 50, center_x, center_y + 50, 200)
-                        else:
-                            await self._adb_swipe(center_x, center_y + 50, center_x, center_y - 50, 200)
+                        self._cmd_queue.put_nowait({
+                            "type": "scroll",
+                            "delta": delta,
+                            "time": time.time()
+                        })
 
                     elif msg_type == "getCameraStatus":
                         status = self.get_camera_status()
@@ -327,10 +372,12 @@ class MumuClient:
                 await asyncio.sleep(1)
 
             if consecutive_errors >= 3:
-                print("[MUMU] ADB连续失败，开始重连...")
+                print("[MUMU] ADB连接断开，等待恢复...")
                 consecutive_errors = 0
                 self._is_reconnecting = True
-                while self.running:
+                
+                stable_count = 0
+                while self.running and stable_count < 3:
                     await asyncio.sleep(2)
                     try:
                         adb_path = self.config['adb'].get('path', 'adb')
@@ -342,12 +389,30 @@ class MumuClient:
                         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=5)
                         result = stdout.decode('utf-8', errors='ignore').strip()
                         if 'connected' in result.lower() or 'already connected' in result.lower():
-                            print("[MUMU] ADB重连成功")
-                            self._is_reconnecting = False
-                            break
-                    except Exception as reconnect_error:
-                        print(f"[MUMU] ADB重连失败: {reconnect_error}")
-                self._is_reconnecting = False
+                            stable_count += 1
+                        else:
+                            stable_count = 0
+                    except Exception:
+                        stable_count = 0
+                
+                if stable_count >= 3:
+                    print("[MUMU] ADB已稳定重连")
+                    self._is_reconnecting = False
+                    
+                    if self._ws_ref:
+                        try:
+                            self._ws_ref.send(json.dumps({
+                                "type": "deviceOnline",
+                                "deviceId": self.config["device"]["deviceId"]
+                            }))
+                            print("[MUMU] 已通知服务端重连成功")
+                        except:
+                            pass
+                    
+                    print("[MUMU] 尝试重新注入DLL...")
+                    self._inject_camera_hook()
+                else:
+                    self._is_reconnecting = False
 
     async def _get_device_resolution(self):
         try:
@@ -437,10 +502,10 @@ class MumuClient:
             pipe_name = r"\\.\pipe\MuMuCameraHook"
             handle = ctypes.windll.kernel32.CreateFileW(
                 pipe_name,
-                ctypes.c_uint32(0xC0000000),  # GENERIC_READ | GENERIC_WRITE
+                ctypes.c_uint32(0xC0000000),
                 0,
                 None,
-                ctypes.c_uint32(3),  # OPEN_EXISTING
+                ctypes.c_uint32(3),
                 0,
                 None
             )
@@ -491,10 +556,10 @@ class MumuClient:
             pipe_name = r"\\.\pipe\MuMuCameraHook"
             handle = ctypes.windll.kernel32.CreateFileW(
                 pipe_name,
-                ctypes.c_uint32(0xC0000000),  # GENERIC_READ | GENERIC_WRITE
+                ctypes.c_uint32(0xC0000000),
                 0,
                 None,
-                ctypes.c_uint32(3),  # OPEN_EXISTING
+                ctypes.c_uint32(3),
                 0,
                 None
             )
@@ -568,10 +633,10 @@ class MumuClient:
                 pipe_name = r"\\.\pipe\MuMuCameraNotify"
                 handle = ctypes.windll.kernel32.CreateFileW(
                     pipe_name,
-                    ctypes.c_uint32(0x80000000),  # GENERIC_READ
+                    ctypes.c_uint32(0x80000000),
                     0,
                     None,
-                    ctypes.c_uint32(3),  # OPEN_EXISTING
+                    ctypes.c_uint32(3),
                     0,
                     None
                 )
@@ -599,8 +664,6 @@ class MumuClient:
                         if response.startswith("CLICKED:"):
                             try:
                                 timestamp_ms = int(response[8:])
-                                # 将本地时间戳转换为服务端标准时间戳（秒）
-                                # 这里我们使用本地当前时间作为参考，实际业务中可以使用NTP同步
                                 local_timestamp = time.time()
                                 notify_queue.put_nowait(local_timestamp)
                             except:
@@ -617,7 +680,6 @@ class MumuClient:
         
         notify_queue = queue.Queue()
         
-        # 启动监听线程
         listen_thread = threading.Thread(
             target=self._listen_camera_notify_thread,
             args=(notify_queue,),
@@ -633,7 +695,6 @@ class MumuClient:
                     await asyncio.sleep(0.05)
                     continue
                 
-                # 去重：1秒内的重复通知只处理一次
                 current_time = time.time()
                 if current_time - self._last_camera_notify_time < 1.0:
                     continue
@@ -645,7 +706,6 @@ class MumuClient:
                     "mumuClientId": self.config["device"]["deviceId"]
                 }
                 
-                # 直接使用最后一次点击信息，但必须检查时间有效性（2秒内）
                 if self._last_click_info:
                     click_time = self._last_click_info.get("timestamp", 0)
                     if current_time - click_time <= 2:
@@ -691,11 +751,14 @@ class MumuClient:
         is_reconnected = False
 
         print(f"[MUMU] 正在连接服务端: {ws_uri}")
+        
+        cmd_task = asyncio.create_task(self._cmd_worker())
 
         while self.running:
             try:
                 ws = await websockets.connect(ws_uri, ping_interval=30, ping_timeout=10)
                 print("[MUMU] 已连接到服务端")
+                self._ws_ref = ws
 
                 device_id = cfg["device"]["deviceId"]
                 device_name = cfg["device"]["deviceName"]
