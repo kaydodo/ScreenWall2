@@ -2371,7 +2371,6 @@ wssClient.on('connection', (ws, req) => {
             const imgBuffer = Buffer.from(imageData.replace(/^data:image\/\w+;base64,/, ''), 'base64');
             await fsWriteFile(matchedRecord.screenshotPath, imgBuffer);
             matchedRecord.isFullScreenshot = true;
-            serverLog(`[报警] ${matchedRecord.deviceName} 1080P截图已保存`);
           } else {
             matchedRecord = alarmRecords.find(r =>
               r.deviceId === deviceId && !r.isFullScreenshot
@@ -2381,13 +2380,11 @@ wssClient.on('connection', (ws, req) => {
               const imgBuffer = Buffer.from(imageData.replace(/^data:image\/\w+;base64,/, ''), 'base64');
               await fsWriteFile(matchedRecord.screenshotPath, imgBuffer);
               matchedRecord.isFullScreenshot = true;
-              serverLog(`[报警] ${matchedRecord.deviceName} 1080P截图已保存（延迟到达）`);
             } else {
               const screenshotId = crypto.randomUUID();
               const screenshotPath = path.join(ALARM_SCREENSHOTS_DIR, `${screenshotId}.png`);
               const imgBuffer = Buffer.from(imageData.replace(/^data:image\/\w+;base64,/, ''), 'base64');
               await fsWriteFile(screenshotPath, imgBuffer);
-              serverLog(`[报警] ${deviceId} 1080P截图保存失败（无匹配记录），独立保存为 ${screenshotId}.png`);
             }
           }
         })();
