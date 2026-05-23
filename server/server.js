@@ -4511,7 +4511,7 @@ function serveFile(filePath, res, req) {
 }
 
 // ========== 离线检测 ==========
-const TIMEOUT_MS = CLIENT_CFG.timeoutMs || 10000;
+const TIMEOUT_MS = CLIENT_CFG.timeoutMs || 5000;
 setInterval(() => {
   const now = Date.now();
   let changed = false;
@@ -4522,7 +4522,6 @@ setInterval(() => {
       changed = true;
       if (id === 'MUMU-service') {
         serverLog(`[MUMU] 模拟器已超时断开`);
-        broadcastToBrowsers({ type: 'mumuOffline', deviceId: id });
       } else {
         serverLog(`[!] 超时离线: ${dev.deviceName}`);
       }
