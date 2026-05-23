@@ -569,6 +569,9 @@ function handleJSONMessage(msg) {
   }
   
   if (msg.type === 'mumuOffline' && msg.deviceId === 'MUMU-service') {
+    isOnline = false;
+    frameHealCount = 0;
+    updateOnlineStatus();
     document.getElementById('screenImg').src = '';
     document.getElementById('screenImg').style.opacity = '0';
   }
