@@ -315,6 +315,78 @@ D:\ScreenWall2\
 
 ---
 
+### 二维码处理脚本架构详解（qrcode_processor.py）
+
+#### 设计原则：独立进程 + 异步调用
+
+**核心思想**：将计算密集型的二维码识别与图片处理完全隔离到独立的 Python 进程中，避免阻塞 Node.js 主事件循环。
+
+**架构图**：
+```
+Node.js 服务端（server.js）
+    └─ processQrcodeImage() [async 异步函数
+       └─ await execFileAsync('python', ['qrcode_processor.py', imagePath]) [不阻塞]
+
+独立 Python 进程（qrcode_processor.py）
+       ├─ 读取原始图片
+       ├─ pyzbar 二维码识别
+       ├─ OpenCV 图片裁剪、缩放
+       └─ 返回 JSON 结果
+```
+
+#### 执行流程
+
+1. **服务端调用**（[server.js#L579](file:///d:/ScreenWall2/server/server.js#L579)
+   ```javascript
+   const { stdout } = await execFileAsync(
+       'python', 
+       ['qrcode_processor.py', imagePath], 
+       { timeout: 10000 }
+   );
+   ```
+
+2. **脚本执行**（[server/qrcode_processor.py](file:///d:/ScreenWall2/server/qrcode_processor.py)
+   - 读取命令行参数获取图片路径
+   - 调用 detect_qr() 识别二维码
+   - 调用 process_qrcode() 裁剪缩放
+   - 返回 JSON 格式结果
+
+3. **超时保护**：10秒超时防止进程挂死
+
+#### 功能模块
+
+| 函数 | 功能 |
+|------|------|
+| `is_url_or_ad(data)` | 过滤 URL 和广告内容 |
+| `detect_qr(image_path)` | pyzbar 二维码识别 |
+| `process_qrcode(image_path, qr_rect)` | OpenCV 图片处理 |
+| `main()` | 命令行入口，JSON 输出 |
+
+#### 图片处理流程：
+```
+原始截图 (1080p/720p)
+    ↓
+检测二维码位置
+    ↓
+裁剪二维码区域
+    ↓
+等比例缩放（宽度200px）
+    ↓
+创建白色背景画布 (200×360px)
+    ↓
+居中放置二维码
+    ↓
+保存到 qrcode/last_qrcode.png
+```
+
+#### 架构优势：
+- ✅ **服务端永不阻塞**：图片处理在独立进程
+- ✅ **故障隔离**：Python 脚本崩溃不影响服务端
+- ✅ **易于扩展**：可以独立优化二维码处理算法
+- ✅ **架构清晰**：职责分离，易于维护
+
+---
+
 ### 架构质量评分
 
 | 组件 | 异步架构 | 阻塞风险 | 性能评分 |
@@ -322,6 +394,7 @@ D:\ScreenWall2\
 | **server.js** | ⭐⭐⭐⭐⭐ | 无 | 优秀 |
 | **client.py** | ⭐⭐⭐⭐⭐ | 已消除 | 优秀 |
 | **mumu_client.py** | ⭐⭐⭐⭐⭐ | 无 | 优秀 |
+| **qrcode_processor.py** | N/A | N/A | 优秀（独立进程设计）|
 
 **总体评价**：整个系统的异步架构设计合理，**主循环阶段不存在明显的阻塞问题**。
 
