@@ -57,6 +57,7 @@ ScreenWall2 是一套多设备屏幕监控与远控系统，支持同时监控�
 - Python二维码处理（pyzbar）
 - 自动裁剪与200×360输出
 - 时间戳验证确保文件更新
+- SplitCam A/B 切换刷新机制，解决缓存问题
 
 ### 8. 权限管理
 - 设备级别的权限控制
@@ -88,7 +89,13 @@ D:\ScreenWall2\
 │   ├── mijia-bridge.py              # 米家API桥接脚本
 │   ├── qrcode/                      # 二维码输出目录
 │   │   ├── screenshot_original.png  # 原始截图
-│   │   └── last_qrcode.png         # 处理后的二维码
+│   │   ├── last_qrcode.png         # 处理后的二维码
+│   │   ├── blank.png               # 空白占位图
+│   │   ├── create_blank_image.py   # 空白图生成脚本
+│   │   ├── Project_A.scproject     # SplitCam方案A（显示二维码）
+│   │   ├── Project_B.scproject     # SplitCam方案B（显示空白图）
+│   │   ├── backup.scproject        # 备份方案
+│   │   └── README.md               # QRcode目录说明文档
 │   ├── public/                      # 前端静态资源
 │   │   ├── main.html                # 主页面
 │   │   ├── monitor-wall.html        # 监控墙页面
@@ -840,6 +847,8 @@ if (id === 'MUMU-service') {
 | | | e705fd0 | 重构README：合并版本历史，调整板块顺序 |
 | | | e99a87c | 完善README：补充权限管理功能介绍、米家API集成说明 |
 | | | c0c09a3 | 优化 client.py 中4处 time.sleep，提升异步架构一致性 |
+| **v1.10.6** | 2026-05-24 | 4cb66fb | SplitCam A/B 刷新方案：解决虚拟摄像头缓存问题 |
+| | | 396759f | docs: 更新README，补充SplitCam A/B刷新方案说明 |
 
 ---
 
@@ -1244,6 +1253,50 @@ if stable_count >= 5:
     print("[MUMU] 尝试重新注入DLL...")
     self._inject_camera_hook()
 ```
+
+---
+
+## v1.10.6 详细更新说明
+
+### SplitCam A/B 刷新机制
+
+#### 问题背景
+- SplitCam 等虚拟摄像头软件存在图片缓存问题
+- 二维码图片文件更新后，虚拟摄像头仍然显示旧图片
+- 需要强制刷新机制来确保显示最新二维码
+
+#### 解决方案
+1. **双项目切换机制**
+   - `Project_A.scproject`：显示 `last_qrcode.png`（二维码）
+   - `Project_B.scproject`：显示 `blank.png`（空白图）
+2. **A/B 切换流程**
+   - 二维码处理成功后，先启动方案A
+   - 等待3秒，再启动方案B
+   - 通过切换不同项目，让 SplitCam 重新从磁盘加载图片
+3. **集成到 `qrcode_processor.py`**
+   - 新增 `launch_splitcam()` 函数启动项目
+   - 新增 `trigger_ab_refresh()` 函数执行完整 A/B 刷新
+   - 二维码处理成功后自动调用刷新机制
+
+#### 关键代码
+```python
+def trigger_ab_refresh():
+    """触发 A/B 刷新流程：方案A → 3秒 → 方案B"""
+    # 1. 启动方案A
+    launch_splitcam(project_a)
+    # 2. 等待3秒
+    time.sleep(3)
+    # 3. 启动方案B
+    launch_splitcam(project_b)
+```
+
+#### 文件变更
+- `server/qrcode_processor.py`：集成 A/B 刷新功能
+- `server/qrcode/Project_A.scproject`：方案A项目
+- `server/qrcode/Project_B.scproject`：方案B项目
+- `server/qrcode/blank.png`：空白占位图
+- `server/qrcode/backup.scproject`：备份方案
+- `server/qrcode/README.md`：子目录说明文档
 
 ---
 
