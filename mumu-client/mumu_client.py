@@ -665,6 +665,7 @@ class MumuClient:
         server_port = self.config["server"]["port"]
         ws_uri = f"ws://{server_host}:{server_port}/ws/client"
         cfg = self.config
+        is_reconnected = False
 
         print(f"[MUMU] 正在连接服务端: {ws_uri}")
 
@@ -691,6 +692,14 @@ class MumuClient:
                     "monitorOffsetY": 0
                 }))
                 print(f"[MUMU] 已注册: deviceId={device_id}")
+
+                if is_reconnected:
+                    await ws.send(json.dumps({
+                        "type": "deviceOnline",
+                        "deviceId": device_id
+                    }))
+                    print("[MUMU] 模拟器已恢复连接")
+                    is_reconnected = False
 
                 listen_task = asyncio.create_task(self._listen(ws, cfg))
                 screenshot_task = asyncio.create_task(self._screenshot_worker())
@@ -746,6 +755,8 @@ class MumuClient:
                                 screen_width, screen_height = sw, sh
                                 print(f"[MUMU] 模拟器已恢复，使用分辨率: {screen_width}x{screen_height}")
                                 break
+                        if screen_width and screen_height:
+                            is_reconnected = True
                     if not self.running:
                         break
 
