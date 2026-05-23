@@ -519,7 +519,9 @@ async function processQrcodeImage(imageBuffer, businessId, operatorId, operatorN
   try {
     const now = Date.now();
     let normalizedTimestamp = clickTimestamp;
-    if (normalizedTimestamp && normalizedTimestamp > 10000000000) {
+    // 判断是否是秒级时间戳：小于 10000000000 (2001年左右)，或者不是整数（带小数）
+    const isSeconds = normalizedTimestamp && (normalizedTimestamp < 10000000000 || !Number.isInteger(normalizedTimestamp));
+    if (isSeconds) {
       normalizedTimestamp = normalizedTimestamp * 1000;
     }
     if (normalizedTimestamp && now - normalizedTimestamp > SELF_SERVICE_CLICK_WINDOW_MS) {

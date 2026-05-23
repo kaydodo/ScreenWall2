@@ -2342,6 +2342,9 @@ class ScreenWallClient:
                         purpose = data.get("purpose", "collection")
                         timestamp = data.get("timestamp")
                         business_id = data.get("businessId")
+                        operator_id = data.get("operatorId")
+                        operator_name = data.get("operatorName")
+                        business_name = data.get("businessName")
                         if timestamp:
                             capt = ScreenCapturer(quality=30, resize_w=1920, resize_h=1080, monitor_index=_current_monitor_index)
                             try:
@@ -2361,6 +2364,12 @@ class ScreenWallClient:
                                 }
                                 if business_id:
                                     payload["businessId"] = business_id
+                                if business_name:
+                                    payload["businessName"] = business_name
+                                if operator_id:
+                                    payload["operatorId"] = operator_id
+                                if operator_name:
+                                    payload["operatorName"] = operator_name
                                 await ws.send(json.dumps(payload))
 
                     elif msg_type == "serverMigrate":
