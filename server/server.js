@@ -2561,7 +2561,6 @@ wssClient.on('connection', (ws, req) => {
       // businessName: 业务设备名称
       const { businessId, businessName, x, y, timestamp, deviceId: operatorId, deviceName: operatorName } = msg;
       if (!businessId) {
-        serverLog('[自助登号] cameraClicked消息缺少businessId');
         return;
       }
       
