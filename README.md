@@ -1340,6 +1340,12 @@ python mumu_client.py
    - 将 `qrcode/last_qrcode.png` 设置为虚拟摄像头源
    - 在实际扫码框中选择该虚拟摄像头即可完成登录
 
+9. **SplitCam A/B 刷新机制**（强制刷新图片，解决缓存问题）
+   - 二维码处理成功后，`qrcode_processor.py` 会自动执行 A/B 切换
+   - **流程**：启动 `Project_A.scproject` → 等待3秒 → 启动 `Project_B.scproject`
+   - 通过切换不同项目文件，让 SplitCam 重新从磁盘加载图片，避免缓存
+   - 详细说明见 `server/qrcode/README.md`
+
 #### 日志查看
 - 同一设备操作：`[自助登号] 设备名使用二维码扫码（成功/失败/超时）`
 - 帮助其他设备操作：`[自助登号] 设备名A帮助设备名B使用二维码扫码（成功/失败/超时）`
