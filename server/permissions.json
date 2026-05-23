@@ -1,0 +1,10 @@
+{
+  "aeawtmgwtiau3yfl-admin2": {
+    "allowScreenWall": true,
+    "allowSelfService": true
+  },
+  "aeawtmgwtiau3yfl": {
+    "allowScreenWall": true,
+    "allowSelfService": true
+  }
+}

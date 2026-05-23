@@ -1182,12 +1182,54 @@ def _open_browser_with_page(url, permission_type):
     """根据权限类型用不同方式打开浏览器"""
     if permission_type == 'selfService':
         # 自助登号使用特殊窗口模式
-        import subprocess
         browser_path = _get_chromium_browser_path() or _get_default_browser_path()
         if browser_path:
             exe_name = os.path.basename(browser_path).lower()
             if exe_name in ("chrome.exe", "msedge.exe"):
-                subprocess.Popen([browser_path, "--app=" + url, "--window-size=420,780", "--new-window"])
+                # 使用临时用户数据目录 + 居中显示窗口
+                import subprocess
+                import tempfile
+                import atexit
+                
+                # 创建临时目录
+                temp_dir = tempfile.mkdtemp(prefix="screenwall_")
+                
+                # 清理临时目录（程序退出时删除）
+                def cleanup_temp():
+                    try:
+                        import shutil
+                        shutil.rmtree(temp_dir, ignore_errors=True)
+                    except:
+                        pass
+                atexit.register(cleanup_temp)
+                
+                # 窗口尺寸 9:16 比例，高度960
+                win_w = 540
+                win_h = 960
+                
+                # 获取屏幕大小，计算靠右位置
+                try:
+                    import ctypes
+                    user32 = ctypes.windll.user32
+                    screen_w = user32.GetSystemMetrics(0)
+                    screen_h = user32.GetSystemMetrics(1)
+                    # 靠右显示，窗口右边缘距离屏幕右边缘50像素
+                    pos_x = screen_w - win_w - 50
+                    pos_y = (screen_h - win_h) // 2
+                except:
+                    pos_x = 800
+                    pos_y = 100
+                
+                subprocess.Popen([
+                    browser_path, 
+                    "--app=" + url, 
+                    "--window-size=" + str(win_w) + "," + str(win_h), 
+                    "--window-position=" + str(pos_x) + "," + str(pos_y),
+                    "--new-window",
+                    "--disable-session-crashed-bubble",
+                    "--no-first-run",
+                    "--user-data-dir=" + temp_dir
+                ])
             else:
                 webbrowser.open(url)
         else:

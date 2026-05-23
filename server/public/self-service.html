@@ -4,6 +4,44 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>自助登号</title>
+<script>
+// 强制设置窗口大小 540x960 (9:16比例，高度960)
+window.addEventListener('load', function() {
+  setTimeout(function() {
+    try {
+      window.resizeTo(540, 960);
+      setTimeout(function() {
+        window.resizeTo(540, 960);
+        // 强制移动窗口到屏幕右侧
+        moveToRight();
+      }, 300);
+    } catch(e) {}
+  }, 500);
+});
+
+// 移动窗口到屏幕右侧
+function moveToRight() {
+  try {
+    // 获取屏幕尺寸
+    var screenW = window.screen.availWidth;
+    var screenH = window.screen.availHeight;
+    var winW = 540;
+    var winH = 960;
+    
+    // 计算靠右位置：右边缘距离屏幕右边缘50像素
+    var posX = screenW - winW - 50;
+    var posY = Math.floor((screenH - winH) / 2);
+    
+    // 移动窗口
+    window.moveTo(posX, posY);
+    
+    // 再次尝试确保生效
+    setTimeout(function() {
+      window.moveTo(posX, posY);
+    }, 500);
+  } catch(e) {}
+}
+</script>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body {
@@ -585,7 +623,6 @@ function setupMouseEvents() {
   
   previewArea.onwheel = function(e) {
     e.preventDefault();
-    // 模拟器滚轮可以作为快速滑动
     if (isOnline) {
       var delta = e.deltaY > 0 ? -120 : 120;
       sendMouse('mouseScroll', 0, 0, { delta: delta });
@@ -607,10 +644,6 @@ function setupMouseEvents() {
       swipeStartY = pos.y;
       swipeStartTime = Date.now();
     }
-  };
-  
-  previewArea.onmousemove = function(e) {
-    // 可以添加滑动过程中暂时不做处理
   };
   
   previewArea.onmouseup = function(e) {
