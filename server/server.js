@@ -517,10 +517,13 @@ function clearSelfServiceState(businessId) {
 
 async function processQrcodeImage(imageBuffer, businessId, operatorId, operatorName, businessName, clickTimestamp) {
   try {
-    // 检查点击时间窗口
     const now = Date.now();
-    if (clickTimestamp && now - clickTimestamp > SELF_SERVICE_CLICK_WINDOW_MS) {
-      serverLog(`[自助登号] 点击超时，当前时间差：${now - clickTimestamp}ms，超过窗口：${SELF_SERVICE_CLICK_WINDOW_MS}ms`);
+    let normalizedTimestamp = clickTimestamp;
+    if (normalizedTimestamp && normalizedTimestamp > 10000000000) {
+      normalizedTimestamp = normalizedTimestamp * 1000;
+    }
+    if (normalizedTimestamp && now - normalizedTimestamp > SELF_SERVICE_CLICK_WINDOW_MS) {
+      serverLog(`[自助登号] 点击超时，当前时间差：${now - normalizedTimestamp}ms，超过窗口：${SELF_SERVICE_CLICK_WINDOW_MS}ms`);
       return;
     }
     
