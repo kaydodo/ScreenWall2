@@ -447,10 +447,22 @@ Node.js 服务端（server.js）
 
 3. **超时保护**：10秒超时防止进程挂死
 
+#### 全局变量
+
+| 变量 | 说明 |
+|------|------|
+| `OUTPUT_PATH` | 二维码输出文件路径 |
+| `script_dir` | 脚本所在目录 |
+| `project_a` | SplitCam 方案A 项目文件路径 |
+| `project_b` | SplitCam 方案B 项目文件路径 |
+| `splitcam_path` | SplitCam 可执行文件路径 |
+
 #### 功能模块
 
 | 函数 | 功能 |
 |------|------|
+| `launch_splitcam(project_file)` | 启动 SplitCam 加载指定项目 |
+| `trigger_ab_refresh()` | 触发 A/B 刷新流程（方案A→3秒→方案B） |
 | `is_url_or_ad(data)` | 过滤 URL 和广告内容 |
 | `detect_qr(image_path)` | pyzbar 二维码识别 |
 | `process_qrcode(image_path, qr_rect)` | OpenCV 图片处理 |
