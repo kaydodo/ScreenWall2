@@ -399,6 +399,7 @@ class MumuClient:
                     print("[MUMU] ADB已稳定重连")
                     self._is_reconnecting = False
                     self._status_notify_queue.put_nowait({"type": "deviceOnline"})
+                    print("[MUMU] 尝试重新注入DLL...")
                     self._inject_camera_hook()
                 else:
                     self._is_reconnecting = False
