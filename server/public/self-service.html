@@ -518,8 +518,13 @@ function handleJSONMessage(msg) {
     });
     updateDeviceSelect();
     if (previewDeviceId && devices[previewDeviceId]) {
+      var wasOnline = isOnline;
       isOnline = devices[previewDeviceId].online !== false;
       updateOnlineStatus();
+      if (!isOnline && wasOnline) {
+        document.getElementById('screenImg').src = '';
+        document.getElementById('offlineWatermark').style.display = 'flex';
+      }
     }
   }
   
