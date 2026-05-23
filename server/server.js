@@ -495,48 +495,50 @@ function formatDeviceName(name, id) {
   return `${name}（${id}）`;
 }
 
-// 当前正在等待的MUMU客户端连接（用于返回qrcodeResult）
-let _currentMUMUClient = null;
-let _currentOperatorId = null;
-let _currentOperatorName = null;
-let _currentBusinessId = null;
-let _currentBusinessName = null;
-let _selfServiceTimeoutId = null;
-
 // 自助登号超时时间（毫秒）
 const SELF_SERVICE_TIMEOUT_MS = 5000;
 
+// 自助登号点击时间窗口（毫秒）
+const SELF_SERVICE_CLICK_WINDOW_MS = 2000;
+
+// 自助登号状态管理器（按业务设备ID存储状态，避免多个连接混淆）
+const selfServiceStateByBusinessId = new Map(); // businessId -> { operatorId, operatorName, businessName, mumuClient, timeoutId, clickTimestamp }
+
 // 自助登号超时清理函数
-function clearSelfServiceState() {
-  _currentMUMUClient = null;
-  _currentOperatorId = null;
-  _currentOperatorName = null;
-  _currentBusinessId = null;
-  _currentBusinessName = null;
-  if (_selfServiceTimeoutId) {
-    clearTimeout(_selfServiceTimeoutId);
-    _selfServiceTimeoutId = null;
+function clearSelfServiceState(businessId) {
+  const state = selfServiceStateByBusinessId.get(businessId);
+  if (state) {
+    if (state.timeoutId) {
+      clearTimeout(state.timeoutId);
+    }
+    selfServiceStateByBusinessId.delete(businessId);
   }
 }
 
-async function processQrcodeImage(imageBuffer, businessId, operatorId) {
+async function processQrcodeImage(imageBuffer, businessId, operatorId, operatorName, businessName, clickTimestamp) {
   try {
-    // 使用保存的变量，确保名称在 cameraClicked 时已经保存好
-    const operatorName = _currentOperatorName || operatorId;
-    const businessDeviceName = _currentBusinessName || businessId;
+    // 检查点击时间窗口
+    const now = Date.now();
+    if (clickTimestamp && now - clickTimestamp > SELF_SERVICE_CLICK_WINDOW_MS) {
+      serverLog(`[自助登号] 点击超时，当前时间差：${now - clickTimestamp}ms，超过窗口：${SELF_SERVICE_CLICK_WINDOW_MS}ms`);
+      return;
+    }
+    
+    const operatorDevName = operatorName || operatorId;
+    const businessDevName = businessName || businessId;
     const isSameDevice = businessId === operatorId;
 
     const logResult = (result) => {
       if (isSameDevice) {
-        serverLog(`[自助登号] ${formatDeviceName(operatorName, operatorId)}使用二维码扫码（${result}）`);
+        serverLog(`[自助登号] ${formatDeviceName(operatorDevName, operatorId)}使用二维码扫码（${result}）`);
       } else {
-        serverLog(`[自助登号] ${formatDeviceName(operatorName, operatorId)}帮助${formatDeviceName(businessDeviceName, businessId)}使用二维码扫码（${result}）`);
+        serverLog(`[自助登号] ${formatDeviceName(operatorDevName, operatorId)}帮助${formatDeviceName(businessDevName, businessId)}使用二维码扫码（${result}）`);
       }
     };
 
     if (!imageBuffer || imageBuffer.length < 1000) {
       logResult('失败');
-      clearSelfServiceState();
+      clearSelfServiceState(businessId);
       return;
     }
 
@@ -562,7 +564,7 @@ async function processQrcodeImage(imageBuffer, businessId, operatorId) {
     if (fileModifiedTime < beforeSaveTime - 1000) {
       serverLog('[二维码] 原始截图保存失败，文件未更新');
       logResult('失败');
-      clearSelfServiceState();
+      clearSelfServiceState(businessId);
       return;
     }
 
@@ -591,7 +593,7 @@ async function processQrcodeImage(imageBuffer, businessId, operatorId) {
     serverError('[二维码] 处理失败:', err.message);
     logResult('失败');
   } finally {
-    clearSelfServiceState();
+    clearSelfServiceState(businessId);
   }
 }
 
@@ -2298,17 +2300,22 @@ wssClient.on('connection', (ws, req) => {
       const dev = devices.get(msg.deviceId);
       if (!dev) return;
       
-      const { purpose, timestamp, deviceId, image, businessId } = msg;
+      const { purpose, timestamp, deviceId, image, businessId, businessName, operatorId, operatorName } = msg;
       
       if (purpose === 'selfService') {
         (async () => {
           try {
             const base64Data = image.replace(/^data:image\/\w+;base64,/, '');
             const buffer = Buffer.from(base64Data, 'base64');
-            // 使用消息中携带的businessId和operatorId，不再依赖全局变量
-            const actualBusinessId = businessId || _currentBusinessId;
-            const actualOperatorId = msg.operatorId || _currentOperatorId;
-            await processQrcodeImage(buffer, actualBusinessId, actualOperatorId);
+            // 从保存的状态中获取参数，或者使用消息中携带的参数
+            const state = selfServiceStateByBusinessId.get(businessId || deviceId);
+            const actualBusinessId = businessId || deviceId;
+            const actualOperatorId = operatorId || (state ? state.operatorId : null);
+            const actualOperatorName = operatorName || (state ? state.operatorName : null);
+            const actualBusinessName = businessName || (state ? state.businessName : null);
+            const actualClickTimestamp = timestamp || (state ? state.clickTimestamp : null);
+            
+            await processQrcodeImage(buffer, actualBusinessId, actualOperatorId, actualOperatorName, actualBusinessName, actualClickTimestamp);
           } catch (e) {
             serverError('[二维码] 处理自助登号截图失败:', e.message);
           }
@@ -2587,33 +2594,44 @@ wssClient.on('connection', (ws, req) => {
       const finalOperatorName = operatorName || (operatorDev ? operatorDev.deviceName : operatorId);
       const finalBusinessName = businessName || businessDev.deviceName;
       
-      // 保存当前状态
-      _currentMUMUClient = ws;
-      _currentOperatorId = operatorId;                    // 业务发起方ID
-      _currentOperatorName = finalOperatorName;          // 业务发起方名称
-      _currentBusinessId = businessId;                    // 业务设备ID
-      _currentBusinessName = finalBusinessName;           // 业务设备名称
+      const clickTimestamp = timestamp || Date.now();
+      
+      // 清除之前可能存在的该业务设备的状态
+      clearSelfServiceState(businessId);
+      
+      // 保存当前状态（按业务设备ID存储）
+      const state = {
+        operatorId: operatorId,
+        operatorName: finalOperatorName,
+        businessName: finalBusinessName,
+        mumuClient: ws,
+        clickTimestamp: clickTimestamp,
+        timeoutId: null
+      };
+      selfServiceStateByBusinessId.set(businessId, state);
       
       // 设置超时
-      _selfServiceTimeoutId = setTimeout(() => {
-        const isSameDevice = _currentOperatorId === _currentBusinessId;
+      state.timeoutId = setTimeout(() => {
+        const isSameDevice = state.operatorId === businessId;
         
         serverLog(isSameDevice 
-          ? `[自助登号] ${formatDeviceName(_currentOperatorName, _currentOperatorId)}使用二维码扫码（超时）` 
-          : `[自助登号] ${formatDeviceName(_currentOperatorName, _currentOperatorId)}帮助${formatDeviceName(_currentBusinessName, _currentBusinessId)}使用二维码扫码（超时）`);
+          ? `[自助登号] ${formatDeviceName(state.operatorName, state.operatorId)}使用二维码扫码（超时）` 
+          : `[自助登号] ${formatDeviceName(state.operatorName, state.operatorId)}帮助${formatDeviceName(state.businessName, businessId)}使用二维码扫码（超时）`);
         
-        clearSelfServiceState();
+        clearSelfServiceState(businessId);
       }, SELF_SERVICE_TIMEOUT_MS);
       
-      // 向业务设备请求1080P截图
+      // 向业务设备请求1080P截图（携带所有四个参数）
       for (const client of wssClient.clients) {
         if (client._deviceId === businessId && client.readyState === 1) {
           client.send(JSON.stringify({ 
             type: 'requestHdScreenshot', 
             purpose: 'selfService',
-            timestamp: timestamp || Date.now(),
+            timestamp: clickTimestamp,
             businessId: businessId,
-            operatorId: operatorId
+            businessName: finalBusinessName,
+            operatorId: operatorId,
+            operatorName: finalOperatorName
           }));
           break;
         }
@@ -3621,13 +3639,7 @@ wssBrowser.on('connection', (ws, req) => {
       ws._isSelfService = true;
       ws._selfServiceDeviceId = msg.operatorId;
       ws._selfServiceDeviceName = msg.operatorName;
-      _currentOperatorId = msg.operatorId;
-      _currentBusinessId = msg.businessId;
-      const operatorDev = devices.get(msg.operatorId);
-      const businessDev = devices.get(msg.businessId);
-      // 优先使用从devices字典获取的名称，确保准确性
-      _currentOperatorName = operatorDev ? operatorDev.deviceName : (msg.operatorName || msg.operatorId);
-      _currentBusinessName = businessDev ? businessDev.deviceName : (msg.businessName || msg.businessId);
+      // selfServiceInit 不再使用全局变量，仅用于初始化 WS 连接标识
     }
 
     if (msg.type === 'getWalledDevices') {
