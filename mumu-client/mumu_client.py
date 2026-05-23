@@ -378,7 +378,7 @@ class MumuClient:
                 
                 stable_count = 0
                 while self.running and stable_count < 5:
-                    await asyncio.sleep(3)
+                    await asyncio.sleep(2)
                     try:
                         adb_path = self.config['adb'].get('path', 'adb')
                         proc = await asyncio.create_subprocess_exec(
