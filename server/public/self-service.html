@@ -234,7 +234,9 @@ var screenWidth = 1920;
 var screenHeight = 1080;
 var PREVIEW_ASPECT = 9 / 16;
 var _previewLayoutTimer = null;
-var _autoLoginSuccess = false; // 自动登录成功标记
+var _autoLoginSuccess = false;
+var _lastFrameTime = 0;
+var _frameThrottleMs = 300; // 自动登录成功标记
 
 // 检查 URL 参数中的自动登录 token
 function checkAutoLoginToken() {
@@ -440,6 +442,10 @@ function connectWS() {
 }
 
 function handleBinaryFrame(data) {
+  var now = Date.now();
+  if (now - _lastFrameTime < _frameThrottleMs) return;
+  _lastFrameTime = now;
+  
   var view = new DataView(data);
   var arr = new Uint8Array(data);
   var frameType = arr[0];
