@@ -536,6 +536,7 @@ if (id === 'MUMU-service') {
 | | c252238 | 修复时间戳单位不匹配：自动检测秒级时间戳并转换毫秒 |
 | | 56a7cde | 自助登号隐藏启动：--start-minimized启动后由JS显示窗口 |
 | | 3822195 | 自助登号窗口尺寸：1080p基准510×960，更大屏幕按比例放大 |
+| **v1.10.1** | - | 自助登号修复：时间戳单位检测逻辑（秒级是<10000000000），电脑客户端hdScreenshot补充完整参数（operatorId/operatorName/businessName） |
 
 ---
 
@@ -661,6 +662,59 @@ if (id === 'MUMU-service') {
 #### 客户端限制
 - 点击操作超过**60秒**的记录不发送
 - 确保操作实时性
+
+---
+
+## v1.10.1 详细更新说明
+
+### 时间戳单位不匹配问题修复
+
+#### 问题背景
+- MUMU客户端发送秒级时间戳（`time.time()`）
+- 服务端使用毫秒级时间戳（`Date.now()`）
+- 导致计算时间差时差值约为17亿毫秒，永远超过2秒窗口
+
+#### 修复方案
+```javascript
+// 判断是否是秒级时间戳：小于10000000000（2001年左右），或者不是整数（带小数）
+const isSeconds = normalizedTimestamp && (normalizedTimestamp < 10000000000 || !Number.isInteger(normalizedTimestamp));
+
+if (isSeconds) {
+    normalizedTimestamp = normalizedTimestamp * 1000;
+}
+```
+
+#### 关键逻辑
+- 秒级时间戳通常在1.7e9左右，远小于1e10
+- 毫秒级时间戳通常在1.7e12左右，远大于1e10
+- 通过检测时间戳是否小于1e10，或者是否带小数（`time.time()`返回浮点数）来自动判断
+
+---
+
+### 电脑客户端hdScreenshot参数补全
+
+#### 问题背景
+- 电脑客户端在发送`hdScreenshot`时只传递了`businessId`
+- 缺少`operatorId`、`operatorName`、`businessName`
+- 导致自助登号日志无法显示完整信息
+
+#### 修复方案
+```python
+# 在requestHdScreenshot处理中
+operator_id = data.get("operatorId")
+operator_name = data.get("operatorName")
+business_name = data.get("businessName")
+
+# 构造payload时补充
+if business_id:
+    payload["businessId"] = business_id
+if business_name:
+    payload["businessName"] = business_name
+if operator_id:
+    payload["operatorId"] = operator_id
+if operator_name:
+    payload["operatorName"] = operator_name
+```
 
 ---
 
