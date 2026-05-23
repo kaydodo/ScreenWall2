@@ -66,38 +66,38 @@ ScreenWall2 是一套多设备屏幕监控与远控系统，支持同时监控�
 D:\ScreenWall2\
 ├── server/                          # 服务端
 │   ├── server.js                    # 主服务程序
-│   ├── qrcode_processor.py         # 二维码处理脚本
-│   ├── qrcode/                     # 二维码输出目录
-│   │   ├── screenshot_original.png # 原始截图
+│   ├── qrcode_processor.py          # 二维码处理脚本
+│   ├── qrcode/                      # 二维码输出目录
+│   │   ├── screenshot_original.png  # 原始截图
 │   │   └── last_qrcode.png         # 处理后的二维码
 │   ├── public/                      # 前端静态资源
-│   │   ├── main.html               # 主页面
-│   │   ├── monitor-wall.html       # 监控墙页面
+│   │   ├── main.html                # 主页面
+│   │   ├── monitor-wall.html        # 监控墙页面
 │   │   ├── preview.html            # 预览弹窗页面
-│   │   ├── self-service.html       # 自助登号页面
-│   │   ├── style.css               # 样式文件
-│   │   ├── config.json             # 配置文件
-│   │   └── devices.json            # 设备数据持久化
-│   ├── logs/                       # 日志目录
-│   └── package.json                # 依赖配置
+│   │   ├── self-service.html        # 自助登号页面
+│   │   ├── style.css                # 样式文件
+│   │   ├── config.json              # 配置文件
+│   │   └── devices.json             # 设备数据持久化
+│   ├── logs/                        # 日志目录
+│   └── package.json                 # 依赖配置
 │
 ├── client/                          # 电脑客户端
-│   ├── client.py                   # 主程序
-│   ├── config.json                 # 配置文件
-│   ├── build_client.py             # 打包脚本
-│   └── dist/                       # 打包输出目录
+│   ├── client.py                    # 主程序
+│   ├── config.json                  # 配置文件
+│   ├── build_client.py              # 打包脚本
+│   └── dist/                        # 打包输出目录
 │
 ├── mumu-client/                     # MUMU模拟器客户端
-│   ├── mumu_client.py             # 主程序
-│   ├── injector49.exe              # 摄像头Hook注入器
-│   └── config.json                 # 配置文件
+│   ├── mumu_client.py              # 主程序
+│   ├── injector49.exe               # 摄像头Hook注入器
+│   └── config.json                  # 配置文件
 │
 └── mumu_camera_hook/               # MUMU摄像头Hook模块
-    ├── camera_hook49.cpp           # Hook DLL源码
-    ├── camera_hook49.dll           # Hook DLL
-    ├── injector49.cpp              # 注入器源码
-    ├── injector49.exe              # 注入器
-    └── README.md                   # Hook模块说明
+    ├── camera_hook49.cpp            # Hook DLL源码
+    ├── camera_hook49.dll            # Hook DLL
+    ├── injector49.cpp               # 注入器源码
+    ├── injector49.exe               # 注入器
+    └── README.md                    # Hook模块说明
 ```
 
 ---
@@ -137,25 +137,26 @@ D:\ScreenWall2\
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                      浏览器前端                                  │
-│  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐         │
-│  │  main.html   │ │monitor-wall  │ │ self-service│         │
-│  │ (格子视图)   │ │  (监控墙)    │ │  (登号)    │         │
-│  └──────┬───────┘ └──────┬───────┘ └──────┬───────┘         │
-│         │                │                │                │
-│         └────────────────┴────────────────┘                │
-│                            │ WebSocket                        │
-└────────────────────────────┼─────────────────────────────────┘
+│  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐             │
+│  │  main.html   │ │monitor-wall │ │ self-service│             │
+│  │ (格子视图)   │ │  (监控墙)    │ │  (登号)      │             │
+│  └──────┬───────┘ └──────┬───────┘ └──────┬───────┘             │
+│         │                │                │                    │
+│         └────────────────┴────────────────┘                    │
+│                            │ WebSocket                          │
+└────────────────────────────┼─────────────────────────────────────┘
                              │
                              ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                      服务端 (server.js)                       │
-│  ┌─────────────────────────────────────────────────────────┐  │
-│  │  - WebSocket Server (设备/浏览器/监控墙)                 │  │
-│  │  - 设备状态管理 (devices.json)                           │  │
-│  │  - 帧批量推送 (browserBatch/wallBatch)                  │  │
-│  │  - OCR报警检测 (识别掉线弹窗)                            │  │
-│  │  - 分组管理、收藏管理                                    │  │
-│  └─────────────────────────────────────────────────────────┘  │
+│                      服务端 (server.js)                         │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │  - WebSocket Server (设备/浏览器/监控墙)                  │    │
+│  │  - 设备状态管理 (devices.json)                            │    │
+│  │  - 帧批量推送 (browserBatch/wallBatch)                   │    │
+│  │  - OCR报警检测 (识别掉线弹窗)                             │    │
+│  │  - 自助登号状态管理 (selfServiceStateByBusinessId)       │    │
+│  │  - 分组管理、收藏管理                                    │    │
+│  └─────────────────────────────────────────────────────────┘    │
 └─────────────────────────────────────────────────────────────────┘
                              │
                              │ WebSocket
@@ -164,11 +165,11 @@ D:\ScreenWall2\
 │                      设备客户端                                  │
 │  ┌──────────────────────┐      ┌──────────────────────┐         │
 │  │   电脑客户端         │      │   MUMU客户端         │         │
-│  │   client.py          │      │   mumu_client.py    │         │
+│  │   client.py          │      │   mumu_client.py     │         │
 │  │                      │      │                      │         │
 │  │  - 屏幕截图(MSS)     │      │  - ADB截图          │         │
 │  │  - 键盘鼠标远控      │      │  - WebSocket推流    │         │
-│  │  - 远控开关/多显示器 │      │  - 摄像头Hook注入    │         │
+│  │  - 远控开关/多显示器 │      │  - 摄像头Hook注入   │         │
 │  │  - 心跳/报警截图     │      │  - 自动注入检测     │         │
 │  └──────────────────────┘      └──────────────────────┘         │
 └─────────────────────────────────────────────────────────────────┘
@@ -188,10 +189,10 @@ D:\ScreenWall2\
 | `setLevel` | `deviceId, level` | 切换流级别 |
 | `subscribeWall` | `cols, rows, devices[]` | 订阅监控墙 |
 | `keyClick` | `deviceId, key` | 键盘按键 |
-| `mouseClick` | `deviceId, x, y` | 鼠标点击 |
+| `mouseClick` | `deviceId, x, y, operatorId, operatorName, businessId, businessName` | 鼠标点击（自助登号4参数） |
 | `mouseSwipe` | `deviceId, x, y, x2, y2, duration` | 滑动 |
 | `mouseScroll` | `deviceId, delta` | 滚轮 |
-| `selfServiceInit` | `deviceId, deviceName` | 自助登号初始化 |
+| `selfServiceInit` | `operatorId, operatorName, businessId, businessName` | 自助登号初始化 |
 
 #### 服务端 → 浏览器
 | 消息 | 参数 | 说明 |
@@ -207,12 +208,14 @@ D:\ScreenWall2\
 | `alarmViewed` | `alarmId` | 标记已查看 |
 | `alarmDeleted` | `alarmId` | 删除报警 |
 | `latency` | `latency` | 延迟显示 |
+| `mumuOffline` | `deviceId` | MUMU微服务离线 |
 
 #### 设备客户端 → 服务端
 | 消息 | 参数 | 说明 |
 |------|------|------|
 | `register` | `deviceId, deviceName, version, screenWidth, screenHeight` | 注册设备 |
 | 二进制 `0x01` | `deviceId, width, height, level, data` | 截图帧响应 |
+| `cameraClicked` | `deviceId, deviceName, businessId, businessName, x, y, timestamp` | 相机点击通知（自助登号） |
 
 #### 服务端 → 设备客户端
 | 消息 | 参数 | 说明 |
@@ -221,51 +224,245 @@ D:\ScreenWall2\
 | `setKeyboardEnabled` | - | 开启键盘远控 |
 | `setKeyboardDisabled` | - | 关闭键盘远控 |
 | `keyClick` | `key` | 转发键盘 |
-| `mouseClick` | `x, y` | 转发点击 |
+| `mouseClick` | `x, y, operatorId, operatorName, businessId, businessName` | 转发点击（携带4参数） |
 | `mouseSwipe` | `x, y, x2, y2, duration` | 转发滑动 |
+| `requestHdScreenshot` | `purpose, timestamp, businessId, businessName, operatorId, operatorName` | 请求高清截图（自助登号5参数） |
+
+#### MUMU客户端 → 服务端
+| 消息 | 参数 | 说明 |
+|------|------|------|
+| `hdScreenshot` | `purpose, timestamp, deviceId, image, businessId, businessName, operatorId, operatorName` | 高清截图（自助登号携带全部6个参数） |
 
 ---
 
-## 最新功能更新（v1.9.9+）
+## 最新功能更新（v1.10.0+）
+
+### 自助登号系统重构（v1.10.0 重大更新）
+
+#### 核心问题修复
+- **全局变量冲突**：原实现使用全局变量存储自助登号状态，多个设备同时操作时参数混乱
+- **超时点击误触发**：旧的点击记录可能因为特殊原因（如BNL）被错误联动
+
+#### 重构方案
+
+##### 1. 状态管理重构
+- **移除了全局变量**：
+  - `_currentMUMUClient`
+  - `_currentOperatorId`
+  - `_currentOperatorName`
+  - `_currentBusinessId`
+  - `_currentBusinessName`
+  - `_selfServiceTimeoutId`
+
+- **新增状态管理器**：
+  ```javascript
+  const selfServiceStateByBusinessId = new Map();
+  // 键：businessId（业务设备ID）
+  // 值：{
+  //   operatorId: 业务发起方ID,
+  //   operatorName: 业务发起方名称,
+  //   businessName: 业务设备名称,
+  //   mumuClient: MUMU客户端连接,
+  //   clickTimestamp: 点击时间戳,
+  //   timeoutId: 超时定时器ID
+  // }
+  ```
+
+##### 2. 点击时间窗口检查
+- **服务端限制**：2秒（`SELF_SERVICE_CLICK_WINDOW_MS = 2000`）
+- **客户端限制**：60秒（已存在的检查）
+- **检查逻辑**：在 `processQrcodeImage()` 函数中验证点击时间差
+
+##### 3. 完整参数传递链路
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     自助登号完整流程                             │
+└─────────────────────────────────────────────────────────────────┘
+
+1. 自助登号页面初始化（self-service.html）
+   ├─ URL参数：auto=1, token=xxx, deviceId=xxx, deviceName=xxx
+   │         └─ deviceId = originalDeviceId（业务发起方ID）
+   │         └─ deviceName = originalDeviceName（业务发起方名称）
+   └─ WebSocket发送 selfServiceInit：
+      {
+        type: 'selfServiceInit',
+        operatorId: originalDeviceId,      // 业务发起方ID
+        operatorName: originalDeviceName,  // 业务发起方名称
+        businessId: selectedDeviceId,      // 业务设备ID（下拉选择）
+        businessName: selectedDeviceName   // 业务设备名称
+      }
+
+2. 用户在页面上点击（触发扫码）
+   └─ sendMouse('mouseClick', x, y, {
+        type: 'mouseClick',
+        deviceId: previewDeviceId,         // MUMU客户端ID（操作目标）
+        operatorId: originalDeviceId,      // 业务发起方ID
+        operatorName: originalDeviceName,   // 业务发起方名称
+        businessId: selectedDeviceId,      // 业务设备ID
+        businessName: selectedDeviceName,   // 业务设备名称
+        x, y,
+        previewWidth, previewHeight
+      })
+
+3. 服务端收到 mouseClick（server.js）
+   └─ 坐标转换（preview → device分辨率）
+   └─ 转发给MUMU客户端：
+      {
+        type: 'mouseClick',
+        x: actualX, y: actualY,
+        deviceId: mDevId,
+        deviceName: dev.deviceName,
+        operatorId, operatorName,
+        businessId, businessName
+      }
+
+4. MUMU客户端收到 mouseClick
+   └─ 保存点击信息到本地
+
+5. 相机DLL检测到点击弹窗
+   └─ 通过管道发送 CLICKED:timestamp
+
+6. MUMU客户端发送 cameraClicked
+   {
+     type: 'cameraClicked',
+     deviceId: operatorId,             // 业务发起方ID（原样传递）
+     deviceName: operatorName,         // 业务发起方名称
+     businessId, businessName, x, y, timestamp
+   }
+
+7. 服务端收到 cameraClicked（server.js）
+   ├─ 验证业务设备在线
+   ├─ 保存状态到 selfServiceStateByBusinessId：
+   │  {
+   │    operatorId, operatorName,
+   │    businessName,
+   │    mumuClient: ws,
+   │    clickTimestamp: timestamp,
+   │    timeoutId: setTimeout(...)
+   │  }
+   ├─ 启动5秒超时定时器
+   └─ 向业务设备发送 requestHdScreenshot：
+      {
+        type: 'requestHdScreenshot',
+        purpose: 'selfService',
+        timestamp: clickTimestamp,
+        businessId,
+        businessName,
+        operatorId,
+        operatorName
+      }
+
+8. 业务设备返回 hdScreenshot
+   {
+     type: 'hdScreenshot',
+     purpose: 'selfService',
+     timestamp,
+     deviceId: businessId,
+     image: base64,
+     businessId,
+     businessName,
+     operatorId,
+     operatorName
+   }
+
+9. 服务端收到 hdScreenshot
+   ├─ 从 selfServiceStateByBusinessId 获取状态（或使用消息参数）
+   ├─ 检查时间窗口：now - clickTimestamp <= 2000ms
+   │  └─ 超过2秒：丢弃，打印超时日志
+   └─ 调用 processQrcodeImage() 处理截图
+
+10. processQrcodeImage() 处理
+    ├─ 验证图片大小 >= 1000字节
+    ├─ 保存到 qrcode/screenshot_original.png
+    ├─ 检查文件修改时间（确保更新）
+    ├─ 调用 qrcode_processor.py 处理
+    │  └─ 识别二维码、裁剪、缩放
+    ├─ 打印日志：
+    │  └─ 同设备：[自助登号] 设备名使用二维码扫码（结果）
+    │  └─ 帮其他设备：[自助登号] 设备A帮助设备B使用二维码扫码（结果）
+    └─ 清理状态 clearSelfServiceState(businessId)
+```
+
+##### 4. 关键函数列表
+
+| 函数名 | 位置 | 功能 |
+|--------|------|------|
+| `clearSelfServiceState(businessId)` | server.js | 清理指定业务设备的状态 |
+| `processQrcodeImage(buffer, businessId, operatorId, operatorName, businessName, clickTimestamp)` | server.js | 处理二维码图片（含时间窗口检查） |
+| `SELF_SERVICE_TIMEOUT_MS` | server.js | 自助登号超时时间（5000ms） |
+| `SELF_SERVICE_CLICK_WINDOW_MS` | server.js | 点击时间窗口（2000ms） |
+| `selfServiceStateByBusinessId` | server.js | 状态存储Map |
+
+#### 修改的文件
+- `server/server.js`：重构自助登号逻辑，移除全局变量
+
+---
+
+### MUMU微服务上下线通知
+
+#### 新增消息类型
+- **mumuOffline**：服务端 → 浏览器，当MUMU微服务离线时发送
+
+#### 服务端处理
+```javascript
+// MUMU连接断开时
+if (dev.id === 'MUMU-service') {
+  serverLog(`[MUMU] 模拟器微服务已离线`);
+  broadcastToBrowsers({ type: 'mumuOffline', deviceId: dev.id });
+}
+
+// MUMU连接超时离线时
+if (id === 'MUMU-service') {
+  serverLog(`[MUMU] 模拟器已超时断开`);
+  broadcastToBrowsers({ type: 'mumuOffline', deviceId: id });
+}
+```
+
+#### 前端处理（self-service.html）
+- 收到 `mumuOffline` 后：清空画面，设置全透明
+- MUMU上线时：无需任何处理，帧到达后自动恢复
+
+---
 
 ### 客户端免登录功能
-- **通过 URL 参数跳过登录**：客户端右键打开屏幕墙或自助登号时，自动携带 `auto=1` 和 `token` 参数
-- **登录流程**：
-  1. 客户端检查权限 → 通过后生成一次性 token
-  2. 打开浏览器访问 `main.html?auto=1&token=xxx&deviceId=xxx&deviceName=xxx`
-  3. 服务端验证 token 有效性（5分钟有效期）
-  4. 验证通过后直接连接 WebSocket，跳过登录框
-- **权限管理保持独立**：token 仅用于跳过初始登录，点击权限管理按钮时仍需输入管理员密码
 
-### 自助登号优化
-- **设备名显示格式**：所有日志和 UI 中设备名统一显示为「名称（ID）」格式
-- **日志简化**：
-  - 删除「开始使用」和「退出」日志
-  - 新增「打开屏幕墙」和「打开自助登号」日志（带 [客户端] 标签）
-  - 自助登号日志去掉「打开」二字，格式更简洁
-- **完整关系记录**：支持「设备A帮助设备B扫码」场景，日志中完整记录两个设备信息
+#### 通过 URL 参数跳过登录
+- **权限检查**：客户端右键打开屏幕墙或自助登号时，自动检查权限
+- **Token生成**：`base64(deviceId:timestamp)` 格式
+- **有效期**：30秒
+- **验证流程**：
+  1. 客户端检查权限 → 通过后生成token
+  2. 打开浏览器访问 `main.html?auto=1&token=xxx`
+  3. 服务端验证token有效性
+  4. 验证通过后直接连接，跳过登录框
 
-### 日志统一规范
-- **MUMU 日志**：超时离线日志统一为「[MUMU] 模拟器已超时断开」
-- **权限日志**：标签统一为「[客户端]」，格式为「[客户端] 设备名（ID）权限操作」
-- **设备ID显示**：所有涉及设备操作的日志同时显示设备名和设备ID
+---
 
 ### 权限管理完善
-- **权限验证优化**：每次点击权限管理按钮都需要输入密码，不会自动验证
-- **登录 token 清理**：自动登录成功后清理相关标记，确保后续操作安全
-- **权限检查独立**：权限管理与屏幕墙登录完全分离
 
-### 技术修复
-- **恢复 auto=1 参数**：修复清理代码时误删的跳过登录功能
-- **删除冗余代码**：清理不再使用的自动登录相关代码
-- **main.html 保持简洁**：仅保留必要的 `from=client` 和 `auto=1` 参数检查
+#### 权限数据结构
+```javascript
+// permissions.json
+{
+  "deviceId": {
+    "deviceName": "设备名",
+    "allowScreenWall": true/false,
+    "allowSelfService": true/false
+  }
+}
+```
+
+#### API接口
+- `POST /api/checkPermission`：检查权限
+- `POST /api/setPermission`：设置权限
 
 ---
 
 ## 关键版本历史
 
 | 版本 | Git提交 | 核心改进 |
-|------|------|---------|
+|------|---------|---------|
 | **v1.0早期** | b72f95e | 初始版本：Base64传输 |
 | **v1.2.6** | 5c9adb7 | OCR报警机制；1080p临时高清（已移除） |
 | **v1.2.7** | 80fca08 | 远程键盘控制功能 |
@@ -320,7 +517,8 @@ D:\ScreenWall2\
 | | 064add5 | 修复：客户端打开时跳过登录但权限管理每次都需要输入密码 |
 | | 138997e | 清理：删除不再使用的自动登录相关代码 |
 | | ccc2889 | 修复：恢复客户端通过auto=1参数跳过登录的功能 |
-| **v1.10.0** | 6c6c984 | MUMU离线遮罩优化：移除多余遮罩层，离线时显示黑色遮罩 |
+| **v1.10.0** | d2715d3 | 自助登号系统重构：消除全局变量，添加2秒点击时间窗口检查 |
+| | 6c6c984 | MUMU离线遮罩优化：移除多余遮罩层，离线时显示黑色遮罩 |
 | | 46bcbe8 | 自助登号页面自愈逻辑：MUMU恢复后自动通知服务端更新状态 |
 | | bfc31a6 | MUMU客户端自愈和断线重连：心跳机制与自动重连优化 |
 | | c7928be | 点击时间窗口检查：超过60秒的点击操作不生效 |
@@ -331,6 +529,79 @@ D:\ScreenWall2\
 ---
 
 ## v1.10.0 详细更新说明
+
+### 自助登号系统重构
+
+#### 问题背景
+1. **全局变量冲突**：原实现使用多个全局变量存储自助登号状态，当多个设备同时操作时，后一个操作会覆盖前一个操作的参数
+2. **超时点击误触发**：旧的点击记录可能因为特殊原因（如BNL）被错误联动
+
+#### 重构方案
+
+##### 状态管理重构
+- **移除全局变量**：
+  - `_currentMUMUClient`
+  - `_currentOperatorId`
+  - `_currentOperatorName`
+  - `_currentBusinessId`
+  - `_currentBusinessName`
+  - `_selfServiceTimeoutId`
+
+- **新增按业务设备ID存储状态**：
+  ```javascript
+  const selfServiceStateByBusinessId = new Map();
+  // businessId -> { operatorId, operatorName, businessName, mumuClient, clickTimestamp, timeoutId }
+  ```
+
+##### 点击时间窗口检查
+- **服务端**：2秒内点击有效（`SELF_SERVICE_CLICK_WINDOW_MS = 2000`）
+- **客户端**：60秒内点击有效（已存在的检查）
+
+##### 完整参数传递链路
+
+```
+1. 自助登号页面发送 selfServiceInit（4参数）
+   └─ operatorId, operatorName, businessId, businessName
+
+2. 用户点击 → 发送 mouseClick（4参数）
+   └─ 服务端转发给MUMU客户端（保持4参数）
+
+3. MUMU相机点击 → 发送 cameraClicked（4参数）
+   └─ 服务端保存状态到 selfServiceStateByBusinessId
+
+4. 服务端 → 业务设备发送 requestHdScreenshot（5参数）
+   └─ businessId, businessName, operatorId, operatorName, timestamp
+
+5. 业务设备 → 服务端发送 hdScreenshot（6参数）
+   └─ businessId, businessName, operatorId, operatorName, timestamp, image
+
+6. 服务端检查时间窗口 → processQrcodeImage（6参数）
+   └─ 验证通过后处理二维码
+```
+
+##### 关键函数修改
+
+| 函数 | 修改内容 |
+|------|----------|
+| `clearSelfServiceState(businessId)` | 改为按businessId清理 |
+| `processQrcodeImage(...)` | 新增operatorName、businessName、clickTimestamp参数 |
+| `cameraClicked`处理 | 状态保存到Map，启动超时定时器 |
+| `hdScreenshot`处理 | 从Map或消息获取参数，检查时间窗口 |
+
+---
+
+### MUMU微服务上下线通知
+
+#### MUMU微服务离线
+- **触发时机**：MUMU连接断开或超时
+- **服务端日志**：`[MUMU] 模拟器微服务已离线` 或 `[MUMU] 模拟器已超时断开`
+- **广播消息**：`{ type: 'mumuOffline', deviceId: 'MUMU-service' }`
+
+#### 前端处理
+- **self-service.html**：收到 `mumuOffline` 后清空画面，设置全透明
+- **MUMU上线时**：无需处理，帧到达后自动恢复
+
+---
 
 ### MUMU客户端自愈机制完善
 
@@ -344,6 +615,8 @@ D:\ScreenWall2\
 - **自动重连**：连接断开后自动尝试重连，避免长时间离线
 - **时间窗口验证**：点击操作需在60秒内完成，超时操作不生效
 
+---
+
 ### 自助登号页面优化
 
 #### 尺寸调整
@@ -355,9 +628,7 @@ D:\ScreenWall2\
 - 支持 `--start-minimized` 参数启动后最小化
 - 由JavaScript控制窗口显示时机
 
-#### 并发问题修复
-- **hdScreenshot消息携带operatorId**：不再依赖全局变量
-- **避免状态混乱**：多设备同时操作时正确识别发起方
+---
 
 ### 点击时间窗口机制
 
@@ -445,19 +716,18 @@ python mumu_client.py
 
 7. **自动处理流程**
    ```
-   用户点击 → MU客户端保存最后点击信息
-   相机弹窗通知 → DLL通过管道发送 CLICKED:时间戳
-   MU客户端接收通知 → 发送 cameraClicked 消息给服务端
-   服务端保存业务发起方和业务设备信息
-   向业务设备发送 requestHdScreenshot
-   业务设备返回 hdScreenshot (selfService目的)
-   服务端保存原始截图到 qrcode/screenshot_original.png
-   调用 qrcode_processor.py 处理
-   Python脚本识别二维码、过滤URL广告
-   裁剪、缩放、添加白色边框（200×360）
-   保存到 qrcode/last_qrcode.png
-   通过修改时间戳验证文件更新成功
-   服务端记录日志（成功/失败/超时）
+   用户点击 → 自助登号页面发送 mouseClick（带4参数）
+   服务端转发 → MU客户端收到 mouseClick（带4参数）
+   相机弹窗 → DLL通过管道发送 CLICKED:时间戳
+   MU客户端 → 发送 cameraClicked 消息给服务端
+   服务端保存 → 业务发起方和业务设备信息到 Map
+   请求截图 → 向业务设备发送 requestHdScreenshot（带5参数）
+   业务设备返回 → hdScreenshot (selfService目的，带6参数)
+   服务端检查时间窗口 → 超过2秒丢弃
+   处理二维码 → 保存原始截图、调用Python处理
+   二维码处理 → 识别、裁剪、缩放、添加边框（200×360）
+   验证文件更新 → 通过修改时间戳确认
+   服务端日志 → 记录成功/失败/超时
    ```
 
 8. **扫码显示**
@@ -533,23 +803,26 @@ python mumu_client.py
 
 ### 前端优化
 | 优化项 | 说明 |
-|------|------|
+|--------|------|
 | Blob URL释放 | `beforeunload`时回收，防止内存累积 |
 | 定时器清理 | 页面关闭时清理所有定时器 |
 | 帧超时丢弃 | 超过2秒的旧帧自动忽略 |
+| 帧节流 | 自助登号页面300ms间隔更新，减少Blob创建 |
 
 ### 服务端优化
 | 优化项 | 说明 |
-|------|------|
+|--------|------|
 | 帧批量推送 | `_browserBatch`减少IPC压力 |
 | 连接清理 | `ws.on('close')`时自动清理Map/Set |
 | 帧过期清理 | 过期帧自动移除缓冲 |
+| 自助登号状态Map | 按业务设备ID存储，避免全局变量冲突 |
 
 ### MUMU客户端优化
 | 优化项 | 说明 |
-|------|------|
+|--------|------|
 | 帧队列限制 | maxsize=3，防止内存膨胀 |
 | 异步队列 | 截图Worker独立线程，主循环只处理发送 |
+| 点击时间窗口 | 60秒内的点击才发送，避免旧点击误触发 |
 
 ---
 
@@ -563,6 +836,7 @@ python mumu_client.py
 6. **收藏状态**持久化到服务端，刷新页面不丢失
 7. **帧超时**设置为2秒，防止网络波动累积旧帧
 8. **历史帧率**：早期逐步调整（1fps→3fps→5fps→8fps），v1.7.9 后稳定为**6fps**
+9. **自助登号点击时间窗口**：服务端2秒，客户端60秒
 
 ---
 
@@ -661,72 +935,10 @@ function broadcastAllConfigUpdates() {
 
 ---
 
-## 自助登号最新优化（2026-05-21）
-
-### 优化内容
-1. **业务ID选择逻辑**
-   - 自助登号页面新增下拉列表，可选择任意在线设备作为业务设备
-   - 列表自动排除MUMU客户端设备
-   - 默认选中当前打开页面的电脑设备
-   - 支持"本机帮其他设备扫码"的场景
-
-2. **ID传递流程优化**
-   - deviceId：业务发起方（从URL获取的电脑客户端ID）
-   - businessId：业务设备（从下拉列表选择的设备ID）
-   - 服务端保存两个ID，完整记录操作关系
-
-3. **MUMU客户端简化**
-   - 移除复杂的点击历史匹配逻辑
-   - 移除本地日志打印
-   - 只保存最后一次点击信息
-   - 纯转发层，业务逻辑完全由服务端处理
-
-4. **服务端逻辑完善**
-   - 根据两个ID是否相同显示不同日志格式
-   - 超时机制保持不变（5秒）
-   - 二维码处理流程保持不变
-
-5. **Bug修复（2026-05-21）**
-   - 修复服务端转发mouseClick消息时丢失operatorId和operatorName字段的问题
-   - 确保日志中正确显示"谁帮助谁使用二维码扫码"
-
-### 通信协议更新
-#### self-service.html → MU 客户端（鼠标操作）
-| 字段 | 说明 |
-|------|------|
-| `deviceId` | MU 客户端ID（操作目标） |
-| `operatorId` | 业务发起方ID（从URL获取的电脑客户端ID） |
-| `operatorName` | 业务发起方名称 |
-| `businessId` | 业务设备ID（下拉选择，需要截图的设备） |
-| `businessName` | 业务设备名称 |
-
-#### MU 客户端 → 服务端（cameraClicked 消息）
-| 字段 | 说明 |
-|------|------|
-| `deviceId` | 业务发起方ID |
-| `deviceName` | 业务发起方名称 |
-| `businessId` | 业务设备ID |
-| `businessName` | 业务设备名称 |
-
-#### 服务端消息处理
-- `cameraClicked`：保存业务发起方和业务设备ID
-- 向业务设备发送截图请求（requestHdScreenshot）
-- `hdScreenshot`：使用保存的ID处理二维码
-- 超时清理：清理所有相关状态
-
-### 日志格式
-| 场景 | 格式 |
-|------|------|
-| 同一设备操作 | `[自助登号] 设备名使用二维码扫码（状态）` |
-| 帮助其他设备 | `[自助登号] 设备名A帮助设备名B使用二维码扫码（状态）` |
-
-
----
-
 ## 权限管理与弹窗优化（v1.9.9）
 
 ### 版本信息
-- **客户端版本**：v1.9.9
+- **客户端版本**：v1.9.9 → v1.10.0
 - **更新日期**：2026-05-22
 
 ### 新增功能
@@ -735,8 +947,8 @@ function broadcastAllConfigUpdates() {
 - **服务端权限API**：新增 /api/checkPermission 和 /api/setPermission 接口
 - **权限数据结构**：permissions.json 文件持久化存储设备权限
 - **两种权限类型**：
-  - llowScreenWall：屏幕墙访问权限
-  - llowSelfService：自助登号访问权限
+  - allowScreenWall：屏幕墙访问权限
+  - allowSelfService：自助登号访问权限
 - **前端权限管理页面**：
   - 独立登录入口（管理员验证）
   - 设备列表展示与搜索
@@ -754,14 +966,14 @@ function broadcastAllConfigUpdates() {
 - **问题**：原生的 Windows MessageBox 在某些情况下无法点击确定按钮
 - **原因**：窗口焦点问题，需要先将小弹窗切换为选中状态才能点击
 - **解决方案**：改用 Tkinter 的 messagebox.showwarning() 实现弹窗
-  - 设置 	opmost 确保窗口始终在最前
-  - 使用 lift() 和 ocus_force() 获取窗口焦点
+  - 设置 topmost 确保窗口始终在最前
+  - 使用 lift() 和 focus_force() 获取窗口焦点
   - 确保弹窗显示后确定按钮可以直接点击
   - 提供回退机制：Tkinter 不可用时自动回退到原生 MessageBox
 
 #### 2. 监控上墙弹窗背景颜色
-- **问题**：监控上墙弹窗的背景蒙版颜色为 gba(0,0,0,0.7)，比其他弹窗 gba(0,0,0,0.6) 更深
-- **修复**：统一调整为 gba(0,0,0,0.6)，保持视觉一致性
+- **问题**：监控上墙弹窗的背景蒙版颜色比其他弹窗更深
+- **修复**：统一调整为 rgba(0,0,0,0.6)，保持视觉一致性
 
 #### 3. 权限管理页面布局优化
 - **登录页面**：保持 400px 固定宽度不变
@@ -777,7 +989,7 @@ function broadcastAllConfigUpdates() {
 ### 技术实现
 
 #### 服务端权限管理
-`javascript
+```javascript
 // 权限检查接口
 POST /api/checkPermission
 Request: { deviceId: string, type: 'screenWall' | 'selfService' }
@@ -787,10 +999,10 @@ Response: { allowed: boolean }
 POST /api/setPermission
 Request: { deviceId: string, allowScreenWall: boolean, allowSelfService: boolean }
 Response: { ok: true }
-`
+```
 
 #### 客户端权限检查流程
-`
+```
 用户点击托盘菜单 → _tray_on_open_screenwall() / _tray_on_open_self_service()
   ↓
 调用 _check_permission_and_open()
@@ -799,10 +1011,10 @@ Response: { ok: true }
   ↓
 ├─ 有权限 → _open_browser_with_page() 打开目标页面
 └─ 无权限 → Tkinter messagebox.showwarning() 显示提示
-`
+```
 
 #### 弹窗实现核心代码
-`python
+```python
 # 使用 Tkinter 显示弹窗 - 更可靠的方式
 root = tk.Tk()
 root.withdraw()
@@ -814,7 +1026,7 @@ messagebox.showwarning(
     "权限不足",
     f"没有{permission_name}权限，请联系管理员"
 )
-`
+```
 
 ### 权限默认策略
 - **新设备**：默认没有任何权限（allowScreenWall = false, allowSelfService = false）
