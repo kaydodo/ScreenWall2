@@ -425,6 +425,7 @@ Node.js 服务端（server.js）
        ├─ 读取原始图片
        ├─ pyzbar 二维码识别
        ├─ OpenCV 图片裁剪、缩放
+       ├─ 启动 SplitCam A/B 轮询刷新
        └─ 返回 JSON 结果
 ```
 
@@ -443,6 +444,7 @@ Node.js 服务端（server.js）
    - 读取命令行参数获取图片路径
    - 调用 detect_qr() 识别二维码
    - 调用 process_qrcode() 裁剪缩放
+   - 调用 trigger_ab_refresh() 启动 SplitCam A/B 轮询
    - 返回 JSON 格式结果
 
 3. **超时保护**：10秒超时防止进程挂死
