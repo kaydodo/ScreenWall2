@@ -523,7 +523,15 @@ async function processQrcodeImage(imageBuffer, businessId, operatorId, operatorN
     }
     if (normalizedTimestamp && now - normalizedTimestamp > SELF_SERVICE_CLICK_WINDOW_MS) {
       serverLog(`[自助登号] 点击超时，当前时间差：${now - normalizedTimestamp}ms，超过窗口：${SELF_SERVICE_CLICK_WINDOW_MS}ms`);
+      clearSelfServiceState(businessId);
       return;
+    }
+    
+    // 点击时间检查通过，先取消超时定时器
+    const state = selfServiceStateByBusinessId.get(businessId);
+    if (state && state.timeoutId) {
+      clearTimeout(state.timeoutId);
+      state.timeoutId = null;
     }
     
     const operatorDevName = operatorName || operatorId;
