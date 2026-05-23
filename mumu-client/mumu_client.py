@@ -62,7 +62,7 @@ class MumuClient:
             return [adb_path, "-s", adb_device_id] + cmd
         return [adb_path] + cmd
 
-    async def _check_adb_connection(self):
+    async def _check_adb_connection(self, silent=False):
         import ctypes
         try:
             adb_path = self.config['adb'].get('path', 'adb')
@@ -73,16 +73,15 @@ class MumuClient:
             )
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=5)
             result = stdout.decode('utf-8', errors='ignore').strip()
-            print(f"[ADB] 连接结果: {result}")
 
-            if 'refused' in result.lower() or '10061' in result:
-                MessageBox = ctypes.windll.user32.MessageBoxW
-                MessageBox(None, "模拟器没有正在运行，请先启动模拟器后再打开客户端", "MUMU客户端", 0x30)
+            if 'refused' in result.lower() or '10061' in result or 'unable' in result.lower():
+                if not silent:
+                    MessageBox = ctypes.windll.user32.MessageBoxW
+                    MessageBox(None, "模拟器没有正在运行，请先启动模拟器后再打开客户端", "MUMU客户端", 0x30)
                 return False
 
             return True
         except Exception as e:
-            print(f"[ADB] 连接失败: {e}")
             return False
 
     async def _adb_screenshot(self, compress=True):
@@ -290,10 +289,12 @@ class MumuClient:
             pass
 
     async def _screenshot_worker(self):
+        consecutive_errors = 0
         while self.running:
             try:
                 img_bytes = await self._adb_screenshot(compress=True)
                 if img_bytes:
+                    consecutive_errors = 0
                     current_time = time.time()
                     try:
                         self._frame_queue.put_nowait((current_time, img_bytes))
@@ -301,8 +302,29 @@ class MumuClient:
                         while not self._frame_queue.empty():
                             self._frame_queue.get_nowait()
                         self._frame_queue.put_nowait((current_time, img_bytes))
+                else:
+                    consecutive_errors += 1
             except Exception as e:
-                await asyncio.sleep(0.05)
+                consecutive_errors += 1
+            
+            if consecutive_errors >= 3:
+                consecutive_errors = 0
+                while self.running:
+                    await asyncio.sleep(2)
+                    try:
+                        adb_path = self.config['adb'].get('path', 'adb')
+                        proc = await asyncio.create_subprocess_exec(
+                            adb_path, "connect", f"{self.config['adb']['host']}:{self.config['adb']['port']}",
+                            stdout=asyncio.subprocess.PIPE,
+                            stderr=asyncio.subprocess.PIPE
+                        )
+                        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=5)
+                        result = stdout.decode('utf-8', errors='ignore').strip()
+                        if 'connected' in result.lower() or 'already connected' in result.lower():
+                            print("[MUMU] 模拟器已重新连接")
+                            break
+                    except:
+                        pass
 
     async def _get_device_resolution(self):
         try:
@@ -707,6 +729,25 @@ class MumuClient:
                     await notify_task
                 except asyncio.CancelledError:
                     pass
+
+                if self.running:
+                    print("[MUMU] 等待模拟器重新连接...")
+                    reconnect_wait = 0
+                    while self.running and reconnect_wait < 30:
+                        await asyncio.sleep(2)
+                        reconnect_wait += 2
+                        if await self._check_adb_connection(silent=True):
+                            sw, sh = await self._get_device_resolution()
+                            if sw and sh and sw != 1080 and sh != 1920:
+                                screen_width, screen_height = sw, sh
+                                print(f"[MUMU] 模拟器已恢复，检测到分辨率: {screen_width}x{screen_height}")
+                                break
+                            elif sw and sh:
+                                screen_width, screen_height = sw, sh
+                                print(f"[MUMU] 模拟器已恢复，使用分辨率: {screen_width}x{screen_height}")
+                                break
+                    if not self.running:
+                        break
 
             except Exception as e:
                 if not isinstance(e, websockets.exceptions.ConnectionClosed):
