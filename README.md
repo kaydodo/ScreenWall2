@@ -1819,3 +1819,5 @@ messagebox.showwarning(
 - **客户端**：
   - client/client.py：权限检查和弹窗显示逻辑
   - client/dist2/ScreenWallClient/：打包输出目录
+  - mumu-client/mumu_client.py：MUMU 模拟器客户端
+  - mumu-client/config.json：MUMU 客户端配置文件
