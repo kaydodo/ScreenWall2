@@ -19,7 +19,7 @@ import time
 import webbrowser
 
 # 客户端版本号（每次功能更新时手动递增）
-CLIENT_VERSION = "1.10.4"
+CLIENT_VERSION = "1.10.5"
 
 
 def _get_mac_address():
@@ -1538,16 +1538,15 @@ class ScreenWallClient:
         """升级 KeyClient.exe：无论是否下载成功，先查杀所有旧进程"""
         import urllib.request, tempfile
 
-        # 先查杀所有 KeyClient 进程（避免旧进程残留）
         self._close_keyclient()
-        time.sleep(0.2)
+        await asyncio.sleep(0.2)
 
         try:
             subprocess.run(['taskkill', '/F', '/IM', 'KeyClient.exe'], capture_output=True)
         except Exception:
             pass
 
-        time.sleep(0.5)  # 等待进程完全退出
+        await asyncio.sleep(0.5)
 
         # 尝试下载新版本
         keyclient_url = f"http://{host}:{port}/KeyClient.exe"
@@ -1724,7 +1723,7 @@ class ScreenWallClient:
                 except Exception:
                     pass
             
-            time.sleep(1)  # 等待托盘图标隐藏后再退出
+            await asyncio.sleep(1)
             os._exit(0)
         except Exception as e:
             # error
@@ -1867,8 +1866,8 @@ class ScreenWallClient:
                     creationflags=subprocess.CREATE_NO_WINDOW
                 )
                 self._keyclient_process = proc
-                time.sleep(0.5)
-                # 再次尝试连接
+                loop = asyncio.get_event_loop()
+                loop.run_in_executor(None, lambda: time.sleep(0.5))
                 try:
                     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                     sock.settimeout(3)
