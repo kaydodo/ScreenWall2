@@ -285,12 +285,9 @@ async function migrateDevicePermission(oldDeviceId, newDeviceId) {
     devicePermissions[newDeviceId] = { ...devicePermissions[oldDeviceId] };
     delete devicePermissions[oldDeviceId];
     await persistPermissions();
-    const oldDeviceInfo = devices.get(oldDeviceId);
-    const oldDeviceName = oldDeviceInfo?.deviceName || oldDeviceInfo?.name || oldDeviceId;
-    const newDeviceInfo = devices.get(newDeviceId);
-    const newDeviceName = newDeviceInfo?.deviceName || newDeviceInfo?.name || newDeviceId;
-    serverLog(`[权限] 已迁移设备权限 ${oldDeviceName} (${oldDeviceId}) → ${newDeviceName} (${newDeviceId})`);
+    return true; // 返回是否迁移了权限
   }
+  return false;
 }
 
 loadPermissions();
@@ -309,8 +306,6 @@ async function migrateDeviceId(oldDeviceId, newDeviceId) {
   const newDeviceInfo = devices.get(newDeviceId);
   const oldDeviceName = oldDeviceInfo?.deviceName || oldDeviceInfo?.name || oldDeviceId;
   const newDeviceName = newDeviceInfo?.deviceName || newDeviceInfo?.name || newDeviceId;
-
-  serverLog(`[迁移] 开始迁移设备ID: ${oldDeviceName} (${oldDeviceId}) → ${newDeviceName} (${newDeviceId})`);
 
   // 1. gridLayout：格子位置映射，旧 deviceId → 新 deviceId
   for (const idx of Object.keys(gridLayout)) {
@@ -385,9 +380,11 @@ async function migrateDeviceId(oldDeviceId, newDeviceId) {
   if (taskChanged) await persistTasks();
 
   // 11. devicePermissions：设备权限配置（旧 deviceId → 新 deviceId）
-  await migrateDevicePermission(oldDeviceId, newDeviceId);
+  const hasPermissionMigrated = await migrateDevicePermission(oldDeviceId, newDeviceId);
 
-  serverLog(`[迁移] 完成设备ID迁移: ${oldDeviceName} (${oldDeviceId}) → ${newDeviceName} (${newDeviceId})`);
+  // 一条简洁的总结日志
+  const permissionNote = hasPermissionMigrated ? '（含权限）' : '';
+  serverLog(`[继承] ${oldDeviceName} (${oldDeviceId}) → ${newDeviceName} (${newDeviceId})${permissionNote}`);
 }
 
 /**
@@ -2180,7 +2177,6 @@ wssClient.on('connection', (ws, req) => {
           if (devMac === incomingMac && (devName === incomingName || devName.includes(incomingName) || incomingName.includes(devName))) {
             existing = devInfo;  // 继承旧设备的所有信息
             matchedOldDeviceId = devId;  // 记录旧设备ID，后面要删除
-            serverLog(`[识别] 通过 MAC+设备名匹配到已有设备: ${devName} (${devId})，将更新为新的 deviceId: ${incomingDeviceId}`);
             break;
           }
         }
