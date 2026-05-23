@@ -1203,8 +1203,9 @@ def _open_browser_with_page(url, permission_type):
                         pass
                 atexit.register(cleanup_temp)
                 
-                # 窗口尺寸动态计算：最小高度960，屏幕更大时按70%屏幕高度，保持9:16比例(510:960)
-                min_h = 960
+                # 窗口尺寸动态计算：基准510×960，屏幕更大时按比例放大
+                base_w = 510
+                base_h = 960
                 screen_ratio = 0.7
                 
                 try:
@@ -1213,11 +1214,13 @@ def _open_browser_with_page(url, permission_type):
                     screen_w = user32.GetSystemMetrics(0)
                     screen_h = user32.GetSystemMetrics(1)
                     
-                    # 根据屏幕高度计算窗口尺寸，最小高度960
-                    win_h = max(min_h, int(screen_h * screen_ratio))
-                    win_w = int(win_h * 9 / 16)
+                    if screen_h <= 1080:
+                        win_w = base_w
+                        win_h = base_h
+                    else:
+                        win_h = int(screen_h * screen_ratio)
+                        win_w = int(win_h * base_w / base_h)
                     
-                    # 居中显示
                     pos_x = (screen_w - win_w) // 2
                     pos_y = (screen_h - win_h) // 2
                 except:

@@ -7,17 +7,21 @@
 <script>
 // 窗口尺寸动态计算：最小高度960，屏幕更大时按60%屏幕高度，保持9:16比例
 (function() {
-  var minH = 960;
+  var baseW = 510;
+  var baseH = 960;
   var screenRatio = 0.7;
   
   function calculateSize() {
     var screenW = window.screen.availWidth;
     var screenH = window.screen.availHeight;
     
-    var winH = Math.max(minH, Math.floor(screenH * screenRatio));
-    var winW = Math.floor(winH * 9 / 16);
-    
-    return { w: winW, h: winH };
+    if (screenH <= 1080) {
+      return { w: baseW, h: baseH };
+    } else {
+      var winH = Math.floor(screenH * screenRatio);
+      var winW = Math.floor(winH * baseW / baseH);
+      return { w: winW, h: winH };
+    }
   }
   
   window.addEventListener('load', function() {
