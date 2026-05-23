@@ -248,7 +248,8 @@ class MumuClient:
                                 "operatorId": operator_id,
                                 "operatorName": operator_name,
                                 "businessId": business_id,
-                                "businessName": business_name
+                                "businessName": business_name,
+                                "timestamp": time.time()
                             }
                             await self._adb_click(x, y)
 
@@ -599,17 +600,20 @@ class MumuClient:
                     "mumuClientId": self.config["device"]["deviceId"]
                 }
                 
-                # 直接使用最后一次点击信息，不需要匹配
+                # 直接使用最后一次点击信息，但必须检查时间有效性（60秒内）
                 if self._last_click_info:
-                    msg.update({
-                        "x": self._last_click_info["x"],
-                        "y": self._last_click_info["y"],
-                        "deviceId": self._last_click_info["operatorId"],
-                        "deviceName": self._last_click_info["operatorName"],
-                        "businessId": self._last_click_info["businessId"],
-                        "businessName": self._last_click_info["businessName"]
-                    })
-                
+                    click_time = self._last_click_info.get("timestamp", 0)
+                    if current_time - click_time <= 60:
+                        msg.update({
+                            "x": self._last_click_info["x"],
+                            "y": self._last_click_info["y"],
+                            "deviceId": self._last_click_info["operatorId"],
+                            "deviceName": self._last_click_info["operatorName"],
+                            "businessId": self._last_click_info["businessId"],
+                            "businessName": self._last_click_info["businessName"]
+                        })
+                    else:
+                        self._last_click_info = None
 
                 await ws.send(json.dumps(msg))
             except websockets.exceptions.ConnectionClosed:
