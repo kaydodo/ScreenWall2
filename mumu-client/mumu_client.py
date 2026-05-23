@@ -600,10 +600,10 @@ class MumuClient:
                     "mumuClientId": self.config["device"]["deviceId"]
                 }
                 
-                # 直接使用最后一次点击信息，但必须检查时间有效性（60秒内）
+                # 直接使用最后一次点击信息，但必须检查时间有效性（2秒内）
                 if self._last_click_info:
                     click_time = self._last_click_info.get("timestamp", 0)
-                    if current_time - click_time <= 60:
+                    if current_time - click_time <= 2:
                         msg.update({
                             "x": self._last_click_info["x"],
                             "y": self._last_click_info["y"],
