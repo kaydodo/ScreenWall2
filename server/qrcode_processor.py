@@ -128,8 +128,8 @@ def process_qrcode(image_path, qr_rect):
         # 创建白色背景
         result = np.full((target_height, target_width, 3), 255, dtype=np.uint8)
         
-        # 计算位置（向上偏移20像素，不再居中）
-        y_offset = max(0, (target_height - new_h) // 2 - 20)
+        # 计算位置（向下移动40像素）
+        y_offset = max(0, (target_height - new_h) // 2 + 40)
         x_offset = (target_width - new_w) // 2
         
         # 放置二维码
