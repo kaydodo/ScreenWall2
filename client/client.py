@@ -1203,20 +1203,26 @@ def _open_browser_with_page(url, permission_type):
                         pass
                 atexit.register(cleanup_temp)
                 
-                # 窗口尺寸 9:16 比例，高度960，宽度510
-                win_w = 510
-                win_h = 960
+                # 窗口尺寸动态计算：最小高度960，屏幕更大时按60%屏幕高度，保持9:16比例
+                min_h = 960
+                screen_ratio = 0.6
                 
-                # 获取屏幕大小，计算居中位置
                 try:
                     import ctypes
                     user32 = ctypes.windll.user32
                     screen_w = user32.GetSystemMetrics(0)
                     screen_h = user32.GetSystemMetrics(1)
+                    
+                    # 根据屏幕高度计算窗口尺寸，最小高度960
+                    win_h = max(min_h, int(screen_h * screen_ratio))
+                    win_w = int(win_h * 9 / 16)
+                    
                     # 居中显示
                     pos_x = (screen_w - win_w) // 2
                     pos_y = (screen_h - win_h) // 2
                 except:
+                    win_w = 510
+                    win_h = 960
                     pos_x = (1366 - win_w) // 2
                     pos_y = 100
                 

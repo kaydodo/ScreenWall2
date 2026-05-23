@@ -5,38 +5,51 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>自助登号</title>
 <script>
-// 强制设置窗口大小 510x960 (9:16比例，高度960)
-window.addEventListener('load', function() {
-  setTimeout(function() {
-    try {
-      window.resizeTo(510, 960);
-      setTimeout(function() {
-        window.resizeTo(510, 960);
-        // 强制移动窗口到屏幕中央
-        moveToCenter();
-      }, 300);
-    } catch(e) {}
-  }, 500);
-});
-
-// 移动窗口到屏幕中央
-function moveToCenter() {
-  try {
+// 窗口尺寸动态计算：最小高度960，屏幕更大时按60%屏幕高度，保持9:16比例
+(function() {
+  var minH = 960;
+  var screenRatio = 0.6;
+  
+  function calculateSize() {
     var screenW = window.screen.availWidth;
     var screenH = window.screen.availHeight;
-    var winW = 510;
-    var winH = 960;
     
-    var posX = Math.floor((screenW - winW) / 2);
-    var posY = Math.floor((screenH - winH) / 2);
+    var winH = Math.max(minH, Math.floor(screenH * screenRatio));
+    var winW = Math.floor(winH * 9 / 16);
     
-    window.moveTo(posX, posY);
+    return { w: winW, h: winH };
+  }
+  
+  window.addEventListener('load', function() {
+    var size = calculateSize();
     
     setTimeout(function() {
-      window.moveTo(posX, posY);
+      try {
+        window.resizeTo(size.w, size.h);
+        setTimeout(function() {
+          window.resizeTo(size.w, size.h);
+          moveToCenter(size.w, size.h);
+        }, 300);
+      } catch(e) {}
     }, 500);
-  } catch(e) {}
-}
+  });
+  
+  function moveToCenter(winW, winH) {
+    try {
+      var screenW = window.screen.availWidth;
+      var screenH = window.screen.availHeight;
+      
+      var posX = Math.floor((screenW - winW) / 2);
+      var posY = Math.floor((screenH - winH) / 2);
+      
+      window.moveTo(posX, posY);
+      
+      setTimeout(function() {
+        window.moveTo(posX, posY);
+      }, 500);
+    } catch(e) {}
+  }
+})();
 </script>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
