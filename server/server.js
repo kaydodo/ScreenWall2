@@ -2369,7 +2369,6 @@ wssClient.on('connection', (ws, req) => {
             const imgBuffer = Buffer.from(imageData.replace(/^data:image\/\w+;base64,/, ''), 'base64');
             await fsWriteFile(matchedRecord.screenshotPath, imgBuffer);
             matchedRecord.isFullScreenshot = true;
-            serverLog(`[报警] ${matchedRecord.deviceName} 1080P截图已保存`);
           } else {
             matchedRecord = alarmRecords.find(r =>
               r.deviceId === deviceId && !r.isFullScreenshot
@@ -2379,13 +2378,11 @@ wssClient.on('connection', (ws, req) => {
               const imgBuffer = Buffer.from(imageData.replace(/^data:image\/\w+;base64,/, ''), 'base64');
               await fsWriteFile(matchedRecord.screenshotPath, imgBuffer);
               matchedRecord.isFullScreenshot = true;
-              serverLog(`[报警] ${matchedRecord.deviceName} 1080P截图已保存（延迟到达）`);
             } else {
               const screenshotId = crypto.randomUUID();
               const screenshotPath = path.join(ALARM_SCREENSHOTS_DIR, `${screenshotId}.png`);
               const imgBuffer = Buffer.from(imageData.replace(/^data:image\/\w+;base64,/, ''), 'base64');
               await fsWriteFile(screenshotPath, imgBuffer);
-              serverLog(`[报警] ${deviceId} 1080P截图保存失败（无匹配记录），独立保存为 ${screenshotId}.png`);
             }
           }
         })();
@@ -2588,6 +2585,8 @@ wssClient.on('connection', (ws, req) => {
       _currentOperatorName = finalOperatorName;          // 业务发起方名称
       _currentBusinessId = businessId;                    // 业务设备ID
       _currentBusinessName = finalBusinessName;           // 业务设备名称
+      
+      serverLog(`[自助登号] 收到相机点击，向业务设备请求1080P截图: ${formatDeviceName(_currentBusinessName, _currentBusinessId)}`);
       
       // 设置超时
       _selfServiceTimeoutId = setTimeout(() => {
