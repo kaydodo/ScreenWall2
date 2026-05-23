@@ -119,8 +119,7 @@ class MumuClient:
 
                 process_time = (time.time() - process_start) * 1000
                 return img_bytes
-            except Exception as pil_error:
-                print(f"[ADB] PIL处理失败: {pil_error}, 数据长度={len(stdout)}")
+            except Exception:
                 return None
 
         except asyncio.TimeoutError:
@@ -875,7 +874,10 @@ class MumuClient:
 
             except Exception as e:
                 if not isinstance(e, websockets.exceptions.ConnectionClosed):
-                    print(f"[MUMU] 连接失败: {e}")
+                    if "1225" in str(e) or "拒绝" in str(e):
+                        print("[MUMU] 服务端已断开，重试中...")
+                    else:
+                        print(f"[MUMU] 连接失败: {e}")
                 await asyncio.sleep(3)
 
     def stop(self):

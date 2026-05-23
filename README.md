@@ -538,7 +538,8 @@ if (id === 'MUMU-service') {
 | | 3822195 | 自助登号窗口尺寸：1080p基准510×960，更大屏幕按比例放大 |
 | **v1.10.1** | - | 自助登号修复：时间戳单位检测逻辑（秒级是<10000000000），电脑客户端hdScreenshot补充完整参数（operatorId/operatorName/businessName） |
 | **v1.10.2** | - | 修复电脑客户端截图异常处理：添加try-except捕获，防止截图失败时主进程中断 |
-| **v1.10.3** | e33a253 | 完善MUMU客户端异常处理：截图Worker添加异常捕获、主循环发送帧添加try-except、添加详细日志、MUMU超时断开不触发mumuOffline、超时时间改为5秒 |
+| **v1.10.3** | e33a253 | 完善MUMU客户端异常处理：截图Worker添加异常捕获、主循环发送帧添加try-except、MUMU超时断开不触发mumuOffline、超时时间改为5秒 |
+| **v1.10.4** | baeceb0 | MUMU客户端优化：命令队列处理、状态通知队列化、ADB稳定检测(5次x2秒)、优化日志输出 |
 
 ---
 
@@ -849,6 +850,99 @@ except websockets.exceptions.ConnectionClosed:
 except Exception as e:
     print(f"[MUMU] 主循环异常: {e}")
     break
+```
+
+---
+
+## v1.10.4 详细更新说明
+
+### MUMU客户端优化
+
+#### 问题背景
+1. 鼠标滚轮和滑动操作会阻塞主循环，多次点击会拉长执行时间
+2. ADB断开时没有立即通知服务端，而是等待服务端超时
+3. 重连成功后通知服务端时出现协程未await的错误
+4. ADB稳定检测时间不足，导致重复注入DLL
+5. 日志输出不够友好
+
+#### 修复内容
+
+1. **命令队列处理**
+   - 新增`_cmd_queue`队列和`_cmd_worker`工作线程
+   - 鼠标点击、滑动、滚轮、按键操作都放入队列异步执行
+   - 超过3秒的命令自动丢弃
+   - 不再阻塞WebSocket消息接收
+
+2. **状态通知队列化**
+   - 新增`_status_notify_queue`队列
+   - ADB断开时立即发送`deviceOffline`通知
+   - ADB稳定重连后发送`deviceOnline`通知
+   - 使用`asyncio.wait()`同时监听帧队列和状态队列
+
+3. **ADB稳定检测优化**
+   - 检测条件：连续5次成功，每次间隔2秒（总耗时10秒）
+   - 确保ADB真正稳定后再注入DLL
+
+4. **日志输出优化**
+   - 移除PIL处理失败日志（模拟器断连会有后续报告）
+   - 服务端断开时显示`[MUMU] 服务端已断开，重试中...`
+
+#### 关键代码
+
+**命令队列Worker**
+```python
+async def _cmd_worker(self):
+    while self.running:
+        try:
+            cmd = await asyncio.wait_for(self._cmd_queue.get(), timeout=1.0)
+            cmd_type = cmd.get("type")
+            cmd_time = cmd.get("time", 0)
+            
+            if time.time() - cmd_time > 3:
+                continue
+            
+            if cmd_type == "click":
+                await self._adb_click(cmd["x"], cmd["y"])
+            elif cmd_type == "swipe":
+                await self._adb_swipe(cmd["x1"], cmd["y1"], cmd["x2"], cmd["y2"], cmd["duration"])
+            # ...
+```
+
+**状态通知队列**
+```python
+# ADB断开时
+self._status_notify_queue.put_nowait({"type": "deviceOffline"})
+
+# ADB稳定重连后
+self._status_notify_queue.put_nowait({"type": "deviceOnline"})
+
+# 主循环同时监听两个队列
+done, pending = await asyncio.wait(
+    [
+        asyncio.create_task(self._frame_queue.get()),
+        asyncio.create_task(self._status_notify_queue.get())
+    ],
+    timeout=self._send_timeout,
+    return_when=asyncio.FIRST_COMPLETED
+)
+```
+
+**ADB稳定检测**
+```python
+stable_count = 0
+while self.running and stable_count < 5:
+    await asyncio.sleep(2)
+    # ... ADB连接检测 ...
+    if 'connected' in result.lower():
+        stable_count += 1
+    else:
+        stable_count = 0
+
+if stable_count >= 5:
+    print("[MUMU] ADB已稳定重连")
+    self._status_notify_queue.put_nowait({"type": "deviceOnline"})
+    print("[MUMU] 尝试重新注入DLL...")
+    self._inject_camera_hook()
 ```
 
 ---
