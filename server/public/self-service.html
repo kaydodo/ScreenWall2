@@ -170,6 +170,7 @@ html, body {
   z-index: 10;
 }
 .no-mumu-hint {
+  display: none;
   position: absolute;
   top: 50%;
   left: 50%;
@@ -241,9 +242,12 @@ var _lastFrameTime = 0;
 var _frameThrottleMs = 300;
 var _offlineCheckTimer = null;
 var OFFLINE_CHECK_INTERVAL = 5000;
+var _mumuOfflineReceived = false;
 
 function _checkOfflineStatus() {
   var now = Date.now();
+  var noMumuHint = document.querySelector('.no-mumu-hint');
+  
   if (now - _lastFrameTime >= OFFLINE_CHECK_INTERVAL && isOnline) {
     isOnline = false;
     frameHealCount = 0;
@@ -251,6 +255,9 @@ function _checkOfflineStatus() {
     img.classList.add('grayscale');
     img.style.opacity = '0.3';
     document.getElementById('offlineWatermark').style.display = 'block';
+    noMumuHint.style.display = 'none';
+  } else if (!isOnline && !_mumuOfflineReceived && _lastFrameTime === 0) {
+    noMumuHint.style.display = 'block';
   }
 }
 
@@ -500,20 +507,28 @@ function handleBinaryFrame(data) {
     img._blobUrl = blobUrl;
     if (oldUrl) URL.revokeObjectURL(oldUrl);
     
-    if (!isOnline) {
-      frameHealCount++;
-      if (frameHealCount >= FRAME_HEAL_THRESHOLD) {
-        isOnline = true;
-        frameHealCount = 0;
-        img.classList.remove('grayscale');
-        img.style.opacity = '1';
-        document.getElementById('offlineWatermark').style.display = 'none';
-      }
-    } else {
-      img.classList.remove('grayscale');
-      img.style.opacity = '1';
-      document.getElementById('offlineWatermark').style.display = 'none';
-    }
+    var noMumuHint = document.querySelector('.no-mumu-hint');
+     if (noMumuHint) noMumuHint.style.display = 'none';
+     
+     if (!isOnline) {
+       if (!_mumuOfflineReceived) {
+         frameHealCount++;
+         if (frameHealCount >= FRAME_HEAL_THRESHOLD) {
+           isOnline = true;
+           frameHealCount = 0;
+           img.classList.remove('grayscale');
+           img.style.opacity = '1';
+           document.getElementById('offlineWatermark').style.display = 'none';
+         }
+       }
+     } else {
+       if (_mumuOfflineReceived) {
+         _mumuOfflineReceived = false;
+       }
+       img.classList.remove('grayscale');
+       img.style.opacity = '1';
+       document.getElementById('offlineWatermark').style.display = 'none';
+     }
   }
 }
 
@@ -569,6 +584,7 @@ function handleJSONMessage(msg) {
   }
   
   if (msg.type === 'mumuOffline' && msg.deviceId === 'MUMU-service') {
+    _mumuOfflineReceived = true;
     isOnline = false;
     frameHealCount = 0;
     updateOnlineStatus();
