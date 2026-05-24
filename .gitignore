@@ -9,6 +9,7 @@ dist/
 build/
 *.egg
 *.spec
+!client/admin_client.spec
 venv/
 .venv/
 
