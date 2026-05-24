@@ -69,6 +69,15 @@ def detect_qr(image_path):
         if img is None:
             return False, None, None
         
+        height, width = img.shape[:2]
+        
+        # 如果图片分辨率大于 1920x1080，放大图片以提高二维码识别率
+        if width > 1920 or height > 1080:
+            scale = min(2.0, max(1920 / width, 1080 / height) + 0.5)
+            new_width = int(width * scale)
+            new_height = int(height * scale)
+            img = cv2.resize(img, (new_width, new_height), interpolation=cv2.INTER_CUBIC)
+        
         # 尝试原图和灰度图
         for src in [img, cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)]:
             try:
@@ -80,6 +89,19 @@ def detect_qr(image_path):
                     return True, data, (x, y, w, h)
             except Exception:
                 pass
+        
+        # 如果仍然失败，尝试增强对比度
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        enhanced = cv2.equalizeHist(gray)
+        try:
+            results = decode(enhanced)
+            if results:
+                qr = results[0]
+                data = qr.data.decode('utf-8')
+                x, y, w, h = qr.rect
+                return True, data, (x, y, w, h)
+        except Exception:
+            pass
         
         return False, None, None
     except Exception as e:

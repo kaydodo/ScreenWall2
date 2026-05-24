@@ -406,11 +406,12 @@ function updateDeviceSelect() {
       deviceId = sortedDevices[0].deviceId;
     }
     
-    // 展开下拉列表（提示用户选择）- 使用click方式展开
+    // 展开下拉列表（提示用户选择）
     setTimeout(() => {
       try {
         select.focus();
-        select.click();
+        const mousedownEvent = new MouseEvent('mousedown', { bubbles: true, cancelable: true });
+        select.dispatchEvent(mousedownEvent);
       } catch (e) {}
     }, 100);
   } else {
@@ -787,9 +788,13 @@ function setupMouseEvents() {
 
 function init() {
   var params = getQueryParams();
-  originalDeviceId = params.deviceId || 'MUMU-service';
-  originalDeviceName = params.deviceName || '';
-  deviceId = originalDeviceId;
+  if (!_isAdminUser) {
+    originalDeviceId = params.deviceId || 'MUMU-service';
+    originalDeviceName = params.deviceName || '';
+    deviceId = originalDeviceId;
+  } else {
+    deviceId = originalDeviceId;
+  }
   previewDeviceId = 'MUMU-service';
   deviceName = originalDeviceName;
   
