@@ -3834,14 +3834,21 @@ const sidebarCollapseBtn = document.getElementById('sidebarCollapseBtn');
 const sidebar = document.getElementById('sidebar');
 const sidebarBackdrop = document.getElementById('sidebarBackdrop');
 function toggleSidebar() {
+  var isCurrentlyCollapsed = sidebar.classList.contains('collapsed');
   sidebar.classList.toggle('collapsed');
   document.body.classList.toggle('sidebar-collapsed');
-  // 同步蒙版
-  const isCollapsed = sidebar.classList.contains('collapsed');
+  var isCollapsed = sidebar.classList.contains('collapsed');
   if (isCollapsed) {
     sidebarBackdrop.classList.remove('show');
   } else {
     sidebarBackdrop.classList.add('show');
+  }
+  if (isCurrentlyCollapsed) {
+    sidebarCollapseBtn.style.opacity = '0';
+    setTimeout(function() {
+      sidebarCollapseBtn.style.transition = '';
+      sidebarCollapseBtn.style.opacity = '1';
+    }, 340);
   }
 }
 sidebarCollapseBtn.onclick = toggleSidebar;
