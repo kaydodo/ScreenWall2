@@ -69,7 +69,17 @@ ScreenWall2 是一套多设备屏幕监控与远控系统，支持同时监控�
 - 设备重装后自动继承原有权限
 - 客户端右键操作时自动检查权限
 
-### 9. 设备开关机管理
+### 9. 管理员客户端
+- 系统托盘图标常驻运行
+- 打开屏幕墙（免验证，自动登录）
+- 自助登号（免验证，自动登录）
+- 设置服务器地址（IP:端口）
+- 开机自启功能（默认开启）
+- 配置文件存储在用户目录（`%APPDATA%\ScreenWallAdmin`）
+- 首次运行弹出服务器设置对话框
+- 管理员身份标识为 `ADMIN`，token格式为 `base64(deviceId:timestamp:admin)`
+
+### 10. 设备开关机管理
 - 基于米家智能家居场景
 - 集成 mijiaAPI 开源项目（通过 `pip install mijiaAPI` 安装）
 - 支持一键执行场景（设备批量开机/关机）
@@ -111,8 +121,11 @@ D:\ScreenWall2\
 │
 ├── client/                          # 电脑客户端
 │   ├── client.py                    # 主程序
+│   ├── admin_client.py              # 管理员客户端（独立）
 │   ├── config.json                  # 配置文件
-│   ├── build_client.py              # 打包脚本
+│   ├── build_client.py              # 标准客户端打包脚本
+│   ├── build_admin_client.py        # 管理员客户端打包脚本
+│   ├── admin_client.spec            # 管理员客户端PyInstaller配置
 │   └── dist/                        # 打包输出目录
 │
 ├── mumu-client/                     # MUMU模拟器客户端
@@ -184,23 +197,32 @@ D:\ScreenWall2\
 │  │  - OCR报警检测 (识别掉线弹窗)                             │    │
 │  │  - 自助登号状态管理 (selfServiceStateByBusinessId)       │    │
 │  │  - 分组管理、收藏管理                                    │    │
+│  │  - 管理员Token验证 (识别:admin后缀)                      │    │
 │  └─────────────────────────────────────────────────────────┘    │
 └─────────────────────────────────────────────────────────────────┘
                              │
-                             │ WebSocket
-                             ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                      设备客户端                                  │
-│  ┌──────────────────────┐      ┌──────────────────────┐         │
-│  │   电脑客户端         │      │   MUMU客户端         │         │
-│  │   client.py          │      │   mumu_client.py     │         │
-│  │                      │      │                      │         │
-│  │  - 屏幕截图(MSS)     │      │  - ADB截图          │         │
-│  │  - 键盘鼠标远控      │      │  - WebSocket推流    │         │
-│  │  - 远控开关/多显示器 │      │  - 摄像头Hook注入   │         │
-│  │  - 心跳/报警截图     │      │  - 自动注入检测     │         │
-│  └──────────────────────┘      └──────────────────────┘         │
-└─────────────────────────────────────────────────────────────────┘
+            ┌────────────────┴────────────────┐
+            │ WebSocket                      │ HTTPS
+            ▼                                 ▼
+┌───────────────────────────┐    ┌──────────────────────────────┐
+│      设备客户端           │    │      管理员客户端            │
+│  ┌──────────────────┐   │    │  ┌────────────────────┐      │
+│  │  电脑客户端     │   │    │  │admin_client.py      │      │
+│  │  client.py      │   │    │  ├────────────────────┤      │
+│  ├──────────────────┤   │    │  - 系统托盘图标       │      │
+│  │- 屏幕截图(MSS)  │   │    │  - 打开屏幕墙(免验证) │      │
+│  │- 键盘鼠标远控   │   │    │  - 自助登号(免验证)   │      │
+│  │- 心跳/报警截图  │   │    │  - 设置服务器地址     │      │
+│  └──────────────────┘   │    │  - 开机自启           │      │
+│  ┌──────────────────┐   │    └────────────────────┘      │
+│  │  MUMU客户端     │   │                                │
+│  │mumu_client.py   │   │                                │
+│  ├──────────────────┤   │                                │
+│  │- ADB截图        │   │                                │
+│  │- WebSocket推流  │   │                                │
+│  │- 摄像头Hook注入 │   │                                │
+│  └──────────────────┘   │                                │
+└───────────────────────────┘    └──────────────────────────────┘
 ```
 
 ---
@@ -867,6 +889,100 @@ if (id === 'MUMU-service') {
 | | | 46a4ea5 | 调整超时窗口：2秒→3秒 |
 | | | 802f7a7 | 修复自助登号同时报超时和成功的bug：点击时间检查通过后立即取消超时定时器 |
 | | | | 调整超时时间：5秒→6秒 |
+| **v1.11.0** | 2026-05-24 | - | 新增管理员客户端：系统托盘+免验证访问+开机自启 |
+| | | - | 管理员客户端移动到client/目录，统一打包流程 |
+| | | - | admin_client.spec单文件打包配置 |
+| | | - | 默认开启开机自启，与标准客户端保持一致 |
+| | | - | 托盘菜单移除版本号显示 |
+| | | - | 首次运行自动弹出服务器地址设置 |
+
+---
+
+## 管理员客户端 (v1.11.0+)
+
+### 功能特性
+
+1. **系统托盘图标**
+   - 蓝色圆形图标，显示AD字样
+   - 常驻运行，右键菜单操作
+
+2. **免验证访问**
+   - 固定设备ID：`ADMIN`
+   - 设备名称：`屏幕墙管理员`
+   - 生成特殊token格式：`base64(deviceId:timestamp:admin)`
+   - 服务端识别token后缀`:admin`，无需密码验证
+
+3. **主要功能**
+   - 打开屏幕墙（免验证）
+   - 自助登号（免验证）
+   - 设置服务器地址
+   - 开机自启开关
+
+4. **配置文件**
+   - 存储位置：`%APPDATA%\ScreenWallAdmin\config.json`
+   - 包含：服务器地址、端口、开机自启状态
+
+5. **首次运行**
+   - 自动弹出服务器地址设置对话框
+   - 默认值：`localhost:3000`
+   - 支持自定义IP和端口
+
+### 核心实现
+
+**关键常量** ([admin_client.py](file:///D:/ScreenWall2/client/admin_client.py))：
+```python
+ADMIN_VERSION = "1.0.0"
+ADMIN_DEVICE_ID = "ADMIN"
+ADMIN_DEVICE_NAME = "屏幕墙管理员"
+APP_NAME = "ScreenWallAdmin"
+EXE_PATH = sys.executable if getattr(sys, 'frozen', False) else os.path.abspath(__file__)
+```
+
+**管理员Token生成**：
+```python
+def generate_admin_token():
+    timestamp = str(int(time.time()))
+    token_str = f"{ADMIN_DEVICE_ID}:{timestamp}:admin"
+    token = base64.b64encode(token_str.encode('utf-8')).decode('utf-8')
+    return token
+```
+
+**开机自启配置**：
+```python
+# 与标准客户端保持一致的注册表配置
+def set_auto_start(enabled):
+    key = winreg.OpenKey(...)
+    if enabled:
+        winreg.SetValueEx(key, APP_NAME, 0, winreg.REG_SZ, f'"{EXE_PATH}" --minimized')
+    else:
+        winreg.DeleteValue(key, APP_NAME)
+```
+
+### 打包配置
+
+**单文件打包** ([admin_client.spec](file:///D:/ScreenWall2/client/admin_client.spec))：
+- 使用PyInstaller单文件模式
+- 集成pystray和PIL依赖
+- 控制台隐藏（`console=False`）
+- 输出文件名：`ScreenWallAdmin.exe`
+
+**打包脚本** ([build_admin_client.py](file:///D:/ScreenWall2/client/build_admin_client.py))：
+```python
+# 位于 client/ 目录
+pyinstaller admin_client.spec -y --distpath dist_admin
+```
+
+### 服务端验证逻辑
+
+**服务端识别管理员Token** ([server.js](file:///D:/ScreenWall2/server/server.js))：
+```javascript
+// 检查token是否以:admin结尾
+const isAdminToken = token.endsWith(':admin');
+if (isAdminToken) {
+    // 管理员身份，免验证
+    return { deviceId: 'ADMIN', deviceName: '屏幕墙管理员', isAdmin: true };
+}
+```
 
 ---
 
