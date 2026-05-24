@@ -966,6 +966,7 @@ function initKeyboardDrag() {
     container.style.left = (e.clientX - keyboardDragOffsetX) + 'px';
     container.style.top = (e.clientY - keyboardDragOffsetY) + 'px';
     container.style.margin = '20px';
+    document.body.style.cursor = 'grabbing';
     e.preventDefault();
   };
 
@@ -976,7 +977,10 @@ function initKeyboardDrag() {
   };
 
   document.onmouseup = function() {
-    keyboardDragging = false;
+    if (keyboardDragging) {
+      keyboardDragging = false;
+      document.body.style.cursor = '';
+    }
   };
 
   titleBar.ontouchstart = function(e) {
