@@ -620,16 +620,20 @@ function initUI() {
   var mobileRemoteWrap = document.getElementById('mobileRemoteWrap');
   if (isMobile() && previewMode === 'normal' && mobileControls) {
     mobileControls.style.display = 'flex';
-    if (kbBtnMobile) kbBtnMobile.style.display = supportsKeyClient ? 'block' : 'none';
+    if (kbBtnMobile) {
+      kbBtnMobile.style.display = supportsKeyClient ? 'block' : 'none';
+      kbBtnMobile.onclick = function(e) { e.stopPropagation(); toggleKeyboard(); };
+    }
     if (monBtnMobile) {
       if (monitorCount > 1) {
         monBtnMobile.style.display = 'block';
         monBtnMobile.textContent = '🖥️ 显示器 ' + monitorIndex;
+        monBtnMobile.onclick = function(e) { e.stopPropagation(); cycleMonitor(); };
       } else {
         monBtnMobile.style.display = 'none';
       }
     }
-    if (mobileRemoteWrap) mobileRemoteWrap.style.display = 'flex';
+    if (mobileRemoteWrap) mobileRemoteWrap.style.display = 'none';
   }
 
   // 手机端点击关闭
