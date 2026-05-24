@@ -302,6 +302,7 @@ function checkAutoLoginToken() {
           _autoLoginSuccess = true;
           _isAdminUser = true;
           originalDeviceId = tokenDeviceId;
+          originalDeviceName = '管理员';
           console.log('[自动登录] 管理员 token 验证成功，设备ID:', tokenDeviceId);
           return true;
         }
@@ -605,6 +606,18 @@ function handleJSONMessage(msg) {
       devices[d.deviceId] = d;
     });
     updateDeviceSelect();
+    if (!_selfServiceInitSent) {
+      _selfServiceInitSent = true;
+      var businessDev = devices[deviceId];
+      var businessDevName = businessDev ? businessDev.deviceName : deviceId;
+      ws.send(JSON.stringify({ 
+        type: 'selfServiceInit', 
+        operatorId: originalDeviceId,
+        operatorName: originalDeviceName,
+        businessId: deviceId,
+        businessName: businessDevName 
+      }));
+    }
     if (previewDeviceId && devices[previewDeviceId]) {
       var wasOnline = isOnline;
       isOnline = devices[previewDeviceId].online !== false;
