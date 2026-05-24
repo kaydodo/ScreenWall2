@@ -817,6 +817,12 @@ function _scheduleWallBatch() {
 const _browserBatch = new Map();
 let _browserBatchScheduled = false;
 let _browserFlushing = false;
+
+// 帧率间隔（毫秒）
+const FRAME_INTERVAL_MOBILE = 500; // 2fps
+const FRAME_INTERVAL_INTERNAL = 166; // ~6fps
+const FRAME_INTERVAL_EXTERNAL = 250; // 4fps
+
 function _flushBrowserBatch() {
   if (_browserFlushing) {
     _browserBatchScheduled = false;
@@ -834,6 +840,16 @@ function _flushBrowserBatch() {
     for (const browserWs of browserClients) {
       if (browserWs.readyState !== 1) continue;
 
+      // 获取该连接的帧率间隔
+      let frameInterval = FRAME_INTERVAL_INTERNAL;
+      if (browserWs._isMobile) {
+        frameInterval = FRAME_INTERVAL_MOBILE;
+      } else if (!browserWs._isInternal) {
+        frameInterval = FRAME_INTERVAL_EXTERNAL;
+      }
+
+      const now = Date.now();
+
       const vpData = viewportSubscriptions.get(browserWs);
       if (vpData && !wallClients.has(browserWs)) {
         if (vpData.deviceIds.size === 0) continue;
@@ -842,12 +858,24 @@ function _flushBrowserBatch() {
           if (!vpData.deviceIds.has(deviceId)) continue;
           if (!data.buffer) continue;
           
+          // 帧率节流
+          const lastTime = browserWs._lastFrameTime.get(deviceId) || 0;
+          if (now - lastTime < frameInterval) continue;
+          browserWs._lastFrameTime.set(deviceId, now);
+          
           sendBinaryScreenshot(browserWs, 0x10, deviceId, data.buffer, data.screenWidth || 0, data.screenHeight || 0, data.isHQ || false);
         }
       } else {
         if (!previewClients.has(browserWs) && !wallClients.has(browserWs)) {
           for (const [deviceId, data] of _browserBatch) {
-            if (data.buffer) sendBinaryScreenshot(browserWs, 0x10, deviceId, data.buffer, data.screenWidth || 0, data.screenHeight || 0, data.isHQ || false);
+            if (!data.buffer) continue;
+            
+            // 帧率节流
+            const lastTime = browserWs._lastFrameTime.get(deviceId) || 0;
+            if (now - lastTime < frameInterval) continue;
+            browserWs._lastFrameTime.set(deviceId, now);
+            
+            sendBinaryScreenshot(browserWs, 0x10, deviceId, data.buffer, data.screenWidth || 0, data.screenHeight || 0, data.isHQ || false);
           }
         }
       }
@@ -2706,11 +2734,36 @@ wssClient.on('connection', (ws, req) => {
   ws.on('error', () => ws.close());
 });
 
+// 检测是否为内网IP
+function isInternalIP(ip) {
+  if (!ip) return false;
+  // 10.x.x.x
+  if (ip.startsWith('10.')) return true;
+  // 192.168.x.x
+  if (ip.startsWith('192.168.')) return true;
+  // 172.16.x.x - 172.31.x.x
+  if (ip.startsWith('172.')) {
+    const parts = ip.split('.');
+    const second = parseInt(parts[1], 10);
+    if (second >= 16 && second <= 31) return true;
+  }
+  // 127.x.x.x (本地)
+  if (ip.startsWith('127.')) return true;
+  return false;
+}
+
 // 浏览器连接
 wssBrowser.on('connection', (ws, req) => {
   browserClients.add(ws);
   ws._lastPing = Date.now();  // 用于计算延迟
   ws._lastPingTs = 0; // 记录最新发出的 ping timestamp，防止旧 pong 乱序导致延迟虚高
+
+  // 获取客户端IP并存储
+  const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+  ws._clientIp = ip;
+  ws._isInternal = isInternalIP(ip);
+  ws._isMobile = false; // 移动端模式标记
+  ws._lastFrameTime = new Map(); // deviceId -> last push timestamp(ms)
 
   // 立即发送第一个 ping
   if (ws.readyState === 1) {
@@ -3509,6 +3562,13 @@ wssBrowser.on('connection', (ws, req) => {
       if (msg.deviceId && msg.level !== undefined) {
         subscribeLevel(msg.deviceId, ws, msg.level);
       }
+    }
+
+    // 移动端模式：浏览器上报是否为移动端
+    if (msg.type === 'setMobileMode') {
+      ws._isMobile = !!msg.isMobile;
+      // 移动端模式时清空帧率追踪，重新开始
+      ws._lastFrameTime.clear();
     }
 
     // Step 3: 视口懒加载 - 浏览器上报当前可见格子和裁剪参数

@@ -693,13 +693,20 @@ function setCell(cellIndex, deviceId) {
   rebuildSidebar();
   showToast('已放入 ' + (dev ? dev.deviceName : deviceId) + ' ' + getPositionLabel(cellIndex), 'success');
 }
+
+// 检测是否为移动端设备
+function isMobileDevice() {
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+         window.innerWidth < 768;
+}
+
 function connectWS() {
   if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
   setConnStatus('connecting');
   const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
   ws = new WebSocket(`${protocol}//${location.host}/ws/browser`);
   ws.binaryType = 'arraybuffer';
-  
+
   ws.onopen = () => {
 //     console.log('[WS] connected');
     setConnStatus('connected');
@@ -710,6 +717,9 @@ function connectWS() {
       latencyEl.style.color = '';
     }
     ws.send(JSON.stringify({ type: 'getState', gridSize }));
+    
+    // 上报移动端模式
+    ws.send(JSON.stringify({ type: 'setMobileMode', isMobile: isMobileDevice() }));
   };
 
   // 监控连接状态变化
@@ -1568,6 +1578,10 @@ function renderGrid() {
     window.addEventListener('resize', function() {
       updateViewport();
       updateMouseHint();
+      // 窗口大小变化时重新检测并上报移动端模式
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'setMobileMode', isMobile: isMobileDevice() }));
+      }
     });
     // 初始上报
     setTimeout(updateViewport, 1000);
