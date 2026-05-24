@@ -2712,6 +2712,23 @@ wssBrowser.on('connection', (ws, req) => {
   ws._lastPing = Date.now();  // 用于计算延迟
   ws._lastPingTs = 0; // 记录最新发出的 ping timestamp，防止旧 pong 乱序导致延迟虚高
 
+  const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+
+  try {
+    const url = new URL(req.url, 'http://localhost');
+    const auto = url.searchParams.get('auto');
+    const token = url.searchParams.get('token');
+    if (auto === '1' && token) {
+      try {
+        const decoded = Buffer.from(token, 'base64').toString('utf8');
+        const parts = decoded.split(':');
+        if (parts.length >= 3 && parts[2] === 'admin') {
+          serverLog(`[自助登号] 管理员浏览器连接，IP: ${ip}`);
+        }
+      } catch (e) {}
+    }
+  } catch (e) {}
+
   // 立即发送第一个 ping
   if (ws.readyState === 1) {
     ws._lastPingTs = Date.now();
@@ -3654,11 +3671,9 @@ wssBrowser.on('connection', (ws, req) => {
       ws._selfServiceDeviceId = msg.operatorId;
       ws._selfServiceDeviceName = msg.operatorName;
       
-      // 判断是否是管理员登录
       if (msg.operatorId === 'ADMN') {
         serverLog(`[自助登号] 管理员打开自助登号页面，帮助 ${msg.businessName || msg.businessId} 操作`);
       }
-      // selfServiceInit 不再使用全局变量，仅用于初始化 WS 连接标识
     }
 
     if (msg.type === 'getWalledDevices') {

@@ -289,27 +289,25 @@ function checkAutoLoginToken() {
   
   if (auto === '1' && token) {
     try {
-      // 解码 token（格式：base64(deviceId:timestamp) 或 base64(deviceId:timestamp:admin)）
       const decoded = atob(token);
       const parts = decoded.split(':');
       if (parts.length >= 2) {
-        const deviceId = parts[0];
+        const tokenDeviceId = parts[0];
         const timestamp = parseInt(parts[1]);
         const isAdmin = parts.length >= 3 && parts[2] === 'admin';
         const now = Math.floor(Date.now() / 1000);
         
         if (isAdmin) {
-          // 管理员 token，免验证，不过期
           _autoLoginSuccess = true;
           _isAdminUser = true;
-          console.log('[自动登录] 管理员 token 验证成功，设备ID:', deviceId);
+          originalDeviceId = tokenDeviceId;
+          console.log('[自动登录] 管理员 token 验证成功，设备ID:', tokenDeviceId);
           return true;
         }
         
-        // 普通 token，有效期 30 秒
         if (now - timestamp < 30) {
           _autoLoginSuccess = true;
-          console.log('[自动登录] token 验证成功，设备ID:', deviceId);
+          console.log('[自动登录] token 验证成功，设备ID:', tokenDeviceId);
           return true;
         } else {
           console.warn('[自动登录] token 已过期');
