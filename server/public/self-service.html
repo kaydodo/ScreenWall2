@@ -603,15 +603,6 @@ function handleJSONMessage(msg) {
       devices[d.deviceId] = d;
     });
     updateDeviceSelect();
-    var businessDev = devices[deviceId];
-    var businessDevName = businessDev ? businessDev.deviceName : deviceId;
-    ws.send(JSON.stringify({ 
-      type: 'selfServiceInit', 
-      operatorId: originalDeviceId,
-      operatorName: originalDeviceName,
-      businessId: deviceId,
-      businessName: businessDevName 
-    }));
     if (previewDeviceId && devices[previewDeviceId]) {
       var wasOnline = isOnline;
       isOnline = devices[previewDeviceId].online !== false;
