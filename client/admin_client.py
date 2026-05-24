@@ -78,8 +78,6 @@ def load_config():
     
     _config = default_config
     save_config(_config)
-    # 默认开启开机自启
-    set_auto_start(True)
     return _config
 
 
@@ -452,6 +450,11 @@ def main():
     
     # 加载配置
     load_config()
+    
+    # 检查开机自启状态，默认开启
+    auto_start_enabled = is_auto_start_enabled()
+    if not auto_start_enabled:
+        set_auto_start(True)
     
     # 启动托盘
     tray = start_tray()
