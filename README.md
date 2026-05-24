@@ -1001,6 +1001,18 @@ cd client
 python build_admin_client.py
 ```
 
+### 相关文件
+- **服务端**：
+  - server/server.js：管理员 Token 验证逻辑
+- **前端**：
+  - server/public/main.html：支持管理员 Token 免验证登录
+  - server/public/self-service.html：自助登号管理员模式逻辑
+- **客户端**：
+  - client/admin_client.py：管理员客户端主程序
+  - client/admin_client.spec：管理员客户端打包配置
+  - client/build_admin_client.py：管理员客户端打包脚本
+  - client/dist_admin/ScreenWallAdmin.exe：管理员客户端打包输出
+
 ### 服务端验证逻辑
 
 **服务端识别管理员Token** ([server.js](file:///D:/ScreenWall2/server/server.js))：
