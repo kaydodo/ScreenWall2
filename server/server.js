@@ -489,7 +489,7 @@ const QRCODE_DIR = path.join(__dirname, 'qrcode');
 function formatDeviceName(name, id) {
   if (!name) return id;
   if (!id) return name;
-  return `${name}（${id}）`;
+  return `${name} (${id})`;
 }
 
 // 自助登号超时时间（毫秒）
