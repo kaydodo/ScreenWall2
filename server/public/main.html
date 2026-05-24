@@ -2288,13 +2288,13 @@ function openCollectionPreview(timestamp, deviceId) {
   var closeBtn = document.getElementById('previewClose');
   if (floatingClose && closeBtn) {
     closeBtn.style.opacity = '0';
-    closeBtn.style.transform = 'translate(-900px, 90px) scale(0)';
+    closeBtn.style.transform = 'translate(-900px, 50px) scale(0)';
     floatingClose.style.display = 'block';
     setTimeout(function() {
       closeBtn.style.transition = 'opacity 0.3s ease-out, transform 0.3s ease-out';
       closeBtn.style.opacity = '1';
       closeBtn.style.transform = 'translate(0, 0) scale(1)';
-    }, 150);
+    }, 100);
   }
 }
 
@@ -2478,13 +2478,13 @@ function openPreview(cellIndex) {
   var closeBtn = document.getElementById('previewClose');
   if (floatingClose && closeBtn) {
     closeBtn.style.opacity = '0';
-    closeBtn.style.transform = 'translate(-900px, 90px) scale(0)';
+    closeBtn.style.transform = 'translate(-900px, 50px) scale(0)';
     floatingClose.style.display = 'block';
     setTimeout(function() {
       closeBtn.style.transition = 'opacity 0.3s ease-out, transform 0.3s ease-out';
       closeBtn.style.opacity = '1';
       closeBtn.style.transform = 'translate(0, 0) scale(1)';
-    }, 150);
+    }, 100);
   }
 }
 
@@ -5253,13 +5253,13 @@ function openAlarmPreview(alarmId) {
   var closeBtn = document.getElementById('previewClose');
   if (floatingClose && closeBtn) {
     closeBtn.style.opacity = '0';
-    closeBtn.style.transform = 'translate(-900px, 90px) scale(0)';
+    closeBtn.style.transform = 'translate(-900px, 50px) scale(0)';
     floatingClose.style.display = 'block';
     setTimeout(function() {
       closeBtn.style.transition = 'opacity 0.3s ease-out, transform 0.3s ease-out';
       closeBtn.style.opacity = '1';
       closeBtn.style.transform = 'translate(0, 0) scale(1)';
-    }, 150);
+    }, 100);
   }
 }
 
