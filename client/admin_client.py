@@ -25,6 +25,9 @@ ADMIN_VERSION = "1.0.0"
 # 管理员固定信息
 ADMIN_DEVICE_ID = "ADMN"
 ADMIN_DEVICE_NAME = "屏幕墙管理员"
+# 开机自启配置
+APP_NAME = "ScreenWallAdmin"
+EXE_PATH = sys.executable if getattr(sys, 'frozen', False) else os.path.abspath(__file__)
 
 # 全局变量
 _tray_icon = None
@@ -101,12 +104,12 @@ def is_auto_start_enabled():
                              r"Software\Microsoft\Windows\CurrentVersion\Run",
                              0, winreg.KEY_READ)
         try:
-            winreg.QueryValueEx(key, "ScreenWallAdmin")
-            return True
-        except WindowsError:
-            return False
-        finally:
+            winreg.QueryValueEx(key, APP_NAME)
             winreg.CloseKey(key)
+            return True
+        except FileNotFoundError:
+            winreg.CloseKey(key)
+            return False
     except Exception:
         return False
 
@@ -118,26 +121,16 @@ def set_auto_start(enabled):
                              r"Software\Microsoft\Windows\CurrentVersion\Run",
                              0, winreg.KEY_SET_VALUE)
         if enabled:
-            exe_path = sys.executable
-            if exe_path.endswith('.exe'):
-                # 已经是打包后的 exe
-                cmd = f'"{exe_path}"'
-            else:
-                # 开发模式，使用 pythonw.exe
-                pythonw = os.path.join(os.path.dirname(sys.executable), 'pythonw.exe')
-                if os.path.exists(pythonw):
-                    cmd = f'"{pythonw}" "{__file__}"'
-                else:
-                    cmd = f'"{sys.executable}" "{__file__}"'
-            winreg.SetValueEx(key, "ScreenWallAdmin", 0, winreg.REG_SZ, cmd)
+            winreg.SetValueEx(key, APP_NAME, 0, winreg.REG_SZ, f'"{EXE_PATH}" --minimized')
         else:
             try:
-                winreg.DeleteValue(key, "ScreenWallAdmin")
-            except WindowsError:
+                winreg.DeleteValue(key, APP_NAME)
+            except FileNotFoundError:
                 pass
         winreg.CloseKey(key)
+        return True
     except Exception:
-        pass
+        return False
 
 
 def generate_admin_token():
