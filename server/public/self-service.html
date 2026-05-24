@@ -239,6 +239,7 @@ var PREVIEW_ASPECT = 9 / 16;
 var _previewLayoutTimer = null;
 var _autoLoginSuccess = false;
 var _isAdminUser = false;  // 标记当前是否是管理员用户
+var _selfServiceInitSent = false;  // 标记是否已发送selfServiceInit
 var _lastFrameTime = 0;
 var _frameThrottleMs = 300;
 var _offlineCheckTimer = null;
@@ -573,17 +574,18 @@ function handleJSONMessage(msg) {
     }
     updateDeviceSelect();
     
-    // 收到 state 消息后发送 selfServiceInit
-    // 如果是管理员且设备ID不在列表中，使用已选择的 deviceId
-    var businessDev = devices[deviceId];
-    var businessDevName = businessDev ? businessDev.deviceName : deviceId;
-    ws.send(JSON.stringify({ 
-      type: 'selfServiceInit', 
-      operatorId: originalDeviceId,
-      operatorName: originalDeviceName,
-      businessId: deviceId,
-      businessName: businessDevName 
-    }));
+    if (!_selfServiceInitSent) {
+      _selfServiceInitSent = true;
+      var businessDev = devices[deviceId];
+      var businessDevName = businessDev ? businessDev.deviceName : deviceId;
+      ws.send(JSON.stringify({ 
+        type: 'selfServiceInit', 
+        operatorId: originalDeviceId,
+        operatorName: originalDeviceName,
+        businessId: deviceId,
+        businessName: businessDevName 
+      }));
+    }
     
     if (previewDeviceId && devices[previewDeviceId]) {
       var dev = devices[previewDeviceId];
