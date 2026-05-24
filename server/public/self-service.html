@@ -407,14 +407,11 @@ function updateDeviceSelect() {
       deviceId = sortedDevices[0].deviceId;
     }
     
-    // 展开下拉列表（提示用户选择）
+    // 展开下拉列表（提示用户选择）- 使用click方式展开
     setTimeout(() => {
       try {
         select.focus();
-        select.size = Math.min(5, sortedDevices.length);
-        setTimeout(() => {
-          select.size = 1;
-        }, 2000);
+        select.click();
       } catch (e) {}
     }, 100);
   } else {
