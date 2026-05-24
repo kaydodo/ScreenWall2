@@ -489,7 +489,7 @@ const QRCODE_DIR = path.join(__dirname, 'qrcode');
 function formatDeviceName(name, id) {
   if (!name) return id;
   if (!id) return name;
-  return `${name} (${id})`;
+  return `${name}（${id}）`;
 }
 
 // 自助登号超时时间（毫秒）
@@ -3655,7 +3655,7 @@ wssBrowser.on('connection', (ws, req) => {
       ws._selfServiceDeviceName = msg.operatorName;
       
       if (msg.operatorId === 'ADMN') {
-        serverLog(`[客户端] 管理员 (${msg.operatorId}) 自助登号`);
+        serverLog(`[客户端] 管理员（${msg.operatorId}） 自助登号`);
       }
     }
 
