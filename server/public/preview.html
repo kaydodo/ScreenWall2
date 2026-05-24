@@ -271,7 +271,7 @@ html, body {
   .keyboard-overlay {
     bottom: auto;
     top: 50%;
-    transform: translate(-50%, -50%);
+    transform: translate(calc(-50% - 50px), -50%);
   }
 }
 
@@ -349,10 +349,10 @@ html, body {
   .mobile-controls {
     position: fixed;
     bottom: 80px;
-    right: 20px;
+    right: -20px;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 70px;
     z-index: 2002;
   }
   .mobile-btn {
