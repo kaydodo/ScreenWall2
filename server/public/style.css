@@ -1970,7 +1970,7 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
   .preview-overlay.active {
     position: fixed !important;
     inset: 0 !important;
-    z-index: 2000 !important;
+    z-index: 9999 !important;
     background: #000 !important;
   }
 
@@ -2022,7 +2022,7 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
 
   /* 移动端报警区域标记也旋转90度并放大 */
   .preview-overlay.active #alarmRegionOverlay {
-    transform: rotate(90deg) scale(1.8) !important;
+    transform: rotate(90deg) scale(1.5) !important;
     transform-origin: center center !important;
   }
 
@@ -3739,7 +3739,7 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
     left: 50% !important;
     width: 100% !important;
     height: auto !important;
-    transform: translate(-50%, -50%) rotate(90deg) scale(1.8) !important;
+    transform: translate(-50%, -50%) rotate(90deg) scale(1.5) !important;
     transform-origin: center center !important;
   }
 }
@@ -3938,7 +3938,7 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
     max-width: none !important;
     max-height: none !important;
     object-fit: contain !important;
-    transform: translate(-50%, -50%) rotate(90deg) scale(1.8) !important;
+    transform: translate(-50%, -50%) rotate(90deg) scale(1.5) !important;
     transform-origin: center center !important;
   }
 
