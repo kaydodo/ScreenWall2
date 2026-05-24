@@ -943,11 +943,76 @@ function openKeyboard() {
   container.innerHTML = html;
   overlay.style.display = 'flex';
   keyboardOpen = true;
+  initKeyboardDrag();
+}
+
+var keyboardDragging = false;
+var keyboardDragOffsetX = 0;
+var keyboardDragOffsetY = 0;
+
+function initKeyboardDrag() {
+  var container = document.getElementById('keyboardContainer');
+  var overlay = document.getElementById('keyboardOverlay');
+  var titleBar = document.getElementById('keyboardTitleBar');
+
+  titleBar.onmousedown = function(e) {
+    if (e.target.tagName === 'BUTTON') return;
+    keyboardDragging = true;
+    keyboardDragOffsetX = e.clientX - container.offsetLeft;
+    keyboardDragOffsetY = e.clientY - container.offsetTop;
+    overlay.style.alignItems = 'flex-start';
+    overlay.style.justifyContent = 'flex-start';
+    container.style.position = 'relative';
+    container.style.left = (e.clientX - keyboardDragOffsetX) + 'px';
+    container.style.top = (e.clientY - keyboardDragOffsetY) + 'px';
+    container.style.margin = '20px';
+    e.preventDefault();
+  };
+
+  document.onmousemove = function(e) {
+    if (!keyboardDragging) return;
+    container.style.left = (e.clientX - keyboardDragOffsetX) + 'px';
+    container.style.top = (e.clientY - keyboardDragOffsetY) + 'px';
+  };
+
+  document.onmouseup = function() {
+    keyboardDragging = false;
+  };
+
+  titleBar.ontouchstart = function(e) {
+    if (e.target.tagName === 'BUTTON') return;
+    keyboardDragging = true;
+    var touch = e.touches[0];
+    keyboardDragOffsetX = touch.clientX - container.offsetLeft;
+    keyboardDragOffsetY = touch.clientY - container.offsetTop;
+    overlay.style.alignItems = 'flex-start';
+    overlay.style.justifyContent = 'flex-start';
+    container.style.position = 'relative';
+    container.style.margin = '20px';
+  };
+
+  document.ontouchmove = function(e) {
+    if (!keyboardDragging) return;
+    var touch = e.touches[0];
+    container.style.left = (touch.clientX - keyboardDragOffsetX) + 'px';
+    container.style.top = (touch.clientY - keyboardDragOffsetY) + 'px';
+  };
+
+  document.ontouchend = function() {
+    keyboardDragging = false;
+  };
 }
 
 function closeKeyboard() {
   var overlay = document.getElementById('keyboardOverlay');
+  var container = document.getElementById('keyboardContainer');
   overlay.style.display = 'none';
+  overlay.style.alignItems = '';
+  overlay.style.justifyContent = '';
+  container.style.position = '';
+  container.style.left = '';
+  container.style.top = '';
+  container.style.margin = '';
   keyboardOpen = false;
 }
 
