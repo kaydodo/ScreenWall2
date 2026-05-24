@@ -392,7 +392,6 @@ function updateDeviceSelect() {
   });
 
   if (_isAdminUser && sortedDevices.length > 0) {
-    // 管理员用户：如果当前设备ID不在列表中，默认选中第一个
     const hasCurrentId = currentValue && sortedDevices.some(d => d.deviceId === currentValue);
     const hasOriginalId = deviceId && sortedDevices.some(d => d.deviceId === deviceId);
     
@@ -401,19 +400,9 @@ function updateDeviceSelect() {
     } else if (hasOriginalId) {
       select.value = deviceId;
     } else {
-      // 默认选中第一个设备
       select.value = sortedDevices[0].deviceId;
       deviceId = sortedDevices[0].deviceId;
     }
-    
-    // 展开下拉列表（提示用户选择）
-    setTimeout(() => {
-      try {
-        select.focus();
-        const mousedownEvent = new MouseEvent('mousedown', { bubbles: true, cancelable: true });
-        select.dispatchEvent(mousedownEvent);
-      } catch (e) {}
-    }, 100);
   } else {
     // 普通用户逻辑
     if (currentValue && sortedDevices.some(d => d.deviceId === currentValue)) {
