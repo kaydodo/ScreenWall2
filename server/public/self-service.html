@@ -367,10 +367,9 @@ function updateDeviceSelect() {
   const select = document.getElementById('deviceSelect');
   if (!select) return;
 
-  const allDevices = Object.values(devices);
-  const onlineDevices = allDevices.filter(d => d.online && d.deviceId !== 'MUMU-service');
+  const allDevices = Object.values(devices).filter(d => d.deviceId !== 'MUMU-service');
 
-  const sortedDevices = [...onlineDevices].sort((a, b) => {
+  const sortedDevices = [...allDevices].sort((a, b) => {
     const aIsMe = a.deviceId === deviceId;
     const bIsMe = b.deviceId === deviceId;
     if (aIsMe && !bIsMe) return -1;
@@ -384,34 +383,24 @@ function updateDeviceSelect() {
   sortedDevices.forEach(d => {
     const opt = document.createElement('option');
     opt.value = d.deviceId;
-    // 管理员模式下不标记任何设备为"本机"（因为管理员的ADMN不在列表中）
+    
+    let label = d.deviceName || d.deviceId;
     if (!_isAdminUser && d.deviceId === originalDeviceId) {
-      opt.textContent = (d.deviceName || d.deviceId) + ' (本机)';
-    } else {
-      opt.textContent = d.deviceName || d.deviceId;
+      label += ' (本机)';
     }
+    if (!d.online) {
+      label += ' (离线)';
+      opt.style.color = '#999';
+    }
+    
+    opt.textContent = label;
     select.appendChild(opt);
   });
 
-  if (_isAdminUser && sortedDevices.length > 0) {
-    const hasCurrentId = currentValue && sortedDevices.some(d => d.deviceId === currentValue);
-    const hasOriginalId = deviceId && sortedDevices.some(d => d.deviceId === deviceId);
-    
-    if (hasCurrentId) {
-      select.value = currentValue;
-    } else if (hasOriginalId) {
-      select.value = deviceId;
-    } else {
-      select.value = sortedDevices[0].deviceId;
-      deviceId = sortedDevices[0].deviceId;
-    }
-  } else {
-    // 普通用户逻辑
-    if (currentValue && sortedDevices.some(d => d.deviceId === currentValue)) {
-      select.value = currentValue;
-    } else if (deviceId && sortedDevices.some(d => d.deviceId === deviceId)) {
-      select.value = deviceId;
-    }
+  if (currentValue && sortedDevices.some(d => d.deviceId === currentValue)) {
+    select.value = currentValue;
+  } else if (deviceId && sortedDevices.some(d => d.deviceId === deviceId)) {
+    select.value = deviceId;
   }
 }
 

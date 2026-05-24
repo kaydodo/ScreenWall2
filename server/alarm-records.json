@@ -1,32 +1,5 @@
 [
   {
-    "id": "96b76b72-a28c-47a7-aff8-1a89f6ba9f35",
-    "deviceId": "aeawtmgwtiau3yfl-admin",
-    "deviceName": "9UXW干一天刚过同感同感",
-    "uuDeviceId": "441947603",
-    "screenshot": "/alarm-screenshots/cff90e71-93aa-46dd-ad36-4bd4992f4063.png",
-    "screenshotId": "cff90e71-93aa-46dd-ad36-4bd4992f4063",
-    "screenshotPath": "D:\\ScreenWall2\\server\\alarm-screenshots\\cff90e71-93aa-46dd-ad36-4bd4992f4063.png",
-    "timestamp": 1779564905072,
-    "groupName": "",
-    "cellStr": "",
-    "occurrenceCount": 1,
-    "status": "confirmed",
-    "matchedKeyword": "网络错",
-    "region": {
-      "x1": 234,
-      "y1": 128,
-      "x2": 407,
-      "y2": 257
-    },
-    "regionSize": {
-      "w": 173,
-      "h": 129
-    },
-    "isFullScreenshot": true,
-    "viewed": true
-  },
-  {
     "id": "372d363f-9462-42bf-b74f-9347aa8d70f8",
     "deviceId": "aeawtmgwtiau3yfl-admin",
     "deviceName": "9UXW干一天刚过同感同感",
@@ -52,5 +25,31 @@
     },
     "isFullScreenshot": false,
     "viewed": true
+  },
+  {
+    "id": "3cd7fc50-043b-4dbf-ab75-467141489395",
+    "deviceId": "aeawtmgwtiau3yfl",
+    "deviceName": "9UXW干一天刚过同感同感",
+    "uuDeviceId": "441947603",
+    "screenshot": "/alarm-screenshots/38c397a5-b371-4992-a30a-2515c1310d83.png",
+    "screenshotId": "38c397a5-b371-4992-a30a-2515c1310d83",
+    "screenshotPath": "D:\\ScreenWall2\\server\\alarm-screenshots\\38c397a5-b371-4992-a30a-2515c1310d83.png",
+    "timestamp": 1779651811542,
+    "groupName": "",
+    "cellStr": "",
+    "occurrenceCount": 1,
+    "status": "confirmed",
+    "matchedKeyword": "网络错",
+    "region": {
+      "x1": 234,
+      "y1": 127,
+      "x2": 407,
+      "y2": 257
+    },
+    "regionSize": {
+      "w": 173,
+      "h": 130
+    },
+    "isFullScreenshot": false
   }
 ]
