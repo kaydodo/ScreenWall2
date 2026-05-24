@@ -858,7 +858,7 @@ if (id === 'MUMU-service') {
 | | | bccccaa | 修改MUMU超时离线日志为「模拟器已超时断开」 |
 | | | e645f18 | 修改权限日志标签为[客户端] |
 | | | 2eb14da | 简化自助登号日志格式，去掉打开二字 |
-| **v1.9.9+** | - | a721fa9 | 修复：自动登录时点击权限管理按钮弹窗不显示 |
+| **v1.9.9** | - | a721fa9 | 修复：自动登录时点击权限管理按钮弹窗不显示 |
 | | | 6346ce8 | 修复：每次点击权限管理都需要验证，自动登录验证后重置标记 |
 | | | 064add5 | 修复：客户端打开时跳过登录但权限管理每次都需要输入密码 |
 | | | 138997e | 清理：删除不再使用的自动登录相关代码 |
@@ -896,15 +896,15 @@ if (id === 'MUMU-service') {
 | | | e4698e7 | 电脑客户端版本号同步更新到1.11.0 |
 | | | 8535a4f | 清理：删除旧版v193打包配置文件 |
 | | | 09f9465 | 自助登号页面管理员模式：ADMN不在列表时自动选择第一个设备，展开下拉提示用户 |
-| | | - | 管理员客户端移动到client/目录，统一打包流程 |
-| | | - | admin_client.spec单文件打包配置 |
-| | | - | 默认开启开机自启，与标准客户端保持一致 |
-| | | - | 托盘菜单移除版本号显示 |
-| | | - | 首次运行自动弹出服务器地址设置 |
+| | | 74b9f50 | 管理员客户端移动到client/目录，统一打包流程 |
+| | | 74b9f50 | admin_client.spec单文件打包配置 |
+| | | 74b9f50 | 默认开启开机自启，与标准客户端保持一致 |
+| | | 74b9f50 | 托盘菜单移除版本号显示 |
+| | | 74b9f50 | 首次运行自动弹出服务器地址设置 |
 
 ---
 
-## 管理员客户端 (v1.11.0+)
+## 管理员客户端 (v1.11.0)
 
 ### 功能特性
 
@@ -1000,18 +1000,6 @@ dist_dir = f'dist_admin_{timestamp}'
 cd client
 python build_admin_client.py
 ```
-
-### 相关文件
-- **服务端**：
-  - server/server.js：管理员 Token 验证逻辑
-- **前端**：
-  - server/public/main.html：支持管理员 Token 免验证登录
-  - server/public/self-service.html：自助登号管理员模式逻辑
-- **客户端**：
-  - client/admin_client.py：管理员客户端主程序
-  - client/admin_client.spec：管理员客户端打包配置
-  - client/build_admin_client.py：管理员客户端打包脚本
-  - client/dist_admin/ScreenWallAdmin.exe：管理员客户端打包输出
 
 ### 服务端验证逻辑
 
@@ -1998,12 +1986,17 @@ messagebox.showwarning(
 
 ### 相关文件
 - **服务端**：
-  - server/server.js：权限 API、权限管理逻辑、统一迁移/删除函数
+  - server/server.js：权限 API、权限管理逻辑、统一迁移/删除函数、管理员 Token 验证
   - server/permissions.json：权限数据持久化文件
 - **前端**：
-  - server/public/main.html：权限管理页面 UI 和交互
+  - server/public/main.html：权限管理页面 UI 和交互、支持管理员 Token 免验证登录
+  - server/public/self-service.html：自助登号页面、管理员模式逻辑
 - **客户端**：
   - client/client.py：权限检查和弹窗显示逻辑
-  - client/dist2/ScreenWallClient/：打包输出目录
+  - client/dist2/ScreenWallClient/：标准客户端打包输出目录
+  - client/admin_client.py：管理员客户端主程序
+  - client/admin_client.spec：管理员客户端打包配置
+  - client/build_admin_client.py：管理员客户端打包脚本
+  - client/dist_admin/ScreenWallAdmin.exe：管理员客户端打包输出
   - mumu-client/mumu_client.py：MUMU 模拟器客户端
   - mumu-client/config.json：MUMU 客户端配置文件
