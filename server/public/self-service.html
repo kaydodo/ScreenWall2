@@ -238,6 +238,7 @@ var screenHeight = 1080;
 var PREVIEW_ASPECT = 9 / 16;
 var _previewLayoutTimer = null;
 var _autoLoginSuccess = false;
+var _isAdminUser = false;  // 标记当前是否是管理员用户
 var _lastFrameTime = 0;
 var _frameThrottleMs = 300;
 var _offlineCheckTimer = null;
@@ -300,6 +301,7 @@ function checkAutoLoginToken() {
         if (isAdmin) {
           // 管理员 token，免验证，不过期
           _autoLoginSuccess = true;
+          _isAdminUser = true;
           console.log('[自动登录] 管理员 token 验证成功，设备ID:', deviceId);
           return true;
         }
@@ -390,10 +392,38 @@ function updateDeviceSelect() {
     select.appendChild(opt);
   });
 
-  if (currentValue && sortedDevices.some(d => d.deviceId === currentValue)) {
-    select.value = currentValue;
-  } else if (deviceId && sortedDevices.some(d => d.deviceId === deviceId)) {
-    select.value = deviceId;
+  if (_isAdminUser && sortedDevices.length > 0) {
+    // 管理员用户：如果当前设备ID不在列表中，默认选中第一个
+    const hasCurrentId = currentValue && sortedDevices.some(d => d.deviceId === currentValue);
+    const hasOriginalId = deviceId && sortedDevices.some(d => d.deviceId === deviceId);
+    
+    if (hasCurrentId) {
+      select.value = currentValue;
+    } else if (hasOriginalId) {
+      select.value = deviceId;
+    } else {
+      // 默认选中第一个设备
+      select.value = sortedDevices[0].deviceId;
+      deviceId = sortedDevices[0].deviceId;
+    }
+    
+    // 展开下拉列表（提示用户选择）
+    setTimeout(() => {
+      try {
+        select.focus();
+        select.size = Math.min(5, sortedDevices.length);
+        setTimeout(() => {
+          select.size = 1;
+        }, 2000);
+      } catch (e) {}
+    }, 100);
+  } else {
+    // 普通用户逻辑
+    if (currentValue && sortedDevices.some(d => d.deviceId === currentValue)) {
+      select.value = currentValue;
+    } else if (deviceId && sortedDevices.some(d => d.deviceId === deviceId)) {
+      select.value = deviceId;
+    }
   }
 }
 
@@ -558,6 +588,7 @@ function handleJSONMessage(msg) {
     updateDeviceSelect();
     
     // 收到 state 消息后发送 selfServiceInit
+    // 如果是管理员且设备ID不在列表中，使用已选择的 deviceId
     var businessDev = devices[deviceId];
     var businessDevName = businessDev ? businessDev.deviceName : deviceId;
     ws.send(JSON.stringify({ 
