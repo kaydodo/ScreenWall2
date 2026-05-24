@@ -2,11 +2,18 @@
 import subprocess
 import os
 import shutil
+import time
 
 os.chdir(r'D:\ScreenWall2\client')
 
 if os.path.exists('dist_admin'):
-    shutil.rmtree('dist_admin')
+    # 尝试删除，如果被占用则等待重试
+    for retry in range(5):
+        try:
+            shutil.rmtree('dist_admin')
+            break
+        except Exception:
+            time.sleep(1)
 
 print("正在打包管理员客户端...")
 result = subprocess.run(

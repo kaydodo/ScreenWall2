@@ -76,6 +76,8 @@ def load_config():
     
     _config = default_config
     save_config(_config)
+    # 默认开启开机自启
+    set_auto_start(True)
     return _config
 
 
@@ -349,7 +351,7 @@ def _build_menu():
         return None
     
     return Menu(
-        MenuItem(f"ScreenWall Admin v{ADMIN_VERSION}", lambda i, t: None, enabled=False),
+        MenuItem("ScreenWall Admin", lambda i, t: None, enabled=False),
         MenuItem("打开屏幕墙", _tray_on_open_screenwall),
         MenuItem("自助登号", _tray_on_open_self_service),
         MenuItem("设置服务器地址", _tray_on_set_server),
@@ -405,13 +407,10 @@ def start_tray():
 
 def check_first_run():
     """检查是否首次运行，首次运行弹出服务器设置"""
-    cfg = load_config()
-    srv = cfg.get("server", {})
-    host = srv.get("host", "localhost")
-    
-    # 如果还是默认的 localhost，且没有配置文件，提示设置
     config_path = get_config_path()
-    if host == "localhost" and not os.path.exists(config_path):
+    is_first_run = not os.path.exists(config_path)
+    
+    if is_first_run:
         try:
             import tkinter as tk
             from tkinter import simpledialog, messagebox
@@ -443,6 +442,7 @@ def check_first_run():
                     port = 3000
                 
                 if host:
+                    cfg = load_config()
                     cfg["server"] = {"host": host, "port": port}
                     save_config(cfg)
             
