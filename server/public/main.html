@@ -2289,11 +2289,8 @@ function openCollectionPreview(timestamp, deviceId) {
   if (floatingClose && closeBtn) {
     closeBtn.style.opacity = '0';
     closeBtn.style.transform = 'scale(0)';
-    floatingClose.style.opacity = '0';
     floatingClose.style.display = 'block';
     setTimeout(function() {
-      floatingClose.style.transition = 'opacity 0.3s ease-out';
-      floatingClose.style.opacity = '1';
       closeBtn.style.transition = 'opacity 0.3s ease-out, transform 0.3s ease-out';
       closeBtn.style.opacity = '1';
       closeBtn.style.transform = 'scale(1)';
@@ -2482,11 +2479,8 @@ function openPreview(cellIndex) {
   if (floatingClose && closeBtn) {
     closeBtn.style.opacity = '0';
     closeBtn.style.transform = 'scale(0)';
-    floatingClose.style.opacity = '0';
     floatingClose.style.display = 'block';
     setTimeout(function() {
-      floatingClose.style.transition = 'opacity 0.3s ease-out';
-      floatingClose.style.opacity = '1';
       closeBtn.style.transition = 'opacity 0.3s ease-out, transform 0.3s ease-out';
       closeBtn.style.opacity = '1';
       closeBtn.style.transform = 'scale(1)';
@@ -5260,11 +5254,8 @@ function openAlarmPreview(alarmId) {
   if (floatingClose && closeBtn) {
     closeBtn.style.opacity = '0';
     closeBtn.style.transform = 'scale(0)';
-    floatingClose.style.opacity = '0';
     floatingClose.style.display = 'block';
     setTimeout(function() {
-      floatingClose.style.transition = 'opacity 0.3s ease-out';
-      floatingClose.style.opacity = '1';
       closeBtn.style.transition = 'opacity 0.3s ease-out, transform 0.3s ease-out';
       closeBtn.style.opacity = '1';
       closeBtn.style.transform = 'scale(1)';
