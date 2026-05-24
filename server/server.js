@@ -3655,7 +3655,7 @@ wssBrowser.on('connection', (ws, req) => {
       ws._selfServiceDeviceName = msg.operatorName;
       
       if (msg.operatorId === 'ADMN') {
-        serverLog(`[自助登号] 管理员 (${msg.operatorId}) 自助登号`);
+        serverLog(`[客户端] 管理员 (${msg.operatorId}) 自助登号`);
       }
     }
 
