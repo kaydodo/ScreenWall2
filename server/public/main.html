@@ -2285,7 +2285,17 @@ function openCollectionPreview(timestamp, deviceId) {
     overlay.classList.add('active');
   }, 400);
   var floatingClose = document.getElementById('previewFloatingClose');
-  if (floatingClose) floatingClose.style.display = 'block';
+  var closeBtn = document.getElementById('previewClose');
+  if (floatingClose && closeBtn) {
+    closeBtn.style.opacity = '0';
+    closeBtn.style.transform = 'scale(0)';
+    floatingClose.style.display = 'block';
+    setTimeout(function() {
+      closeBtn.style.transition = 'opacity 0.3s ease-out, transform 0.3s ease-out';
+      closeBtn.style.opacity = '1';
+      closeBtn.style.transform = 'scale(1)';
+    }, 150);
+  }
 }
 
 
@@ -2465,7 +2475,17 @@ function openPreview(cellIndex) {
     overlay.classList.add('active');
   }, 400);
   var floatingClose = document.getElementById('previewFloatingClose');
-  if (floatingClose) floatingClose.style.display = 'block';
+  var closeBtn = document.getElementById('previewClose');
+  if (floatingClose && closeBtn) {
+    closeBtn.style.opacity = '0';
+    closeBtn.style.transform = 'scale(0)';
+    floatingClose.style.display = 'block';
+    setTimeout(function() {
+      closeBtn.style.transition = 'opacity 0.3s ease-out, transform 0.3s ease-out';
+      closeBtn.style.opacity = '1';
+      closeBtn.style.transform = 'scale(1)';
+    }, 150);
+  }
 }
 
 function closePreview() {
@@ -5230,7 +5250,17 @@ function openAlarmPreview(alarmId) {
     overlay.classList.add('active');
   }, 400);
   var floatingClose = document.getElementById('previewFloatingClose');
-  if (floatingClose) floatingClose.style.display = 'block';
+  var closeBtn = document.getElementById('previewClose');
+  if (floatingClose && closeBtn) {
+    closeBtn.style.opacity = '0';
+    closeBtn.style.transform = 'scale(0)';
+    floatingClose.style.display = 'block';
+    setTimeout(function() {
+      closeBtn.style.transition = 'opacity 0.3s ease-out, transform 0.3s ease-out';
+      closeBtn.style.opacity = '1';
+      closeBtn.style.transform = 'scale(1)';
+    }, 150);
+  }
 }
 
 function clearAllAlarms() {
