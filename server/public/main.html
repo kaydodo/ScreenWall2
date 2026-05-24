@@ -2285,17 +2285,7 @@ function openCollectionPreview(timestamp, deviceId) {
     overlay.classList.add('active');
   }, 400);
   var floatingClose = document.getElementById('previewFloatingClose');
-  var closeBtn = document.getElementById('previewClose');
-  if (floatingClose && closeBtn) {
-    closeBtn.style.opacity = '0';
-    closeBtn.style.transform = 'scale(0)';
-    floatingClose.style.display = 'block';
-    setTimeout(function() {
-      closeBtn.style.transition = 'opacity 0.25s ease-in, transform 0.25s ease-out';
-      closeBtn.style.opacity = '1';
-      closeBtn.style.transform = 'scale(1)';
-    }, 80);
-  }
+  floatingClose.style.display = 'block';
 }
 
 
@@ -2475,17 +2465,7 @@ function openPreview(cellIndex) {
     overlay.classList.add('active');
   }, 400);
   var floatingClose = document.getElementById('previewFloatingClose');
-  var closeBtn = document.getElementById('previewClose');
-  if (floatingClose && closeBtn) {
-    closeBtn.style.opacity = '0';
-    closeBtn.style.transform = 'scale(0)';
-    floatingClose.style.display = 'block';
-    setTimeout(function() {
-      closeBtn.style.transition = 'opacity 0.25s ease-in, transform 0.25s ease-out';
-      closeBtn.style.opacity = '1';
-      closeBtn.style.transform = 'scale(1)';
-    }, 80);
-  }
+  floatingClose.style.display = 'block';
 }
 
 function closePreview() {
@@ -5250,17 +5230,7 @@ function openAlarmPreview(alarmId) {
     overlay.classList.add('active');
   }, 400);
   var floatingClose = document.getElementById('previewFloatingClose');
-  var closeBtn = document.getElementById('previewClose');
-  if (floatingClose && closeBtn) {
-    closeBtn.style.opacity = '0';
-    closeBtn.style.transform = 'scale(0)';
-    floatingClose.style.display = 'block';
-    setTimeout(function() {
-      closeBtn.style.transition = 'opacity 0.25s ease-in, transform 0.25s ease-out';
-      closeBtn.style.opacity = '1';
-      closeBtn.style.transform = 'scale(1)';
-    }, 80);
-  }
+  floatingClose.style.display = 'block';
 }
 
 function clearAllAlarms() {
