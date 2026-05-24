@@ -332,7 +332,7 @@ def _tray_on_quit(icon, item):
             _tray_icon.stop()
         except Exception:
             pass
-    sys.exit(0)
+    os._exit(0)
 
 
 def _build_menu():
