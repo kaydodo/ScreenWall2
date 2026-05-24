@@ -67,9 +67,6 @@ def load_config():
         try:
             with open(_config_path, 'r', encoding='utf-8') as f:
                 loaded = json.load(f)
-                # 合并默认配置，移除旧的autoStart配置
-                if "autoStart" in loaded:
-                    del loaded["autoStart"]
                 # 合并默认配置
                 for key, value in default_config.items():
                     if key not in loaded:
