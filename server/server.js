@@ -3653,6 +3653,11 @@ wssBrowser.on('connection', (ws, req) => {
       ws._isSelfService = true;
       ws._selfServiceDeviceId = msg.operatorId;
       ws._selfServiceDeviceName = msg.operatorName;
+      
+      // 判断是否是管理员登录
+      if (msg.operatorId === 'ADMN') {
+        serverLog(`[自助登号] 管理员打开自助登号页面，帮助 ${msg.businessName || msg.businessId} 操作`);
+      }
       // selfServiceInit 不再使用全局变量，仅用于初始化 WS 连接标识
     }
 

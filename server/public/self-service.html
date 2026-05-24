@@ -384,7 +384,8 @@ function updateDeviceSelect() {
   sortedDevices.forEach(d => {
     const opt = document.createElement('option');
     opt.value = d.deviceId;
-    if (d.deviceId === deviceId) {
+    // 管理员模式下不标记任何设备为"本机"（因为管理员的ADMN不在列表中）
+    if (!_isAdminUser && d.deviceId === originalDeviceId) {
       opt.textContent = (d.deviceName || d.deviceId) + ' (本机)';
     } else {
       opt.textContent = d.deviceName || d.deviceId;
