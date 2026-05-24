@@ -329,6 +329,8 @@ def _tray_on_quit(icon, item):
     global _tray_icon
     if _tray_icon:
         try:
+            _tray_icon.visible = False
+            time.sleep(0.1)
             _tray_icon.stop()
         except Exception:
             pass
