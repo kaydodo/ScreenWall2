@@ -19,7 +19,7 @@ import time
 import webbrowser
 
 # 客户端版本号（每次功能更新时手动递增）
-CLIENT_VERSION = "1.10.6"
+CLIENT_VERSION = "1.11.0"
 
 
 def _get_mac_address():
