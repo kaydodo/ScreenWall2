@@ -461,7 +461,7 @@ html, body {
 
 <!-- ═══════════════════════════════════════════════════════════════ -->
 <div id="wallPreviewFloatingClose" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999999;pointer-events:none;">
-  <button onclick="wallClosePreview()" style="position:absolute;top:12px;right:16px;color:#888;background:rgba(30,33,45,0.9);border:1px solid #444;font-size:14px;cursor:pointer;padding:6px 12px;border-radius:6px;pointer-events:auto;transition:all 0.2s;white-space:nowrap;">✕ 关闭</button>
+  <button id="wallPreviewClose" onclick="wallClosePreview()" style="position:absolute;top:12px;right:16px;color:#888;background:rgba(30,33,45,0.9);border:1px solid #444;font-size:14px;cursor:pointer;padding:6px 12px;border-radius:6px;pointer-events:auto;transition:all 0.2s;white-space:nowrap;">✕ 关闭</button>
 </div>
 
 <div class="wall-preview-overlay" id="wallPreviewOverlay" style="display:none;">
@@ -1214,7 +1214,15 @@ function wallOpenPreview(deviceId) {
     overlay.classList.add('active');
   }, 400);
   var floatingClose = document.getElementById('wallPreviewFloatingClose');
-  if (floatingClose) floatingClose.style.display = 'block';
+  var closeBtn = document.getElementById('wallPreviewClose');
+  if (floatingClose && closeBtn) {
+    closeBtn.style.opacity = '0';
+    floatingClose.style.display = 'block';
+    setTimeout(function() {
+      closeBtn.style.transition = '';
+      closeBtn.style.opacity = '1';
+    }, 340);
+  }
 }
 
 function wallClosePreview() {
