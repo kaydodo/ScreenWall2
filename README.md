@@ -889,7 +889,13 @@ if (id === 'MUMU-service') {
 | | | 46a4ea5 | 调整超时窗口：2秒→3秒 |
 | | | 802f7a7 | 修复自助登号同时报超时和成功的bug：点击时间检查通过后立即取消超时定时器 |
 | | | | 调整超时时间：5秒→6秒 |
-| **v1.11.0** | 2026-05-24 | - | 新增管理员客户端：系统托盘+免验证访问+开机自启 |
+| **v1.11.0** | 2026-05-24 | 09f9465 | 新增管理员客户端：系统托盘+免验证访问+开机自启 |
+| | | 40164f7 | 修复管理员客户端退出问题：使用os._exit完全退出，退出前设置托盘icon.visible=false |
+| | | 3ef5b1a | 修复打包脚本文件锁定问题：使用时间戳临时目录，先打包后重命名 |
+| | | 0bb6fa0 | 修复管理员客户端配置：移除autoStart配置项 |
+| | | e4698e7 | 电脑客户端版本号同步更新到1.11.0 |
+| | | 8535a4f | 清理：删除旧版v193打包配置文件 |
+| | | 09f9465 | 自助登号页面管理员模式：ADMN不在列表时自动选择第一个设备，展开下拉提示用户 |
 | | | - | 管理员客户端移动到client/目录，统一打包流程 |
 | | | - | admin_client.spec单文件打包配置 |
 | | | - | 默认开启开机自启，与标准客户端保持一致 |
@@ -907,7 +913,7 @@ if (id === 'MUMU-service') {
    - 常驻运行，右键菜单操作
 
 2. **免验证访问**
-   - 固定设备ID：`ADMIN`
+   - 固定设备ID：`ADMN`
    - 设备名称：`屏幕墙管理员`
    - 生成特殊token格式：`base64(deviceId:timestamp:admin)`
    - 服务端识别token后缀`:admin`，无需密码验证
@@ -932,7 +938,7 @@ if (id === 'MUMU-service') {
 **关键常量** ([admin_client.py](file:///D:/ScreenWall2/client/admin_client.py))：
 ```python
 ADMIN_VERSION = "1.0.0"
-ADMIN_DEVICE_ID = "ADMIN"
+ADMIN_DEVICE_ID = "ADMN"
 ADMIN_DEVICE_NAME = "屏幕墙管理员"
 APP_NAME = "ScreenWallAdmin"
 EXE_PATH = sys.executable if getattr(sys, 'frozen', False) else os.path.abspath(__file__)
@@ -958,6 +964,20 @@ def set_auto_start(enabled):
         winreg.DeleteValue(key, APP_NAME)
 ```
 
+**退出处理逻辑**：
+```python
+def _tray_on_quit(icon, item):
+    global _tray_icon
+    if _tray_icon:
+        try:
+            _tray_icon.visible = False  # 先隐藏图标
+            time.sleep(0.1)             # 给图标隐藏留时间
+            _tray_icon.stop()
+        except Exception:
+            pass
+    os._exit(0)  # 确保进程完全退出，不残留
+```
+
 ### 打包配置
 
 **单文件打包** ([admin_client.spec](file:///D:/ScreenWall2/client/admin_client.spec))：
@@ -969,7 +989,16 @@ def set_auto_start(enabled):
 **打包脚本** ([build_admin_client.py](file:///D:/ScreenWall2/client/build_admin_client.py))：
 ```python
 # 位于 client/ 目录
-pyinstaller admin_client.spec -y --distpath dist_admin
+# 使用时间戳临时目录避免文件锁定问题
+timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+dist_dir = f'dist_admin_{timestamp}'
+# 先打包到临时目录，再重命名为最终目录
+```
+
+**打包命令**：
+```powershell
+cd client
+python build_admin_client.py
 ```
 
 ### 服务端验证逻辑
@@ -980,8 +1009,33 @@ pyinstaller admin_client.spec -y --distpath dist_admin
 const isAdminToken = token.endsWith(':admin');
 if (isAdminToken) {
     // 管理员身份，免验证
-    return { deviceId: 'ADMIN', deviceName: '屏幕墙管理员', isAdmin: true };
+    return { deviceId: 'ADMN', deviceName: '屏幕墙管理员', isAdmin: true };
 }
+```
+
+### 自助登号管理员模式
+
+**自助登号页面处理逻辑** ([self-service.html](file:///D:/ScreenWall2/server/public/self-service.html))：
+- 检测到管理员token时设置 `_isAdminUser = true`
+- 当 `ADMN` 不在业务设备列表中时，自动选择第一个在线设备
+- 短暂展开下拉列表提示用户选择（2秒后收起）
+- 确保 `selfServiceInit` 消息正确传递两个ID：
+  - `operatorId=ADMN`（管理员，业务发起方）
+  - `businessId=设备ID`（业务设备，需要截图的设备）
+
+**完整登录流程**：
+```
+管理员客户端打开自助登号页
+    ↓
+页面检测到管理员token → 设置 _isAdminUser = true
+    ↓
+收到state消息 → 更新设备列表
+    ↓
+检测到 ADMN 不在列表 → 默认选中第一个设备
+    ↓
+发送 selfServiceInit → operatorId=ADMN, businessId=设备ID
+    ↓
+服务端对比两个ID → 识别管理员帮别人登录的场景
 ```
 
 ---
