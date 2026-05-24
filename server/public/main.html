@@ -597,6 +597,33 @@ function isMicroRefreshLocked() {
 let previewWS = null;       // 预览专用连接（请求高清）
 let keyClientExists = false; // 键盘客户端是否存在
 let reconnectTimer = null;
+let isAdminAuthenticated = false; // 管理员自动登录状态
+
+// 检查 URL 参数中的自动登录 token
+function checkAutoLoginToken() {
+  const params = new URLSearchParams(window.location.search);
+  const auto = params.get('auto');
+  const token = params.get('token');
+  
+  if (auto === '1' && token) {
+    try {
+      // 解码 token（格式：base64(deviceId:timestamp:admin)）
+      const decoded = atob(token);
+      const parts = decoded.split(':');
+      if (parts.length >= 3 && parts[2] === 'admin') {
+        isAdminAuthenticated = true;
+        console.log('[自动登录] 管理员 token 验证成功');
+        return true;
+      }
+    } catch (e) {
+      console.error('[自动登录] token 解析失败:', e.message);
+    }
+  }
+  return false;
+}
+
+// 页面加载时自动检查自动登录
+checkAutoLoginToken();
 let groups = [];          // 分组列表 [{ id, name, color, deviceIds: [] }]
 let alarmRecords = [];    // 报警记录列表
 let tasks = [];           // 任务记录列表
@@ -3940,15 +3967,26 @@ function closeConfigDialog() {
 // ─────────────────────────────────────────
 function openPermissionDialog() {
   const dialog = document.getElementById('permissionDialog');
-  dialog.style.width = '400px';
-  dialog.style.height = 'auto';
-  dialog.style.maxHeight = 'none';
   document.getElementById('permissionOverlay').style.display = 'flex';
-  document.getElementById('permissionLoginForm').style.display = 'flex';
-  document.getElementById('permissionContent').style.display = 'none';
-  document.getElementById('permissionLoginError').style.display = 'none';
-  document.getElementById('permissionUsername').value = '';
-  document.getElementById('permissionPassword').value = '';
+  
+  // 如果是管理员 token 认证，直接显示权限管理内容
+  if (isAdminAuthenticated) {
+    dialog.style.width = '650px';
+    dialog.style.height = '600px';
+    dialog.style.maxHeight = '85vh';
+    document.getElementById('permissionLoginForm').style.display = 'none';
+    document.getElementById('permissionContent').style.display = 'flex';
+    renderPermissionDeviceList();
+  } else {
+    dialog.style.width = '400px';
+    dialog.style.height = 'auto';
+    dialog.style.maxHeight = 'none';
+    document.getElementById('permissionLoginForm').style.display = 'flex';
+    document.getElementById('permissionContent').style.display = 'none';
+    document.getElementById('permissionLoginError').style.display = 'none';
+    document.getElementById('permissionUsername').value = '';
+    document.getElementById('permissionPassword').value = '';
+  }
 }
 
 function closePermissionDialog() {
