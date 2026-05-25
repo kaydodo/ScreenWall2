@@ -127,7 +127,8 @@
       "w": 173,
       "h": 160
     },
-    "isFullScreenshot": true
+    "isFullScreenshot": true,
+    "viewed": true
   },
   {
     "id": "5f1a9638-332d-453a-b4ba-6f17805c7685",
@@ -179,7 +180,8 @@
       "w": 173,
       "h": 160
     },
-    "isFullScreenshot": true
+    "isFullScreenshot": true,
+    "viewed": true
   },
   {
     "id": "1b0d2907-83d3-4732-ab29-ca3af85751a8",
@@ -205,6 +207,6 @@
       "w": 173,
       "h": 160
     },
-    "isFullScreenshot": false
+    "isFullScreenshot": true
   }
 ]

@@ -1011,6 +1011,9 @@ class MumuClient:
         screen_width, screen_height = await self._get_device_resolution()
         print(f"[MUMU] 检测到模拟器分辨率: {screen_width}x{screen_height}")
 
+        self._launch_splitcam(self.project_b)
+        print("[MUMU] 已启动虚拟摄像头（白图）")
+
         server_host = self.config["server"]["host"]
         server_port = self.config["server"]["port"]
         ws_uri = f"ws://{server_host}:{server_port}/ws/client"
