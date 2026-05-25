@@ -290,7 +290,8 @@ class MumuClient:
             print(f"[MUMU] 二维码识别成功: 耗时{detect_time:.0f}ms, 尝试{attempts}轮")
             
             if self._is_url_or_ad(data_qr):
-                print(f"[MUMU] 二维码识别失败: 识别到URL或广告内容 - {data_qr[:50]}")
+                print(f"[MUMU] 二维码识别失败: 识别到URL或广告内容")
+                print(f"[MUMU] 二维码完整内容: {data_qr}")
                 await ws.send(json.dumps({
                     "type": "qrcodeResult",
                     "requestId": request_id,
@@ -343,7 +344,7 @@ class MumuClient:
         data_lower = data.lower()
         url_prefixes = ('http://', 'https://', 'www.', 'ftp://', 'mailto:', 'tel:', 
                         'weixin://', 'mapi.weixin.qq.com', 'wxp://')
-        ad_keywords = ('ad', 'ads', 'promotion', '广告', '推广', '优惠', '活动')
+        ad_keywords = ('广告', '推广', '优惠', '活动', 'promotion')
         
         if data_lower.startswith(url_prefixes):
             return True
