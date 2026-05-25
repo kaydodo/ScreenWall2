@@ -306,8 +306,8 @@ class MumuClient:
             process_success = self._process_qrcode(img_for_process, qr_rect)
             
             if process_success:
-                self._trigger_ab_refresh()
-                print(f"[MUMU] 二维码解析成功")
+                self._launch_splitcam(self.project_a)
+                print(f"[MUMU] 二维码解析成功，已刷新A")
                 await ws.send(json.dumps({
                     "type": "qrcodeResult",
                     "requestId": request_id,
@@ -462,16 +462,6 @@ class MumuClient:
             return True
         except Exception as e:
             print(f"[MUMU] SplitCam启动失败: {e}")
-            return False
-
-    def _trigger_ab_refresh(self):
-        try:
-            self._launch_splitcam(self.project_a)
-            time.sleep(3)
-            self._launch_splitcam(self.project_b)
-            return True
-        except Exception as e:
-            print(f"[MUMU] A/B刷新失败: {e}")
             return False
 
     async def _cmd_worker(self):
@@ -948,6 +938,8 @@ class MumuClient:
                 if current_time - self._last_camera_notify_time < 1.0:
                     continue
                 self._last_camera_notify_time = current_time
+                
+                self._launch_splitcam(self.project_b)
                 
                 msg = {
                     "type": "cameraClicked",
