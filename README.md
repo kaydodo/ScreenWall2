@@ -96,10 +96,23 @@ D:\ScreenWall2\
 ├── server/                          # 服务端
 │   ├── server.js                    # 主服务程序
 │   ├── mijia-bridge.py              # 米家API桥接脚本
+│   ├── mumu-service/                # MU微服务
+│   │   ├── mumu_service.py          # 主程序（含二维码识别功能）
+│   │   ├── injector49.exe           # 摄像头Hook注入器
+│   │   ├── camera_hook49.dll        # 摄像头Hook DLL
+│   │   ├── config.json              # 配置文件
+│   │   └── qrcode/                  # 二维码处理目录
+│   │       ├── last_qrcode.png      # 处理后的二维码
+│   │       ├── blank.png            # 空白占位图
+│   │       ├── Project_A.scproject  # SplitCam方案A（显示二维码）
+│   │       ├── Project_B.scproject  # SplitCam方案B（显示空白图）
+│   │       ├── backup.scproject     # 备份方案
+│   │       ├── debug/               # 识别失败调试截图目录
+│   │       └── README.md            # QRcode目录说明文档
 │   ├── public/                      # 前端静态资源
 │   │   ├── main.html                # 主页面
 │   │   ├── monitor-wall.html        # 监控墙页面
-│   │   ├── preview.html            # 预览弹窗页面
+│   │   ├── preview.html             # 预览弹窗页面
 │   │   ├── self-service.html        # 自助登号页面
 │   │   ├── style.css                # 样式文件
 │   │   ├── config.json              # 配置文件
@@ -118,24 +131,7 @@ D:\ScreenWall2\
 │   ├── admin_client.spec            # 管理员客户端PyInstaller配置
 │   └── dist/                        # 打包输出目录
 │
-├── server/                          # 服务端
-│   ├── server.js                    # 主服务程序
-│   ├── mumu-service/                # MU微服务
-│   │   ├── mumu_service.py          # 主程序（含二维码识别功能）
-│   │   ├── injector49.exe           # 摄像头Hook注入器
-│   │   ├── camera_hook49.dll        # 摄像头Hook DLL
-│   │   ├── config.json              # 配置文件
-│   │   └── qrcode/                  # 二维码处理目录
-│   │       ├── last_qrcode.png      # 处理后的二维码
-│   │       ├── blank.png            # 空白占位图
-│   │       ├── Project_A.scproject  # SplitCam方案A（显示二维码）
-│   │       ├── Project_B.scproject  # SplitCam方案B（显示空白图）
-│   │       ├── backup.scproject     # 备份方案
-│   │       ├── debug/               # 识别失败调试截图目录
-│   │       └── README.md            # QRcode目录说明文档
-│   └── ...
-│
-└── mumu_camera_hook/               # MUMU摄像头Hook模块（已废弃，功能集成到mumu-service）
+└── mumu_camera_hook/                # MUMU摄像头Hook模块（已废弃，功能集成到mumu-service）
     ├── camera_hook49.cpp            # Hook DLL源码
     ├── camera_hook49.dll            # Hook DLL
     ├── injector49.cpp               # 注入器源码
@@ -514,7 +510,7 @@ MU 服务（mumu_service.py）
 ```
 
 #### 架构优势：
-- ✅ **服务端永不阻塞**：二维码处理在 MUMU 客户端
+- ✅ **服务端永不阻塞**：二维码处理在 MU 服务
 - ✅ **支持并发**：多个请求可同时处理
 - ✅ **易于调试**：失败时保存截图，便于分析
 - ✅ **架构简洁**：无需独立进程，减少通信开销
@@ -809,6 +805,21 @@ if (id === 'MUMU-service') {
 ---
 
 ## 版本历史（按时间排序）
+
+### 重大重构记录
+
+| 日期 | 重构内容 | 影响 |
+|------|---------|------|
+| **2026-05-26** | **MU服务架构重构** | |
+| | 1. 文件夹迁移：`mumu-client/` → `server/mumu-service/` | MU服务成为服务端子模块 |
+| | 2. 文件重命名：`mumu_client.py` → `mumu_service.py` | 统一命名规范 |
+| | 3. 类名重命名：`MumuClient` → `MumuService` | 代码层面统一 |
+| | 4. 服务端自动启动管理MU服务 | 无需手动启动 |
+| | 5. MU服务断开自动重启（3秒延迟） | 提高可用性 |
+| | 6. 启动后自动最小化控制台窗口 | 用户体验优化 |
+| | 7. 检测已运行则跳过启动 | 避免重复启动 |
+
+### 版本更新记录
 
 | 版本 | 日期 | Git提交 | 核心改进 |
 |------|------|---------|---------|
@@ -1113,19 +1124,6 @@ if (isAdminToken) {
 | `processQrcodeImage(...)` | 新增operatorName、businessName、clickTimestamp参数 |
 | `cameraClicked`处理 | 状态保存到Map，启动超时定时器 |
 | `hdScreenshot`处理 | 从Map或消息获取参数，检查时间窗口 |
-
----
-
-### MUMU微服务上下线通知
-
-#### MUMU微服务离线
-- **触发时机**：MUMU连接断开或超时
-- **服务端日志**：`[MUMU] 模拟器微服务已离线` 或 `[MUMU] 模拟器已超时断开`
-- **广播消息**：`{ type: 'mumuOffline', deviceId: 'MUMU-service' }`
-
-#### 前端处理
-- **self-service.html**：收到 `mumuOffline` 后清空画面，设置全透明
-- **MUMU上线时**：无需处理，帧到达后自动恢复
 
 ---
 
@@ -1515,29 +1513,31 @@ python client.py
 
 ### 启动MU服务
 1. 先启动MUMU模拟器（推荐540×960）
-2. 运行MU服务：
-```bash
-cd D:\ScreenWall2\server\mumu-service
-python mumu_service.py
-```
+2. 启动服务端时会自动启动MU服务（无需手动启动）
+   ```bash
+   cd D:\ScreenWall2\server
+   node server.js
+   ```
 - 启动时会自动检测并注入摄像头Hook v49
 - 如未检测到模拟器会等待连接
+- MU服务断开后会自动重启（3秒延迟）
+- 启动成功后控制台窗口会自动最小化
 
 ### 自助登号完整流程
 
 #### 前置准备
 1. **MUMU摄像头Hook注入**
    - 启动MUMU模拟器
-   - 运行注入器 `injector49.exe` 或启动MU服务自动注入
+   - 启动服务端会自动注入（或手动运行 `injector49.exe`）
    - 注入成功后会返回提示
 
 2. **Python环境准备**
    ```bash
-   pip install pyzbar pillow numpy
+   pip install pyzbar pillow numpy opencv-python
    ```
 
 #### 完整操作步骤
-1. **启动服务端**
+1. **启动服务端**（MU服务会自动启动）
    ```bash
    cd D:\ScreenWall2\server
    node server.js
@@ -1545,9 +1545,7 @@ python mumu_service.py
 
 2. **启动业务设备**（要扫码的游戏账号所在设备）
 
-3. **启动MUMU模拟器和MU服务**
-   - 打开MUMU模拟器
-   - 运行 `mumu_service.py`
+3. **启动MUMU模拟器**（服务端会自动连接）
 
 4. **打开自助登号页面**
    - 在电脑客户端右键菜单中点击「自助登号」
@@ -1566,9 +1564,9 @@ python mumu_service.py
 7. **自动处理流程**
    ```
    用户点击 → 自助登号页面发送 mouseClick（带4参数）
-   服务端转发 → MU客户端收到 mouseClick（带4参数）
+   服务端转发 → MU服务收到 mouseClick（带4参数）
    相机弹窗 → DLL通过管道发送 CLICKED:时间戳
-   MU客户端 → 发送 cameraClicked 消息给服务端
+   MU服务 → 发送 cameraClicked 消息给服务端
    服务端保存 → 业务发起方和业务设备信息到 Map
    请求截图 → 向业务设备发送 requestHdScreenshot（带5参数）
    业务设备返回 → hdScreenshot (selfService目的，带6参数)
@@ -1684,7 +1682,7 @@ python mumu_service.py
 
 ## 注意事项
 
-1. **MUMU模拟器必须先启动**，客户端才会正常运行
+1. **MUMU模拟器必须先启动**，MU服务才会正常运行
 2. **推荐模拟器分辨率**：540×960（最佳帧率3-4fps）
 3. **设备ID需全局唯一**，避免冲突
 4. **9列/10列布局**需要宽屏显示器（带鱼屏/双屏）
