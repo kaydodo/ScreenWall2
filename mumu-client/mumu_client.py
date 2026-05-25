@@ -345,8 +345,9 @@ class MumuClient:
     def _detect_qr(self, img):
         try:
             height, width = img.shape[:2]
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) if len(img.shape) == 3 else img
             
-            for src in [img, cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)]:
+            def try_decode(src):
                 try:
                     results = decode(src)
                     if results:
@@ -356,18 +357,41 @@ class MumuClient:
                         return True, data, (x, y, w, h)
                 except Exception:
                     pass
+                return None
             
-            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            enhanced = cv2.equalizeHist(gray)
-            try:
-                results = decode(enhanced)
-                if results:
-                    qr = results[0]
-                    data = qr.data.decode('utf-8')
-                    x, y, w, h = qr.rect
-                    return True, data, (x, y, w, h)
-            except Exception:
-                pass
+            result = try_decode(img)
+            if result: return result
+            
+            result = try_decode(gray)
+            if result: return result
+            
+            result = try_decode(cv2.equalizeHist(gray))
+            if result: return result
+            
+            clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+            result = try_decode(clahe.apply(gray))
+            if result: return result
+            
+            result = try_decode(cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2))
+            if result: return result
+            
+            result = try_decode(cv2.GaussianBlur(gray, (3, 3), 0))
+            if result: return result
+            
+            result = try_decode(cv2.bilateralFilter(gray, 9, 75, 75))
+            if result: return result
+            
+            _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+            result = try_decode(binary)
+            if result: return result
+            
+            if height > 800:
+                scale = 800 / height
+                resized = cv2.resize(img, (int(width * scale), 800), interpolation=cv2.INTER_LANCZOS4)
+                result = try_decode(resized)
+                if result:
+                    x, y, w, h = result[2]
+                    return True, result[1], (int(x / scale), int(y / scale), int(w / scale), int(h / scale))
             
             return False, None, None
         except Exception as e:
