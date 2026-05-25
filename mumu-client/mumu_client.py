@@ -268,10 +268,12 @@ class MumuClient:
                 new_height = int(height * scale)
                 img = cv2.resize(img, (new_width, new_height), interpolation=cv2.INTER_CUBIC)
             
-            found, data_qr, qr_rect = self._detect_qr(img)
+            detect_start = time.time()
+            found, data_qr, qr_rect, attempts = self._detect_qr(img)
+            detect_time = (time.time() - detect_start) * 1000
             
             if not found:
-                print(f"[MUMU] 二维码识别失败: 未识别到二维码")
+                print(f"[MUMU] 二维码识别失败: 未识别到二维码 (耗时{detect_time:.0f}ms, 尝试{attempts}轮)")
                 await ws.send(json.dumps({
                     "type": "qrcodeResult",
                     "requestId": request_id,
@@ -279,6 +281,8 @@ class MumuClient:
                     "error": "未识别到二维码"
                 }))
                 return
+            
+            print(f"[MUMU] 二维码识别成功: 耗时{detect_time:.0f}ms, 尝试{attempts}轮")
             
             if self._is_url_or_ad(data_qr):
                 print(f"[MUMU] 二维码识别失败: 识别到URL或广告内容 - {data_qr[:50]}")
@@ -346,8 +350,11 @@ class MumuClient:
         try:
             height, width = img.shape[:2]
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) if len(img.shape) == 3 else img
+            attempts = 0
             
             def try_decode(src):
+                nonlocal attempts
+                attempts += 1
                 try:
                     results = decode(src)
                     if results:
@@ -360,45 +367,45 @@ class MumuClient:
                 return None
             
             result = try_decode(img)
-            if result: return result
+            if result: return result[0], result[1], result[2], attempts
             
             result = try_decode(gray)
-            if result: return result
+            if result: return result[0], result[1], result[2], attempts
             
             for scale in [1.5, 2.0]:
                 scaled = cv2.resize(img, (int(width * scale), int(height * scale)), interpolation=cv2.INTER_CUBIC)
                 result = try_decode(scaled)
                 if result:
                     x, y, w, h = result[2]
-                    return True, result[1], (int(x / scale), int(y / scale), int(w / scale), int(h / scale))
+                    return True, result[1], (int(x / scale), int(y / scale), int(w / scale), int(h / scale)), attempts
                 result = try_decode(cv2.cvtColor(scaled, cv2.COLOR_BGR2GRAY))
                 if result:
                     x, y, w, h = result[2]
-                    return True, result[1], (int(x / scale), int(y / scale), int(w / scale), int(h / scale))
+                    return True, result[1], (int(x / scale), int(y / scale), int(w / scale), int(h / scale)), attempts
             
             result = try_decode(cv2.equalizeHist(gray))
-            if result: return result
+            if result: return result[0], result[1], result[2], attempts
             
             clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
             result = try_decode(clahe.apply(gray))
-            if result: return result
+            if result: return result[0], result[1], result[2], attempts
             
             _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
             result = try_decode(binary)
-            if result: return result
+            if result: return result[0], result[1], result[2], attempts
             
             result = try_decode(cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2))
-            if result: return result
+            if result: return result[0], result[1], result[2], attempts
             
             result = try_decode(cv2.GaussianBlur(gray, (3, 3), 0))
-            if result: return result
+            if result: return result[0], result[1], result[2], attempts
             
             result = try_decode(cv2.bilateralFilter(gray, 9, 75, 75))
-            if result: return result
+            if result: return result[0], result[1], result[2], attempts
             
-            return False, None, None
+            return False, None, None, attempts
         except Exception as e:
-            return False, None, None
+            return False, None, None, 0
 
     def _process_qrcode(self, img, qr_rect):
         try:
