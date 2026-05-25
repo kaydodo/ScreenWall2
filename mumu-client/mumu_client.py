@@ -1140,14 +1140,9 @@ class MumuClient:
                             await asyncio.sleep(2)
                             if await self._check_adb_connection(silent=True):
                                 sw, sh = await self._get_device_resolution()
-                                if sw and sh and sw != 1080 and sh != 1920:
+                                if sw and sh:
                                     screen_width, screen_height = sw, sh
-                                    print(f"[MUMU] 模拟器已恢复，检测到分辨率: {screen_width}x{screen_height}")
-                                    reconnect_success = True
-                                    break
-                                elif sw and sh:
-                                    screen_width, screen_height = sw, sh
-                                    print(f"[MUMU] 模拟器已恢复，使用分辨率: {screen_width}x{screen_height}")
+                                    print(f"[MUMU] 模拟器已恢复，分辨率: {screen_width}x{screen_height}")
                                     reconnect_success = True
                                     break
                     if reconnect_success:
