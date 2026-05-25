@@ -1032,7 +1032,6 @@ class MumuService:
         print(f"[MUMU] 正在连接服务端: {ws_uri}")
         
         cmd_task = asyncio.create_task(self._cmd_worker())
-        minimize_console_window()
 
         screen_width = 0
         screen_height = 0
@@ -1223,17 +1222,10 @@ class MumuService:
         self.running = False
 
 
-def minimize_console_window():
-    try:
-        import ctypes
-        ctypes.windll.user32.ShowWindow(ctypes.windll.kernel32.GetConsoleWindow(), 2)
-    except:
-        pass
-
 if __name__ == "__main__":
-    client = MumuClient()
+    service = MumuService()
     try:
-        asyncio.run(client.run())
+        asyncio.run(service.run())
     except KeyboardInterrupt:
         print("[MUMU] 正在停止...")
-        client.stop()
+        service.stop()
