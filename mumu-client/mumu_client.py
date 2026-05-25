@@ -1051,7 +1051,9 @@ class MumuClient:
                 if is_reconnected:
                     await ws.send(json.dumps({
                         "type": "deviceOnline",
-                        "deviceId": device_id
+                        "deviceId": device_id,
+                        "screenWidth": screen_width,
+                        "screenHeight": screen_height
                     }))
                     print("[MUMU] 模拟器已恢复连接")
                     is_reconnected = False

@@ -2336,7 +2336,16 @@ wssClient.on('connection', (ws, req) => {
 
     // MUMU设备重连上线通知
     if (msg.type === 'deviceOnline' && msg.deviceId) {
-      serverLog(`[MUMU] 模拟器已重新连接`);
+      const dev = devices.get(msg.deviceId);
+      if (dev) {
+        if (msg.screenWidth) dev.screenWidth = msg.screenWidth;
+        if (msg.screenHeight) dev.screenHeight = msg.screenHeight;
+        dev.online = true;
+        dev.lastSeen = Date.now();
+        serverLog(`[MUMU] 模拟器已重新连接 (${dev.screenWidth}x${dev.screenHeight})`);
+      } else {
+        serverLog(`[MUMU] 模拟器已重新连接`);
+      }
     }
 
     // 高清截图（统一消息类型，根据 purpose 分发）
