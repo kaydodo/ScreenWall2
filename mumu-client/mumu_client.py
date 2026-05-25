@@ -365,6 +365,17 @@ class MumuClient:
             result = try_decode(gray)
             if result: return result
             
+            for scale in [1.5, 2.0]:
+                scaled = cv2.resize(img, (int(width * scale), int(height * scale)), interpolation=cv2.INTER_CUBIC)
+                result = try_decode(scaled)
+                if result:
+                    x, y, w, h = result[2]
+                    return True, result[1], (int(x / scale), int(y / scale), int(w / scale), int(h / scale))
+                result = try_decode(cv2.cvtColor(scaled, cv2.COLOR_BGR2GRAY))
+                if result:
+                    x, y, w, h = result[2]
+                    return True, result[1], (int(x / scale), int(y / scale), int(w / scale), int(h / scale))
+            
             result = try_decode(cv2.equalizeHist(gray))
             if result: return result
             
@@ -376,17 +387,6 @@ class MumuClient:
             result = try_decode(binary)
             if result: return result
             
-            scaled = cv2.resize(img, (int(width * 1.2), int(height * 1.2)), interpolation=cv2.INTER_CUBIC)
-            result = try_decode(scaled)
-            if result:
-                x, y, w, h = result[2]
-                return True, result[1], (int(x / 1.2), int(y / 1.2), int(w / 1.2), int(h / 1.2))
-            
-            result = try_decode(cv2.cvtColor(scaled, cv2.COLOR_BGR2GRAY))
-            if result:
-                x, y, w, h = result[2]
-                return True, result[1], (int(x / 1.2), int(y / 1.2), int(w / 1.2), int(h / 1.2))
-            
             result = try_decode(cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2))
             if result: return result
             
@@ -395,14 +395,6 @@ class MumuClient:
             
             result = try_decode(cv2.bilateralFilter(gray, 9, 75, 75))
             if result: return result
-            
-            if height > 800:
-                scale = 800 / height
-                resized = cv2.resize(img, (int(width * scale), 800), interpolation=cv2.INTER_LANCZOS4)
-                result = try_decode(resized)
-                if result:
-                    x, y, w, h = result[2]
-                    return True, result[1], (int(x / scale), int(y / scale), int(w / scale), int(h / scale))
             
             return False, None, None
         except Exception as e:
