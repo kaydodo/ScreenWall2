@@ -118,21 +118,24 @@ D:\ScreenWall2\
 │   ├── admin_client.spec            # 管理员客户端PyInstaller配置
 │   └── dist/                        # 打包输出目录
 │
-├── mumu-client/                     # MUMU模拟器客户端
-│   ├── mumu_client.py              # 主程序（含二维码识别功能）
-│   ├── injector49.exe               # 摄像头Hook注入器
-│   ├── camera_hook49.dll            # 摄像头Hook DLL
-│   ├── config.json                  # 配置文件
-│   └── qrcode/                      # 二维码处理目录
-│       ├── last_qrcode.png          # 处理后的二维码
-│       ├── blank.png                # 空白占位图
-│       ├── Project_A.scproject      # SplitCam方案A（显示二维码）
-│       ├── Project_B.scproject      # SplitCam方案B（显示空白图）
-│       ├── backup.scproject         # 备份方案
-│       ├── debug/                   # 识别失败调试截图目录
-│       └── README.md                # QRcode目录说明文档
+├── server/                          # 服务端
+│   ├── server.js                    # 主服务程序
+│   ├── mumu-service/                # MU微服务
+│   │   ├── mumu_service.py          # 主程序（含二维码识别功能）
+│   │   ├── injector49.exe           # 摄像头Hook注入器
+│   │   ├── camera_hook49.dll        # 摄像头Hook DLL
+│   │   ├── config.json              # 配置文件
+│   │   └── qrcode/                  # 二维码处理目录
+│   │       ├── last_qrcode.png      # 处理后的二维码
+│   │       ├── blank.png            # 空白占位图
+│   │       ├── Project_A.scproject  # SplitCam方案A（显示二维码）
+│   │       ├── Project_B.scproject  # SplitCam方案B（显示空白图）
+│   │       ├── backup.scproject     # 备份方案
+│   │       ├── debug/               # 识别失败调试截图目录
+│   │       └── README.md            # QRcode目录说明文档
+│   └── ...
 │
-└── mumu_camera_hook/               # MUMU摄像头Hook模块（已废弃，功能集成到mumu-client）
+└── mumu_camera_hook/               # MUMU摄像头Hook模块（已废弃，功能集成到mumu-service）
     ├── camera_hook49.cpp            # Hook DLL源码
     ├── camera_hook49.dll            # Hook DLL
     ├── injector49.cpp               # 注入器源码
@@ -212,10 +215,10 @@ D:\ScreenWall2\
 │  │- 屏幕截图(MSS)  │   │    │  - 打开屏幕墙(免验证) │      │
 │  │- 键盘鼠标远控   │   │    │  - 自助登号(免验证)   │      │
 │  │- 心跳/报警截图  │   │    │  - 设置服务器地址     │      │
-│  └──────────────────┘   │    │  - 开机自启           │      │
-│  ┌──────────────────┐   │    └────────────────────┘      │
-│  │  MUMU客户端     │   │                                │
-│  │mumu_client.py   │   │                                │
+│  └──────────────────┘   │    │  - 开机自启           │  └──────────────────┘   │    └────────────────────┘      │
+│  ┌──────────────────┐   │                                │
+│  │  MU微服务        │   │                                │
+│  │mumu_service.py   │   │                                │
 │  ├──────────────────┤   │                                │
 │  │- ADB截图        │   │                                │
 │  │- WebSocket推流  │   │                                │
@@ -277,7 +280,7 @@ D:\ScreenWall2\
 | `mouseSwipe` | `x, y, x2, y2, duration` | 转发滑动 |
 | `requestHdScreenshot` | `purpose, timestamp, businessId, businessName, operatorId, operatorName` | 请求高清截图（自助登号5参数） |
 
-#### MUMU客户端 → 服务端
+#### MU服务 → 服务端
 | 消息 | 参数 | 说明 |
 |------|------|------|
 | `hdScreenshot` | `purpose, timestamp, deviceId, image, businessId, businessName, operatorId, operatorName` | 高清截图（自助登号携带全部6个参数） |
@@ -362,7 +365,7 @@ async function callMijiaBridge(args, callback) {
 |------|---------|---------|
 | **服务端** | `server/server.js` | ✅ 架构优秀，无需修改 |
 | **电脑客户端** | `client/client.py` | ✅ 优化4处 time.sleep |
-| **MUMU客户端** | `mumu-client/mumu_client.py` | ✅ 架构优秀，无需修改 |
+| **MU服务** | `server/mumu-service/mumu_service.py` | ✅ 架构优秀，无需修改 |
 
 ---
 
@@ -411,7 +414,7 @@ async function callMijiaBridge(args, callback) {
 
 ---
 
-### MUMU客户端架构分析（mumu-client/mumu_client.py）
+### MU服务架构分析（server/mumu-service/mumu_service.py）
 
 #### 状态：✅ 优秀
 
@@ -430,20 +433,20 @@ async function callMijiaBridge(args, callback) {
 
 ---
 
-### 二维码处理架构详解（mumu_client.py）
+### 二维码处理架构详解（mumu_service.py）
 
-#### 设计原则：集成到 MUMU 客户端
+#### 设计原则：集成到 MU 服务
 
-**核心思想**：二维码识别功能已集成到 MUMU 客户端，通过 WebSocket 与服务端通信，支持并发请求和实时处理。
+**核心思想**：二维码识别功能已集成到 MU 服务，通过 WebSocket 与服务端通信，支持并发请求和实时处理。
 
 **架构图**：
 ```
 服务端（server.js）
     └─ processQrcodeImage() [async 异步函数]
-       └─ 发送 processQrcode 消息给 MUMU 客户端
+       └─ 发送 processQrcode 消息给 MU 服务
        └─ 监听 qrcodeResult 响应（requestId 匹配）
 
-MUMU 客户端（mumu_client.py）
+MU 服务（mumu_service.py）
        ├─ 接收 Base64 图片
        ├─ 七重增强二维码识别
        ├─ OpenCV 图片裁剪、缩放
@@ -524,7 +527,7 @@ MUMU 客户端（mumu_client.py）
 |------|---------|---------|---------|
 | **server.js** | ⭐⭐⭐⭐⭐ | 无 | 优秀 |
 | **client.py** | ⭐⭐⭐⭐⭐ | 已消除 | 优秀 |
-| **mumu_client.py** | ⭐⭐⭐⭐⭐ | 无 | 优秀 |
+| **mumu_service.py** | ⭐⭐⭐⭐⭐ | 无 | 优秀 |
 
 **总体评价**：整个系统的异步架构设计合理，**主循环阶段不存在明显的阻塞问题**。
 
@@ -598,7 +601,7 @@ function serverLog(msg) {
   //   operatorId: 业务发起方ID,
   //   operatorName: 业务发起方名称,
   //   businessName: 业务设备名称,
-  //   mumuClient: MUMU客户端连接,
+  //   mumuClient: MU服务连接,
   //   clickTimestamp: 点击时间戳,
   //   timeoutId: 超时定时器ID
   // }
@@ -616,7 +619,7 @@ function serverLog(msg) {
 
 **时间戳单位统一**：
 - 服务端使用 `Date.now()`（毫秒）
-- MUMU客户端使用 `time.time()`（秒）
+- MU服务使用 `time.time()`（秒）
 - `processQrcodeImage()` 自动检测秒级时间戳（>10000000000）并转换为毫秒
 
 ##### 3. 完整参数传递链路
@@ -642,7 +645,7 @@ function serverLog(msg) {
 2. 用户在页面上点击（触发扫码）
    └─ sendMouse('mouseClick', x, y, {
         type: 'mouseClick',
-        deviceId: previewDeviceId,         // MUMU客户端ID（操作目标）
+        deviceId: previewDeviceId,         // MU服务ID（操作目标）
         operatorId: originalDeviceId,      // 业务发起方ID
         operatorName: originalDeviceName,   // 业务发起方名称
         businessId: selectedDeviceId,      // 业务设备ID
@@ -653,7 +656,7 @@ function serverLog(msg) {
 
 3. 服务端收到 mouseClick（server.js）
    └─ 坐标转换（preview → device分辨率）
-   └─ 转发给MUMU客户端：
+   └─ 转发给MU服务：
       {
         type: 'mouseClick',
         x: actualX, y: actualY,
@@ -663,13 +666,13 @@ function serverLog(msg) {
         businessId, businessName
       }
 
-4. MUMU客户端收到 mouseClick
+4. MU服务收到 mouseClick
    └─ 保存点击信息到本地
 
 5. 相机DLL检测到点击弹窗
    └─ 通过管道发送 CLICKED:timestamp
 
-6. MUMU客户端发送 cameraClicked
+6. MU服务发送 cameraClicked
    {
      type: 'cameraClicked',
      deviceId: operatorId,             // 业务发起方ID（原样传递）
@@ -866,7 +869,7 @@ if (id === 'MUMU-service') {
 | **v1.10.0** | - | d2715d3 | 自助登号系统重构：消除全局变量，添加3秒点击时间窗口检查 |
 | | | 6c6c984 | MUMU离线遮罩优化：移除多余遮罩层，离线时显示黑色遮罩 |
 | | | 46bcbe8 | 自助登号页面自愈逻辑：MUMU恢复后自动通知服务端更新状态 |
-| | | bfc31a6 | MUMU客户端自愈和断线重连：心跳机制与自动重连优化 |
+| | | bfc31a6 | MU服务自愈和断线重连：心跳机制与自动重连优化 |
 | | | c7928be | 点击时间窗口检查：超过3秒的点击操作不生效 |
 | | | c440229 | 自助登号并发修复：hdScreenshot携带operatorId，不再依赖全局变量 |
 | | | c252238 | 修复时间戳单位不匹配：自动检测秒级时间戳并转换毫秒 |
@@ -874,8 +877,8 @@ if (id === 'MUMU-service') {
 | | | 3822195 | 自助登号窗口尺寸：1080p基准510×960，更大屏幕按比例放大 |
 | **v1.10.1** | - | - | 自助登号修复：时间戳单位检测逻辑（秒级是<10000000000），电脑客户端hdScreenshot补充完整参数（operatorId/operatorName/businessName） |
 | **v1.10.2** | - | - | 修复电脑客户端截图异常处理：添加try-except捕获，防止截图失败时主进程中断 |
-| **v1.10.3** | - | e33a253 | 完善MUMU客户端异常处理：截图Worker添加异常捕获、主循环发送帧添加try-except、MUMU超时断开不触发mumuOffline、超时时间改为5秒 |
-| **v1.10.4** | 2026-05-22 | baeceb0 | MUMU客户端优化：命令队列处理、状态通知队列化、ADB稳定检测(5次x2秒)、优化日志输出；打包客户端 |
+| **v1.10.3** | - | e33a253 | 完善MU服务异常处理：截图Worker添加异常捕获、主循环发送帧添加try-except、MUMU超时断开不触发mumuOffline、超时时间改为5秒 |
+| **v1.10.4** | 2026-05-22 | baeceb0 | MU服务优化：命令队列处理、状态通知队列化、ADB稳定检测(5次x2秒)、优化日志输出；打包客户端 |
 | **v1.10.5** | 2026-05-23 | 98c1d46 | 优化：简化设备继承时的冗余日志 |
 | | | 2778002 | 完善README：补充设备重装自动继承流程说明 |
 | | | 2eb76fb | 完善README：补充二维码处理脚本架构详解 |
@@ -1077,7 +1080,7 @@ if (isAdminToken) {
 
 **时间戳单位修复**：
 - 服务端 `Date.now()` 返回毫秒
-- MUMU客户端 `time.time()` 返回秒
+- MU服务 `time.time()` 返回秒
 - `processQrcodeImage()` 自动检测并转换单位（>10000000000 视为秒）
 
 ##### 完整参数传递链路
@@ -1087,7 +1090,7 @@ if (isAdminToken) {
    └─ operatorId, operatorName, businessId, businessName
 
 2. 用户点击 → 发送 mouseClick（4参数）
-   └─ 服务端转发给MUMU客户端（保持4参数）
+   └─ 服务端转发给MU服务（保持4参数）
 
 3. MUMU相机点击 → 发送 cameraClicked（4参数）
    └─ 服务端保存状态到 selfServiceStateByBusinessId
@@ -1126,14 +1129,14 @@ if (isAdminToken) {
 
 ---
 
-### MUMU客户端自愈机制完善
+### MU服务自愈机制完善
 
 #### 服务端自愈逻辑
 - **离线时画面保持**：设备离线时不更新画面，只做自愈计数
 - **连续帧判断**：达到阈值（2帧）后才恢复在线状态并更新画面
 - **离线图显示**：使用服务端发送的 screenshot 字段，显示灰度离线水印
 
-#### MUMU客户端断线重连
+#### MU服务断线重连
 - **心跳机制**：定时发送心跳检测连接状态
 - **自动重连**：连接断开后自动尝试重连，避免长时间离线
 - **时间窗口验证**：点击操作需在3秒内完成，超时操作不生效
@@ -1170,7 +1173,7 @@ if (isAdminToken) {
 ### 时间戳单位不匹配问题修复
 
 #### 问题背景
-- MUMU客户端发送秒级时间戳（`time.time()`）
+- MU服务发送秒级时间戳（`time.time()`）
 - 服务端使用毫秒级时间戳（`Date.now()`）
 - 导致计算时间差时差值约为17亿毫秒，永远超过3秒窗口
 
@@ -1249,10 +1252,10 @@ finally:
 
 ## v1.10.3 详细更新说明
 
-### MUMU客户端异常处理完善
+### MU服务异常处理完善
 
 #### 问题背景
-- MUMU客户端在ADB截图失败时会中断主进程
+- MU服务在ADB截图失败时会中断主进程
 - 发送帧失败时没有异常捕获
 - 缺少详细的日志输出，难以排查问题
 
@@ -1353,7 +1356,7 @@ except Exception as e:
 
 ## v1.10.4 详细更新说明
 
-### MUMU客户端优化
+### MU服务优化
 
 #### 问题背景
 1. 鼠标滚轮和滑动操作会阻塞主循环，多次点击会拉长执行时间
@@ -1510,22 +1513,22 @@ cd D:\ScreenWall2\client
 python client.py
 ```
 
-### 启动MUMU客户端
+### 启动MU服务
 1. 先启动MUMU模拟器（推荐540×960）
-2. 运行MUMU客户端：
+2. 运行MU服务：
 ```bash
-cd D:\ScreenWall2\mumu-client
-python mumu_client.py
+cd D:\ScreenWall2\server\mumu-service
+python mumu_service.py
 ```
 - 启动时会自动检测并注入摄像头Hook v49
-- 如未检测到模拟器会弹窗提示
+- 如未检测到模拟器会等待连接
 
 ### 自助登号完整流程
 
 #### 前置准备
 1. **MUMU摄像头Hook注入**
    - 启动MUMU模拟器
-   - 运行注入器 `injector49.exe` 或启动MUMU客户端自动注入
+   - 运行注入器 `injector49.exe` 或启动MU服务自动注入
    - 注入成功后会返回提示
 
 2. **Python环境准备**
@@ -1542,9 +1545,9 @@ python mumu_client.py
 
 2. **启动业务设备**（要扫码的游戏账号所在设备）
 
-3. **启动MUMU模拟器和客户端**
+3. **启动MUMU模拟器和MU服务**
    - 打开MUMU模拟器
-   - 运行 `mumu_client.py`
+   - 运行 `mumu_service.py`
 
 4. **打开自助登号页面**
    - 在电脑客户端右键菜单中点击「自助登号」
@@ -1554,7 +1557,7 @@ python mumu_client.py
 5. **选择业务设备**
    - 在自助登号页面下拉列表中选择要扫码的设备（业务设备）
    - 默认选中当前打开页面的电脑设备
-   - 列表会自动排除MUMU客户端设备
+   - 列表会自动排除MU服务设备
 
 6. **触发扫码操作**
    - 在自助登号页面中点击对应位置
@@ -1670,7 +1673,7 @@ python mumu_client.py
 | 帧过期清理 | 过期帧自动移除缓冲 |
 | 自助登号状态Map | 按业务设备ID存储，避免全局变量冲突 |
 
-### MUMU客户端优化
+### MU服务优化
 | 优化项 | 说明 |
 |--------|------|
 | 帧队列限制 | maxsize=3，防止内存膨胀 |
@@ -1998,5 +2001,5 @@ messagebox.showwarning(
   - client/admin_client.spec：管理员客户端打包配置
   - client/build_admin_client.py：管理员客户端打包脚本
   - client/dist_admin/ScreenWallAdmin.exe：管理员客户端打包输出
-  - mumu-client/mumu_client.py：MUMU 模拟器客户端
-  - mumu-client/config.json：MUMU 客户端配置文件
+  - server/mumu-service/mumu_service.py：MU 微服务
+  - server/mumu-service/config.json：MU 服务配置文件

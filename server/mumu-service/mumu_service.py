@@ -16,6 +16,13 @@ import ctypes
 import cv2
 from pyzbar.pyzbar import decode
 
+def minimize_console_window():
+    if sys.platform == 'win32':
+        try:
+            ctypes.windll.user32.ShowWindow(ctypes.windll.kernel32.GetConsoleWindow(), 6)
+        except:
+            pass
+
 class SuppressZbarWarnings:
     def __enter__(self):
         self._original_stderr = os.dup(2)
@@ -28,7 +35,7 @@ class SuppressZbarWarnings:
         os.close(self._devnull)
 
 
-class MumuClient:
+class MumuService:
     def __init__(self, config_path="config.json"):
         self.config = self._load_config(config_path)
         self.running = False
@@ -1032,6 +1039,7 @@ class MumuClient:
         print(f"[MUMU] 正在连接服务端: {ws_uri}")
         
         cmd_task = asyncio.create_task(self._cmd_worker())
+        minimize_console_window()
 
         while self.running:
             try:
@@ -1174,9 +1182,9 @@ class MumuClient:
 
 
 if __name__ == "__main__":
-    client = MumuClient()
+    service = MumuService()
     try:
-        asyncio.run(client.run())
+        asyncio.run(service.run())
     except KeyboardInterrupt:
         print("[MUMU] 正在停止...")
-        client.stop()
+        service.stop()

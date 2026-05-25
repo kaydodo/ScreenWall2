@@ -2849,7 +2849,7 @@ wssBrowser.on('connection', (ws, req) => {
         actualY = Math.round((y / ph) * devH);
       }
 
-      // MUMU客户端不加显示器偏移量
+      // MU服务不加显示器偏移量
       if (mDevId !== 'MUMU-service') {
         // 加显示器偏移量得到虚拟桌面坐标
         actualX += dev.monitorOffsetX || 0;
@@ -2899,7 +2899,7 @@ wssBrowser.on('connection', (ws, req) => {
         actualY = Math.round((y / ph) * devH);
       }
 
-      // MUMU客户端不加显示器偏移量
+      // MU服务不加显示器偏移量
       if (mDevId !== 'MUMU-service') {
         actualX += dev.monitorOffsetX || 0;
         actualY += dev.monitorOffsetY || 0;
@@ -2952,7 +2952,7 @@ wssBrowser.on('connection', (ws, req) => {
         actualY2 = Math.round((y2 / ph) * devH);
       }
 
-      // MUMU客户端不加显示器偏移量
+      // MU服务不加显示器偏移量
       if (mDevId !== 'MUMU-service') {
         actualX += dev.monitorOffsetX || 0;
         actualY += dev.monitorOffsetY || 0;
@@ -4614,8 +4614,106 @@ setInterval(() => {
 // ========== 启动 ==========
 const PORT = SERVER_CFG.port || 3000;
 const HOST = SERVER_CFG.host || '0.0.0.0';
+
+// ========== MU服务自动管理 ==========
+let muServiceProcess = null;
+let muServiceRestartTimer = null;
+const MU_SERVICE_PATH = path.join(__dirname, 'mumu-service', 'mumu_service.py');
+const MU_SERVICE_RESTART_DELAY = 3000;
+
+function isMuServiceRunning() {
+  return muServiceProcess && !muServiceProcess.killed;
+}
+
+async function startMuService() {
+  if (isMuServiceRunning()) {
+    serverLog('[MU服务] 已在运行中，跳过启动');
+    return;
+  }
+  
+  if (!fs.existsSync(MU_SERVICE_PATH)) {
+    serverLog('[MU服务] mumu_service.py 不存在，跳过启动');
+    return;
+  }
+  
+  try {
+    serverLog('[MU服务] 正在启动...');
+    muServiceProcess = spawn('python', [MU_SERVICE_PATH], {
+      cwd: path.join(__dirname, 'mumu-service'),
+      windowsHide: false,
+      detached: false
+    });
+    
+    muServiceProcess.stdout.on('data', (data) => {
+      const lines = data.toString().split('\n').filter(l => l.trim());
+      for (const line of lines) {
+        serverLog(`[MU服务] ${line}`);
+      }
+    });
+    
+    muServiceProcess.stderr.on('data', (data) => {
+      const lines = data.toString().split('\n').filter(l => l.trim());
+      for (const line of lines) {
+        serverError(`[MU服务] ${line}`);
+      }
+    });
+    
+    muServiceProcess.on('close', (code) => {
+      serverLog(`[MU服务] 进程已退出，退出码: ${code}`);
+      muServiceProcess = null;
+      
+      if (muServiceRestartTimer) {
+        clearTimeout(muServiceRestartTimer);
+      }
+      muServiceRestartTimer = setTimeout(() => {
+        serverLog('[MU服务] 尝试自动重启...');
+        startMuService();
+      }, MU_SERVICE_RESTART_DELAY);
+    });
+    
+    muServiceProcess.on('error', (err) => {
+      serverError(`[MU服务] 启动失败: ${err.message}`);
+      muServiceProcess = null;
+    });
+    
+    setTimeout(() => {
+      if (isMuServiceRunning()) {
+        serverLog('[MU服务] 启动成功');
+      }
+    }, 2000);
+    
+  } catch (err) {
+    serverError(`[MU服务] 启动异常: ${err.message}`);
+    muServiceProcess = null;
+  }
+}
+
+function stopMuService() {
+  if (muServiceRestartTimer) {
+    clearTimeout(muServiceRestartTimer);
+    muServiceRestartTimer = null;
+  }
+  if (muServiceProcess) {
+    serverLog('[MU服务] 正在停止...');
+    muServiceProcess.kill();
+    muServiceProcess = null;
+  }
+}
+
 httpServer.listen(PORT, HOST, () => {
   serverLog(`  🖥️  屏幕墙服务端 v${SERVER_CONFIG.serverVersion || '未知'} 已启动`);
   serverLog(`   本地访问:     http://localhost:${PORT}`);
   serverLog(`   WebSocket端口: ${PORT}\n`);
+  
+  startMuService();
+});
+
+process.on('SIGINT', () => {
+  stopMuService();
+  process.exit(0);
+});
+
+process.on('SIGTERM', () => {
+  stopMuService();
+  process.exit(0);
 });
