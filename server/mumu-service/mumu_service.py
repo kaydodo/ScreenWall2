@@ -899,6 +899,7 @@ class MumuService:
         import ctypes
         import time
         print("[MUMU] 相机通知监听线程启动")
+        retry_delay = 0.5  # 初始重试延迟
         while self.running:
             try:
                 pipe_name = r"\\.\pipe\MuMuCameraNotify"
@@ -916,10 +917,15 @@ class MumuService:
                 if handle == ctypes.c_void_p(-1).value:
                     error = ctypes.windll.kernel32.GetLastError()
                     print(f"[MUMU] 管道连接失败, 错误码: {error}")
-                    time.sleep(0.5)
+                    time.sleep(retry_delay)
+                    retry_delay = min(retry_delay * 2, 5)  # 指数退避
                     continue
                 
                 print("[MUMU] 管道连接成功，等待相机点击通知...")
+                retry_delay = 0.5  # 重置重试延迟
+                # 连接成功后稍微等待，让 DLL 完全初始化管道
+                time.sleep(0.1)
+                
                 try:
                     while self.running:
                         read_buffer = ctypes.create_string_buffer(256)
@@ -937,7 +943,7 @@ class MumuService:
                             # 错误码 2 是管道不存在，可能是模拟器重启导致的
                             # 错误码 6 是句柄无效，说明之前的管道已经失效
                             if error == 2 or error == 6:
-                                print(f"[MUMU] 管道失效，尝试重新连接 (错误码: {error})")
+                                print(f"[MUMU] 管道失效，等待后重新连接 (错误码: {error})")
                                 break
                             else:
                                 print(f"[MUMU] 管道读取失败, 错误码: {error}, bytes_read: {bytes_read.value}")
@@ -955,9 +961,12 @@ class MumuService:
                 finally:
                     ctypes.windll.kernel32.CloseHandle(handle)
                     print("[MUMU] 管道句柄已关闭")
+                    # 关闭后稍等一下再重连，给 DLL 时间重新建立管道
+                    time.sleep(0.5)
             except Exception as e:
                 print(f"[MUMU] 相机通知线程异常: {e}")
-                time.sleep(0.5)
+                time.sleep(retry_delay)
+                retry_delay = min(retry_delay * 2, 5)
 
     async def _camera_notify_worker(self, ws):
         import asyncio
