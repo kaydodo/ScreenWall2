@@ -513,6 +513,8 @@ function clearSelfServiceState(businessId) {
 }
 
 async function processQrcodeImage(imageBuffer, businessId, operatorId, operatorName, businessName, clickTimestamp) {
+  serverLog(`[DEBUG] [二维码] 开始处理: businessId=${businessId}, operatorId=${operatorId}`);
+  
   try {
     const now = Date.now();
     let normalizedTimestamp = clickTimestamp;
@@ -521,13 +523,14 @@ async function processQrcodeImage(imageBuffer, businessId, operatorId, operatorN
       normalizedTimestamp = normalizedTimestamp * 1000;
     }
     if (normalizedTimestamp && now - normalizedTimestamp > SELF_SERVICE_CLICK_WINDOW_MS) {
-      serverLog(`[自助登号] 点击超时，当前时间差：${now - normalizedTimestamp}ms，超过窗口：${SELF_SERVICE_CLICK_WINDOW_MS}ms`);
+      serverLog(`[DEBUG] [二维码] 点击超时: timeDiff=${now - normalizedTimestamp}ms, threshold=${SELF_SERVICE_CLICK_WINDOW_MS}ms`);
       clearSelfServiceState(businessId);
       return;
     }
     
     const state = selfServiceStateByBusinessId.get(businessId);
-    serverLog(`[二维码] 获取状态: businessId=${businessId}, state=${state ? '存在' : '不存在'}`);
+    serverLog(`[DEBUG] [二维码] 获取状态: state=${state ? '存在' : '不存在'}`);
+    
     if (state && state.timeoutId) {
       clearTimeout(state.timeoutId);
       state.timeoutId = null;
@@ -539,34 +542,37 @@ async function processQrcodeImage(imageBuffer, businessId, operatorId, operatorN
 
     const logResult = (result) => {
       if (isSameDevice) {
-        serverLog(`[自助登号] ${formatDeviceName(operatorDevName, operatorId)}使用二维码扫码（${result}）`);
+        serverLog(`[DEBUG] [二维码] 日志结果: ${formatDeviceName(operatorDevName, operatorId)}使用二维码扫码（${result}）`);
       } else {
-        serverLog(`[自助登号] ${formatDeviceName(operatorDevName, operatorId)}帮助${formatDeviceName(businessDevName, businessId)}使用二维码扫码（${result}）`);
+        serverLog(`[DEBUG] [二维码] 日志结果: ${formatDeviceName(operatorDevName, operatorId)}帮助${formatDeviceName(businessDevName, businessId)}使用二维码扫码（${result}）`);
       }
     };
 
     if (!imageBuffer || imageBuffer.length < 1000) {
-      serverLog(`[二维码] 图片数据无效: length=${imageBuffer ? imageBuffer.length : 'null'}`);
+      serverLog(`[DEBUG] [二维码] 图片数据无效: length=${imageBuffer ? imageBuffer.length : 'null'}`);
       logResult('失败');
       clearSelfServiceState(businessId);
       return;
     }
+    
+    serverLog(`[DEBUG] [二维码] 图片大小: ${imageBuffer.length} bytes`);
 
     const mumuClient = state ? state.mumuClient : null;
-    serverLog(`[二维码] 获取mumuClient: ${mumuClient ? '存在' : '不存在'}, readyState=${mumuClient ? mumuClient.readyState : 'N/A'}`);
+    serverLog(`[DEBUG] [二维码] 获取mumuClient: ${mumuClient ? '存在' : '不存在'}, readyState=${mumuClient ? mumuClient.readyState : 'N/A'}`);
+    
     if (!mumuClient || mumuClient.readyState !== 1) {
-      serverLog('[二维码] MU客户端未连接');
+      serverLog('[DEBUG] [二维码] MU客户端未连接或状态异常');
       logResult('失败');
       clearSelfServiceState(businessId);
       return;
     }
 
     const screenshotBase64 = 'data:image/webp;base64,' + imageBuffer.toString('base64');
-    serverLog(`[二维码] 准备发送processQrcode消息给客户端, 图片大小=${screenshotBase64.length}`);
+    serverLog(`[DEBUG] [二维码] 准备发送processQrcode消息, 图片大小=${screenshotBase64.length} bytes`);
     
     const result = await new Promise((resolve) => {
       const timeoutId = setTimeout(() => {
-        serverLog('[二维码] 等待响应超时');
+        serverLog('[DEBUG] [二维码] 等待响应超时');
         mumuClient.removeListener('message', handleMessage);
         resolve({ status: 'failed', error: '处理超时' });
       }, 10000);
@@ -574,20 +580,20 @@ async function processQrcodeImage(imageBuffer, businessId, operatorId, operatorN
       const handleMessage = (data) => {
         try {
           const msg = typeof data === 'string' ? JSON.parse(data) : data;
-          serverLog(`[二维码] 收到客户端消息: type=${msg.type}`);
+          serverLog(`[DEBUG] [二维码] 收到客户端消息: type=${msg.type}`);
           if (msg.type === 'qrcodeResult') {
-            serverLog(`[二维码] 收到qrcodeResult: status=${msg.status}`);
+            serverLog(`[DEBUG] [二维码] 收到qrcodeResult: status=${msg.status}`);
             clearTimeout(timeoutId);
             mumuClient.removeListener('message', handleMessage);
             resolve(msg);
           }
         } catch (e) {
-          serverLog(`[二维码] 解析消息失败: ${e.message}`);
+          serverLog(`[DEBUG] [二维码] 解析消息失败: ${e.message}`);
         }
       };
 
       mumuClient.on('message', handleMessage);
-      serverLog('[二维码] 发送processQrcode消息');
+      serverLog('[DEBUG] [二维码] 发送processQrcode消息给客户端');
       mumuClient.send(JSON.stringify({
         type: 'processQrcode',
         screenshot: screenshotBase64
@@ -595,14 +601,15 @@ async function processQrcodeImage(imageBuffer, businessId, operatorId, operatorN
     });
 
     if (result.status === 'success') {
+      serverLog('[DEBUG] [二维码] 处理成功');
       logResult('成功');
     } else {
-      serverError('[二维码] 处理失败:', result.error);
+      serverError('[DEBUG] [二维码] 处理失败:', result.error);
       logResult('失败');
     }
     
   } catch (err) {
-    serverError('[二维码] 处理失败:', err.message);
+    serverError('[DEBUG] [二维码] 处理异常:', err.message);
     logResult('失败');
   } finally {
     clearSelfServiceState(businessId);
