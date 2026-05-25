@@ -863,6 +863,7 @@ class MumuClient:
     def _listen_camera_notify_thread(self, notify_queue):
         import ctypes
         import time
+        print("[DEBUG] [MUMU] 相机通知线程启动")
         while self.running:
             try:
                 pipe_name = r"\\.\pipe\MuMuCameraNotify"
@@ -880,6 +881,7 @@ class MumuClient:
                     time.sleep(0.5)
                     continue
                 
+                print("[DEBUG] [MUMU] 已连接到相机通知管道")
                 try:
                     while self.running:
                         read_buffer = ctypes.create_string_buffer(256)
@@ -896,16 +898,19 @@ class MumuClient:
                             break
                         
                         response = read_buffer.value.decode('ascii', errors='ignore')
+                        print(f"[DEBUG] [MUMU] 收到管道消息: {response}")
                         if response.startswith("CLICKED:"):
                             try:
                                 timestamp_ms = int(response[8:])
                                 local_timestamp = time.time()
                                 notify_queue.put_nowait(local_timestamp)
+                                print(f"[DEBUG] [MUMU] 相机点击已放入队列")
                             except:
                                 pass
                 finally:
                     ctypes.windll.kernel32.CloseHandle(handle)
             except Exception as e:
+                print(f"[DEBUG] [MUMU] 相机通知线程异常: {e}")
                 time.sleep(0.5)
 
     async def _camera_notify_worker(self, ws):
@@ -922,6 +927,7 @@ class MumuClient:
         )
         listen_thread.start()
         
+        print("[DEBUG] [MUMU] 相机通知Worker启动")
         while self.running:
             try:
                 try:
@@ -930,8 +936,10 @@ class MumuClient:
                     await asyncio.sleep(0.05)
                     continue
                 
+                print(f"[DEBUG] [MUMU] 从队列获取到相机点击事件")
                 current_time = time.time()
                 if current_time - self._last_camera_notify_time < 1.0:
+                    print(f"[DEBUG] [MUMU] 相机点击防抖，忽略")
                     continue
                 self._last_camera_notify_time = current_time
                 
@@ -952,13 +960,17 @@ class MumuClient:
                             "businessId": self._last_click_info["businessId"],
                             "businessName": self._last_click_info["businessName"]
                         })
+                        print(f"[DEBUG] [MUMU] 包含点击信息: businessId={msg.get('businessId')}")
                     else:
                         self._last_click_info = None
+                        print(f"[DEBUG] [MUMU] 点击信息已过期")
 
+                print(f"[DEBUG] [MUMU] 发送cameraClicked消息: {msg}")
                 await ws.send(json.dumps(msg))
             except websockets.exceptions.ConnectionClosed:
                 break
             except Exception as e:
+                print(f"[DEBUG] [MUMU] 相机通知Worker异常: {e}")
                 await asyncio.sleep(0.05)
 
     async def run(self):
