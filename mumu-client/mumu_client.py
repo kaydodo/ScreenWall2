@@ -234,12 +234,14 @@ class MumuClient:
             print(f"[MUMU] 发送 HD 截图失败: {e}")
 
     async def _process_qrcode_async(self, ws, data):
+        request_id = data.get("requestId", "")
         try:
             screenshot_base64 = data.get("screenshot", "")
             
             if not screenshot_base64:
                 await ws.send(json.dumps({
                     "type": "qrcodeResult",
+                    "requestId": request_id,
                     "status": "failed",
                     "error": "缺少截图数据"
                 }))
@@ -254,6 +256,7 @@ class MumuClient:
             if img is None:
                 await ws.send(json.dumps({
                     "type": "qrcodeResult",
+                    "requestId": request_id,
                     "status": "failed",
                     "error": "图片解码失败"
                 }))
@@ -272,6 +275,7 @@ class MumuClient:
             if not found:
                 await ws.send(json.dumps({
                     "type": "qrcodeResult",
+                    "requestId": request_id,
                     "status": "failed",
                     "error": "未识别到二维码"
                 }))
@@ -280,6 +284,7 @@ class MumuClient:
             if self._is_url_or_ad(data_qr):
                 await ws.send(json.dumps({
                     "type": "qrcodeResult",
+                    "requestId": request_id,
                     "status": "failed",
                     "error": "识别到URL或广告内容"
                 }))
@@ -291,6 +296,7 @@ class MumuClient:
             if img_for_process is None:
                 await ws.send(json.dumps({
                     "type": "qrcodeResult",
+                    "requestId": request_id,
                     "status": "failed",
                     "error": "处理图片失败"
                 }))
@@ -303,11 +309,13 @@ class MumuClient:
                 print(f"[MUMU] 二维码解析成功")
                 await ws.send(json.dumps({
                     "type": "qrcodeResult",
+                    "requestId": request_id,
                     "status": "success"
                 }))
             else:
                 await ws.send(json.dumps({
                     "type": "qrcodeResult",
+                    "requestId": request_id,
                     "status": "failed",
                     "error": "图片处理失败"
                 }))
@@ -316,6 +324,7 @@ class MumuClient:
             print(f"[MUMU] 二维码处理异常: {e}")
             await ws.send(json.dumps({
                 "type": "qrcodeResult",
+                "requestId": request_id,
                 "status": "failed",
                 "error": str(e)
             }))

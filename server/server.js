@@ -559,6 +559,7 @@ async function processQrcodeImage(imageBuffer, businessId, operatorId, operatorN
     }
 
     const screenshotBase64 = 'data:image/webp;base64,' + imageBuffer.toString('base64');
+    const requestId = Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
     
     const result = await new Promise((resolve) => {
       const timeoutId = setTimeout(() => {
@@ -569,7 +570,7 @@ async function processQrcodeImage(imageBuffer, businessId, operatorId, operatorN
       const handleMessage = (data) => {
         try {
           const msg = JSON.parse(data);
-          if (msg.type === 'qrcodeResult') {
+          if (msg.type === 'qrcodeResult' && msg.requestId === requestId) {
             clearTimeout(timeoutId);
             mumuClient.removeListener('message', handleMessage);
             resolve(msg);
@@ -580,6 +581,7 @@ async function processQrcodeImage(imageBuffer, businessId, operatorId, operatorN
       mumuClient.on('message', handleMessage);
       mumuClient.send(JSON.stringify({
         type: 'processQrcode',
+        requestId,
         screenshot: screenshotBase64
       }));
     });
