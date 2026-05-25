@@ -708,16 +708,24 @@ class MumuService:
         base_dir = os.path.dirname(os.path.abspath(__file__))
         injector_path = os.path.join(base_dir, "injector49.exe")
         dll_path = os.path.join(base_dir, "camera_hook49.dll")
+        
+        print(f"[DEBUG] _inject_camera_hook 被调用")
+        print(f"[DEBUG] base_dir: {base_dir}")
+        print(f"[DEBUG] injector_path: {injector_path}")
+        print(f"[DEBUG] dll_path: {dll_path}")
 
         if not os.path.exists(injector_path):
             print("[MUMU] 注入器不存在: injector49.exe")
+            print(f"[DEBUG] 检查路径: {os.path.abspath(injector_path)}")
             return False
 
         if not os.path.exists(dll_path):
             print("[MUMU] DLL不存在: camera_hook49.dll")
+            print(f"[DEBUG] 检查路径: {os.path.abspath(dll_path)}")
             return False
 
         print("[MUMU] 正在注入摄像头Hook...")
+        print(f"[DEBUG] 执行命令: {[injector_path]}")
         try:
             result = subprocess.run(
                 [injector_path],
@@ -726,6 +734,10 @@ class MumuService:
                 timeout=10
             )
             output = result.stdout.strip()
+            stderr = result.stderr.strip()
+            print(f"[DEBUG] injector stdout: '{output}'")
+            print(f"[DEBUG] injector stderr: '{stderr}'")
+            print(f"[DEBUG] injector return code: {result.returncode}")
 
             if "INJECT_SUCCESS" in output:
                 print("[MUMU] 摄像头Hook注入成功")
@@ -741,20 +753,27 @@ class MumuService:
             print("[MUMU] 注入超时")
             return False
         except Exception as e:
-            print(f"[MUMU] 注入失败: {e}")
+            print(f"[MUMU] 注入失败: {type(e).__name__}: {e}")
+            import traceback
+            traceback.print_exc()
             return False
 
     def _load_camera_hook_dll(self):
         import os
+        print(f"[DEBUG] _load_camera_hook_dll 被调用")
         base_dir = os.path.dirname(os.path.abspath(__file__))
         dll_path = os.path.join(base_dir, "camera_hook49.dll")
+        print(f"[DEBUG] DLL路径: {dll_path}")
         
         if not os.path.exists(dll_path):
             print(f"[MUMU] DLL不存在: {dll_path}")
+            print(f"[DEBUG] 检查路径: {os.path.abspath(dll_path)}")
             return False
         
         try:
+            print(f"[DEBUG] 尝试加载 DLL: {dll_path}")
             self._dll_handle = ctypes.CDLL(dll_path)
+            print(f"[DEBUG] DLL 加载成功! handle: {self._dll_handle}")
             self._get_camera_completed = self._dll_handle.GetCameraCompleted
             self._get_camera_completed.restype = ctypes.c_int
             self._reset_camera_completed = self._dll_handle.ResetCameraCompleted
@@ -762,7 +781,9 @@ class MumuService:
             print("[MUMU] 成功加载camera_hook49.dll")
             return True
         except Exception as e:
-            print(f"[MUMU] 加载DLL失败: {e}")
+            print(f"[MUMU] 加载DLL失败: {type(e).__name__}: {e}")
+            import traceback
+            traceback.print_exc()
             return False
 
     def _get_camera_status_via_pipe(self):
@@ -897,9 +918,11 @@ class MumuService:
     def _listen_camera_notify_thread(self, notify_queue):
         import ctypes
         import time
+        print(f"[DEBUG] _listen_camera_notify_thread 线程启动")
         while self.running:
             try:
                 pipe_name = r"\\.\pipe\MuMuCameraNotify"
+                print(f"[DEBUG] 尝试连接管道: {pipe_name}")
                 handle = ctypes.windll.kernel32.CreateFileW(
                     pipe_name,
                     ctypes.c_uint32(0x80000000),
@@ -911,9 +934,12 @@ class MumuService:
                 )
                 
                 if handle == ctypes.c_void_p(-1).value:
+                    error_code = ctypes.windll.kernel32.GetLastError()
+                    print(f"[DEBUG] 管道连接失败! 错误码: {error_code}")
                     time.sleep(0.5)
                     continue
                 
+                print(f"[DEBUG] 管道连接成功! handle: {handle}")
                 try:
                     while self.running:
                         read_buffer = ctypes.create_string_buffer(256)
@@ -927,25 +953,35 @@ class MumuService:
                         )
                         
                         if not success or bytes_read.value == 0:
+                            error_code = ctypes.windll.kernel32.GetLastError()
+                            print(f"[DEBUG] 管道读取失败! success: {success}, bytes_read: {bytes_read.value}, 错误码: {error_code}")
                             break
                         
                         response = read_buffer.value.decode('ascii', errors='ignore')
+                        print(f"[DEBUG] 收到管道消息: '{response}' (长度: {len(response)})")
                         if response.startswith("CLICKED:"):
                             try:
                                 timestamp_ms = int(response[8:])
                                 local_timestamp = time.time()
+                                print(f"[DEBUG] 解析到相机点击! 管道时间戳: {timestamp_ms}, 本地时间戳: {local_timestamp}")
                                 notify_queue.put_nowait(local_timestamp)
-                            except:
-                                pass
+                            except Exception as e:
+                                print(f"[DEBUG] 解析点击时间戳失败: {e}")
                 finally:
+                    print(f"[DEBUG] 关闭管道句柄: {handle}")
                     ctypes.windll.kernel32.CloseHandle(handle)
             except Exception as e:
+                print(f"[DEBUG] 相机通知线程异常: {type(e).__name__}: {e}")
+                import traceback
+                traceback.print_exc()
                 time.sleep(0.5)
 
     async def _camera_notify_worker(self, ws):
         import asyncio
         import threading
         import queue
+        
+        print(f"[DEBUG] _camera_notify_worker 启动")
         
         notify_queue = queue.Queue()
         
@@ -955,20 +991,28 @@ class MumuService:
             daemon=True
         )
         listen_thread.start()
+        print(f"[DEBUG] listen_thread 已启动, 线程ID: {listen_thread.ident}")
         
         while self.running:
             try:
                 try:
                     timestamp = notify_queue.get_nowait()
+                    print(f"[DEBUG] 从 notify_queue 获取到时间戳: {timestamp}")
                 except queue.Empty:
                     await asyncio.sleep(0.05)
                     continue
                 
                 current_time = time.time()
-                if current_time - self._last_camera_notify_time < 1.0:
-                    continue
-                self._last_camera_notify_time = current_time
+                print(f"[DEBUG] 当前时间: {current_time}, 上次通知时间: {self._last_camera_notify_time}, 间隔: {current_time - self._last_camera_notify_time if self._last_camera_notify_time else 'N/A'}")
                 
+                if current_time - self._last_camera_notify_time < 1.0:
+                    print(f"[DEBUG] 间隔太短, 跳过")
+                    continue
+                
+                self._last_camera_notify_time = current_time
+                print(f"[DEBUG] 更新上次通知时间为: {current_time}")
+                
+                print(f"[DEBUG] 调用 _launch_splitcam")
                 self._launch_splitcam(self.project_b)
                 print(f"[MUMU] 相机点击，已刷新B")
                 
@@ -980,6 +1024,7 @@ class MumuService:
                 
                 if self._last_click_info:
                     click_time = self._last_click_info.get("timestamp", 0)
+                    print(f"[DEBUG] 存在 last_click_info, 点击时间: {click_time}")
                     if current_time - click_time <= 3:
                         msg.update({
                             "x": self._last_click_info["x"],
@@ -989,13 +1034,21 @@ class MumuService:
                             "businessId": self._last_click_info["businessId"],
                             "businessName": self._last_click_info["businessName"]
                         })
+                        print(f"[DEBUG] 添加了点击信息到消息")
                     else:
+                        print(f"[DEBUG] 清除 last_click_info")
                         self._last_click_info = None
-
+                
+                print(f"[DEBUG] 准备发送 cameraClicked 消息到服务端: {msg}")
                 await ws.send(json.dumps(msg))
+                print(f"[DEBUG] 消息已发送")
             except websockets.exceptions.ConnectionClosed:
+                print(f"[DEBUG] _camera_notify_worker 连接关闭")
                 break
             except Exception as e:
+                print(f"[DEBUG] _camera_notify_worker 异常: {type(e).__name__}: {e}")
+                import traceback
+                traceback.print_exc()
                 await asyncio.sleep(0.05)
 
     async def run(self):
