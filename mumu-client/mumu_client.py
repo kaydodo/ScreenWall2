@@ -5,10 +5,7 @@ import time
 import os
 import sys
 import subprocess
-import warnings
-warnings.filterwarnings('ignore')
 os.environ['OPENCV_LOG_LEVEL'] = '3'
-os.environ['PYZBAR_IGNORE_WARNINGS'] = '1'
 
 import numpy as np
 from pathlib import Path
@@ -274,6 +271,7 @@ class MumuClient:
             found, data_qr, qr_rect = self._detect_qr(img)
             
             if not found:
+                print(f"[MUMU] 二维码识别失败: 未识别到二维码")
                 await ws.send(json.dumps({
                     "type": "qrcodeResult",
                     "requestId": request_id,
@@ -283,6 +281,7 @@ class MumuClient:
                 return
             
             if self._is_url_or_ad(data_qr):
+                print(f"[MUMU] 二维码识别失败: 识别到URL或广告内容 - {data_qr[:50]}")
                 await ws.send(json.dumps({
                     "type": "qrcodeResult",
                     "requestId": request_id,
@@ -314,6 +313,7 @@ class MumuClient:
                     "status": "success"
                 }))
             else:
+                print(f"[MUMU] 二维码处理失败: 图片处理失败")
                 await ws.send(json.dumps({
                     "type": "qrcodeResult",
                     "requestId": request_id,
