@@ -550,8 +550,15 @@ async function processQrcodeImage(imageBuffer, businessId, operatorId, operatorN
       return;
     }
 
-    const mumuClient = state ? state.mumuClient : null;
-    if (!mumuClient || mumuClient.readyState !== 1) {
+    let mumuClient = null;
+    for (const client of wssClient.clients) {
+      if (client._deviceId === businessId && client.readyState === 1) {
+        mumuClient = client;
+        break;
+      }
+    }
+    
+    if (!mumuClient) {
       serverLog('[二维码] MU客户端未连接');
       logResult('失败');
       clearSelfServiceState(businessId);
@@ -2639,7 +2646,6 @@ wssClient.on('connection', (ws, req) => {
         operatorId: operatorId,
         operatorName: finalOperatorName,
         businessName: finalBusinessName,
-        mumuClient: ws,
         clickTimestamp: clickTimestamp,
         timeoutId: null
       };
