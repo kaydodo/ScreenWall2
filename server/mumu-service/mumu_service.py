@@ -59,8 +59,6 @@ class MumuService:
         self._is_reconnecting = False
         self._cmd_queue = asyncio.Queue()
         self._status_notify_queue = asyncio.Queue()
-        self._camera_notify_queue = None
-        self._camera_listen_thread = None
         
         script_dir = os.path.dirname(os.path.abspath(__file__))
         self.output_path = os.path.join(script_dir, 'qrcode', 'last_qrcode.png')
@@ -898,12 +896,9 @@ class MumuService:
     def _listen_camera_notify_thread(self, notify_queue):
         import ctypes
         import time
-        print("[MUMU] 相机通知监听线程启动")
-        retry_delay = 0.5  # 初始重试延迟
         while self.running:
             try:
                 pipe_name = r"\\.\pipe\MuMuCameraNotify"
-                print(f"[MUMU] 尝试连接管道: {pipe_name}")
                 handle = ctypes.windll.kernel32.CreateFileW(
                     pipe_name,
                     ctypes.c_uint32(0x80000000),
@@ -915,16 +910,8 @@ class MumuService:
                 )
                 
                 if handle == ctypes.c_void_p(-1).value:
-                    error = ctypes.windll.kernel32.GetLastError()
-                    print(f"[MUMU] 管道连接失败, 错误码: {error}")
-                    time.sleep(retry_delay)
-                    retry_delay = min(retry_delay * 2, 5)  # 指数退避
+                    time.sleep(0.5)
                     continue
-                
-                print("[MUMU] 管道连接成功，等待相机点击通知...")
-                retry_delay = 0.5  # 重置重试延迟
-                # 连接成功后稍微等待，让 DLL 完全初始化管道
-                time.sleep(0.1)
                 
                 try:
                     while self.running:
@@ -939,18 +926,9 @@ class MumuService:
                         )
                         
                         if not success or bytes_read.value == 0:
-                            error = ctypes.windll.kernel32.GetLastError()
-                            # 错误码 2 是管道不存在，可能是模拟器重启导致的
-                            # 错误码 6 是句柄无效，说明之前的管道已经失效
-                            if error == 2 or error == 6:
-                                print(f"[MUMU] 管道失效，等待后重新连接 (错误码: {error})")
-                                break
-                            else:
-                                print(f"[MUMU] 管道读取失败, 错误码: {error}, bytes_read: {bytes_read.value}")
-                                break
+                            break
                         
                         response = read_buffer.value.decode('ascii', errors='ignore')
-                        print(f"[MUMU] 收到管道消息: {response}")
                         if response.startswith("CLICKED:"):
                             try:
                                 timestamp_ms = int(response[8:])
@@ -960,34 +938,27 @@ class MumuService:
                                 pass
                 finally:
                     ctypes.windll.kernel32.CloseHandle(handle)
-                    print("[MUMU] 管道句柄已关闭")
-                    # 关闭后稍等一下再重连，给 DLL 时间重新建立管道
-                    time.sleep(0.5)
             except Exception as e:
-                print(f"[MUMU] 相机通知线程异常: {e}")
-                time.sleep(retry_delay)
-                retry_delay = min(retry_delay * 2, 5)
+                time.sleep(0.5)
 
     async def _camera_notify_worker(self, ws):
         import asyncio
         import threading
         import queue
         
-        if self._camera_notify_queue is None:
-            self._camera_notify_queue = queue.Queue()
+        notify_queue = queue.Queue()
         
-        if self._camera_listen_thread is None or not self._camera_listen_thread.is_alive():
-            self._camera_listen_thread = threading.Thread(
-                target=self._listen_camera_notify_thread,
-                args=(self._camera_notify_queue,),
-                daemon=True
-            )
-            self._camera_listen_thread.start()
+        listen_thread = threading.Thread(
+            target=self._listen_camera_notify_thread,
+            args=(notify_queue,),
+            daemon=True
+        )
+        listen_thread.start()
         
         while self.running:
             try:
                 try:
-                    timestamp = self._camera_notify_queue.get_nowait()
+                    timestamp = notify_queue.get_nowait()
                 except queue.Empty:
                     await asyncio.sleep(0.05)
                     continue
