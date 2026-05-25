@@ -675,6 +675,8 @@ class MumuClient:
                         "screenWidth": sw,
                         "screenHeight": sh
                     })
+                    print("[MUMU] 等待模拟器稳定...")
+                    await asyncio.sleep(5)
                     print("[MUMU] 尝试重新注入DLL...")
                     self._inject_camera_hook()
                 else:
@@ -1001,6 +1003,12 @@ class MumuClient:
         if not self.running:
             return
 
+        print("[MUMU] 等待模拟器启动完成...")
+        await asyncio.sleep(10)
+
+        screen_width, screen_height = await self._get_device_resolution()
+        print(f"[MUMU] 检测到模拟器分辨率: {screen_width}x{screen_height}")
+
         while self.running:
             if self._inject_camera_hook():
                 break
@@ -1011,11 +1019,6 @@ class MumuClient:
             return
 
         self._load_camera_hook_dll()
-
-        print("[MUMU] 等待模拟器启动完成...")
-        await asyncio.sleep(10)
-        screen_width, screen_height = await self._get_device_resolution()
-        print(f"[MUMU] 检测到模拟器分辨率: {screen_width}x{screen_height}")
 
         self._launch_splitcam(self.project_b)
         print("[MUMU] 已启动虚拟摄像头（白图）")
