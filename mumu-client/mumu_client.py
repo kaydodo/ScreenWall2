@@ -1001,6 +1001,9 @@ class MumuClient:
         if not self.running:
             return
 
+        print("[MUMU] 模拟器已连接，等待启动完成...")
+        await asyncio.sleep(5)
+
         while self.running:
             if self._inject_camera_hook():
                 break
