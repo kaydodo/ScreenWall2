@@ -2187,6 +2187,7 @@ wssClient.on('connection', (ws, req) => {
       const isMUMU = incomingDeviceId === 'MUMU-service';
       if (isMUMU) {
         serverLog(`[MUMU] 模拟器微服务已上线`);
+        muServiceOnline = true;
       }
 
       // deviceId 为空：不创建设备，只发安装指令，等UU装完重新上线
@@ -2715,6 +2716,8 @@ wssClient.on('connection', (ws, req) => {
           broadcastToBrowsers({ type: 'mumuOffline', deviceId });
           devices.delete(deviceId);
         }
+        muServiceOnline = false;
+        restartMuService();
         return;
       }
       
@@ -4618,6 +4621,7 @@ const HOST = SERVER_CFG.host || '0.0.0.0';
 // ========== MU服务自动管理 ==========
 let muServiceProcess = null;
 let muServiceRestartTimer = null;
+let muServiceOnline = false;
 const MU_SERVICE_PATH = path.join(__dirname, 'mumu-service', 'mumu_service.py');
 const MU_SERVICE_RESTART_DELAY = 3000;
 
@@ -4625,9 +4629,9 @@ function isMuServiceRunning() {
   return muServiceProcess && !muServiceProcess.killed;
 }
 
-async function startMuService() {
-  if (isMuServiceRunning()) {
-    serverLog('[MU服务] 已在运行中，跳过启动');
+function startMuService() {
+  if (muServiceOnline) {
+    serverLog('[MU服务] 已在线，跳过启动');
     return;
   }
   
@@ -4638,66 +4642,30 @@ async function startMuService() {
   
   try {
     serverLog('[MU服务] 正在启动...');
-    muServiceProcess = spawn('python', [MU_SERVICE_PATH], {
+    muServiceProcess = spawn('cmd', [
+      '/c', 'start', '"MU服务"', 
+      'python', MU_SERVICE_PATH
+    ], {
       cwd: path.join(__dirname, 'mumu-service'),
-      windowsHide: false,
-      detached: false
+      detached: true,
+      stdio: 'ignore'
     });
-    
-    muServiceProcess.stdout.on('data', (data) => {
-      const lines = data.toString().split('\n').filter(l => l.trim());
-      for (const line of lines) {
-        serverLog(`[MU服务] ${line}`);
-      }
-    });
-    
-    muServiceProcess.stderr.on('data', (data) => {
-      const lines = data.toString().split('\n').filter(l => l.trim());
-      for (const line of lines) {
-        serverError(`[MU服务] ${line}`);
-      }
-    });
-    
-    muServiceProcess.on('close', (code) => {
-      serverLog(`[MU服务] 进程已退出，退出码: ${code}`);
-      muServiceProcess = null;
-      
-      if (muServiceRestartTimer) {
-        clearTimeout(muServiceRestartTimer);
-      }
-      muServiceRestartTimer = setTimeout(() => {
-        serverLog('[MU服务] 尝试自动重启...');
-        startMuService();
-      }, MU_SERVICE_RESTART_DELAY);
-    });
-    
-    muServiceProcess.on('error', (err) => {
-      serverError(`[MU服务] 启动失败: ${err.message}`);
-      muServiceProcess = null;
-    });
-    
-    setTimeout(() => {
-      if (isMuServiceRunning()) {
-        serverLog('[MU服务] 启动成功');
-      }
-    }, 2000);
+    muServiceProcess.unref();
+    muServiceProcess = null;
     
   } catch (err) {
     serverError(`[MU服务] 启动异常: ${err.message}`);
-    muServiceProcess = null;
   }
 }
 
-function stopMuService() {
+function restartMuService() {
   if (muServiceRestartTimer) {
     clearTimeout(muServiceRestartTimer);
-    muServiceRestartTimer = null;
   }
-  if (muServiceProcess) {
-    serverLog('[MU服务] 正在停止...');
-    muServiceProcess.kill();
-    muServiceProcess = null;
-  }
+  muServiceRestartTimer = setTimeout(() => {
+    serverLog('[MU服务] 尝试自动重启...');
+    startMuService();
+  }, MU_SERVICE_RESTART_DELAY);
 }
 
 httpServer.listen(PORT, HOST, () => {
@@ -4706,14 +4674,4 @@ httpServer.listen(PORT, HOST, () => {
   serverLog(`   WebSocket端口: ${PORT}\n`);
   
   startMuService();
-});
-
-process.on('SIGINT', () => {
-  stopMuService();
-  process.exit(0);
-});
-
-process.on('SIGTERM', () => {
-  stopMuService();
-  process.exit(0);
 });
