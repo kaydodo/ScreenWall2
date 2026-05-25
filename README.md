@@ -415,15 +415,15 @@ async function callMijiaBridge(args, callback) {
 #### 状态：✅ 优秀
 
 **优点**：
-- ✅ **主循环使用 `asyncio.sleep()`**：第366、370、380、854行都使用 `await asyncio.sleep()`
+- ✅ **主循环使用 `asyncio.sleep()`**：所有等待都使用 `await asyncio.sleep()`
 - ✅ **ADB 命令使用 `asyncio.create_subprocess_exec`**：所有 ADB 操作都是异步的
 - ✅ **帧队列使用 `asyncio.Queue`**：maxsize=3，不会阻塞
+- ✅ **初始化流程优化**：先连接 WebSocket 再等待模拟器，避免服务端无法感知
 
 **子线程中的同步操作**：
 | 位置 | 代码 | 分析 |
 |------|------|------|
-| 634行 | `time.sleep(0.5)` | 在独立 `threading.Thread` 中运行，无影响 |
-| 663行 | `time.sleep(0.5)` | 同上 |
+| 第 912、941 行 | `time.sleep(0.5)` | 在独立 `threading.Thread` 中运行，无影响 |
 
 **结论**：✅ 无需修改，所有阻塞操作都在子线程中
 
@@ -818,6 +818,7 @@ if (id === 'MUMU-service') {
 | | 5. MU服务断开自动重启（3秒延迟） | 提高可用性 |
 | | 6. 启动后自动最小化控制台窗口 | 用户体验优化 |
 | | 7. 检测已运行则跳过启动 | 避免重复启动 |
+| | 8. 初始化流程优化：先连接WebSocket再等待模拟器 | 解决无模拟器时服务端无法感知的问题 |
 
 ### 版本更新记录
 
