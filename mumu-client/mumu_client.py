@@ -1015,20 +1015,8 @@ class MumuClient:
 
         self._load_camera_hook_dll()
 
-        screen_width, screen_height = 1080, 1920
-        stable_count = 0
-        last_w, last_h = 0, 0
-        while self.running and stable_count < 3:
-            sw, sh = await self._get_device_resolution()
-            if sw and sh:
-                if sw == last_w and sh == last_h:
-                    stable_count += 1
-                else:
-                    last_w, last_h = sw, sh
-                    stable_count = 1
-                    screen_width, screen_height = sw, sh
-            await asyncio.sleep(1)
-        
+        await asyncio.sleep(3)
+        screen_width, screen_height = await self._get_device_resolution()
         print(f"[MUMU] 检测到模拟器分辨率: {screen_width}x{screen_height}")
 
         self._launch_splitcam(self.project_b)
