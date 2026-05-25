@@ -234,13 +234,10 @@ class MumuClient:
             print(f"[MUMU] 发送 HD 截图失败: {e}")
 
     async def _process_qrcode_async(self, ws, data):
-        print(f"[DEBUG] [MUMU] 开始处理二维码请求")
         try:
             screenshot_base64 = data.get("screenshot", "")
-            print(f"[DEBUG] [MUMU] 收到截图数据: 长度={len(screenshot_base64)}")
             
             if not screenshot_base64:
-                print(f"[DEBUG] [MUMU] 缺少截图数据")
                 await ws.send(json.dumps({
                     "type": "qrcodeResult",
                     "status": "failed",
@@ -248,17 +245,13 @@ class MumuClient:
                 }))
                 return
 
-            print(f"[DEBUG] [MUMU] 开始解码图片")
             base64_data = screenshot_base64.replace('data:image/webp;base64,', '')
             img_bytes = base64.b64decode(base64_data)
-            print(f"[DEBUG] [MUMU] 图片解码成功: 大小={len(img_bytes)} bytes")
 
-            print(f"[DEBUG] [MUMU] 转换为OpenCV格式")
             img_array = np.frombuffer(img_bytes, dtype=np.uint8)
             img = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
             
             if img is None:
-                print(f"[DEBUG] [MUMU] 图片解码失败")
                 await ws.send(json.dumps({
                     "type": "qrcodeResult",
                     "status": "failed",
@@ -267,32 +260,24 @@ class MumuClient:
                 return
 
             height, width = img.shape[:2]
-            print(f"[DEBUG] [MUMU] 图片尺寸: {width}x{height}")
             
             if width > 1920 or height > 1080:
                 scale = min(2.0, max(1920 / width, 1080 / height) + 0.5)
                 new_width = int(width * scale)
                 new_height = int(height * scale)
                 img = cv2.resize(img, (new_width, new_height), interpolation=cv2.INTER_CUBIC)
-                print(f"[DEBUG] [MUMU] 图片已缩放: {width}x{height} -> {new_width}x{new_height}")
             
-            print(f"[DEBUG] [MUMU] 开始检测二维码")
             found, data_qr, qr_rect = self._detect_qr(img)
-            print(f"[DEBUG] [MUMU] 检测结果: found={found}")
             
             if not found:
-                print(f"[DEBUG] [MUMU] 未识别到二维码")
                 await ws.send(json.dumps({
                     "type": "qrcodeResult",
                     "status": "failed",
                     "error": "未识别到二维码"
                 }))
                 return
-
-            print(f"[DEBUG] [MUMU] 二维码内容: {data_qr}")
             
             if self._is_url_or_ad(data_qr):
-                print(f"[DEBUG] [MUMU] 检测到URL或广告内容: {data_qr}")
                 await ws.send(json.dumps({
                     "type": "qrcodeResult",
                     "status": "failed",
@@ -300,12 +285,10 @@ class MumuClient:
                 }))
                 return
 
-            print(f"[DEBUG] [MUMU] 开始处理二维码图片")
             img_array_for_process = np.frombuffer(img_bytes, dtype=np.uint8)
             img_for_process = cv2.imdecode(img_array_for_process, cv2.IMREAD_COLOR)
             
             if img_for_process is None:
-                print(f"[DEBUG] [MUMU] 处理图片解码失败")
                 await ws.send(json.dumps({
                     "type": "qrcodeResult",
                     "status": "failed",
@@ -313,20 +296,16 @@ class MumuClient:
                 }))
                 return
 
-            print(f"[DEBUG] [MUMU] 保存二维码图片")
             process_success = self._process_qrcode(img_for_process, qr_rect)
-            print(f"[DEBUG] [MUMU] 保存结果: success={process_success}")
             
             if process_success:
-                print(f"[DEBUG] [MUMU] 触发A/B刷新")
                 self._trigger_ab_refresh()
-                print(f"[MUMU] 二维码解析成功, 发送成功响应")
+                print(f"[MUMU] 二维码解析成功")
                 await ws.send(json.dumps({
                     "type": "qrcodeResult",
                     "status": "success"
                 }))
             else:
-                print(f"[DEBUG] [MUMU] 保存二维码图片失败")
                 await ws.send(json.dumps({
                     "type": "qrcodeResult",
                     "status": "failed",
@@ -334,9 +313,7 @@ class MumuClient:
                 }))
                 
         except Exception as e:
-            print(f"[DEBUG] [MUMU] 二维码处理异常: {e}")
-            import traceback
-            traceback.print_exc()
+            print(f"[MUMU] 二维码处理异常: {e}")
             await ws.send(json.dumps({
                 "type": "qrcodeResult",
                 "status": "failed",
@@ -579,7 +556,7 @@ class MumuClient:
                         }))
 
                     elif msg_type == "processQrcode":
-                        print(f"[DEBUG] [MUMU] 收到processQrcode消息请求")
+                        print(f"[MUMU] 收到processQrcode消息请求")
                         asyncio.create_task(self._process_qrcode_async(ws, data))
 
                 except Exception as e:
@@ -863,7 +840,6 @@ class MumuClient:
     def _listen_camera_notify_thread(self, notify_queue):
         import ctypes
         import time
-        print("[DEBUG] [MUMU] 相机通知线程启动")
         while self.running:
             try:
                 pipe_name = r"\\.\pipe\MuMuCameraNotify"
@@ -881,7 +857,6 @@ class MumuClient:
                     time.sleep(0.5)
                     continue
                 
-                print("[DEBUG] [MUMU] 已连接到相机通知管道")
                 try:
                     while self.running:
                         read_buffer = ctypes.create_string_buffer(256)
@@ -898,19 +873,16 @@ class MumuClient:
                             break
                         
                         response = read_buffer.value.decode('ascii', errors='ignore')
-                        print(f"[DEBUG] [MUMU] 收到管道消息: {response}")
                         if response.startswith("CLICKED:"):
                             try:
                                 timestamp_ms = int(response[8:])
                                 local_timestamp = time.time()
                                 notify_queue.put_nowait(local_timestamp)
-                                print(f"[DEBUG] [MUMU] 相机点击已放入队列")
                             except:
                                 pass
                 finally:
                     ctypes.windll.kernel32.CloseHandle(handle)
             except Exception as e:
-                print(f"[DEBUG] [MUMU] 相机通知线程异常: {e}")
                 time.sleep(0.5)
 
     async def _camera_notify_worker(self, ws):
@@ -927,7 +899,6 @@ class MumuClient:
         )
         listen_thread.start()
         
-        print("[DEBUG] [MUMU] 相机通知Worker启动")
         while self.running:
             try:
                 try:
@@ -936,10 +907,8 @@ class MumuClient:
                     await asyncio.sleep(0.05)
                     continue
                 
-                print(f"[DEBUG] [MUMU] 从队列获取到相机点击事件")
                 current_time = time.time()
                 if current_time - self._last_camera_notify_time < 1.0:
-                    print(f"[DEBUG] [MUMU] 相机点击防抖，忽略")
                     continue
                 self._last_camera_notify_time = current_time
                 
@@ -960,17 +929,13 @@ class MumuClient:
                             "businessId": self._last_click_info["businessId"],
                             "businessName": self._last_click_info["businessName"]
                         })
-                        print(f"[DEBUG] [MUMU] 包含点击信息: businessId={msg.get('businessId')}")
                     else:
                         self._last_click_info = None
-                        print(f"[DEBUG] [MUMU] 点击信息已过期")
 
-                print(f"[DEBUG] [MUMU] 发送cameraClicked消息: {msg}")
                 await ws.send(json.dumps(msg))
             except websockets.exceptions.ConnectionClosed:
                 break
             except Exception as e:
-                print(f"[DEBUG] [MUMU] 相机通知Worker异常: {e}")
                 await asyncio.sleep(0.05)
 
     async def run(self):
