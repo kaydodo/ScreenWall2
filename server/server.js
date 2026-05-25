@@ -1,13 +1,14 @@
 // Set timezone to Shanghai (UTC+8) for all Date operations
 process.env.TZ = 'Asia/Shanghai';
 
-const originalWarn = console.warn;
-console.warn = function(...args) {
-  const msg = args.join(' ');
-  if (msg.includes('Invalid resolution') && msg.includes('dpi')) {
-    return;
+// 屏蔽 Tesseract.js 的 DPI 警告
+const originalStderrWrite = process.stderr.write.bind(process.stderr);
+process.stderr.write = function(chunk, encoding, callback) {
+  if (typeof chunk === 'string' && chunk.includes('Invalid resolution') && chunk.includes('dpi')) {
+    if (callback) callback();
+    return true;
   }
-  originalWarn.apply(console, args);
+  return originalStderrWrite(chunk, encoding, callback);
 };
 
 // 全局异常拦截（防止未知路径导致服务端崩溃）
