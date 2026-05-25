@@ -16,12 +16,14 @@ import ctypes
 import cv2
 from pyzbar.pyzbar import decode
 
+
 def minimize_console_window():
-    if sys.platform == 'win32':
-        try:
-            ctypes.windll.user32.ShowWindow(ctypes.windll.kernel32.GetConsoleWindow(), 6)
-        except:
-            pass
+    try:
+        import ctypes
+        ctypes.windll.user32.ShowWindow(ctypes.windll.kernel32.GetConsoleWindow(), 2)
+    except:
+        pass
+
 
 class SuppressZbarWarnings:
     def __enter__(self):
