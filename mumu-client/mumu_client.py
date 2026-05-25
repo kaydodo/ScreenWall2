@@ -90,7 +90,6 @@ class MumuClient:
         return [adb_path] + cmd
 
     async def _check_adb_connection(self, silent=False):
-        import ctypes
         try:
             adb_path = self.config['adb'].get('path', 'adb')
             proc = await asyncio.create_subprocess_exec(
@@ -102,9 +101,6 @@ class MumuClient:
             result = stdout.decode('utf-8', errors='ignore').strip()
 
             if 'refused' in result.lower() or '10061' in result or 'unable' in result.lower():
-                if not silent:
-                    MessageBox = ctypes.windll.user32.MessageBoxW
-                    MessageBox(None, "模拟器没有正在运行，请先启动模拟器后再打开客户端", "MUMU客户端", 0x30)
                 return False
 
             return True
@@ -697,13 +693,11 @@ class MumuClient:
         dll_path = os.path.join(base_dir, "camera_hook49.dll")
 
         if not os.path.exists(injector_path):
-            MessageBox = ctypes.windll.user32.MessageBoxW
-            MessageBox(None, "注入器 injector49.exe 不存在，请检查客户端安装目录", "MUMU客户端", 0x10)
+            print("[MUMU] 注入器不存在: injector49.exe")
             return False
 
         if not os.path.exists(dll_path):
-            MessageBox = ctypes.windll.user32.MessageBoxW
-            MessageBox(None, "摄像头Hook DLL不存在，请检查客户端安装目录", "MUMU客户端", 0x10)
+            print("[MUMU] DLL不存在: camera_hook49.dll")
             return False
 
         print("[MUMU] 正在注入摄像头Hook...")
@@ -722,21 +716,15 @@ class MumuClient:
                 print("[MUMU] 已注入Hook，无需再次注入")
             else:
                 print(f"[MUMU] 注入器返回: {output}")
-                MessageBox = ctypes.windll.user32.MessageBoxW
-                MessageBox(None, "注入失败，请检查模拟器状态后重新打开客户端", "MUMU客户端", 0x10)
                 return False
 
             return True
 
         except subprocess.TimeoutExpired:
             print("[MUMU] 注入超时")
-            MessageBox = ctypes.windll.user32.MessageBoxW
-            MessageBox(None, "注入失败，请检查模拟器状态后重新打开客户端", "MUMU客户端", 0x10)
             return False
         except Exception as e:
             print(f"[MUMU] 注入失败: {e}")
-            MessageBox = ctypes.windll.user32.MessageBoxW
-            MessageBox(None, "注入失败，请检查模拟器状态后重新打开客户端", "MUMU客户端", 0x10)
             return False
 
     def _load_camera_hook_dll(self):
@@ -998,12 +986,22 @@ class MumuClient:
 
         print("[MUMU] 正在初始化...")
 
-        if not await self._check_adb_connection():
-            print("[MUMU] ADB连接失败，程序退出")
+        while self.running:
+            if await self._check_adb_connection():
+                break
+            print("[MUMU] 未检测到模拟器，等待连接...")
+            await asyncio.sleep(3)
+
+        if not self.running:
             return
 
-        if not self._inject_camera_hook():
-            print("[MUMU] 摄像头Hook注入失败，程序退出")
+        while self.running:
+            if self._inject_camera_hook():
+                break
+            print("[MUMU] 注入失败，等待重试...")
+            await asyncio.sleep(3)
+
+        if not self.running:
             return
 
         self._load_camera_hook_dll()
