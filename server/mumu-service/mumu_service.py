@@ -934,8 +934,14 @@ class MumuService:
                         
                         if not success or bytes_read.value == 0:
                             error = ctypes.windll.kernel32.GetLastError()
-                            print(f"[MUMU] 管道读取失败, 错误码: {error}, bytes_read: {bytes_read.value}")
-                            break
+                            # 错误码 2 是管道不存在，可能是模拟器重启导致的
+                            # 错误码 6 是句柄无效，说明之前的管道已经失效
+                            if error == 2 or error == 6:
+                                print(f"[MUMU] 管道失效，尝试重新连接 (错误码: {error})")
+                                break
+                            else:
+                                print(f"[MUMU] 管道读取失败, 错误码: {error}, bytes_read: {bytes_read.value}")
+                                break
                         
                         response = read_buffer.value.decode('ascii', errors='ignore')
                         print(f"[MUMU] 收到管道消息: {response}")
