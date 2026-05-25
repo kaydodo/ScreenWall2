@@ -898,9 +898,11 @@ class MumuService:
     def _listen_camera_notify_thread(self, notify_queue):
         import ctypes
         import time
+        print("[MUMU] 相机通知监听线程启动")
         while self.running:
             try:
                 pipe_name = r"\\.\pipe\MuMuCameraNotify"
+                print(f"[MUMU] 尝试连接管道: {pipe_name}")
                 handle = ctypes.windll.kernel32.CreateFileW(
                     pipe_name,
                     ctypes.c_uint32(0x80000000),
@@ -912,9 +914,12 @@ class MumuService:
                 )
                 
                 if handle == ctypes.c_void_p(-1).value:
+                    error = ctypes.windll.kernel32.GetLastError()
+                    print(f"[MUMU] 管道连接失败, 错误码: {error}")
                     time.sleep(0.5)
                     continue
                 
+                print("[MUMU] 管道连接成功，等待相机点击通知...")
                 try:
                     while self.running:
                         read_buffer = ctypes.create_string_buffer(256)
@@ -928,9 +933,12 @@ class MumuService:
                         )
                         
                         if not success or bytes_read.value == 0:
+                            error = ctypes.windll.kernel32.GetLastError()
+                            print(f"[MUMU] 管道读取失败, 错误码: {error}, bytes_read: {bytes_read.value}")
                             break
                         
                         response = read_buffer.value.decode('ascii', errors='ignore')
+                        print(f"[MUMU] 收到管道消息: {response}")
                         if response.startswith("CLICKED:"):
                             try:
                                 timestamp_ms = int(response[8:])
@@ -940,7 +948,9 @@ class MumuService:
                                 pass
                 finally:
                     ctypes.windll.kernel32.CloseHandle(handle)
+                    print("[MUMU] 管道句柄已关闭")
             except Exception as e:
+                print(f"[MUMU] 相机通知线程异常: {e}")
                 time.sleep(0.5)
 
     async def _camera_notify_worker(self, ws):
