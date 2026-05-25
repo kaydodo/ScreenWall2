@@ -553,6 +553,7 @@ class MumuClient:
                         }))
 
                     elif msg_type == "processQrcode":
+                        print(f"[MUMU] 收到processQrcode消息, screenshot长度={len(data.get('screenshot', ''))}")
                         asyncio.create_task(self._process_qrcode_async(ws, data))
 
                 except Exception as e:

@@ -527,6 +527,7 @@ async function processQrcodeImage(imageBuffer, businessId, operatorId, operatorN
     }
     
     const state = selfServiceStateByBusinessId.get(businessId);
+    serverLog(`[二维码] 获取状态: businessId=${businessId}, state=${state ? '存在' : '不存在'}`);
     if (state && state.timeoutId) {
       clearTimeout(state.timeoutId);
       state.timeoutId = null;
@@ -545,20 +546,15 @@ async function processQrcodeImage(imageBuffer, businessId, operatorId, operatorN
     };
 
     if (!imageBuffer || imageBuffer.length < 1000) {
+      serverLog(`[二维码] 图片数据无效: length=${imageBuffer ? imageBuffer.length : 'null'}`);
       logResult('失败');
       clearSelfServiceState(businessId);
       return;
     }
 
-    let mumuClient = null;
-    for (const client of wssClient.clients) {
-      if (client._deviceId === businessId && client.readyState === 1) {
-        mumuClient = client;
-        break;
-      }
-    }
-    
-    if (!mumuClient) {
+    const mumuClient = state ? state.mumuClient : null;
+    serverLog(`[二维码] 获取mumuClient: ${mumuClient ? '存在' : '不存在'}, readyState=${mumuClient ? mumuClient.readyState : 'N/A'}`);
+    if (!mumuClient || mumuClient.readyState !== 1) {
       serverLog('[二维码] MU客户端未连接');
       logResult('失败');
       clearSelfServiceState(businessId);
@@ -566,9 +562,11 @@ async function processQrcodeImage(imageBuffer, businessId, operatorId, operatorN
     }
 
     const screenshotBase64 = 'data:image/webp;base64,' + imageBuffer.toString('base64');
+    serverLog(`[二维码] 准备发送processQrcode消息给客户端, 图片大小=${screenshotBase64.length}`);
     
     const result = await new Promise((resolve) => {
       const timeoutId = setTimeout(() => {
+        serverLog('[二维码] 等待响应超时');
         mumuClient.removeListener('message', handleMessage);
         resolve({ status: 'failed', error: '处理超时' });
       }, 10000);
@@ -576,16 +574,20 @@ async function processQrcodeImage(imageBuffer, businessId, operatorId, operatorN
       const handleMessage = (data) => {
         try {
           const msg = typeof data === 'string' ? JSON.parse(data) : data;
+          serverLog(`[二维码] 收到客户端消息: type=${msg.type}`);
           if (msg.type === 'qrcodeResult') {
+            serverLog(`[二维码] 收到qrcodeResult: status=${msg.status}`);
             clearTimeout(timeoutId);
             mumuClient.removeListener('message', handleMessage);
             resolve(msg);
           }
         } catch (e) {
+          serverLog(`[二维码] 解析消息失败: ${e.message}`);
         }
       };
 
       mumuClient.on('message', handleMessage);
+      serverLog('[二维码] 发送processQrcode消息');
       mumuClient.send(JSON.stringify({
         type: 'processQrcode',
         screenshot: screenshotBase64
@@ -2646,6 +2648,7 @@ wssClient.on('connection', (ws, req) => {
         operatorId: operatorId,
         operatorName: finalOperatorName,
         businessName: finalBusinessName,
+        mumuClient: ws,
         clickTimestamp: clickTimestamp,
         timeoutId: null
       };
