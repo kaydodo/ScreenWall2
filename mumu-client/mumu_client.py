@@ -2,12 +2,21 @@ import asyncio
 import json
 import base64
 import time
+import os
+import sys
+import subprocess
+import warnings
+warnings.filterwarnings('ignore')
+os.environ['OPENCV_LOG_LEVEL'] = '3'
+
+import numpy as np
 from pathlib import Path
 import websockets
 from PIL import Image
 import io
 import ctypes
-import os
+import cv2
+from pyzbar.pyzbar import decode
 
 
 class MumuClient:
@@ -34,6 +43,12 @@ class MumuClient:
         self._is_reconnecting = False
         self._cmd_queue = asyncio.Queue()
         self._status_notify_queue = asyncio.Queue()
+        
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        self.output_path = os.path.join(script_dir, 'qrcode', 'last_qrcode.png')
+        self.project_a = os.path.join(script_dir, "qrcode", "Project_A.scproject")
+        self.project_b = os.path.join(script_dir, "qrcode", "Project_B.scproject")
+        self.splitcam_path = r"C:\Program Files\SplitCam\10\splitcam.exe"
 
     def _get_camera_trigger_area_scaled(self):
         base_w, base_h = self._camera_trigger_base_resolution
@@ -218,6 +233,207 @@ class MumuClient:
         except Exception as e:
             print(f"[MUMU] 发送 HD 截图失败: {e}")
 
+    async def _process_qrcode_async(self, ws, data):
+        try:
+            screenshot_base64 = data.get("screenshot", "")
+            if not screenshot_base64:
+                await ws.send(json.dumps({
+                    "type": "qrcodeResult",
+                    "status": "failed",
+                    "error": "缺少截图数据"
+                }))
+                return
+
+            base64_data = screenshot_base64.replace('data:image/webp;base64,', '')
+            img_bytes = base64.b64decode(base64_data)
+
+            img_array = np.frombuffer(img_bytes, dtype=np.uint8)
+            img = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
+            if img is None:
+                await ws.send(json.dumps({
+                    "type": "qrcodeResult",
+                    "status": "failed",
+                    "error": "图片解码失败"
+                }))
+                return
+
+            height, width = img.shape[:2]
+            
+            if width > 1920 or height > 1080:
+                scale = min(2.0, max(1920 / width, 1080 / height) + 0.5)
+                new_width = int(width * scale)
+                new_height = int(height * scale)
+                img = cv2.resize(img, (new_width, new_height), interpolation=cv2.INTER_CUBIC)
+            
+            found, data_qr, qr_rect = self._detect_qr(img)
+            
+            if not found:
+                await ws.send(json.dumps({
+                    "type": "qrcodeResult",
+                    "status": "failed",
+                    "error": "未识别到二维码"
+                }))
+                return
+
+            if self._is_url_or_ad(data_qr):
+                await ws.send(json.dumps({
+                    "type": "qrcodeResult",
+                    "status": "failed",
+                    "error": "识别到URL或广告内容"
+                }))
+                return
+
+            img_array_for_process = np.frombuffer(img_bytes, dtype=np.uint8)
+            img_for_process = cv2.imdecode(img_array_for_process, cv2.IMREAD_COLOR)
+            
+            if img_for_process is None:
+                await ws.send(json.dumps({
+                    "type": "qrcodeResult",
+                    "status": "failed",
+                    "error": "处理图片失败"
+                }))
+                return
+
+            process_success = self._process_qrcode(img_for_process, qr_rect)
+            if process_success:
+                self._trigger_ab_refresh()
+                print(f"[MUMU] 二维码解析成功")
+                await ws.send(json.dumps({
+                    "type": "qrcodeResult",
+                    "status": "success"
+                }))
+            else:
+                await ws.send(json.dumps({
+                    "type": "qrcodeResult",
+                    "status": "failed",
+                    "error": "图片处理失败"
+                }))
+                
+        except Exception as e:
+            print(f"[MUMU] 二维码处理失败: {e}")
+            await ws.send(json.dumps({
+                "type": "qrcodeResult",
+                "status": "failed",
+                "error": str(e)
+            }))
+
+    def _is_url_or_ad(self, data):
+        data_lower = data.lower()
+        url_prefixes = ('http://', 'https://', 'www.', 'ftp://', 'mailto:', 'tel:', 
+                        'weixin://', 'mapi.weixin.qq.com', 'wxp://')
+        ad_keywords = ('ad', 'ads', 'promotion', '广告', '推广', '优惠', '活动')
+        
+        if data_lower.startswith(url_prefixes):
+            return True
+        if any(keyword in data_lower for keyword in ad_keywords):
+            return True
+        return False
+
+    def _detect_qr(self, img):
+        try:
+            height, width = img.shape[:2]
+            
+            for src in [img, cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)]:
+                try:
+                    results = decode(src)
+                    if results:
+                        qr = results[0]
+                        data = qr.data.decode('utf-8')
+                        x, y, w, h = qr.rect
+                        return True, data, (x, y, w, h)
+                except Exception:
+                    pass
+            
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            enhanced = cv2.equalizeHist(gray)
+            try:
+                results = decode(enhanced)
+                if results:
+                    qr = results[0]
+                    data = qr.data.decode('utf-8')
+                    x, y, w, h = qr.rect
+                    return True, data, (x, y, w, h)
+            except Exception:
+                pass
+            
+            return False, None, None
+        except Exception as e:
+            return False, None, None
+
+    def _process_qrcode(self, img, qr_rect):
+        try:
+            if img is None:
+                return False
+            
+            x, y, w, h = qr_rect
+            
+            margin = 1
+            pad = 2
+            x1 = max(0, x - margin)
+            y1 = max(0, y - margin)
+            x2 = min(img.shape[1], x + w + pad)
+            y2 = min(img.shape[0], y + h + pad)
+            
+            qr_region = img[y1:y2, x1:x2]
+            
+            target_width = 200
+            target_height = 360
+            qr_target_height = 90
+            
+            qr_h, qr_w = qr_region.shape[:2]
+            scale = target_width / qr_w
+            new_w = target_width
+            new_h = int(qr_h * scale)
+            
+            if new_h > qr_target_height:
+                scale = qr_target_height / qr_h
+                new_w = int(qr_w * scale)
+                new_h = qr_target_height
+            
+            resized = cv2.resize(qr_region, (new_w, new_h), interpolation=cv2.INTER_LANCZOS4)
+            
+            result = np.full((target_height, target_width, 3), 255, dtype=np.uint8)
+            
+            y_offset = max(0, (target_height - new_h) // 2 + 40)
+            x_offset = (target_width - new_w) // 2
+            
+            result[y_offset:y_offset+new_h, x_offset:x_offset+new_w] = resized
+            
+            os.makedirs(os.path.dirname(self.output_path), exist_ok=True)
+            
+            before_save_time = time.time() * 1000
+            
+            cv2.imwrite(self.output_path, result)
+            
+            if os.path.exists(self.output_path):
+                stats = os.stat(self.output_path)
+                file_modified_time = stats.st_mtime * 1000
+                
+                if file_modified_time < before_save_time - 1000:
+                    return False
+            
+            return True
+        except Exception as e:
+            return False
+
+    def _launch_splitcam(self, project_file):
+        try:
+            subprocess.Popen([self.splitcam_path, project_file], shell=True)
+            return True
+        except Exception as e:
+            print(f"[MUMU] SplitCam启动失败: {e}")
+            return False
+
+    def _trigger_ab_refresh(self):
+        try:
+            self._launch_splitcam(self.project_a)
+            time.sleep(3)
+            self._launch_splitcam(self.project_b)
+            return True
+        except Exception as e:
+            print(f"[MUMU] A/B刷新失败: {e}")
+            return False
+
     async def _cmd_worker(self):
         while self.running:
             try:
@@ -335,6 +551,9 @@ class MumuClient:
                             "type": "cameraStatusReset",
                             "success": success
                         }))
+
+                    elif msg_type == "processQrcode":
+                        asyncio.create_task(self._process_qrcode_async(ws, data))
 
                 except Exception as e:
                     pass

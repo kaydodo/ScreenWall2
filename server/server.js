@@ -516,7 +516,6 @@ async function processQrcodeImage(imageBuffer, businessId, operatorId, operatorN
   try {
     const now = Date.now();
     let normalizedTimestamp = clickTimestamp;
-    // 判断是否是秒级时间戳：小于 10000000000 (2001年左右)，或者不是整数（带小数）
     const isSeconds = normalizedTimestamp && (normalizedTimestamp < 10000000000 || !Number.isInteger(normalizedTimestamp));
     if (isSeconds) {
       normalizedTimestamp = normalizedTimestamp * 1000;
@@ -527,7 +526,6 @@ async function processQrcodeImage(imageBuffer, businessId, operatorId, operatorN
       return;
     }
     
-    // 点击时间检查通过，先取消超时定时器
     const state = selfServiceStateByBusinessId.get(businessId);
     if (state && state.timeoutId) {
       clearTimeout(state.timeoutId);
@@ -552,50 +550,45 @@ async function processQrcodeImage(imageBuffer, businessId, operatorId, operatorN
       return;
     }
 
-    // 保存到 qrcode 文件夹，固定文件名
-    const qrcodeDir = path.join(__dirname, 'qrcode');
-    try {
-      await fsMkdir(qrcodeDir, { recursive: true });
-    } catch (err) {
-      // 文件夹已存在，忽略错误
-    }
-    const screenshotPath = path.join(qrcodeDir, 'screenshot_original.png');
-
-    // 记录保存前的时间
-    const beforeSaveTime = Date.now();
-
-    // 异步保存文件
-    await fsWriteFile(screenshotPath, imageBuffer);
-
-    // 检查文件是否真的被更新（对比修改时间）
-    const stats = await fsStat(screenshotPath);
-    const fileModifiedTime = stats.mtimeMs;
-
-    if (fileModifiedTime < beforeSaveTime - 1000) {
-      serverLog('[二维码] 原始截图保存失败，文件未更新');
+    const mumuClient = state ? state.mumuClient : null;
+    if (!mumuClient || mumuClient.readyState !== 1) {
+      serverLog('[二维码] MU客户端未连接');
       logResult('失败');
       clearSelfServiceState(businessId);
       return;
     }
 
-    // 异步调用 Python 脚本处理二维码
-    const pythonScript = path.join(__dirname, 'qrcode_processor.py');
-    try {
-      const { stdout } = await execFileAsync('python', [pythonScript, screenshotPath], { timeout: 10000 });
-      
-      try {
-        const result = JSON.parse(stdout);
-        if (result.status === 'success') {
-          logResult('成功');
-        } else {
-          logResult('失败');
+    const screenshotBase64 = 'data:image/webp;base64,' + imageBuffer.toString('base64');
+    
+    const result = await new Promise((resolve) => {
+      const timeoutId = setTimeout(() => {
+        mumuClient.removeListener('message', handleMessage);
+        resolve({ status: 'failed', error: '处理超时' });
+      }, 10000);
+
+      const handleMessage = (data) => {
+        try {
+          const msg = typeof data === 'string' ? JSON.parse(data) : data;
+          if (msg.type === 'qrcodeResult') {
+            clearTimeout(timeoutId);
+            mumuClient.removeListener('message', handleMessage);
+            resolve(msg);
+          }
+        } catch (e) {
         }
-      } catch (e) {
-        serverError('[二维码] 解析Python输出失败:', e.message);
-        logResult('失败');
-      }
-    } catch (error) {
-      serverError('[二维码] Python脚本执行失败:', error.message);
+      };
+
+      mumuClient.on('message', handleMessage);
+      mumuClient.send(JSON.stringify({
+        type: 'processQrcode',
+        screenshot: screenshotBase64
+      }));
+    });
+
+    if (result.status === 'success') {
+      logResult('成功');
+    } else {
+      serverError('[二维码] 处理失败:', result.error);
       logResult('失败');
     }
     
