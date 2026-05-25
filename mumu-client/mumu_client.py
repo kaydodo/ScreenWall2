@@ -668,7 +668,13 @@ class MumuClient:
                 if stable_count >= 5:
                     print("[MUMU] ADB已稳定重连")
                     self._is_reconnecting = False
-                    self._status_notify_queue.put_nowait({"type": "deviceOnline"})
+                    sw, sh = self._real_width, self._real_height
+                    print(f"[MUMU] 模拟器已恢复，分辨率: {sw}x{sh}")
+                    self._status_notify_queue.put_nowait({
+                        "type": "deviceOnline",
+                        "screenWidth": sw,
+                        "screenHeight": sh
+                    })
                     print("[MUMU] 尝试重新注入DLL...")
                     self._inject_camera_hook()
                 else:
@@ -1099,7 +1105,9 @@ class MumuClient:
                                 elif notify_type == "deviceOnline":
                                     await ws.send(json.dumps({
                                         "type": "deviceOnline",
-                                        "deviceId": device_id
+                                        "deviceId": device_id,
+                                        "screenWidth": result.get("screenWidth", screen_width),
+                                        "screenHeight": result.get("screenHeight", screen_height)
                                     }))
                                     print("[MUMU] 已通知服务端模拟器重连成功")
 
