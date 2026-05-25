@@ -565,7 +565,7 @@ async function processQrcodeImage(imageBuffer, businessId, operatorId, operatorN
       const timeoutId = setTimeout(() => {
         mumuClient.removeListener('message', handleMessage);
         resolve({ status: 'failed', error: '处理超时' });
-      }, 10000);
+      }, 5000);
 
       const handleMessage = (data) => {
         try {
