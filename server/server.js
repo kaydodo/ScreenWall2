@@ -1,6 +1,15 @@
 // Set timezone to Shanghai (UTC+8) for all Date operations
 process.env.TZ = 'Asia/Shanghai';
 
+const originalWarn = console.warn;
+console.warn = function(...args) {
+  const msg = args.join(' ');
+  if (msg.includes('Invalid resolution') && msg.includes('dpi')) {
+    return;
+  }
+  originalWarn.apply(console, args);
+};
+
 // 全局异常拦截（防止未知路径导致服务端崩溃）
 process.on('uncaughtException', (err) => {
   serverError('[未捕获异常]', err.message, err.stack);
