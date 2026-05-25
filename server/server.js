@@ -579,8 +579,9 @@ async function processQrcodeImage(imageBuffer, businessId, operatorId, operatorN
 
       const handleMessage = (data) => {
         try {
+          serverLog(`[DEBUG] [二维码] 原始消息数据: ${typeof data}, ${Buffer.isBuffer(data) ? 'Buffer:' + data.length : data}`);
           const msg = typeof data === 'string' ? JSON.parse(data) : data;
-          serverLog(`[DEBUG] [二维码] 收到客户端消息: type=${msg.type}`);
+          serverLog(`[DEBUG] [二维码] 解析后消息: type=${msg.type}, keys=${Object.keys(msg).join(',')}`);
           if (msg.type === 'qrcodeResult') {
             serverLog(`[DEBUG] [二维码] 收到qrcodeResult: status=${msg.status}`);
             clearTimeout(timeoutId);
@@ -588,7 +589,7 @@ async function processQrcodeImage(imageBuffer, businessId, operatorId, operatorN
             resolve(msg);
           }
         } catch (e) {
-          serverLog(`[DEBUG] [二维码] 解析消息失败: ${e.message}`);
+          serverLog(`[DEBUG] [二维码] 解析消息失败: ${e.message}, data=${data}`);
         }
       };
 
