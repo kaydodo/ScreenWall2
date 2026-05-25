@@ -675,7 +675,6 @@ class MumuService:
                 if stable_count >= 5:
                     print("[MUMU] ADB已稳定重连")
                     self._is_reconnecting = False
-                    await self._get_device_resolution()
                     sw, sh = self._real_width, self._real_height
                     print(f"[MUMU] 模拟器已恢复，分辨率: {sw}x{sh}")
                     self._status_notify_queue.put_nowait({
@@ -1068,8 +1067,7 @@ class MumuService:
                     await asyncio.sleep(10)
 
                     screen_width, screen_height = await self._get_device_resolution()
-                    self._real_width = screen_width
-                    self._real_height = screen_height
+                    self._real_width, self._real_height = screen_width, screen_height
                     print(f"[MUMU] 检测到模拟器分辨率: {screen_width}x{screen_height}")
 
                     while self.running:
@@ -1181,8 +1179,7 @@ class MumuService:
                                 sw, sh = await self._get_device_resolution()
                                 if sw and sh:
                                     screen_width, screen_height = sw, sh
-                                    self._real_width = sw
-                                    self._real_height = sh
+                                    self._real_width, self._real_height = screen_width, screen_height
                                     print(f"[MUMU] 模拟器已恢复，分辨率: {screen_width}x{screen_height}")
                                     reconnect_success = True
                                     break
