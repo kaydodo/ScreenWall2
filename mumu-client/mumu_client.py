@@ -16,6 +16,17 @@ import ctypes
 import cv2
 from pyzbar.pyzbar import decode
 
+class SuppressZbarWarnings:
+    def __enter__(self):
+        self._original_stderr = os.dup(2)
+        self._devnull = os.open(os.devnull, os.O_WRONLY)
+        os.dup2(self._devnull, 2)
+        return self
+    def __exit__(self, *args):
+        os.dup2(self._original_stderr, 2)
+        os.close(self._original_stderr)
+        os.close(self._devnull)
+
 
 class MumuClient:
     def __init__(self, config_path="config.json"):
@@ -362,7 +373,8 @@ class MumuClient:
                 nonlocal attempts
                 attempts += 1
                 try:
-                    results = decode(src)
+                    with SuppressZbarWarnings():
+                        results = decode(src)
                     if results:
                         qr = results[0]
                         data = qr.data.decode('utf-8')
