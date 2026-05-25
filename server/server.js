@@ -493,9 +493,6 @@ async function deleteDeviceCompletely(deviceId) {
   return { deviceName, deviceId };
 }
 
-// ========== 二维码处理配置 ==========
-const QRCODE_DIR = path.join(__dirname, 'qrcode');
-
 function formatDeviceName(name, id) {
   if (!name) return id;
   if (!id) return name;
