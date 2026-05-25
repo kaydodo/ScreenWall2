@@ -1539,11 +1539,14 @@ async function compareImages(buffer1, buffer2) {
  */
 async function ocrRegion(imageBuffer) {
   try {
-    // 客户端送来的 640×360 图片，直接识别不放大
-    const result = await Tesseract.recognize(imageBuffer, 'chi_sim', {
+    const fixedBuffer = await sharp(imageBuffer)
+      .withMetadata({ density: 72 })
+      .png()
+      .toBuffer();
+    
+    const result = await Tesseract.recognize(fixedBuffer, 'chi_sim', {
       logger: (m) => {
         if (m.status === 'loading language traineddata') {
-          // 下载进度不打印
         }
       },
       errorHandler: (err) => {
