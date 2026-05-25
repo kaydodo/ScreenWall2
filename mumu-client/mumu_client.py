@@ -44,7 +44,7 @@ class MumuClient:
         
         script_dir = os.path.dirname(os.path.abspath(__file__))
         self.output_path = os.path.join(script_dir, 'qrcode', 'last_qrcode.png')
-        self.debug_screenshot_path = os.path.join(script_dir, 'qrcode', 'debug_failed.png')
+        self.debug_dir = os.path.join(script_dir, 'qrcode', 'debug')
         self.project_a = os.path.join(script_dir, "qrcode", "Project_A.scproject")
         self.project_b = os.path.join(script_dir, "qrcode", "Project_B.scproject")
         self.splitcam_path = r"C:\Program Files\SplitCam\10\splitcam.exe"
@@ -274,8 +274,11 @@ class MumuClient:
             detect_time = (time.time() - detect_start) * 1000
             
             if not found:
-                cv2.imwrite(self.debug_screenshot_path, img)
-                print(f"[MUMU] 二维码识别失败: 未识别到二维码 (耗时{detect_time:.0f}ms, 尝试{attempts}轮), 已保存截图到 debug_failed.png")
+                os.makedirs(self.debug_dir, exist_ok=True)
+                timestamp_str = time.strftime("%Y%m%d_%H%M%S")
+                debug_path = os.path.join(self.debug_dir, f"failed_{timestamp_str}.png")
+                cv2.imwrite(debug_path, img)
+                print(f"[MUMU] 二维码识别失败: 未识别到二维码 (耗时{detect_time:.0f}ms, 尝试{attempts}轮), 已保存截图到 {debug_path}")
                 await ws.send(json.dumps({
                     "type": "qrcodeResult",
                     "requestId": request_id,
