@@ -59,6 +59,8 @@ class MumuService:
         self._is_reconnecting = False
         self._cmd_queue = asyncio.Queue()
         self._status_notify_queue = asyncio.Queue()
+        self._camera_notify_queue = None
+        self._camera_listen_thread = None
         
         script_dir = os.path.dirname(os.path.abspath(__file__))
         self.output_path = os.path.join(script_dir, 'qrcode', 'last_qrcode.png')
@@ -675,6 +677,7 @@ class MumuService:
                 if stable_count >= 5:
                     print("[MUMU] ADB已稳定重连")
                     self._is_reconnecting = False
+                    await self._get_device_resolution()
                     sw, sh = self._real_width, self._real_height
                     print(f"[MUMU] 模拟器已恢复，分辨率: {sw}x{sh}")
                     self._status_notify_queue.put_nowait({
@@ -945,19 +948,21 @@ class MumuService:
         import threading
         import queue
         
-        notify_queue = queue.Queue()
+        if self._camera_notify_queue is None:
+            self._camera_notify_queue = queue.Queue()
         
-        listen_thread = threading.Thread(
-            target=self._listen_camera_notify_thread,
-            args=(notify_queue,),
-            daemon=True
-        )
-        listen_thread.start()
+        if self._camera_listen_thread is None or not self._camera_listen_thread.is_alive():
+            self._camera_listen_thread = threading.Thread(
+                target=self._listen_camera_notify_thread,
+                args=(self._camera_notify_queue,),
+                daemon=True
+            )
+            self._camera_listen_thread.start()
         
         while self.running:
             try:
                 try:
-                    timestamp = notify_queue.get_nowait()
+                    timestamp = self._camera_notify_queue.get_nowait()
                 except queue.Empty:
                     await asyncio.sleep(0.05)
                     continue
@@ -1067,6 +1072,8 @@ class MumuService:
                     await asyncio.sleep(10)
 
                     screen_width, screen_height = await self._get_device_resolution()
+                    self._real_width = screen_width
+                    self._real_height = screen_height
                     print(f"[MUMU] 检测到模拟器分辨率: {screen_width}x{screen_height}")
 
                     while self.running:
@@ -1178,6 +1185,8 @@ class MumuService:
                                 sw, sh = await self._get_device_resolution()
                                 if sw and sh:
                                     screen_width, screen_height = sw, sh
+                                    self._real_width = sw
+                                    self._real_height = sh
                                     print(f"[MUMU] 模拟器已恢复，分辨率: {screen_width}x{screen_height}")
                                     reconnect_success = True
                                     break
