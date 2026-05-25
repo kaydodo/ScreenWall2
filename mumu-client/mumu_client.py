@@ -940,6 +940,7 @@ class MumuClient:
                 self._last_camera_notify_time = current_time
                 
                 self._launch_splitcam(self.project_b)
+                print(f"[MUMU] 相机点击，已刷新B")
                 
                 msg = {
                     "type": "cameraClicked",
