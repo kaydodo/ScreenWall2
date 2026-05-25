@@ -8,6 +8,7 @@ import subprocess
 import warnings
 warnings.filterwarnings('ignore')
 os.environ['OPENCV_LOG_LEVEL'] = '3'
+os.environ['PYZBAR_IGNORE_WARNINGS'] = '1'
 
 import numpy as np
 from pathlib import Path
