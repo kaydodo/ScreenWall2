@@ -95,17 +95,7 @@ ScreenWall2 是一套多设备屏幕监控与远控系统，支持同时监控�
 D:\ScreenWall2\
 ├── server/                          # 服务端
 │   ├── server.js                    # 主服务程序
-│   ├── qrcode_processor.py          # 二维码处理脚本
 │   ├── mijia-bridge.py              # 米家API桥接脚本
-│   ├── qrcode/                      # 二维码输出目录
-│   │   ├── screenshot_original.png  # 原始截图
-│   │   ├── last_qrcode.png         # 处理后的二维码
-│   │   ├── blank.png               # 空白占位图
-│   │   ├── create_blank_image.py   # 空白图生成脚本
-│   │   ├── Project_A.scproject     # SplitCam方案A（显示二维码）
-│   │   ├── Project_B.scproject     # SplitCam方案B（显示空白图）
-│   │   ├── backup.scproject        # 备份方案
-│   │   └── README.md               # QRcode目录说明文档
 │   ├── public/                      # 前端静态资源
 │   │   ├── main.html                # 主页面
 │   │   ├── monitor-wall.html        # 监控墙页面
@@ -129,11 +119,20 @@ D:\ScreenWall2\
 │   └── dist/                        # 打包输出目录
 │
 ├── mumu-client/                     # MUMU模拟器客户端
-│   ├── mumu_client.py              # 主程序
+│   ├── mumu_client.py              # 主程序（含二维码识别功能）
 │   ├── injector49.exe               # 摄像头Hook注入器
-│   └── config.json                  # 配置文件
+│   ├── camera_hook49.dll            # 摄像头Hook DLL
+│   ├── config.json                  # 配置文件
+│   └── qrcode/                      # 二维码处理目录
+│       ├── last_qrcode.png          # 处理后的二维码
+│       ├── blank.png                # 空白占位图
+│       ├── Project_A.scproject      # SplitCam方案A（显示二维码）
+│       ├── Project_B.scproject      # SplitCam方案B（显示空白图）
+│       ├── backup.scproject         # 备份方案
+│       ├── debug/                   # 识别失败调试截图目录
+│       └── README.md                # QRcode目录说明文档
 │
-└── mumu_camera_hook/               # MUMU摄像头Hook模块
+└── mumu_camera_hook/               # MUMU摄像头Hook模块（已废弃，功能集成到mumu-client）
     ├── camera_hook49.cpp            # Hook DLL源码
     ├── camera_hook49.dll            # Hook DLL
     ├── injector49.cpp               # 注入器源码
@@ -431,72 +430,72 @@ async function callMijiaBridge(args, callback) {
 
 ---
 
-### 二维码处理脚本架构详解（qrcode_processor.py）
+### 二维码处理架构详解（mumu_client.py）
 
-#### 设计原则：独立进程 + 异步调用
+#### 设计原则：集成到 MUMU 客户端
 
-**核心思想**：将计算密集型的二维码识别与图片处理完全隔离到独立的 Python 进程中，避免阻塞 Node.js 主事件循环。
+**核心思想**：二维码识别功能已集成到 MUMU 客户端，通过 WebSocket 与服务端通信，支持并发请求和实时处理。
 
 **架构图**：
 ```
-Node.js 服务端（server.js）
-    └─ processQrcodeImage() [async 异步函数
-       └─ await execFileAsync('python', ['qrcode_processor.py', imagePath]) [不阻塞]
+服务端（server.js）
+    └─ processQrcodeImage() [async 异步函数]
+       └─ 发送 processQrcode 消息给 MUMU 客户端
+       └─ 监听 qrcodeResult 响应（requestId 匹配）
 
-独立 Python 进程（qrcode_processor.py）
-       ├─ 读取原始图片
-       ├─ pyzbar 二维码识别
+MUMU 客户端（mumu_client.py）
+       ├─ 接收 Base64 图片
+       ├─ 七重增强二维码识别
        ├─ OpenCV 图片裁剪、缩放
-       ├─ 启动 SplitCam A/B 轮询刷新
-       └─ 返回 JSON 结果
+       ├─ SplitCam A/B 刷新
+       └─ 返回 qrcodeResult 结果
 ```
 
-#### 执行流程
+#### 七重增强识别策略
 
-1. **服务端调用**（[server.js#L579](file:///d:/ScreenWall2/server/server.js#L579)
-   ```javascript
-   const { stdout } = await execFileAsync(
-       'python', 
-       ['qrcode_processor.py', imagePath], 
-       { timeout: 10000 }
-   );
-   ```
+| 策略 | 说明 | 适用场景 |
+|------|------|---------|
+| 原图识别 | 直接识别原图 | 清晰二维码 |
+| 灰度识别 | 转灰度后识别 | 彩色干扰 |
+| 1.5倍放大 | 放大1.5倍后识别 | 小尺寸二维码 |
+| 2倍放大 | 放大2倍后识别 | 极小二维码 |
+| 直方图均衡化 | 增强对比度 | 低对比度 |
+| CLAHE | 自适应直方图均衡 | 光照不均 |
+| OTSU二值化 | 自动阈值二值化 | 模糊边界 |
+| 自适应阈值 | 高斯自适应阈值 | 复杂背景 |
+| 高斯模糊 | 降噪后识别 | 噪点干扰 |
+| 双边滤波 | 保边降噪 | 边缘模糊 |
 
-2. **脚本执行**（[server/qrcode_processor.py](file:///d:/ScreenWall2/server/qrcode_processor.py)
-   - 读取命令行参数获取图片路径
-   - 调用 detect_qr() 识别二维码
-   - 调用 process_qrcode() 裁剪缩放
-   - 调用 trigger_ab_refresh() 启动 SplitCam A/B 轮询
-   - 返回 JSON 格式结果
+**最大尝试次数**：12轮（每轮约100ms）
 
-3. **超时保护**：10秒超时防止进程挂死
+#### 并发请求支持
 
-#### 全局变量
+- **requestId 匹配**：每个请求携带唯一 requestId，响应时匹配
+- **异步处理**：每个请求独立处理，互不干扰
+- **超时保护**：服务端5秒超时
 
-| 变量 | 说明 |
-|------|------|
-| `OUTPUT_PATH` | 二维码输出文件路径 |
-| `script_dir` | 脚本所在目录 |
-| `project_a` | SplitCam 方案A 项目文件路径 |
-| `project_b` | SplitCam 方案B 项目文件路径 |
-| `splitcam_path` | SplitCam 可执行文件路径 |
+#### 调试功能
 
-#### 功能模块
+- **识别失败截图**：保存到 `qrcode/debug/failed_YYYYMMDD_HHMMSS.png`
+- **识别日志**：显示耗时和尝试轮数
+  ```
+  [MUMU] 二维码识别成功: 耗时150ms, 尝试3轮
+  [MUMU] 二维码识别失败: 未识别到二维码 (耗时1200ms, 尝试12轮)
+  ```
 
-| 函数 | 功能 |
-|------|------|
-| `launch_splitcam(project_file)` | 启动 SplitCam 加载指定项目 |
-| `trigger_ab_refresh()` | 触发 A/B 刷新流程（方案A→3秒→方案B） |
-| `is_url_or_ad(data)` | 过滤 URL 和广告内容 |
-| `detect_qr(image_path)` | pyzbar 二维码识别 |
-| `process_qrcode(image_path, qr_rect)` | OpenCV 图片处理 |
-| `main()` | 命令行入口，JSON 输出 |
+#### A/B 刷新机制
+
+**触发时机**：
+- 二维码识别成功 → 刷新 A（显示二维码）
+- 相机点击 → 刷新 B（显示白图）
+
+**目的**：解决 SplitCam 虚拟摄像头缓存问题
 
 #### 图片处理流程：
 ```
 原始截图 (1080p/720p)
     ↓
-检测二维码位置
+检测二维码位置（七重增强）
     ↓
 裁剪二维码区域
     ↓
@@ -507,13 +506,15 @@ Node.js 服务端（server.js）
 居中放置二维码
     ↓
 保存到 qrcode/last_qrcode.png
+    ↓
+刷新 SplitCam 方案 A
 ```
 
 #### 架构优势：
-- ✅ **服务端永不阻塞**：图片处理在独立进程
-- ✅ **故障隔离**：Python 脚本崩溃不影响服务端
-- ✅ **易于扩展**：可以独立优化二维码处理算法
-- ✅ **架构清晰**：职责分离，易于维护
+- ✅ **服务端永不阻塞**：二维码处理在 MUMU 客户端
+- ✅ **支持并发**：多个请求可同时处理
+- ✅ **易于调试**：失败时保存截图，便于分析
+- ✅ **架构简洁**：无需独立进程，减少通信开销
 
 ---
 
@@ -524,7 +525,6 @@ Node.js 服务端（server.js）
 | **server.js** | ⭐⭐⭐⭐⭐ | 无 | 优秀 |
 | **client.py** | ⭐⭐⭐⭐⭐ | 已消除 | 优秀 |
 | **mumu_client.py** | ⭐⭐⭐⭐⭐ | 无 | 优秀 |
-| **qrcode_processor.py** | N/A | N/A | 优秀（独立进程设计）|
 
 **总体评价**：整个系统的异步架构设计合理，**主循环阶段不存在明显的阻塞问题**。
 

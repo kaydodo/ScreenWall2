@@ -102,5 +102,83 @@
       "h": 129
     },
     "isFullScreenshot": false
+  },
+  {
+    "id": "2963a69c-ab05-4e2b-8d91-b7ab0e6917ba",
+    "deviceId": "aeawtmgwtiau3yfl-admin2",
+    "deviceName": "9UXW干一天刚过同感同感",
+    "uuDeviceId": "441947603",
+    "screenshot": "/alarm-screenshots/4df0cf24-59b7-4a6a-a30d-1ed7bdd296e1.png",
+    "screenshotId": "4df0cf24-59b7-4a6a-a30d-1ed7bdd296e1",
+    "screenshotPath": "D:\\ScreenWall2\\server\\alarm-screenshots\\4df0cf24-59b7-4a6a-a30d-1ed7bdd296e1.png",
+    "timestamp": 1779730488657,
+    "groupName": "",
+    "cellStr": "",
+    "occurrenceCount": 4,
+    "status": "confirmed",
+    "matchedKeyword": "网络错",
+    "region": {
+      "x1": 380,
+      "y1": 132,
+      "x2": 553,
+      "y2": 292
+    },
+    "regionSize": {
+      "w": 173,
+      "h": 160
+    },
+    "isFullScreenshot": true
+  },
+  {
+    "id": "5f1a9638-332d-453a-b4ba-6f17805c7685",
+    "deviceId": "aeawtmgwtiau3yfl-admin2",
+    "deviceName": "9UXW干一天刚过同感同感",
+    "uuDeviceId": "441947603",
+    "screenshot": "/alarm-screenshots/7af207c1-df00-4826-a228-1d9a57d54c82.png",
+    "screenshotId": "7af207c1-df00-4826-a228-1d9a57d54c82",
+    "screenshotPath": "D:\\ScreenWall2\\server\\alarm-screenshots\\7af207c1-df00-4826-a228-1d9a57d54c82.png",
+    "timestamp": 1779730582376,
+    "groupName": "",
+    "cellStr": "",
+    "occurrenceCount": 5,
+    "status": "confirmed",
+    "matchedKeyword": "网络错",
+    "region": {
+      "x1": 354,
+      "y1": 104,
+      "x2": 527,
+      "y2": 234
+    },
+    "regionSize": {
+      "w": 173,
+      "h": 130
+    },
+    "isFullScreenshot": true
+  },
+  {
+    "id": "6d01f879-c3c1-40a0-a54c-b1bd0e1c2a77",
+    "deviceId": "aeawtmgwtiau3yfl-admin2",
+    "deviceName": "9UXW干一天刚过同感同感",
+    "uuDeviceId": "441947603",
+    "screenshot": "/alarm-screenshots/b678605d-42f7-4988-9beb-140f3ffbda3d.png",
+    "screenshotId": "b678605d-42f7-4988-9beb-140f3ffbda3d",
+    "screenshotPath": "D:\\ScreenWall2\\server\\alarm-screenshots\\b678605d-42f7-4988-9beb-140f3ffbda3d.png",
+    "timestamp": 1779730675499,
+    "groupName": "",
+    "cellStr": "",
+    "occurrenceCount": 6,
+    "status": "confirmed",
+    "matchedKeyword": "网络错",
+    "region": {
+      "x1": 401,
+      "y1": 60,
+      "x2": 574,
+      "y2": 220
+    },
+    "regionSize": {
+      "w": 173,
+      "h": 160
+    },
+    "isFullScreenshot": false
   }
 ]
