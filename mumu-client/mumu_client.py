@@ -1001,9 +1001,6 @@ class MumuClient:
         if not self.running:
             return
 
-        print("[MUMU] 模拟器已连接，等待启动完成...")
-        await asyncio.sleep(5)
-
         while self.running:
             if self._inject_camera_hook():
                 break
@@ -1015,7 +1012,8 @@ class MumuClient:
 
         self._load_camera_hook_dll()
 
-        await asyncio.sleep(3)
+        print("[MUMU] 等待模拟器启动完成...")
+        await asyncio.sleep(10)
         screen_width, screen_height = await self._get_device_resolution()
         print(f"[MUMU] 检测到模拟器分辨率: {screen_width}x{screen_height}")
 
