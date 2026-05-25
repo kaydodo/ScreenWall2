@@ -2620,13 +2620,12 @@ wssClient.on('connection', (ws, req) => {
     }  // end if alarm
 
     if (msg.type === 'cameraClicked') {
-      // MUMU客户端发送的相机点击通知
-      // deviceId: 业务发起方ID（从self-service.html发送过来的originalDeviceId）
-      // deviceName: 业务发起方名称
-      // businessId: 业务设备ID（从下拉框选择的需要截图的设备ID）
-      // businessName: 业务设备名称
       const { businessId, businessName, x, y, timestamp, deviceId: operatorId, deviceName: operatorName } = msg;
+      
+      serverLog(`[DEBUG] [自助登号] 收到cameraClicked: businessId=${businessId}, operatorId=${operatorId}`);
+      
       if (!businessId) {
+        serverLog('[DEBUG] [自助登号] cameraClicked消息缺少businessId，忽略');
         return;
       }
       
