@@ -4,70 +4,18 @@
 #include <ctime>
 
 #pragma comment(lib, "user32.lib")
-#pragma comment(lib, "advapi32.lib")
 
 static BOOL g_bCameraSelected = FALSE;
 static DWORD g_LastClickTime = 0;
 static HWND g_LastCameraHWND = NULL;
 static volatile LONG g_CameraCompleted = 0;
 static DWORD g_LastJsonWriteTime = 0;
-static char g_JsonFilePath[MAX_PATH] = {0};
 
 #define CAMERA_DLG_WIDTH 336
 #define CAMERA_DLG_HEIGHT 316
 #define CHECK_INTERVAL 500
-#define JSON_FILE_NAME "camera_trigger.json"
+#define JSON_FILE_PATH "D:\\camera_trigger.json"
 #define DEBOUNCE_INTERVAL 1000
-
-static BOOL GetMuMuInstallDir(char* buffer, int bufferSize) {
-    HKEY hKey;
-    wchar_t uninstallStringW[MAX_PATH] = {0};
-    DWORD dataSize = sizeof(uninstallStringW);
-    
-    if (RegOpenKeyExW(HKEY_LOCAL_MACHINE, 
-        L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\MuMuPlayer",
-        0, KEY_READ, &hKey) == ERROR_SUCCESS) {
-        
-        if (RegQueryValueExW(hKey, L"UninstallString", NULL, NULL, 
-            (LPBYTE)uninstallStringW, &dataSize) == ERROR_SUCCESS) {
-            
-            RegCloseKey(hKey);
-            
-            wchar_t* quoteStart = wcschr(uninstallStringW, L'"');
-            if (quoteStart) {
-                quoteStart++;
-                wchar_t* quoteEnd = wcschr(quoteStart, L'"');
-                if (quoteEnd) {
-                    *quoteEnd = L'\0';
-                    WideCharToMultiByte(CP_ACP, 0, quoteStart, -1, buffer, bufferSize, NULL, NULL);
-                    return TRUE;
-                }
-            }
-            
-            wchar_t* lastSlash = wcsrchr(uninstallStringW, L'\\');
-            if (lastSlash) {
-                *lastSlash = L'\0';
-            }
-            WideCharToMultiByte(CP_ACP, 0, uninstallStringW, -1, buffer, bufferSize, NULL, NULL);
-            return TRUE;
-        }
-        RegCloseKey(hKey);
-    }
-    return FALSE;
-}
-
-static void InitJsonFilePath() {
-    if (g_JsonFilePath[0] != '\0') {
-        return;
-    }
-    
-    char mumuDir[MAX_PATH] = {0};
-    if (GetMuMuInstallDir(mumuDir, sizeof(mumuDir))) {
-        snprintf(g_JsonFilePath, sizeof(g_JsonFilePath), "%s\\%s", mumuDir, JSON_FILE_NAME);
-    } else {
-        strncpy(g_JsonFilePath, JSON_FILE_NAME, sizeof(g_JsonFilePath) - 1);
-    }
-}
 
 static std::string GenerateRandomString(int length) {
     static const char chars[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -80,15 +28,13 @@ static std::string GenerateRandomString(int length) {
 }
 
 static BOOL WriteCameraTriggerToJson() {
-    InitJsonFilePath();
-    
     DWORD now = GetTickCount();
     if (now - g_LastJsonWriteTime < DEBOUNCE_INTERVAL) {
         return FALSE;
     }
     g_LastJsonWriteTime = now;
     
-    FILE* f = fopen(g_JsonFilePath, "r");
+    FILE* f = fopen(JSON_FILE_PATH, "r");
     std::string jsonContent;
     
     if (f) {
@@ -128,7 +74,7 @@ static BOOL WriteCameraTriggerToJson() {
         }
     }
     
-    f = fopen(g_JsonFilePath, "w");
+    f = fopen(JSON_FILE_PATH, "w");
     if (!f) {
         return FALSE;
     }

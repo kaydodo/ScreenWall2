@@ -100,12 +100,7 @@ class MumuService:
         return None
 
     def _init_camera_trigger_file(self):
-        mumu_dir = self._get_mumu_dir()
-        if not mumu_dir:
-            print("[MUMU] 无法获取MuMu目录，相机触发功能不可用")
-            return
-        
-        self._camera_trigger_file = os.path.join(mumu_dir, "camera_trigger.json")
+        self._camera_trigger_file = "D:\\camera_trigger.json"
         
         if os.path.exists(self._camera_trigger_file):
             self._last_trigger_mtime = os.path.getmtime(self._camera_trigger_file)
