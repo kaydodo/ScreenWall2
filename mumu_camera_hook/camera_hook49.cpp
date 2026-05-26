@@ -21,36 +21,34 @@ static char g_JsonFilePath[MAX_PATH] = {0};
 
 static BOOL GetMuMuInstallDir(char* buffer, int bufferSize) {
     HKEY hKey;
-    char uninstallString[MAX_PATH] = {0};
-    DWORD dataSize = sizeof(uninstallString);
+    wchar_t uninstallStringW[MAX_PATH] = {0};
+    DWORD dataSize = sizeof(uninstallStringW);
     
-    if (RegOpenKeyExA(HKEY_LOCAL_MACHINE, 
-        "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\MuMuPlayer",
+    if (RegOpenKeyExW(HKEY_LOCAL_MACHINE, 
+        L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\MuMuPlayer",
         0, KEY_READ, &hKey) == ERROR_SUCCESS) {
         
-        if (RegQueryValueExA(hKey, "UninstallString", NULL, NULL, 
-            (LPBYTE)uninstallString, &dataSize) == ERROR_SUCCESS) {
+        if (RegQueryValueExW(hKey, L"UninstallString", NULL, NULL, 
+            (LPBYTE)uninstallStringW, &dataSize) == ERROR_SUCCESS) {
             
             RegCloseKey(hKey);
             
-            char* quoteStart = strchr(uninstallString, '"');
+            wchar_t* quoteStart = wcschr(uninstallStringW, L'"');
             if (quoteStart) {
                 quoteStart++;
-                char* quoteEnd = strchr(quoteStart, '"');
+                wchar_t* quoteEnd = wcschr(quoteStart, L'"');
                 if (quoteEnd) {
-                    *quoteEnd = '\0';
-                    strncpy(buffer, quoteStart, bufferSize - 1);
-                    buffer[bufferSize - 1] = '\0';
+                    *quoteEnd = L'\0';
+                    WideCharToMultiByte(CP_ACP, 0, quoteStart, -1, buffer, bufferSize, NULL, NULL);
                     return TRUE;
                 }
             }
             
-            char* lastSlash = strrchr(uninstallString, '\\');
+            wchar_t* lastSlash = wcsrchr(uninstallStringW, L'\\');
             if (lastSlash) {
-                *lastSlash = '\0';
+                *lastSlash = L'\0';
             }
-            strncpy(buffer, uninstallString, bufferSize - 1);
-            buffer[bufferSize - 1] = '\0';
+            WideCharToMultiByte(CP_ACP, 0, uninstallStringW, -1, buffer, bufferSize, NULL, NULL);
             return TRUE;
         }
         RegCloseKey(hKey);

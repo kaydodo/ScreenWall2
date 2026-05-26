@@ -208,5 +208,31 @@
       "h": 130
     },
     "isFullScreenshot": false
+  },
+  {
+    "id": "1f6fc604-a2c1-4ffe-a6c6-00a6d75ba25c",
+    "deviceId": "aeawtmgwtiau3yfl-admin",
+    "deviceName": "9UXW干一天刚过同感同感",
+    "uuDeviceId": "441947603",
+    "screenshot": "/alarm-screenshots/e4c00f96-4f0a-490c-a62c-31240caf21c3.png",
+    "screenshotId": "e4c00f96-4f0a-490c-a62c-31240caf21c3",
+    "screenshotPath": "D:\\ScreenWall2\\server\\alarm-screenshots\\e4c00f96-4f0a-490c-a62c-31240caf21c3.png",
+    "timestamp": 1779813497811,
+    "groupName": "",
+    "cellStr": "",
+    "occurrenceCount": 1,
+    "status": "confirmed",
+    "matchedKeyword": "网络错",
+    "region": {
+      "x1": 234,
+      "y1": 97,
+      "x2": 407,
+      "y2": 257
+    },
+    "regionSize": {
+      "w": 173,
+      "h": 160
+    },
+    "isFullScreenshot": false
   }
 ]
