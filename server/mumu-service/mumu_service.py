@@ -425,9 +425,9 @@ class MumuService:
             }))
 
     async def _delayed_convert_qr_to_white(self):
-        await asyncio.sleep(0.5)
+        await asyncio.sleep(0.6)
         self._launch_splitcam(self.project_b)
-        print(f"[MUMU] 延迟0.5秒后刷新B")
+        print(f"[MUMU] 延迟0.6秒后刷新B")
 
     def _update_bat_files(self):
         qrcode_dir = os.path.dirname(self.project_a)
