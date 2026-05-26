@@ -31,6 +31,7 @@ class SuppressZbarWarnings:
 class MumuService:
     def __init__(self, config_path="config.json"):
         self.config = self._load_config(config_path)
+        self.config_path = config_path
         self.running = False
         self._real_width = 1080
         self._real_height = 1920
@@ -42,6 +43,8 @@ class MumuService:
         self._reset_camera_completed = None
         self._last_click_info = None
         self._last_camera_notify_time = 0
+        self._last_trigger_mtime = 0
+        self._camera_trigger_file = None
         self._camera_trigger_area = {
             "x_min": 326,
             "x_max": 474,
@@ -58,6 +61,8 @@ class MumuService:
         self.debug_dir = os.path.join(script_dir, 'qrcode', 'debug')
         self.project_a = os.path.join(script_dir, "qrcode", "start_a.bat")
         self.project_b = os.path.join(script_dir, "qrcode", "start_b.bat")
+        
+        self._init_camera_trigger_file()
 
     def _get_camera_trigger_area_scaled(self):
         base_w, base_h = self._camera_trigger_base_resolution
@@ -80,6 +85,36 @@ class MumuService:
     def _load_config(self, config_path):
         with open(config_path, "r", encoding="utf-8") as f:
             return json.load(f)
+
+    def _get_mumu_dir(self):
+        import winreg
+        try:
+            key_path = r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\MuMuPlayer"
+            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, key_path) as key:
+                uninstall_string = winreg.QueryValueEx(key, "UninstallString")[0]
+                mumu_dir = os.path.dirname(uninstall_string.strip('"'))
+                if os.path.exists(mumu_dir):
+                    return mumu_dir
+        except Exception:
+            pass
+        return None
+
+    def _init_camera_trigger_file(self):
+        mumu_dir = self._get_mumu_dir()
+        if not mumu_dir:
+            print("[MUMU] 无法获取MuMu目录，相机触发功能不可用")
+            return
+        
+        self._camera_trigger_file = os.path.join(mumu_dir, "camera_trigger.json")
+        
+        if os.path.exists(self._camera_trigger_file):
+            self._last_trigger_mtime = os.path.getmtime(self._camera_trigger_file)
+            print(f"[MUMU] 相机触发文件已存在: {self._camera_trigger_file}")
+        else:
+            with open(self._camera_trigger_file, "w", encoding="utf-8") as f:
+                json.dump({"cameraTrigger": ""}, f, indent=2)
+            self._last_trigger_mtime = os.path.getmtime(self._camera_trigger_file)
+            print(f"[MUMU] 已创建相机触发文件: {self._camera_trigger_file}")
 
     def _get_mumu_adb_path(self):
         import winreg
@@ -927,78 +962,26 @@ class MumuService:
         
         return self._reset_camera_status_via_pipe()
 
-    def _listen_camera_notify_thread(self, notify_queue):
-        import ctypes
-        import time
-        while self.running:
-            try:
-                pipe_name = r"\\.\pipe\MuMuCameraNotify"
-                handle = ctypes.windll.kernel32.CreateFileW(
-                    pipe_name,
-                    ctypes.c_uint32(0x80000000),
-                    0,
-                    None,
-                    ctypes.c_uint32(3),
-                    0,
-                    None
-                )
-                
-                if handle == -1 or handle == ctypes.c_void_p(-1).value:
-                    error_code = ctypes.windll.kernel32.GetLastError()
-                    if error_code == 231:
-                        time.sleep(0.1)
-                    else:
-                        time.sleep(0.5)
-                    continue
-                
-                try:
-                    while self.running:
-                        read_buffer = ctypes.create_string_buffer(256)
-                        bytes_read = ctypes.c_uint32(0)
-                        success = ctypes.windll.kernel32.ReadFile(
-                            handle,
-                            read_buffer,
-                            255,
-                            ctypes.byref(bytes_read),
-                            None
-                        )
-                        
-                        if not success or bytes_read.value == 0:
-                            break
-                        
-                        response = read_buffer.value.decode('ascii', errors='ignore')
-                        if response.startswith("CLICKED:"):
-                            try:
-                                timestamp_ms = int(response[8:])
-                                local_timestamp = time.time()
-                                notify_queue.put_nowait(local_timestamp)
-                            except:
-                                pass
-                finally:
-                    ctypes.windll.kernel32.CloseHandle(handle)
-            except Exception as e:
-                time.sleep(0.5)
+    def _check_camera_trigger_file_change(self):
+        if not self._camera_trigger_file:
+            return False
+        try:
+            if not os.path.exists(self._camera_trigger_file):
+                return False
+            current_mtime = os.path.getmtime(self._camera_trigger_file)
+            if current_mtime != self._last_trigger_mtime:
+                self._last_trigger_mtime = current_mtime
+                return True
+            return False
+        except Exception:
+            return False
 
     async def _camera_notify_worker(self, ws):
-        import asyncio
-        import threading
-        import queue
-        
-        notify_queue = queue.Queue()
-        
-        listen_thread = threading.Thread(
-            target=self._listen_camera_notify_thread,
-            args=(notify_queue,),
-            daemon=True
-        )
-        listen_thread.start()
-        
         while self.running:
             try:
-                try:
-                    timestamp = notify_queue.get_nowait()
-                except queue.Empty:
-                    await asyncio.sleep(0.05)
+                await asyncio.sleep(0.5)
+                
+                if not self._check_camera_trigger_file_change():
                     continue
                 
                 current_time = time.time()
@@ -1009,7 +992,7 @@ class MumuService:
                 
                 msg = {
                     "type": "cameraClicked",
-                    "timestamp": timestamp,
+                    "timestamp": current_time,
                     "mumuClientId": self.config["device"]["deviceId"]
                 }
                 
@@ -1031,7 +1014,7 @@ class MumuService:
             except websockets.exceptions.ConnectionClosed:
                 break
             except Exception as e:
-                await asyncio.sleep(0.05)
+                await asyncio.sleep(0.5)
 
     async def run(self):
         self.running = True
