@@ -99,6 +99,26 @@ class MumuService:
             pass
         return None
 
+    def _launch_emulator(self, emulator_id=0):
+        mumu_dir = self._get_mumu_dir()
+        if not mumu_dir:
+            print("[MUMU] 无法获取MuMu目录，无法启动模拟器")
+            return False
+        
+        manager_path = os.path.join(mumu_dir, "nx_main", "MuMuManager.exe")
+        if not os.path.exists(manager_path):
+            print(f"[MUMU] MuMuManager.exe 不存在: {manager_path}")
+            return False
+        
+        try:
+            cmd = [manager_path, "control", "-v", str(emulator_id), "launch"]
+            subprocess.Popen(cmd, cwd=os.path.dirname(manager_path))
+            print(f"[MUMU] 已启动模拟器 ID={emulator_id}")
+            return True
+        except Exception as e:
+            print(f"[MUMU] 启动模拟器失败: {e}")
+            return False
+
     def _init_camera_trigger_file(self):
         self._camera_trigger_file = "D:\\camera_trigger.json"
         
@@ -1049,9 +1069,15 @@ class MumuService:
 
                 if not emulator_ready:
                     print("[MUMU] 等待模拟器连接...")
+                    launch_attempted = False
                     while self.running:
                         if await self._check_adb_connection():
                             break
+                        
+                        if not launch_attempted:
+                            self._launch_emulator(0)
+                            launch_attempted = True
+                        
                         await asyncio.sleep(3)
 
                     if not self.running:
