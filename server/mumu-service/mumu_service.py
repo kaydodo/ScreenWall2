@@ -112,7 +112,8 @@ class MumuService:
         
         try:
             cmd_launch = [manager_path, "control", "-v", str(emulator_id), "launch"]
-            subprocess.Popen(cmd_launch, cwd=os.path.dirname(manager_path))
+            subprocess.Popen(cmd_launch, cwd=os.path.dirname(manager_path),
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             print(f"[MUMU] 已启动模拟器 ID={emulator_id}")
             return True
         except Exception as e:
@@ -130,7 +131,8 @@ class MumuService:
         
         try:
             cmd_hide = [manager_path, "control", "-v", str(emulator_id), "hide_window"]
-            subprocess.Popen(cmd_hide, cwd=os.path.dirname(manager_path))
+            subprocess.Popen(cmd_hide, cwd=os.path.dirname(manager_path),
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             print(f"[MUMU] 已隐藏模拟器窗口 ID={emulator_id}")
             return True
         except Exception as e:
