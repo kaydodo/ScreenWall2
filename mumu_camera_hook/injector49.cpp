@@ -132,19 +132,13 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     int injectSkip = 0;
 
     for (int i = 0; i < count; i++) {
-        printf("INFO:Checking %s (PID: %lu)...\n", processes[i].name, processes[i].pid);
-
         if (IsHookInjected(processes[i].pid)) {
-            printf("INFO:Already injected, skipping\n");
             injectSkip++;
             continue;
         }
 
         if (InjectDll(processes[i].pid, dllPath)) {
-            printf("INFO:Inject success\n");
             injectSuccess++;
-        } else {
-            printf("INFO:Inject failed (maybe not a target process)\n");
         }
     }
 
