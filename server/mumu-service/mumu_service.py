@@ -52,6 +52,7 @@ class MumuService:
         self._is_reconnecting = False
         self._cmd_queue = asyncio.Queue()
         self._status_notify_queue = asyncio.Queue()
+        self._splitcam_load_time = 2.0
         
         script_dir = os.path.dirname(os.path.abspath(__file__))
         self.output_path = os.path.join(script_dir, 'qrcode', 'last_qrcode.png')
@@ -323,7 +324,8 @@ class MumuService:
             
             if process_success:
                 self._launch_splitcam(self.project_a)
-                print(f"[MUMU] 二维码解析成功，已刷新A")
+                await asyncio.sleep(self._splitcam_load_time)
+                print(f"[MUMU] 二维码解析成功，已刷新A (等待{self._splitcam_load_time:.2f}s)")
                 await ws.send(json.dumps({
                     "type": "qrcodeResult",
                     "requestId": request_id,
