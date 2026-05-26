@@ -480,11 +480,6 @@ class MumuService:
 
     def _launch_splitcam(self, project_file):
         try:
-            splitcam_exe = "SplitCam.exe"
-            for _ in range(3):
-                os.system(f'taskkill /F /IM {splitcam_exe} >nul 2>&1')
-                time.sleep(0.1)
-            time.sleep(0.2)
             subprocess.Popen([self.splitcam_path, project_file], shell=True)
             return True
         except Exception as e:
