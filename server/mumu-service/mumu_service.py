@@ -760,7 +760,7 @@ class MumuService:
                     print("[MUMU] 等待模拟器稳定...")
                     await asyncio.sleep(5)
                     print("[MUMU] 尝试重新注入DLL...")
-                    self._inject_camera_hook()
+                    await self._inject_camera_hook()
                 else:
                     self._is_reconnecting = False
 
@@ -773,11 +773,7 @@ class MumuService:
             pass
         return 1080, 1920
 
-    def _inject_camera_hook(self):
-        import subprocess
-        import os
-        import ctypes
-
+    async def _inject_camera_hook(self):
         base_dir = os.path.dirname(os.path.abspath(__file__))
         injector_path = os.path.join(base_dir, "injector49.exe")
         dll_path = os.path.join(base_dir, "camera_hook49.dll")
@@ -792,13 +788,13 @@ class MumuService:
 
         print("[MUMU] 正在注入摄像头Hook...")
         try:
-            result = subprocess.run(
-                [injector_path],
-                capture_output=True,
-                text=True,
-                timeout=10
+            proc = await asyncio.create_subprocess_exec(
+                injector_path,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
             )
-            output = result.stdout.strip()
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=10)
+            output = stdout.decode('utf-8', errors='ignore').strip()
 
             if "INJECT_SUCCESS" in output:
                 print("[MUMU] 摄像头Hook注入成功")
@@ -810,13 +806,11 @@ class MumuService:
 
             return True
 
-        except subprocess.TimeoutExpired:
+        except asyncio.TimeoutError:
             print("[MUMU] 注入超时")
             return False
         except Exception as e:
             print(f"[MUMU] 注入失败: {type(e).__name__}: {e}")
-            import traceback
-            traceback.print_exc()
             return False
 
     def _load_camera_hook_dll(self):
@@ -1097,7 +1091,7 @@ class MumuService:
                     }))
 
                     while self.running:
-                        if self._inject_camera_hook():
+                        if await self._inject_camera_hook():
                             break
                         print("[MUMU] 注入失败，等待重试...")
                         await asyncio.sleep(3)
