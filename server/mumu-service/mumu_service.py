@@ -117,17 +117,11 @@ class MumuService:
             print(f"[MUMU] 已创建相机触发文件: {self._camera_trigger_file}")
 
     def _get_mumu_adb_path(self):
-        import winreg
-        try:
-            key_path = r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\MuMuPlayer"
-            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, key_path) as key:
-                uninstall_string = winreg.QueryValueEx(key, "UninstallString")[0]
-                mumu_dir = os.path.dirname(uninstall_string.strip('"'))
-                adb_path = os.path.join(mumu_dir, "nx_main", "adb.exe")
-                if os.path.exists(adb_path):
-                    return adb_path
-        except Exception:
-            pass
+        mumu_dir = self._get_mumu_dir()
+        if mumu_dir:
+            adb_path = os.path.join(mumu_dir, "nx_main", "adb.exe")
+            if os.path.exists(adb_path):
+                return adb_path
         return self.config['adb'].get('path', 'adb')
 
     def _get_adb_cmd(self, cmd):
