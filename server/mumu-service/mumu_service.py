@@ -730,7 +730,7 @@ class MumuService:
                 
                 launch_attempted = False
                 stable_count = 0
-                while self.running and stable_count < 5:
+                while self.running and stable_count < 3:
                     await asyncio.sleep(2)
                     
                     if not launch_attempted:
@@ -764,7 +764,7 @@ class MumuService:
                         "screenHeight": sh
                     })
                     print("[MUMU] 等待模拟器稳定...")
-                    await asyncio.sleep(5)
+                    await asyncio.sleep(2)
                     print("[MUMU] 尝试重新注入DLL...")
                     await self._inject_camera_hook()
                 else:
@@ -1085,14 +1085,14 @@ class MumuService:
 
                     print("[MUMU] 等待模拟器稳定...")
                     stable_count = 0
-                    while self.running and stable_count < 5:
+                    while self.running and stable_count < 3:
                         await asyncio.sleep(2)
                         if await self._check_adb_connection():
                             stable_count += 1
                         else:
                             stable_count = 0
                     
-                    await asyncio.sleep(5)
+                    await asyncio.sleep(2)
 
                     screen_width, screen_height = await self._get_device_resolution()
                     print(f"[MUMU] 检测到模拟器分辨率: {screen_width}x{screen_height}")
