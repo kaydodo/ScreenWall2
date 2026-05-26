@@ -1015,46 +1015,19 @@ class MumuService:
 
         print("[MUMU] 正在初始化...")
 
-        while self.running:
-            if await self._check_adb_connection():
-                break
-            print("[MUMU] 未检测到模拟器，等待连接...")
-            await asyncio.sleep(3)
-
-        if not self.running:
-            return
-
-        print("[MUMU] 等待模拟器启动完成...")
-        await asyncio.sleep(10)
-
-        screen_width, screen_height = await self._get_device_resolution()
-        print(f"[MUMU] 检测到模拟器分辨率: {screen_width}x{screen_height}")
-
-        while self.running:
-            if self._inject_camera_hook():
-                break
-            print("[MUMU] 注入失败，等待重试...")
-            await asyncio.sleep(3)
-
-        if not self.running:
-            return
-
-        self._load_camera_hook_dll()
-
-        self.reset_camera_status()
-        
-        self._update_bat_files()
-        self._launch_splitcam(self.project_b)
-        print("[MUMU] 已启动虚拟摄像头（白图）")
-
         server_host = self.config["server"]["host"]
         server_port = self.config["server"]["port"]
         ws_uri = f"ws://{server_host}:{server_port}/ws/client"
         cfg = self.config
+        device_id = cfg["device"]["deviceId"]
+        device_name = cfg["device"]["deviceName"]
+
+        screen_width, screen_height = 1080, 1920
         is_reconnected = False
+        emulator_ready = False
 
         print(f"[MUMU] 正在连接服务端: {ws_uri}")
-        
+
         cmd_task = asyncio.create_task(self._cmd_worker())
 
         while self.running:
@@ -1062,8 +1035,6 @@ class MumuService:
                 ws = await websockets.connect(ws_uri, ping_interval=30, ping_timeout=10)
                 print("[MUMU] 已连接到服务端")
 
-                device_id = cfg["device"]["deviceId"]
-                device_name = cfg["device"]["deviceName"]
                 await ws.send(json.dumps({
                     "type": "register",
                     "deviceId": device_id,
@@ -1080,6 +1051,47 @@ class MumuService:
                     "monitorOffsetY": 0
                 }))
                 print(f"[MUMU] 已注册: deviceId={device_id}")
+
+                if not emulator_ready:
+                    print("[MUMU] 等待模拟器连接...")
+                    while self.running:
+                        if await self._check_adb_connection():
+                            break
+                        await asyncio.sleep(3)
+
+                    if not self.running:
+                        return
+
+                    print("[MUMU] 等待模拟器启动完成...")
+                    await asyncio.sleep(10)
+
+                    screen_width, screen_height = await self._get_device_resolution()
+                    print(f"[MUMU] 检测到模拟器分辨率: {screen_width}x{screen_height}")
+
+                    await ws.send(json.dumps({
+                        "type": "deviceOnline",
+                        "deviceId": device_id,
+                        "screenWidth": screen_width,
+                        "screenHeight": screen_height
+                    }))
+
+                    while self.running:
+                        if self._inject_camera_hook():
+                            break
+                        print("[MUMU] 注入失败，等待重试...")
+                        await asyncio.sleep(3)
+
+                    if not self.running:
+                        return
+
+                    self._load_camera_hook_dll()
+                    self.reset_camera_status()
+                    
+                    self._update_bat_files()
+                    self._launch_splitcam(self.project_b)
+                    print("[MUMU] 已启动虚拟摄像头（白图）")
+
+                    emulator_ready = True
 
                 if is_reconnected:
                     await ws.send(json.dumps({
