@@ -728,9 +728,15 @@ class MumuService:
                 consecutive_errors = 0
                 self._is_reconnecting = True
                 
+                launch_attempted = False
                 stable_count = 0
                 while self.running and stable_count < 5:
                     await asyncio.sleep(2)
+                    
+                    if not launch_attempted:
+                        self._launch_emulator(0)
+                        launch_attempted = True
+                    
                     try:
                         adb_path = self._get_mumu_adb_path()
                         proc = await asyncio.create_subprocess_exec(
