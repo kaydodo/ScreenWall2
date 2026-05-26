@@ -56,8 +56,8 @@ class MumuService:
         script_dir = os.path.dirname(os.path.abspath(__file__))
         self.output_path = os.path.join(script_dir, 'qrcode', 'last_qrcode.png')
         self.debug_dir = os.path.join(script_dir, 'qrcode', 'debug')
-        self.project_a = os.path.join(script_dir, "qrcode", "Project_A.scproject")
-        self.project_b = os.path.join(script_dir, "qrcode", "Project_B.scproject")
+        self.project_a = os.path.join(script_dir, "qrcode", "start_a.bat")
+        self.project_b = os.path.join(script_dir, "qrcode", "start_b.bat")
         self.splitcam_path = r"C:\Program Files\SplitCam\10\splitcam.exe"
 
     def _get_camera_trigger_area_scaled(self):
@@ -322,9 +322,9 @@ class MumuService:
             process_success = self._process_qrcode(img_for_process, qr_rect)
             
             if process_success:
-                await asyncio.sleep(0.5)
                 self._launch_splitcam(self.project_a)
                 print(f"[MUMU] 二维码解析成功，已刷新A")
+                asyncio.create_task(self._delayed_convert_qr_to_white())
                 await ws.send(json.dumps({
                     "type": "qrcodeResult",
                     "requestId": request_id,
@@ -347,6 +347,29 @@ class MumuService:
                 "status": "failed",
                 "error": str(e)
             }))
+
+    async def _delayed_convert_qr_to_white(self):
+        await asyncio.sleep(0.5)
+        self._launch_splitcam(self.project_b)
+        print(f"[MUMU] 延迟0.5秒后刷新B")
+
+    def _update_bat_files(self):
+        qrcode_dir = os.path.dirname(self.project_a)
+        bat_a_path = os.path.join(qrcode_dir, "start_a.bat")
+        bat_b_path = os.path.join(qrcode_dir, "start_b.bat")
+        
+        project_a_scproject = os.path.join(qrcode_dir, "Project_A.scproject")
+        project_b_scproject = os.path.join(qrcode_dir, "Project_B.scproject")
+        
+        bat_content = f'@echo off\ncd /d "{qrcode_dir}"\nstart "" "{project_a_scproject}"'
+        with open(bat_a_path, "w") as f:
+            f.write(bat_content)
+        
+        bat_content = f'@echo off\ncd /d "{qrcode_dir}"\nstart "" "{project_b_scproject}"'
+        with open(bat_b_path, "w") as f:
+            f.write(bat_content)
+        
+        print(f"[MUMU] 已更新BAT文件路径")
 
     def _is_url_or_ad(self, data):
         data_lower = data.lower()
@@ -480,7 +503,8 @@ class MumuService:
 
     def _launch_splitcam(self, project_file):
         try:
-            subprocess.Popen([self.splitcam_path, project_file], shell=True)
+            cmd = f'cmd /c "{project_file}"'
+            subprocess.Popen(cmd, shell=True)
             return True
         except Exception as e:
             print(f"[MUMU] SplitCam启动失败: {e}")
@@ -965,12 +989,10 @@ class MumuService:
                     continue
                 
                 current_time = time.time()
+                
                 if current_time - self._last_camera_notify_time < 1.0:
                     continue
                 self._last_camera_notify_time = current_time
-                
-                self._launch_splitcam(self.project_b)
-                print(f"[MUMU] 相机点击，已刷新B")
                 
                 msg = {
                     "type": "cameraClicked",
@@ -1031,6 +1053,7 @@ class MumuService:
 
         self.reset_camera_status()
         
+        self._update_bat_files()
         self._launch_splitcam(self.project_b)
         print("[MUMU] 已启动虚拟摄像头（白图）")
 
