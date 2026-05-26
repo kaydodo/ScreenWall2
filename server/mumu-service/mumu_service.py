@@ -114,14 +114,26 @@ class MumuService:
             cmd_launch = [manager_path, "control", "-v", str(emulator_id), "launch"]
             subprocess.Popen(cmd_launch, cwd=os.path.dirname(manager_path))
             print(f"[MUMU] 已启动模拟器 ID={emulator_id}")
-            
-            cmd_hide = [manager_path, "control", "-v", str(emulator_id), "hide_window"]
-            subprocess.Popen(cmd_hide, cwd=os.path.dirname(manager_path))
-            print(f"[MUMU] 已隐藏模拟器窗口 ID={emulator_id}")
-            
             return True
         except Exception as e:
             print(f"[MUMU] 启动模拟器失败: {e}")
+            return False
+
+    def _hide_emulator_window(self, emulator_id=0):
+        mumu_dir = self._get_mumu_dir()
+        if not mumu_dir:
+            return False
+        
+        manager_path = os.path.join(mumu_dir, "nx_main", "MuMuManager.exe")
+        if not os.path.exists(manager_path):
+            return False
+        
+        try:
+            cmd_hide = [manager_path, "control", "-v", str(emulator_id), "hide_window"]
+            subprocess.Popen(cmd_hide, cwd=os.path.dirname(manager_path))
+            print(f"[MUMU] 已隐藏模拟器窗口 ID={emulator_id}")
+            return True
+        except Exception as e:
             return False
 
     def _init_camera_trigger_file(self):
@@ -758,7 +770,7 @@ class MumuService:
                     except Exception:
                         stable_count = 0
                 
-                if stable_count >= 5:
+                if stable_count >= 3:
                     print("[MUMU] ADB已稳定重连")
                     self._is_reconnecting = False
                     sw, sh = self._real_width, self._real_height
@@ -770,6 +782,7 @@ class MumuService:
                     })
                     print("[MUMU] 等待模拟器稳定...")
                     await asyncio.sleep(2)
+                    self._hide_emulator_window(0)
                     print("[MUMU] 尝试重新注入DLL...")
                     await self._inject_camera_hook()
                 else:
@@ -1098,6 +1111,7 @@ class MumuService:
                             stable_count = 0
                     
                     await asyncio.sleep(2)
+                    self._hide_emulator_window(0)
 
                     screen_width, screen_height = await self._get_device_resolution()
                     print(f"[MUMU] 检测到模拟器分辨率: {screen_width}x{screen_height}")
