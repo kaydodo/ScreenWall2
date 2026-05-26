@@ -699,11 +699,6 @@ class MumuService:
         base_dir = os.path.dirname(os.path.abspath(__file__))
         injector_path = os.path.join(base_dir, "injector49.exe")
         dll_path = os.path.join(base_dir, "camera_hook49.dll")
-        
-        print(f"[DEBUG] _inject_camera_hook 开始")
-        print(f"[DEBUG] base_dir: {base_dir}")
-        print(f"[DEBUG] injector_path: {injector_path}, 存在: {os.path.exists(injector_path)}")
-        print(f"[DEBUG] dll_path: {dll_path}, 存在: {os.path.exists(dll_path)}")
 
         if not os.path.exists(injector_path):
             print("[MUMU] 注入器不存在: injector49.exe")
@@ -715,7 +710,6 @@ class MumuService:
 
         print("[MUMU] 正在注入摄像头Hook...")
         try:
-            print(f"[DEBUG] 执行: {[injector_path]}")
             result = subprocess.run(
                 [injector_path],
                 capture_output=True,
@@ -723,11 +717,6 @@ class MumuService:
                 timeout=10
             )
             output = result.stdout.strip()
-            stderr = result.stderr.strip()
-            
-            print(f"[DEBUG] 注入器返回码: {result.returncode}")
-            print(f"[DEBUG] 注入器 stdout: '{output}'")
-            print(f"[DEBUG] 注入器 stderr: '{stderr}'")
 
             if "INJECT_SUCCESS" in output:
                 print("[MUMU] 摄像头Hook注入成功")
@@ -783,7 +772,7 @@ class MumuService:
                 None
             )
             
-            if handle == ctypes.c_void_p(-1).value:
+            if handle == -1 or handle == ctypes.c_void_p(-1).value:
                 return None
             
             try:
@@ -822,6 +811,8 @@ class MumuService:
                 ctypes.windll.kernel32.CloseHandle(handle)
         except Exception as e:
             print(f"[MUMU] 管道通信失败: {e}")
+            import traceback
+            traceback.print_exc()
             return None
 
     def _reset_camera_status_via_pipe(self):
@@ -837,7 +828,7 @@ class MumuService:
                 None
             )
             
-            if handle == ctypes.c_void_p(-1).value:
+            if handle == -1 or handle == ctypes.c_void_p(-1).value:
                 return False
             
             try:
@@ -901,7 +892,6 @@ class MumuService:
     def _listen_camera_notify_thread(self, notify_queue):
         import ctypes
         import time
-        print(f"[DEBUG] _listen_camera_notify_thread 线程启动")
         while self.running:
             try:
                 pipe_name = r"\\.\pipe\MuMuCameraNotify"
@@ -915,14 +905,14 @@ class MumuService:
                     None
                 )
                 
-                print(f"[DEBUG] CreateFileW 返回: {handle}, 无效句柄值: {ctypes.c_void_p(-1).value}")
-                if handle == ctypes.c_void_p(-1).value:
+                if handle == -1 or handle == ctypes.c_void_p(-1).value:
                     error_code = ctypes.windll.kernel32.GetLastError()
-                    print(f"[DEBUG] 管道连接失败，错误码: {error_code}")
-                    time.sleep(0.5)
+                    if error_code == 231:
+                        time.sleep(0.1)
+                    else:
+                        time.sleep(0.5)
                     continue
                 
-                print(f"[DEBUG] 管道连接成功！")
                 try:
                     while self.running:
                         read_buffer = ctypes.create_string_buffer(256)
@@ -936,12 +926,9 @@ class MumuService:
                         )
                         
                         if not success or bytes_read.value == 0:
-                            error_code = ctypes.windll.kernel32.GetLastError()
-                            print(f"[DEBUG] 管道读取失败，成功: {success}, 读取字节数: {bytes_read.value}, 错误码: {error_code}")
                             break
                         
                         response = read_buffer.value.decode('ascii', errors='ignore')
-                        print(f"[DEBUG] 收到管道消息: '{response}'")
                         if response.startswith("CLICKED:"):
                             try:
                                 timestamp_ms = int(response[8:])
@@ -1041,6 +1028,8 @@ class MumuService:
 
         self._load_camera_hook_dll()
 
+        self.reset_camera_status()
+        
         self._launch_splitcam(self.project_b)
         print("[MUMU] 已启动虚拟摄像头（白图）")
 
