@@ -1184,6 +1184,14 @@ class MumuService:
 
 
 if __name__ == "__main__":
+    def minimize_console_window():
+        try:
+            import ctypes
+            ctypes.windll.user32.ShowWindow(ctypes.windll.kernel32.GetConsoleWindow(), 6)
+        except:
+            pass
+
+    minimize_console_window()
     service = MumuService()
     try:
         asyncio.run(service.run())
