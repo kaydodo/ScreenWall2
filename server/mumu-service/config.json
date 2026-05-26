@@ -6,8 +6,7 @@
     "adb": {
         "host": "127.0.0.1",
         "port": 5555,
-        "device_id": "127.0.0.1:5555",
-        "path": "C:\\Program Files\\Netease\\MuMu\\nx_main\\adb.exe"
+        "device_id": "127.0.0.1:5555"
     },
     "device": {
         "deviceId": "MUMU-service",

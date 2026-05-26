@@ -58,7 +58,6 @@ class MumuService:
         self.debug_dir = os.path.join(script_dir, 'qrcode', 'debug')
         self.project_a = os.path.join(script_dir, "qrcode", "start_a.bat")
         self.project_b = os.path.join(script_dir, "qrcode", "start_b.bat")
-        self.splitcam_path = r"C:\Program Files\SplitCam\10\splitcam.exe"
 
     def _get_camera_trigger_area_scaled(self):
         base_w, base_h = self._camera_trigger_base_resolution
@@ -82,8 +81,22 @@ class MumuService:
         with open(config_path, "r", encoding="utf-8") as f:
             return json.load(f)
 
+    def _get_mumu_adb_path(self):
+        import winreg
+        try:
+            key_path = r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\MuMuPlayer"
+            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, key_path) as key:
+                uninstall_string = winreg.QueryValueEx(key, "UninstallString")[0]
+                mumu_dir = os.path.dirname(uninstall_string.strip('"'))
+                adb_path = os.path.join(mumu_dir, "nx_main", "adb.exe")
+                if os.path.exists(adb_path):
+                    return adb_path
+        except Exception:
+            pass
+        return self.config['adb'].get('path', 'adb')
+
     def _get_adb_cmd(self, cmd):
-        adb_path = self.config['adb'].get('path', 'adb')
+        adb_path = self._get_mumu_adb_path()
         adb_device_id = self.config['adb'].get('device_id')
         if adb_device_id:
             return [adb_path, "-s", adb_device_id] + cmd
@@ -91,7 +104,7 @@ class MumuService:
 
     async def _check_adb_connection(self, silent=False):
         try:
-            adb_path = self.config['adb'].get('path', 'adb')
+            adb_path = self._get_mumu_adb_path()
             proc = await asyncio.create_subprocess_exec(
                 adb_path, "connect", f"{self.config['adb']['host']}:{self.config['adb']['port']}",
                 stdout=asyncio.subprocess.PIPE,
@@ -675,7 +688,7 @@ class MumuService:
                 while self.running and stable_count < 5:
                     await asyncio.sleep(2)
                     try:
-                        adb_path = self.config['adb'].get('path', 'adb')
+                        adb_path = self._get_mumu_adb_path()
                         proc = await asyncio.create_subprocess_exec(
                             adb_path, "connect", f"{self.config['adb']['host']}:{self.config['adb']['port']}",
                             stdout=asyncio.subprocess.PIPE,
