@@ -4519,92 +4519,159 @@ httpServer.on('request', async (req, res) => {
   }
   */
 
-  // ========== NAS 反向代理：完整代理所有 /NAS/ 请求到 Alist ==========
+  // ========== NAS：跳转页面到 Alist（需要开放 5244 端口） ==========
   const cleanPathLower = cleanPath.toLowerCase();
   if (cleanPathLower.startsWith('/nas')) {
-    const targetPath = pathname.replace(/^\/NAS\/?/i, '/');
-    const options = {
-      hostname: '127.0.0.1',
-      port: 5244,
-      path: targetPath,
-      method: req.method,
-      headers: req.headers
-    };
+    // 显示跳转页面
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.end(`
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NAS 存储中心</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .container {
+      text-align: center;
+      padding: 40px;
+      background: white;
+      border-radius: 20px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      max-width: 500px;
+      width: 90%;
+    }
+    .icon {
+      font-size: 80px;
+      margin-bottom: 20px;
+    }
+    h1 {
+      color: #333;
+      font-size: 32px;
+      margin-bottom: 20px;
+      font-weight: 600;
+    }
+    .description {
+      color: #666;
+      font-size: 16px;
+      margin-bottom: 30px;
+      line-height: 1.6;
+    }
+    .btn {
+      display: inline-block;
+      padding: 15px 40px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      text-decoration: none;
+      border-radius: 30px;
+      font-size: 18px;
+      font-weight: 500;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+      cursor: pointer;
+      border: none;
+    }
+    .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+    }
+    .info {
+      margin-top: 30px;
+      padding: 20px;
+      background: #f8f9fa;
+      border-radius: 10px;
+      text-align: left;
+    }
+    .info h3 {
+      color: #333;
+      font-size: 16px;
+      margin-bottom: 10px;
+      font-weight: 600;
+    }
+    .credentials {
+      background: #fff3cd;
+      padding: 12px;
+      border-radius: 8px;
+      margin: 15px 0;
+      font-size: 14px;
+    }
+    .credentials strong {
+      color: #856404;
+    }
+    .loading {
+      margin-top: 20px;
+      color: #666;
+      font-size: 14px;
+    }
+    .spinner {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 2px solid #f3f3f3;
+      border-top: 2px solid #667eea;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-right: 8px;
+      vertical-align: middle;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="icon">💾</div>
+    <h1>NAS 存储中心</h1>
+    <p class="description">访问您的私有云存储，管理文件、照片、视频等资源</p>
     
-    // 修改 Host 头
-    options.headers.host = '127.0.0.1:5244';
+    <div class="loading">
+      <span class="spinner"></span>
+      正在跳转到 NAS...
+    </div>
     
-    const proxyReq = http.request(options, (proxyRes) => {
-      // 处理响应头
-      const headers = { ...proxyRes.headers };
+    <script>
+      // 动态构建 Alist 的 URL
+      const protocol = window.location.protocol;
+      const hostname = window.location.hostname;
+      const port = 5244;
+      const alistUrl = protocol + '//' + hostname + ':' + port;
       
-      // 处理重定向
-      if (headers.location) {
-        headers.location = headers.location.replace(/^http:\/\/127\.0\.0\.1:5244\//, '/NAS/');
-        headers.location = headers.location.replace(/^https:\/\/127\.0\.0\.1:5244\//, '/NAS/');
-      }
-      
-      // 复制响应头
-      res.writeHead(proxyRes.statusCode, headers);
-      
-      // 根据内容类型处理
-      const contentType = headers['content-type'] || '';
-      
-      if (contentType.includes('text/html') || contentType.includes('application/javascript') || contentType.includes('text/css')) {
-        // 需要处理路径的内容
-        let body = '';
-        proxyRes.on('data', (chunk) => {
-          body += chunk;
-        });
-        proxyRes.on('end', () => {
-          let modifiedBody = body;
-          
-          // 1. HTML: 添加 base 标签 + 路径替换
-          if (contentType.includes('text/html')) {
-            const headTag = /<head\s*>/i;
-            if (headTag.test(modifiedBody)) {
-              modifiedBody = modifiedBody.replace(headTag, '<head><base href="/NAS/">');
-            } else {
-              modifiedBody = '<base href="/NAS/">' + modifiedBody;
-            }
-          }
-          
-          // 2. 全面的路径替换
-          // 替换 "/xxx" 为 "/NAS/xxx"
-          modifiedBody = modifiedBody.replace(/(["'])\/([^"'\s]+)/g, '$1/NAS/$2');
-          
-          // 替换 window.location 相关
-          modifiedBody = modifiedBody.replace(/window\.location\s*=\s*["']\//g, 'window.location="/NAS/');
-          
-          // 替换 history.pushState/replaceState
-          modifiedBody = modifiedBody.replace(/(history\.(pushState|replaceState)\([^,]+,\s*[^,]+,\s*)["']\//g, '$1"/NAS/');
-          
-          res.end(modifiedBody);
-        });
-      } else {
-        // 其他内容直接管道
-        proxyRes.pipe(res);
-      }
-    });
+      // 自动跳转
+      setTimeout(function() {
+        window.location.href = alistUrl;
+      }, 1000);
+    </script>
     
-    proxyReq.on('error', (err) => {
-      serverLog('[NAS代理] 连接 Alist 失败:', err.message);
-      res.writeHead(502, { 'Content-Type': 'text/html; charset=utf-8' });
-      res.end(`
-        <!DOCTYPE html>
-        <html>
-        <head><meta charset="UTF-8"><title>NAS 服务未启动</title></head>
-        <body style="padding:40px;font-family:sans-serif;text-align:center;">
-          <h1>⚠️ NAS 服务未启动</h1>
-          <p>请确保 Alist 服务正在运行 (http://127.0.0.1:5244)</p>
-          <p style="color:#666;margin-top:20px;">错误信息: ${err.message}</p>
-        </body>
-        </html>
-      `);
-    });
+    <p style="margin-top: 20px; color: #666;">如果没有自动跳转，请 <a href="#" onclick="window.location.href=alistUrl; return false;">点击这里</a></p>
     
-    // 管道请求体
-    req.pipe(proxyReq);
+    <div class="info">
+      <h3>📋 使用说明</h3>
+      
+      <div class="credentials">
+        <strong>登录信息：</strong><br>
+        管理员账号：wangbo5<br>
+        管理员密码：qqww5566A@
+      </div>
+    </div>
+  </div>
+</body>
+</html>
+    `);
     return;
   }
 
