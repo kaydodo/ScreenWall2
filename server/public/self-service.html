@@ -779,6 +779,53 @@ function setupMouseEvents() {
   };
 }
 
+function getKeyboardNumberPos(num) {
+  var kbWidth = screenWidth * 0.75;
+  var kbHeight = screenHeight * 0.35;
+  var kbStartX = (screenWidth - kbWidth) / 2;
+  var kbStartY = screenHeight * 0.62;
+  var btnWidth = kbWidth / 3;
+  var btnHeight = kbHeight / 4;
+  
+  if (num < 0 || num > 9) return null;
+  
+  var col, row;
+  if (num === 0) {
+    col = 1;
+    row = 3;
+  } else {
+    col = (num - 1) % 3;
+    row = Math.floor((num - 1) / 3);
+  }
+  
+  var centerX = kbStartX + col * btnWidth + btnWidth / 2;
+  var centerY = kbStartY + row * btnHeight + btnHeight / 2;
+  
+  return { x: Math.round(centerX), y: Math.round(centerY) };
+}
+
+function setupKeyboardEvents() {
+  document.addEventListener('keydown', function(e) {
+    if (!isOnline || !previewDeviceId) return;
+    
+    var num = null;
+    
+    if (e.key >= '0' && e.key <= '9') {
+      num = parseInt(e.key, 10);
+    } else if (e.key >= 'Numpad0' && e.key <= 'Numpad9') {
+      num = parseInt(e.key.replace('Numpad', ''), 10);
+    }
+    
+    if (num !== null) {
+      e.preventDefault();
+      var pos = getKeyboardNumberPos(num);
+      if (pos) {
+        sendMouse('mouseClick', pos.x, pos.y);
+      }
+    }
+  });
+}
+
 function init() {
   var params = getQueryParams();
   if (!_isAdminUser) {
@@ -809,6 +856,7 @@ function init() {
   
   connectWS();
   setupMouseEvents();
+  setupKeyboardEvents();
   updatePreviewLayout();
   _startOfflineCheck();
   window.addEventListener('resize', scheduleUpdatePreviewLayout);
