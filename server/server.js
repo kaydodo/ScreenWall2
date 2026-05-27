@@ -4749,5 +4749,8 @@ httpServer.listen(PORT, HOST, () => {
   serverLog(`   本地访问:     http://localhost:${PORT}`);
   serverLog(`   WebSocket端口: ${PORT}\n`);
   
-  startMuService();
+  // 确保服务器完全初始化后再启动 MU 服务
+  setTimeout(() => {
+    startMuService();
+  }, 500);
 });
