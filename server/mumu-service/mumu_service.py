@@ -309,7 +309,11 @@ class MumuService:
                 "-": "69",
             }
             
-            if keycode in keycode_map:
+            # 检查是否是大写字母（单个字符，大写）
+            if len(keycode) == 1 and keycode.isupper():
+                # 大写字母直接用 text 输入
+                cmd = self._get_adb_cmd(["shell", "input", "text", keycode])
+            elif keycode in keycode_map:
                 cmd = self._get_adb_cmd(["shell", "input", "keyevent", keycode_map[keycode]])
             elif keycode.lower() in keycode_map:
                 cmd = self._get_adb_cmd(["shell", "input", "keyevent", keycode_map[keycode.lower()]])
