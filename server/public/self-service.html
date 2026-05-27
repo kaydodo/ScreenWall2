@@ -783,17 +783,19 @@ function setupKeyboardEvents() {
   document.addEventListener('keydown', function(e) {
     if (!isOnline || !previewDeviceId) return;
     
-    var num = null;
+    var keyToSend = null;
     
     if (e.key >= '0' && e.key <= '9') {
-      num = e.key;
+      keyToSend = e.key;
     } else if (e.key >= 'Numpad0' && e.key <= 'Numpad9') {
-      num = e.key.replace('Numpad', '');
+      keyToSend = e.key.replace('Numpad', '');
+    } else if (e.key === 'Backspace') {
+      keyToSend = 'Backspace';
     }
     
-    if (num !== null) {
+    if (keyToSend !== null) {
       e.preventDefault();
-      sendKey(num);
+      sendKey(keyToSend);
     }
   });
 }

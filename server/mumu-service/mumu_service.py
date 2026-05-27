@@ -259,6 +259,8 @@ class MumuService:
                 android_key = "3"
             elif keycode == "Recent":
                 android_key = "187"
+            elif keycode == "Backspace":
+                android_key = "67"
             elif keycode == "0":
                 android_key = "7"
             elif keycode == "1":
