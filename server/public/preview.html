@@ -1040,8 +1040,13 @@ function sendKey(key) {
   var actualKey = keyMap[key] || key;
   var send = actualKey;
   if (physicalShiftDown) {
-    if (SHIFT_DISPLAY_MAP[key]) send = SHIFT_DISPLAY_MAP[key];
-    else if (/^[a-z]$/.test(key)) send = 'Shift+' + key.toUpperCase();
+    if (SHIFT_DISPLAY_MAP[key]) {
+      send = SHIFT_DISPLAY_MAP[key];
+    }
+    // 只对单个小写字母应用 Shift
+    else if (key.length === 1 && /^[a-z]$/.test(key)) {
+      send = 'Shift+' + key.toUpperCase();
+    }
   }
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'keyClick', deviceId: deviceId, key: send }));
@@ -1114,8 +1119,12 @@ function handlePhysicalKey(e) {
   }
   // 处理数字键和符号键（通过 code 来获取原始键）
   else if (code) {
+    // 主键盘 Enter 键
+    if (code === 'Enter') {
+      keyToSend = 'RETURN';
+    }
     // 主键盘数字键
-    if (code.startsWith('Digit')) {
+    else if (code.startsWith('Digit')) {
       var digit = code.replace('Digit', '');
       keyToSend = digit;
     }
