@@ -1056,6 +1056,7 @@ function handlePhysicalKey(e) {
   
   var keyToSend = null;
   var key = e.key;
+  var code = e.code;
   
   // 按键映射表
   var keyMap = {
@@ -1069,6 +1070,12 @@ function handlePhysicalKey(e) {
     'Pause':'PAUSE','PrintScreen':'PRINT_SCREEN',
     'Control':'CTRL','Ctrl':'CTRL','Alt':'ALT','Meta':'LWIN','Windows':'LWIN'
   };
+  
+  // 反向查找 SHIFT_DISPLAY_MAP 的键值
+  var reverseShiftMap = {};
+  for (var k in SHIFT_DISPLAY_MAP) {
+    reverseShiftMap[SHIFT_DISPLAY_MAP[k]] = k;
+  }
   
   // 处理修饰键的显示更新，但不发送
   if (key === 'Shift' && e.type === 'keydown' && !physicalShiftDown) {
@@ -1105,22 +1112,42 @@ function handlePhysicalKey(e) {
   else if (/^[a-zA-Z]$/.test(key)) {
     keyToSend = key.toLowerCase();
   }
-  // 处理数字键（主键盘和小键盘）
-  else if (/^[0-9]$/.test(key)) {
-    keyToSend = key;
+  // 处理数字键和符号键（通过 code 来获取原始键）
+  else if (code) {
+    // 主键盘数字键
+    if (code.startsWith('Digit')) {
+      var digit = code.replace('Digit', '');
+      keyToSend = digit;
+    }
+    // 主键盘符号键
+    else if (code === 'Minus') keyToSend = '-';
+    else if (code === 'Equal') keyToSend = '=';
+    else if (code === 'BracketLeft') keyToSend = '[';
+    else if (code === 'BracketRight') keyToSend = ']';
+    else if (code === 'Backslash') keyToSend = '\\';
+    else if (code === 'Semicolon') keyToSend = ';';
+    else if (code === 'Quote') keyToSend = "'";
+    else if (code === 'Comma') keyToSend = ',';
+    else if (code === 'Period') keyToSend = '.';
+    else if (code === 'Slash') keyToSend = '/';
+    else if (code === 'Backquote') keyToSend = '`';
+    // Numpad 键
+    else if (code.startsWith('Numpad')) {
+      var numKey = code.replace('Numpad', '');
+      if (/^[0-9]$/.test(numKey)) keyToSend = numKey;
+      else if (numKey === 'Add') keyToSend = '+';
+      else if (numKey === 'Subtract') keyToSend = '-';
+      else if (numKey === 'Multiply') keyToSend = '*';
+      else if (numKey === 'Divide') keyToSend = '/';
+      else if (numKey === 'Decimal') keyToSend = '.';
+      else if (numKey === 'Enter') keyToSend = 'RETURN';
+    }
+    // 其他情况直接用 key
+    else {
+      keyToSend = key;
+    }
   }
-  // 处理 Numpad 键
-  else if (e.code && e.code.startsWith('Numpad')) {
-    var numKey = e.code.replace('Numpad', '');
-    if (/^[0-9]$/.test(numKey)) keyToSend = numKey;
-    else if (numKey === 'Add') keyToSend = '+';
-    else if (numKey === 'Subtract') keyToSend = '-';
-    else if (numKey === 'Multiply') keyToSend = '*';
-    else if (numKey === 'Divide') keyToSend = '/';
-    else if (numKey === 'Decimal') keyToSend = '.';
-    else if (numKey === 'Enter') keyToSend = 'RETURN';
-  }
-  // 处理符号键
+  // 兜底
   else {
     keyToSend = key;
   }
