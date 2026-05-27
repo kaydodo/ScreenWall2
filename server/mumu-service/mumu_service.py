@@ -234,7 +234,11 @@ class MumuService:
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
-            await asyncio.wait_for(proc.communicate(), timeout=5)
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=5)
+            if stdout:
+                print(f"[MUMU DEBUG] 执行结果: {stdout.decode('utf-8', errors='ignore').strip()}")
+            if stderr:
+                print(f"[MUMU DEBUG] 错误信息: {stderr.decode('utf-8', errors='ignore').strip()}")
         except Exception:
             pass
 
@@ -331,7 +335,11 @@ class MumuService:
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
-            await asyncio.wait_for(proc.communicate(), timeout=5)
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=5)
+            if stdout:
+                print(f"[MUMU DEBUG] 执行结果: {stdout.decode('utf-8', errors='ignore').strip()}")
+            if stderr:
+                print(f"[MUMU DEBUG] 错误信息: {stderr.decode('utf-8', errors='ignore').strip()}")
         except Exception:
             pass
 
