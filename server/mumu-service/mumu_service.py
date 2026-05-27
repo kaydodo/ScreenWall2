@@ -256,8 +256,6 @@ class MumuService:
 
     async def _adb_keyevent(self, keycode):
         try:
-            print(f"[MUMU DEBUG] 收到按键: {repr(keycode)}")
-            
             keycode_map = {
                 "Back": "4",
                 "Home": "3",
@@ -330,34 +328,25 @@ class MumuService:
             if keycode == "`":
                 escaped = escape_for_shell(keycode)
                 cmd = self._get_adb_cmd(["shell", "input", "text", escaped])
-                print(f"[MUMU DEBUG] 使用 input text (反引号): {cmd}")
             elif len(keycode) == 1 and keycode.isupper() and keycode.isalpha():
                 # 大写字母
                 escaped = escape_for_shell(keycode)
                 cmd = self._get_adb_cmd(["shell", "input", "text", escaped])
-                print(f"[MUMU DEBUG] 使用 input text: {cmd}")
             elif keycode in keycode_map:
                 cmd = self._get_adb_cmd(["shell", "input", "keyevent", keycode_map[keycode]])
-                print(f"[MUMU DEBUG] 使用 input keyevent {keycode_map[keycode]}: {cmd}")
             elif keycode.lower() in keycode_map:
                 cmd = self._get_adb_cmd(["shell", "input", "keyevent", keycode_map[keycode.lower()]])
-                print(f"[MUMU DEBUG] 使用 input keyevent {keycode_map[keycode.lower()]} (小写): {cmd}")
             else:
                 # 特殊字符
                 escaped = escape_for_shell(keycode)
                 cmd = self._get_adb_cmd(["shell", "input", "text", escaped])
-                print(f"[MUMU DEBUG] 使用 input text (其他): {cmd}")
             
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
-            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=5)
-            if stdout:
-                print(f"[MUMU DEBUG] 执行结果: {stdout.decode('utf-8', errors='ignore').strip()}")
-            if stderr:
-                print(f"[MUMU DEBUG] 错误信息: {stderr.decode('utf-8', errors='ignore').strip()}")
+            await asyncio.wait_for(proc.communicate(), timeout=5)
         except Exception:
             pass
 
