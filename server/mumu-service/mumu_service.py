@@ -1023,16 +1023,12 @@ class MumuService:
                     continue
                 
                 click_time = self._last_click_info.get("timestamp", 0)
-                if current_time - click_time > 3:
+                if current_time - click_time > 2:
                     self._last_click_info = None
                     continue
                 
-                area = self._get_camera_trigger_area_scaled()
                 x = self._last_click_info.get("x", -1)
                 y = self._last_click_info.get("y", -1)
-                
-                if not (area["x_min"] <= x <= area["x_max"] and area["y_min"] <= y <= area["y_max"]):
-                    continue
                 
                 msg = {
                     "type": "cameraClicked",
