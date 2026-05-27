@@ -1029,14 +1029,14 @@ function sendKey(key) {
   if (!deviceId || !supportsKeyClient || !isOnline) return;
   if (key === 'SHIFT') return;
   
-  // 虚拟键盘按键映射
+  // 虚拟键盘按键映射 - 必须与 keyclient.py 的 VK_CODES 完全一致！
   var virtualKeyMap = {
     '↑':'UP','↓':'DOWN','←':'LEFT','→':'RIGHT',
-    'Space':'SPACE','←':'BACKSPACE','Enter':'RETURN',
-    'Num':'NUMLOCK','ScrLk':'SCROLLLOCK','PrtSc':'PRINT_SCREEN',
-    'Caps':'CAPS_LOCK','ESC':'ESCAPE',
+    'Space':'SPACE','←':'BACKSPACE','Enter':'ENTER',
+    'Num':'NUMLOCK','ScrLk':'SCROLL','PrtSc':'PRTSC',
+    'Caps':'CAPITAL','ESC':'ESCAPE',
     'Ins':'INSERT','Del':'DELETE','Home':'HOME','End':'END',
-    'PgUp':'PAGE_UP','PgDn':'PAGE_DOWN','Tab':'TAB','Win':'LWIN',
+    'PgUp':'PAGEUP','PgDn':'PAGEDOWN','Tab':'TAB','Win':'LWIN',
     'Pause':'PAUSE','BS':'BACKSPACE'
   };
   
@@ -1096,7 +1096,7 @@ function handlePhysicalKey(e) {
   
   var keyToSend = null;
   
-  // 优先使用 code 来判断物理按键
+  // 优先使用 code 来判断物理按键 - 必须与 keyclient.py 的 VK_CODES 完全一致！
   if (code) {
     // 方向键
     if (code === 'ArrowUp') keyToSend = 'UP';
@@ -1106,14 +1106,14 @@ function handlePhysicalKey(e) {
     // 功能键
     else if (code === 'Escape') keyToSend = 'ESCAPE';
     else if (code === 'Tab') keyToSend = 'TAB';
-    else if (code === 'Enter' || code === 'NumpadEnter') keyToSend = 'RETURN';
+    else if (code === 'Enter' || code === 'NumpadEnter') keyToSend = 'ENTER';
     else if (code === 'Backspace') keyToSend = 'BACKSPACE';
     else if (code === 'Delete') keyToSend = 'DELETE';
     else if (code === 'Insert') keyToSend = 'INSERT';
     else if (code === 'Home') keyToSend = 'HOME';
     else if (code === 'End') keyToSend = 'END';
-    else if (code === 'PageUp') keyToSend = 'PAGE_UP';
-    else if (code === 'PageDown') keyToSend = 'PAGE_DOWN';
+    else if (code === 'PageUp') keyToSend = 'PAGEUP';
+    else if (code === 'PageDown') keyToSend = 'PAGEDOWN';
     else if (code === 'Space') keyToSend = 'SPACE';
     // F 键
     else if (code === 'F1') keyToSend = 'F1';
@@ -1129,11 +1129,11 @@ function handlePhysicalKey(e) {
     else if (code === 'F11') keyToSend = 'F11';
     else if (code === 'F12') keyToSend = 'F12';
     // Lock 键
-    else if (code === 'CapsLock') keyToSend = 'CAPS_LOCK';
+    else if (code === 'CapsLock') keyToSend = 'CAPITAL';
     else if (code === 'NumLock') keyToSend = 'NUMLOCK';
-    else if (code === 'ScrollLock') keyToSend = 'SCROLLLOCK';
+    else if (code === 'ScrollLock') keyToSend = 'SCROLL';
     else if (code === 'Pause') keyToSend = 'PAUSE';
-    else if (code === 'PrintScreen') keyToSend = 'PRINT_SCREEN';
+    else if (code === 'PrintScreen') keyToSend = 'PRTSC';
     // 修饰键
     else if (code === 'ControlLeft' || code === 'ControlRight') keyToSend = 'CTRL';
     else if (code === 'AltLeft' || code === 'AltRight') keyToSend = 'ALT';
@@ -1157,7 +1157,7 @@ function handlePhysicalKey(e) {
     // Numpad 键
     else if (code.startsWith('Numpad')) {
       var numKey = code.replace('Numpad', '');
-      if (/^[0-9]$/.test(numKey)) keyToSend = numKey;
+      if (/^[0-9]$/.test(numKey)) keyToSend = 'NUMPAD' + numKey;
       else if (numKey === 'Add') keyToSend = '+';
       else if (numKey === 'Subtract') keyToSend = '-';
       else if (numKey === 'Multiply') keyToSend = '*';
