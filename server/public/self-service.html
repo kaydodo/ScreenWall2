@@ -811,7 +811,9 @@ function setupKeyboardEvents() {
       keyToSend = 'Space';
     } else if (e.key.length === 1) {
       var lowerKey = e.key.toLowerCase();
-      if (hasKeycode[lowerKey]) {
+      if (e.shiftKey && /[a-z]/i.test(e.key)) {
+        keyToSend = e.key;
+      } else if (hasKeycode[lowerKey]) {
         keyToSend = lowerKey;
       } else {
         keyToSend = e.key;
