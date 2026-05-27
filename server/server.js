@@ -4519,6 +4519,48 @@ httpServer.on('request', async (req, res) => {
   }
   */
 
+  // ========== NAS 反向代理：将 /NAS/ 路径代理到 Alist (http://127.0.0.1:5244) ==========
+  if (cleanPath.startsWith('/NAS')) {
+    const targetPath = pathname.replace(/^\/NAS\/?/, '/');
+    const options = {
+      hostname: '127.0.0.1',
+      port: 5244,
+      path: targetPath,
+      method: req.method,
+      headers: req.headers
+    };
+    
+    // 修改 Host 头
+    options.headers.host = '127.0.0.1:5244';
+    
+    const proxyReq = http.request(options, (proxyRes) => {
+      // 复制响应头
+      res.writeHead(proxyRes.statusCode, proxyRes.headers);
+      // 管道响应
+      proxyRes.pipe(res);
+    });
+    
+    proxyReq.on('error', (err) => {
+      serverLog('[NAS代理] 连接 Alist 失败:', err.message);
+      res.writeHead(502, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(`
+        <!DOCTYPE html>
+        <html>
+        <head><meta charset="UTF-8"><title>NAS 服务未启动</title></head>
+        <body style="padding:40px;font-family:sans-serif;text-align:center;">
+          <h1>⚠️ NAS 服务未启动</h1>
+          <p>请确保 Alist 服务正在运行 (http://127.0.0.1:5244)</p>
+          <p style="color:#666;margin-top:20px;">错误信息: ${err.message}</p>
+        </body>
+        </html>
+      `);
+    });
+    
+    // 管道请求体
+    req.pipe(proxyReq);
+    return;
+  }
+
   if (cleanPath === '' || cleanPath === '/index.html' || cleanPath === '/main.html') {
     const filePath = path.join(__dirname, 'public', cleanPath === '' ? 'index.html' : cleanPath.slice(1));
     serveFile(filePath, res, req);
