@@ -4548,7 +4548,7 @@ httpServer.on('request', async (req, res) => {
       // 复制响应头
       res.writeHead(proxyRes.statusCode, headers);
       
-      // 如果是 HTML，需要修改其中的资源引用
+      // 如果是 HTML，需要添加 base 标签来修正相对路径
       const contentType = headers['content-type'] || '';
       if (contentType.includes('text/html')) {
         let body = '';
@@ -4556,12 +4556,16 @@ httpServer.on('request', async (req, res) => {
           body += chunk;
         });
         proxyRes.on('end', () => {
-          // 修改资源路径：把 /xxx 改为 /NAS/xxx
+          // 在 <head> 中添加 <base href="/NAS/"> 标签
           let modifiedBody = body;
-          // 处理标签属性中的路径
-          modifiedBody = modifiedBody.replace(/(href|src|action)=["']\//g, '$1="/NAS/');
-          // 处理 JavaScript 中的路径
-          modifiedBody = modifiedBody.replace(/(["'`])\//g, '$1/NAS/');
+          if (modifiedBody.includes('<head>')) {
+            modifiedBody = modifiedBody.replace('<head>', '<head><base href="/NAS/">');
+          } else if (modifiedBody.includes('<HEAD>')) {
+            modifiedBody = modifiedBody.replace('<HEAD>', '<HEAD><base href="/NAS/">');
+          } else {
+            // 如果没有 head 标签，就在开头添加
+            modifiedBody = '<base href="/NAS/">' + modifiedBody;
+          }
           res.end(modifiedBody);
         });
       } else {
