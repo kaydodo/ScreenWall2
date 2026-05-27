@@ -780,6 +780,24 @@ function setupMouseEvents() {
 }
 
 function setupKeyboardEvents() {
+  var hasKeycode = {
+    'Back': true,
+    'Home': true,
+    'Recent': true,
+    'Backspace': true,
+    'Enter': true,
+    ' ': true,
+    '0': true, '1': true, '2': true, '3': true, '4': true,
+    '5': true, '6': true, '7': true, '8': true, '9': true,
+    'a': true, 'b': true, 'c': true, 'd': true, 'e': true,
+    'f': true, 'g': true, 'h': true, 'i': true, 'j': true,
+    'k': true, 'l': true, 'm': true, 'n': true, 'o': true,
+    'p': true, 'q': true, 'r': true, 's': true, 't': true,
+    'u': true, 'v': true, 'w': true, 'x': true, 'y': true, 'z': true,
+    ',': true, '.': true, ';': true, '=': true,
+    '[': true, ']': true, '\\': true, '/': true, '@': true, '+': true, '-': true,
+  };
+  
   document.addEventListener('keydown', function(e) {
     if (!isOnline || !previewDeviceId) return;
     
@@ -792,7 +810,12 @@ function setupKeyboardEvents() {
     } else if (e.key === ' ') {
       keyToSend = 'Space';
     } else if (e.key.length === 1) {
-      keyToSend = e.key;
+      var lowerKey = e.key.toLowerCase();
+      if (hasKeycode[lowerKey]) {
+        keyToSend = lowerKey;
+      } else {
+        keyToSend = e.key;
+      }
     } else if (e.key.startsWith('Numpad') && e.key.length === 7) {
       keyToSend = e.key.replace('Numpad', '');
     }
