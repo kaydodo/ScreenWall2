@@ -311,7 +311,7 @@ class MumuService:
                 "\t": "61",
             }
             
-            if len(keycode) == 1 and keycode.isupper():
+            if len(keycode) == 1 and keycode.isupper() and keycode.isalpha():
                 cmd = self._get_adb_cmd(["shell", "input", "text", keycode])
             elif keycode in keycode_map:
                 cmd = self._get_adb_cmd(["shell", "input", "keyevent", keycode_map[keycode]])
