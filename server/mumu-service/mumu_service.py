@@ -297,21 +297,21 @@ class MumuService:
                 "z": "54",
                 ",": "55",
                 ".": "56",
-                "\t": "61",
-                ";": "74",
-                "=": "75",
+                "-": "69",
+                "=": "70",
                 "[": "71",
                 "]": "72",
                 "\\": "73",
+                ";": "74",
+                "'": "75",
                 "/": "76",
-                "@": "77",
+                "`": "77",
                 "+": "81",
-                "-": "69",
+                " ": "62",
+                "\t": "61",
             }
             
-            # 检查是否是大写字母（单个字符，大写）
             if len(keycode) == 1 and keycode.isupper():
-                # 大写字母直接用 text 输入
                 cmd = self._get_adb_cmd(["shell", "input", "text", keycode])
             elif keycode in keycode_map:
                 cmd = self._get_adb_cmd(["shell", "input", "keyevent", keycode_map[keycode]])
