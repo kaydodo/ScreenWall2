@@ -321,7 +321,12 @@ class MumuService:
             def escape_for_shell(s):
                 return "'" + s.replace("'", "'\\''") + "'"
 
-            if len(keycode) == 1 and keycode.isupper() and keycode.isalpha():
+            # 反引号单独处理，不用keyevent，直接用text
+            if keycode == "`":
+                escaped = escape_for_shell(keycode)
+                cmd = self._get_adb_cmd(["shell", "input", "text", escaped])
+                print(f"[MUMU DEBUG] 使用 input text (反引号): {cmd}")
+            elif len(keycode) == 1 and keycode.isupper() and keycode.isalpha():
                 # 大写字母
                 escaped = escape_for_shell(keycode)
                 cmd = self._get_adb_cmd(["shell", "input", "text", escaped])
