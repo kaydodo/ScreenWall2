@@ -892,11 +892,16 @@ function openKeyboard() {
 
   function renderKey(key) {
     if (!key) return '<div class="kb-spacer"></div>';
+    // PrintScreen/PrtSc/Win/Fn键不显示在屏幕键盘上（读不到键值，属于正常情况）
+    var label = key.label;
+    if (label === 'PrtSc' || label === 'Win' || label === 'Fn') {
+      return '<div class="kb-spacer"></div>';
+    }
     var w = key.w ? 'style="min-width:' + (key.w * 32) + 'px"' : '';
     var h = key.h ? 'style="height:' + (key.h * 32 + (key.h-1)*3) + 'px"' : '';
     var k = (key.key || key.label).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-    var label = key.label.replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    return '<button class="kb-key" ' + w + h + ' data-orig-label="' + label + '" onclick="sendKey(\'' + k + '\')">' + label + '</button>';
+    var labelEsc = label.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return '<button class="kb-key" ' + w + h + ' data-orig-label="' + labelEsc + '" onclick="sendKey(\'' + k + '\')">' + labelEsc + '</button>';
   }
 
   function renderRow(keys, extraKeys) {
@@ -1029,14 +1034,17 @@ function sendKey(key) {
   if (!deviceId || !supportsKeyClient || !isOnline) return;
   if (key === 'SHIFT') return;
   
+  // PrintScreen/PrtSc/Win/Fn键不处理（读不到键值，属于正常情况）
+  if (key === 'PrtSc' || key === 'Win') return;
+  
   // 虚拟键盘按键映射 - 必须与 keyclient.py 的 VK_CODES 完全一致！
   var virtualKeyMap = {
     '↑':'UP','↓':'DOWN','←':'LEFT','→':'RIGHT',
     'Space':'SPACE','←':'BACKSPACE','Enter':'ENTER',
-    'Num':'NUMLOCK','ScrLk':'SCROLL','PrtSc':'PRTSC',
+    'Num':'NUMLOCK','ScrLk':'SCROLL',
     'Caps':'CAPITAL','ESC':'ESCAPE',
     'Ins':'INSERT','Del':'DELETE','Home':'HOME','End':'END',
-    'PgUp':'PAGEUP','PgDn':'PAGEDOWN','Tab':'TAB','Win':'LWIN',
+    'PgUp':'PAGEUP','PgDn':'PAGEDOWN','Tab':'TAB',
     'Pause':'PAUSE','BS':'BACKSPACE'
   };
   
