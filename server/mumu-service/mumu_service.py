@@ -1019,25 +1019,32 @@ class MumuService:
                     continue
                 self._last_camera_notify_time = current_time
                 
+                if not self._last_click_info:
+                    continue
+                
+                click_time = self._last_click_info.get("timestamp", 0)
+                if current_time - click_time > 3:
+                    self._last_click_info = None
+                    continue
+                
+                area = self._get_camera_trigger_area_scaled()
+                x = self._last_click_info.get("x", -1)
+                y = self._last_click_info.get("y", -1)
+                
+                if not (area["x_min"] <= x <= area["x_max"] and area["y_min"] <= y <= area["y_max"]):
+                    continue
+                
                 msg = {
                     "type": "cameraClicked",
                     "timestamp": current_time,
-                    "mumuClientId": self.config["device"]["deviceId"]
+                    "mumuClientId": self.config["device"]["deviceId"],
+                    "x": x,
+                    "y": y,
+                    "deviceId": self._last_click_info["operatorId"],
+                    "deviceName": self._last_click_info["operatorName"],
+                    "businessId": self._last_click_info["businessId"],
+                    "businessName": self._last_click_info["businessName"]
                 }
-                
-                if self._last_click_info:
-                    click_time = self._last_click_info.get("timestamp", 0)
-                    if current_time - click_time <= 3:
-                        msg.update({
-                            "x": self._last_click_info["x"],
-                            "y": self._last_click_info["y"],
-                            "deviceId": self._last_click_info["operatorId"],
-                            "deviceName": self._last_click_info["operatorName"],
-                            "businessId": self._last_click_info["businessId"],
-                            "businessName": self._last_click_info["businessName"]
-                        })
-                    else:
-                        self._last_click_info = None
 
                 await ws.send(json.dumps(msg))
             except websockets.exceptions.ConnectionClosed:
