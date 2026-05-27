@@ -1030,7 +1030,7 @@ function sendKey(key) {
   if (key === 'SHIFT') return;
   
   // PrintScreen/PrtSc/Win/Fn键不处理（读不到键值，属于正常情况）
-  if (key === 'PrtSc' || key === 'Win') return;
+  if (key === 'PrtSc' || key === 'Win' || key === 'Fn') return;
   
   // 虚拟键盘按键映射 - 必须与 keyclient.py 的 VK_CODES 完全一致！
   var virtualKeyMap = {
