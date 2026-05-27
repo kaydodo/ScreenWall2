@@ -317,8 +317,14 @@ class MumuService:
                 "\t": "61",
             }
             
+            # 转义shell字符，用单引号包裹，内部单引号转义为 '\''
+            def escape_for_shell(s):
+                return "'" + s.replace("'", "'\\''") + "'"
+
             if len(keycode) == 1 and keycode.isupper() and keycode.isalpha():
-                cmd = self._get_adb_cmd(["shell", "input", "text", keycode])
+                # 大写字母
+                escaped = escape_for_shell(keycode)
+                cmd = self._get_adb_cmd(["shell", "input", "text", escaped])
                 print(f"[MUMU DEBUG] 使用 input text: {cmd}")
             elif keycode in keycode_map:
                 cmd = self._get_adb_cmd(["shell", "input", "keyevent", keycode_map[keycode]])
@@ -327,7 +333,9 @@ class MumuService:
                 cmd = self._get_adb_cmd(["shell", "input", "keyevent", keycode_map[keycode.lower()]])
                 print(f"[MUMU DEBUG] 使用 input keyevent {keycode_map[keycode.lower()]} (小写): {cmd}")
             else:
-                cmd = self._get_adb_cmd(["shell", "input", "text", keycode])
+                # 特殊字符
+                escaped = escape_for_shell(keycode)
+                cmd = self._get_adb_cmd(["shell", "input", "text", escaped])
                 print(f"[MUMU DEBUG] 使用 input text (其他): {cmd}")
             
             proc = await asyncio.create_subprocess_exec(
