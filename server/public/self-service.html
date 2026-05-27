@@ -779,9 +779,6 @@ function setupMouseEvents() {
   };
 }
 
-var physicalShiftDown = false;
-var _isShiftDown = false;
-
 function setupKeyboardEvents() {
   var hasKeycode = {
     'Back': true, 'Home': true, 'Recent': true, 'Backspace': true, 'Enter': true, ' ': true,
@@ -793,17 +790,7 @@ function setupKeyboardEvents() {
     '`': true
   };
   
-  var shiftDisplayMap = {
-    '`':'~','1':'!','2':'@','3':'#','4':'$','5':'%','6':'^','7':'&','8':'*','9':'(','0':')',
-    '-':'_','=':'+','[':'{',']':'}','\\':'|',';':':',"'":'"',',':'<','.':'>','/':'?'
-  };
-  
   document.addEventListener('keydown', function(e) {
-    if (e.key === 'Shift') {
-      physicalShiftDown = true;
-      _isShiftDown = true;
-    }
-    
     if (!isOnline || !previewDeviceId) return;
     
     var keyToSend = null;
@@ -819,35 +806,22 @@ function setupKeyboardEvents() {
     } else if (e.key.length === 1) {
       var key = e.key;
       
-      if (physicalShiftDown) {
-        if (shiftDisplayMap[key]) {
-          keyToSend = shiftDisplayMap[key];
-        } else if (/^[a-z]$/i.test(key)) {
+      if (/^[a-z]$/i.test(key)) {
+        if (e.shiftKey) {
           keyToSend = key.toUpperCase();
         } else {
-          keyToSend = key;
+          keyToSend = key.toLowerCase();
         }
+      } else if (hasKeycode[key.toLowerCase()]) {
+        keyToSend = key.toLowerCase();
       } else {
-        if (hasKeycode[key]) {
-          keyToSend = key.toLowerCase();
-        } else if (hasKeycode[key.toLowerCase()]) {
-          keyToSend = key.toLowerCase();
-        } else {
-          keyToSend = key;
-        }
+        keyToSend = key;
       }
     }
     
     if (keyToSend !== null) {
       e.preventDefault();
       sendKey(keyToSend);
-    }
-  });
-  
-  document.addEventListener('keyup', function(e) {
-    if (e.key === 'Shift') {
-      physicalShiftDown = false;
-      _isShiftDown = false;
     }
   });
 }
