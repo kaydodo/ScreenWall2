@@ -262,6 +262,7 @@ class MumuService:
                 "Back": "4",
                 "Home": "3",
                 "Recent": "187",
+                "Escape": "111",
                 "Backspace": "67",
                 "Enter": "66",
                 "Space": "62",

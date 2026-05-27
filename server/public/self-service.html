@@ -817,7 +817,9 @@ function setupKeyboardEvents() {
     
     var keyToSend = null;
     
-    if (e.code === 'Backspace') {
+    if (e.code === 'Escape') {
+      keyToSend = 'Escape';
+    } else if (e.code === 'Backspace') {
       keyToSend = 'Backspace';
     } else if (e.code === 'Enter') {
       keyToSend = 'Enter';
