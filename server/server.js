@@ -4548,7 +4548,7 @@ httpServer.on('request', async (req, res) => {
       // 复制响应头
       res.writeHead(proxyRes.statusCode, headers);
       
-      // 如果是 HTML，需要添加 base 标签来修正相对路径
+      // 如果是 HTML，需要仔细处理路径
       const contentType = headers['content-type'] || '';
       if (contentType.includes('text/html')) {
         let body = '';
@@ -4556,20 +4556,29 @@ httpServer.on('request', async (req, res) => {
           body += chunk;
         });
         proxyRes.on('end', () => {
-          // 在 <head> 中添加 <base href="/NAS/"> 标签
           let modifiedBody = body;
-          if (modifiedBody.includes('<head>')) {
-            modifiedBody = modifiedBody.replace('<head>', '<head><base href="/NAS/">');
-          } else if (modifiedBody.includes('<HEAD>')) {
-            modifiedBody = modifiedBody.replace('<HEAD>', '<HEAD><base href="/NAS/">');
+          
+          // 同时使用两种方式：base 标签 + 路径替换
+          // 1. 先添加 base 标签
+          const headTag = /<head\s*>/i;
+          if (headTag.test(modifiedBody)) {
+            modifiedBody = modifiedBody.replace(headTag, '<head><base href="/NAS/">');
           } else {
-            // 如果没有 head 标签，就在开头添加
             modifiedBody = '<base href="/NAS/">' + modifiedBody;
           }
+          
+          // 2. 关键路径替换 - 只替换绝对路径
+          // 替换 href="/xxx" -> href="/NAS/xxx"
+          modifiedBody = modifiedBody.replace(/(href=["'])\/([^"'<]+)/g, '$1/NAS/$2');
+          // 替换 src="/xxx" -> src="/NAS/xxx"
+          modifiedBody = modifiedBody.replace(/(src=["'])\/([^"'<]+)/g, '$1/NAS/$2');
+          // 替换 action="/xxx" -> action="/NAS/xxx"
+          modifiedBody = modifiedBody.replace(/(action=["'])\/([^"'<]+)/g, '$1/NAS/$2');
+          
           res.end(modifiedBody);
         });
       } else {
-        // 非 HTML 直接管道
+        // 其他资源直接管道
         proxyRes.pipe(res);
       }
     });
