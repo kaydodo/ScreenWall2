@@ -4705,7 +4705,27 @@ function isMuServiceRunning() {
   return muServiceProcess && !muServiceProcess.killed;
 }
 
-function startMuService() {
+async function checkMuServiceRunning() {
+  try {
+    const { exec } = require('child_process');
+    return new Promise((resolve) => {
+      exec('wmic process where "name=\'python.exe\' and commandline like \'%mumu_service.py%\'" get processid', 
+        (error, stdout) => {
+          if (error) {
+            resolve(false);
+            return;
+          }
+          const lines = stdout.trim().split('\n').filter(line => line.trim() && !line.includes('ProcessId'));
+          resolve(lines.length > 0);
+        }
+      );
+    });
+  } catch (e) {
+    return false;
+  }
+}
+
+async function startMuService() {
   if (muServiceOnline) {
     serverLog('[MU服务] 已在线，跳过启动');
     return;
@@ -4713,6 +4733,13 @@ function startMuService() {
   
   if (!fs.existsSync(MU_SERVICE_PATH)) {
     serverLog('[MU服务] mumu_service.py 不存在，跳过启动');
+    return;
+  }
+  
+  // 检查是否已经有 MU 服务进程在运行
+  const isRunning = await checkMuServiceRunning();
+  if (isRunning) {
+    serverLog('[MU服务] 检测到已有进程在运行，跳过启动');
     return;
   }
   
@@ -4738,9 +4765,9 @@ function restartMuService() {
   if (muServiceRestartTimer) {
     clearTimeout(muServiceRestartTimer);
   }
-  muServiceRestartTimer = setTimeout(() => {
+  muServiceRestartTimer = setTimeout(async () => {
     serverLog('[MU服务] 尝试自动重启...');
-    startMuService();
+    await startMuService();
   }, MU_SERVICE_RESTART_DELAY);
 }
 
@@ -4750,7 +4777,7 @@ httpServer.listen(PORT, HOST, () => {
   serverLog(`   WebSocket端口: ${PORT}\n`);
   
   // 确保服务器完全初始化后再启动 MU 服务
-  setTimeout(() => {
-    startMuService();
+  setTimeout(async () => {
+    await startMuService();
   }, 500);
 });
