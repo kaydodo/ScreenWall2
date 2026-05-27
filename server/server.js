@@ -4519,9 +4519,10 @@ httpServer.on('request', async (req, res) => {
   }
   */
 
-  // ========== NAS 反向代理：将 /NAS/ 路径代理到 Alist (http://127.0.0.1:5244) ==========
-  if (cleanPath.startsWith('/NAS')) {
-    const targetPath = pathname.replace(/^\/NAS\/?/, '/');
+  // ========== NAS 反向代理：将 /NAS/ 或 /nas/ 路径代理到 Alist (http://127.0.0.1:5244) ==========
+  const cleanPathLower = cleanPath.toLowerCase();
+  if (cleanPathLower.startsWith('/nas')) {
+    const targetPath = pathname.replace(/^\/NAS\/?/i, '/');
     const options = {
       hostname: '127.0.0.1',
       port: 5244,
@@ -4534,10 +4535,39 @@ httpServer.on('request', async (req, res) => {
     options.headers.host = '127.0.0.1:5244';
     
     const proxyReq = http.request(options, (proxyRes) => {
+      // 处理响应头，可能需要修改 Location 等
+      const headers = { ...proxyRes.headers };
+      
+      // 如果有 Location 重定向头，需要修正路径
+      if (headers.location) {
+        // 将 http://127.0.0.1:5244/xxx 改为 /NAS/xxx
+        headers.location = headers.location.replace(/^http:\/\/127\.0\.0\.1:5244\//, '/NAS/');
+        headers.location = headers.location.replace(/^https:\/\/127\.0\.0\.1:5244\//, '/NAS/');
+      }
+      
       // 复制响应头
-      res.writeHead(proxyRes.statusCode, proxyRes.headers);
-      // 管道响应
-      proxyRes.pipe(res);
+      res.writeHead(proxyRes.statusCode, headers);
+      
+      // 如果是 HTML，需要修改其中的资源引用
+      const contentType = headers['content-type'] || '';
+      if (contentType.includes('text/html')) {
+        let body = '';
+        proxyRes.on('data', (chunk) => {
+          body += chunk;
+        });
+        proxyRes.on('end', () => {
+          // 修改资源路径：把 /xxx 改为 /NAS/xxx
+          let modifiedBody = body;
+          // 处理标签属性中的路径
+          modifiedBody = modifiedBody.replace(/(href|src|action)=["']\//g, '$1="/NAS/');
+          // 处理 JavaScript 中的路径
+          modifiedBody = modifiedBody.replace(/(["'`])\//g, '$1/NAS/');
+          res.end(modifiedBody);
+        });
+      } else {
+        // 非 HTML 直接管道
+        proxyRes.pipe(res);
+      }
     });
     
     proxyReq.on('error', (err) => {
