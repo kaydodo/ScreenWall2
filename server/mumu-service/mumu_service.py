@@ -252,37 +252,21 @@ class MumuService:
 
     async def _adb_keyevent(self, keycode):
         try:
-            android_key = keycode
-            if keycode == "Back":
-                android_key = "4"
-            elif keycode == "Home":
-                android_key = "3"
-            elif keycode == "Recent":
-                android_key = "187"
-            elif keycode == "Backspace":
-                android_key = "67"
-            elif keycode == "0":
-                android_key = "7"
-            elif keycode == "1":
-                android_key = "8"
-            elif keycode == "2":
-                android_key = "9"
-            elif keycode == "3":
-                android_key = "10"
-            elif keycode == "4":
-                android_key = "11"
-            elif keycode == "5":
-                android_key = "12"
-            elif keycode == "6":
-                android_key = "13"
-            elif keycode == "7":
-                android_key = "14"
-            elif keycode == "8":
-                android_key = "15"
-            elif keycode == "9":
-                android_key = "16"
-
-            cmd = self._get_adb_cmd(["shell", "input", "keyevent", str(android_key)])
+            special_keys = {
+                "Back": "4",
+                "Home": "3",
+                "Recent": "187",
+                "Backspace": "67",
+                "Enter": "66",
+                "Space": "62",
+            }
+            
+            if keycode in special_keys:
+                cmd = self._get_adb_cmd(["shell", "input", "keyevent", special_keys[keycode]])
+            else:
+                text_to_send = keycode
+                cmd = self._get_adb_cmd(["shell", "input", "text", text_to_send])
+            
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
