@@ -796,6 +796,12 @@ function setupKeyboardEvents() {
     'u': true, 'v': true, 'w': true, 'x': true, 'y': true, 'z': true,
     ',': true, '.': true, ';': true, '=': true,
     '[': true, ']': true, '\\': true, '/': true, '@': true, '+': true, '-': true,
+    '`': true
+  };
+  
+  var shiftDisplayMap = {
+    '`':'~','1':'!','2':'@','3':'#','4':'$','5':'%','6':'^','7':'&','8':'*','9':'(','0':')',
+    '-':'_','=':'+','[':'{',']':'}','\\':'|',';':':',"'":'"',',':'<','.':'>','/':'?'
   };
   
   document.addEventListener('keydown', function(e) {
@@ -810,11 +816,16 @@ function setupKeyboardEvents() {
     } else if (e.key === ' ') {
       keyToSend = 'Space';
     } else if (e.key.length === 1) {
-      var lowerKey = e.key.toLowerCase();
-      if (e.shiftKey && /[a-z]/i.test(e.key)) {
+      if (e.shiftKey) {
+        if (/[a-z]/i.test(e.key)) {
+          keyToSend = e.key;
+        } else if (shiftDisplayMap[e.key]) {
+          keyToSend = shiftDisplayMap[e.key];
+        } else {
+          keyToSend = e.key;
+        }
+      } else if (hasKeycode[e.key]) {
         keyToSend = e.key;
-      } else if (hasKeycode[lowerKey]) {
-        keyToSend = lowerKey;
       } else {
         keyToSend = e.key;
       }
