@@ -799,11 +799,6 @@ function setupKeyboardEvents() {
     '`': true
   };
   
-  var shiftDisplayMap = {
-    '`':'~','1':'!','2':'@','3':'#','4':'$','5':'%','6':'^','7':'&','8':'*','9':'(','0':')',
-    '-':'_','=':'+','[':'{',']':'}','\\':'|',';':':',"'":'"',',':'<','.':'>','/':'?'
-  };
-  
   document.addEventListener('keydown', function(e) {
     if (!isOnline || !previewDeviceId) return;
     
@@ -815,22 +810,26 @@ function setupKeyboardEvents() {
       keyToSend = 'Enter';
     } else if (e.key === ' ') {
       keyToSend = 'Space';
-    } else if (e.key.length === 1) {
-      if (e.shiftKey) {
-        if (/[a-z]/i.test(e.key)) {
-          keyToSend = e.key;
-        } else if (shiftDisplayMap[e.key]) {
-          keyToSend = shiftDisplayMap[e.key];
-        } else {
-          keyToSend = e.key;
-        }
-      } else if (hasKeycode[e.key]) {
-        keyToSend = e.key;
-      } else {
-        keyToSend = e.key;
-      }
     } else if (e.key.startsWith('Numpad') && e.key.length === 7) {
       keyToSend = e.key.replace('Numpad', '');
+    } else if (e.key.length === 1) {
+      var key = e.key;
+      
+      if (hasKeycode[key]) {
+        if (e.shiftKey && /[a-z]/i.test(key)) {
+          keyToSend = key.toUpperCase();
+        } else {
+          keyToSend = key;
+        }
+      } else if (hasKeycode[key.toLowerCase()]) {
+        if (e.shiftKey && /[a-z]/i.test(key)) {
+          keyToSend = key.toUpperCase();
+        } else {
+          keyToSend = key.toLowerCase();
+        }
+      } else {
+        keyToSend = key;
+      }
     }
     
     if (keyToSend !== null) {
