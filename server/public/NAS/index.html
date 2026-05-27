@@ -67,6 +67,18 @@
             box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
         }
         
+        .link-section {
+            margin-top: 20px;
+        }
+        
+        .direct-link {
+            display: inline-block;
+            color: #667eea;
+            text-decoration: underline;
+            font-size: 14px;
+            margin-top: 15px;
+        }
+        
         .info {
             margin-top: 30px;
             padding: 20px;
@@ -95,6 +107,18 @@
             font-weight: bold;
             margin-right: 8px;
         }
+        
+        .credentials {
+            background: #fff3cd;
+            padding: 12px;
+            border-radius: 8px;
+            margin: 15px 0;
+            font-size: 14px;
+        }
+        
+        .credentials strong {
+            color: #856404;
+        }
     </style>
 </head>
 <body>
@@ -104,26 +128,31 @@
         <p class="description">
             访问您的私有云存储，管理文件、照片、视频等资源
         </p>
-        <a href="http://127.0.0.1:5244" class="btn" onclick="setTimeout(() => { window.location.href = 'http://127.0.0.1:5244'; }, 100); return false;">
+        <a href="http://127.0.0.1:5244" target="_blank" class="btn">
             打开 NAS 存储中心
         </a>
         
+        <div class="link-section">
+            <a href="http://127.0.0.1:5244" target="_blank" class="direct-link">
+                直接访问链接: http://127.0.0.1:5244
+            </a>
+        </div>
+        
         <div class="info">
             <h3>📋 使用说明</h3>
+            
+            <div class="credentials">
+                <strong>登录信息：</strong><br>
+                管理员账号：wangbo5<br>
+                管理员密码：qqww5566A@
+            </div>
+            
             <ul>
-                <li>点击上方按钮打开存储管理页面</li>
-                <li>默认账号：admin</li>
-                <li>默认密码：admin</li>
-                <li>首次使用请修改默认密码</li>
+                <li>点击上方按钮或链接打开存储管理页面</li>
+                <li>首次使用请在后台配置 E 盘挂载</li>
+                <li>挂载路径：E:\ → 映射到 /E盘</li>
             </ul>
         </div>
     </div>
-    
-    <script>
-        // 自动跳转到 NAS 页面
-        setTimeout(() => {
-            window.location.href = 'http://127.0.0.1:5244';
-        }, 500); // 0.5秒后自动跳转
-    </script>
 </body>
 </html>
