@@ -948,6 +948,13 @@ if (id === 'MUMU-service') {
 | | | | 四层兜底机制：DXGI→MSS→PIL ImageGrab→纯软件灰色图 |
 | | | | 确保即使所有截图方式失败也能提供基本画面，完全避免黑屏 |
 | | | | 使用ImageStat计算平均亮度进行黑屏检测 |
+| **v1.11.4** | 2026-05-28 | - | 预览页面物理键盘支持全面优化： |
+| | | | 新增完整物理键盘监听：支持所有常用键（方向键、功能键、字母、数字、符号等） |
+| | | | Shift键支持：Shift+字母输入大写，Shift+数字/符号输入上档符号 |
+| | | | 只在远控开启时才监听键盘事件 |
+| | | | 键值完全匹配keyclient.py的VK_CODES表：ENTER、CAPITAL、PAGEUP、PAGEDOWN、SCROLL、NUMPAD0-9等 |
+| | | | 取消PrintScreen、Win键、Fn键的映射（真实键盘上读不到键值） |
+| | | | 修复Enter键返回R、Win键返回L、CapsLock返回C等问题 |
 
 ---
 

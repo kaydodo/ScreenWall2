@@ -1133,11 +1133,10 @@ function handlePhysicalKey(e) {
     else if (code === 'NumLock') keyToSend = 'NUMLOCK';
     else if (code === 'ScrollLock') keyToSend = 'SCROLL';
     else if (code === 'Pause') keyToSend = 'PAUSE';
-    else if (code === 'PrintScreen') keyToSend = 'PRTSC';
+    // PrintScreen/Win/Fn 键不处理（读不到键值，属于正常情况）
     // 修饰键
     else if (code === 'ControlLeft' || code === 'ControlRight') keyToSend = 'CTRL';
     else if (code === 'AltLeft' || code === 'AltRight') keyToSend = 'ALT';
-    else if (code === 'MetaLeft' || code === 'MetaRight') keyToSend = 'LWIN';
     // 主键盘数字键
     else if (code.startsWith('Digit')) {
       keyToSend = code.replace('Digit', '');
