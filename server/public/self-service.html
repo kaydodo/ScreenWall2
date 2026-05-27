@@ -780,14 +780,36 @@ function setupMouseEvents() {
 }
 
 function setupKeyboardEvents() {
-  var hasKeycode = {
-    'Back': true, 'Home': true, 'Recent': true, 'Backspace': true, 'Enter': true, ' ': true,
-    '0': true, '1': true, '2': true, '3': true, '4': true, '5': true, '6': true, '7': true, '8': true, '9': true,
-    'a': true, 'b': true, 'c': true, 'd': true, 'e': true, 'f': true, 'g': true, 'h': true, 'i': true, 'j': true,
-    'k': true, 'l': true, 'm': true, 'n': true, 'o': true, 'p': true, 'q': true, 'r': true, 's': true, 't': true,
-    'u': true, 'v': true, 'w': true, 'x': true, 'y': true, 'z': true,
-    ',': true, '.': true, ';': true, '=': true, '[': true, ']': true, '\\': true, '/': true, '@': true, '+': true, '-': true,
-    '`': true
+  var keyCodeMap = {
+    'Digit1': { normal: '1', shift: '!' },
+    'Digit2': { normal: '2', shift: '@' },
+    'Digit3': { normal: '3', shift: '#' },
+    'Digit4': { normal: '4', shift: '$' },
+    'Digit5': { normal: '5', shift: '%' },
+    'Digit6': { normal: '6', shift: '^' },
+    'Digit7': { normal: '7', shift: '&' },
+    'Digit8': { normal: '8', shift: '*' },
+    'Digit9': { normal: '9', shift: '(' },
+    'Digit0': { normal: '0', shift: ')' },
+    'Minus': { normal: '-', shift: '_' },
+    'Equal': { normal: '=', shift: '+' },
+    'BracketLeft': { normal: '[', shift: '{' },
+    'BracketRight': { normal: ']', shift: '}' },
+    'Backslash': { normal: '\\', shift: '|' },
+    'Semicolon': { normal: ';', shift: ':' },
+    'Quote': { normal: "'", shift: '"' },
+    'Backquote': { normal: '`', shift: '~' },
+    'Comma': { normal: ',', shift: '<' },
+    'Period': { normal: '.', shift: '>' },
+    'Slash': { normal: '/', shift: '?' },
+  };
+  
+  var letterKeys = {
+    'KeyA': 'a', 'KeyB': 'b', 'KeyC': 'c', 'KeyD': 'd', 'KeyE': 'e',
+    'KeyF': 'f', 'KeyG': 'g', 'KeyH': 'h', 'KeyI': 'i', 'KeyJ': 'j',
+    'KeyK': 'k', 'KeyL': 'l', 'KeyM': 'm', 'KeyN': 'n', 'KeyO': 'o',
+    'KeyP': 'p', 'KeyQ': 'q', 'KeyR': 'r', 'KeyS': 's', 'KeyT': 't',
+    'KeyU': 'u', 'KeyV': 'v', 'KeyW': 'w', 'KeyX': 'x', 'KeyY': 'y', 'KeyZ': 'z'
   };
   
   document.addEventListener('keydown', function(e) {
@@ -795,27 +817,25 @@ function setupKeyboardEvents() {
     
     var keyToSend = null;
     
-    if (e.key === 'Backspace') {
+    if (e.code === 'Backspace') {
       keyToSend = 'Backspace';
-    } else if (e.key === 'Enter') {
+    } else if (e.code === 'Enter') {
       keyToSend = 'Enter';
-    } else if (e.key === ' ') {
+    } else if (e.code === 'Space') {
       keyToSend = 'Space';
-    } else if (e.key.startsWith('Numpad') && e.key.length === 7) {
-      keyToSend = e.key.replace('Numpad', '');
-    } else if (e.key.length === 1) {
-      var key = e.key;
-      
-      if (/^[a-z]$/i.test(key)) {
-        if (e.shiftKey) {
-          keyToSend = key.toUpperCase();
-        } else {
-          keyToSend = key.toLowerCase();
-        }
-      } else if (hasKeycode[key.toLowerCase()]) {
-        keyToSend = key.toLowerCase();
+    } else if (e.code.startsWith('Numpad') && e.code.length === 7) {
+      keyToSend = e.code.replace('Numpad', '');
+    } else if (keyCodeMap[e.code]) {
+      if (e.shiftKey) {
+        keyToSend = keyCodeMap[e.code].shift;
       } else {
-        keyToSend = key;
+        keyToSend = keyCodeMap[e.code].normal;
+      }
+    } else if (letterKeys[e.code]) {
+      if (e.shiftKey) {
+        keyToSend = letterKeys[e.code].toUpperCase();
+      } else {
+        keyToSend = letterKeys[e.code].toLowerCase();
       }
     }
     

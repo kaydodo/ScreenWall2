@@ -2,5 +2,9 @@
   "aeawtmgwtiau3yfl-admin": {
     "allowScreenWall": true,
     "allowSelfService": true
+  },
+  "aeawtmgwtiau3yfl": {
+    "allowScreenWall": true,
+    "allowSelfService": true
   }
 }
