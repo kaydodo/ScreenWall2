@@ -825,6 +825,24 @@ function setupKeyboardEvents() {
       keyToSend = 'Space';
     } else if (e.code.startsWith('Numpad') && e.code.length === 7) {
       keyToSend = e.code.replace('Numpad', '');
+    } else if (e.code === 'NumpadDecimal') {
+      keyToSend = '.';
+    } else if (e.code === 'NumpadAdd') {
+      keyToSend = '+';
+    } else if (e.code === 'NumpadSubtract') {
+      keyToSend = '-';
+    } else if (e.code === 'NumpadMultiply') {
+      keyToSend = '*';
+    } else if (e.code === 'NumpadDivide') {
+      keyToSend = '/';
+    } else if (e.code === 'ArrowUp') {
+      keyToSend = 'Up';
+    } else if (e.code === 'ArrowDown') {
+      keyToSend = 'Down';
+    } else if (e.code === 'ArrowLeft') {
+      keyToSend = 'Left';
+    } else if (e.code === 'ArrowRight') {
+      keyToSend = 'Right';
     } else if (keyCodeMap[e.code]) {
       if (e.shiftKey) {
         keyToSend = keyCodeMap[e.code].shift;
