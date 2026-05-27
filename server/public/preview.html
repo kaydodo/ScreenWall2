@@ -1134,6 +1134,10 @@ function handlePhysicalKey(e) {
     else if (code === 'ScrollLock') keyToSend = 'SCROLL';
     else if (code === 'Pause') keyToSend = 'PAUSE';
     // PrintScreen/Win/Fn 键不处理（读不到键值，属于正常情况）
+    else if (code === 'PrintScreen' || code === 'MetaLeft' || code === 'MetaRight' || code.startsWith('Fn')) {
+        // 跳过这些键，不发送到服务端
+        return;
+    }
     // 修饰键
     else if (code === 'ControlLeft' || code === 'ControlRight') keyToSend = 'CTRL';
     else if (code === 'AltLeft' || code === 'AltRight') keyToSend = 'ALT';
