@@ -271,9 +271,26 @@ proxy.on('error', (err, req, res) => {
 proxy.on('proxyRes', (proxyRes, req, res) => {
   serverLog(`[网关调试] proxyRes: _gatewayRoute=${req._gatewayRoute}, _originalUrl=${req._originalUrl}, url=${req.url}`);
   if (req._gatewayRoute === '/nas' || (req._originalUrl && req._originalUrl.startsWith('/nas'))) {
-    serverLog(`[网关] NAS透传: ${req._originalUrl || req.url}`);
-    res.writeHead(proxyRes.statusCode, proxyRes.headers);
-    proxyRes.pipe(res);
+    const contentType = proxyRes.headers['content-type'] || '';
+    const isHtml = contentType.includes('text/html');
+    
+    if (isHtml) {
+      let chunks = [];
+      proxyRes.on('data', (chunk) => chunks.push(chunk));
+      proxyRes.on('end', () => {
+        let body = Buffer.concat(chunks).toString('utf8');
+        body = body.replace(/(src|href)="\/assets\//g, '$1="/nas/assets/');
+        body = body.replace(/(src|href)="\/api\//g, '$1="/nas/api/');
+        const headers = { ...proxyRes.headers };
+        headers['content-length'] = Buffer.byteLength(body);
+        res.writeHead(proxyRes.statusCode, headers);
+        res.end(body);
+      });
+    } else {
+      serverLog(`[网关] NAS透传非HTML: ${req._originalUrl || req.url}`);
+      res.writeHead(proxyRes.statusCode, proxyRes.headers);
+      proxyRes.pipe(res);
+    }
     return;
   }
   if (res.headersSent) return;
