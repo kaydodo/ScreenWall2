@@ -323,8 +323,14 @@ proxy.on('proxyRes', (proxyRes, req, res) => {
           body = body.replace(/window\.location\s*=\s*"\/([^"]+)"/g, `window.location="${route}/$1"`);
           res.setHeader('content-length', Buffer.byteLength(body));
           res.end(body);
+        } else if (body.trim().startsWith('{') || body.trim().startsWith('[')) {
+          serverLog(`[网关调试] 检测到JSON内容，执行路径替换: ${body.substring(0, 200)}`);
+          body = body.replace(/"(redirect|location|url|path|next)":\s*"\/([^"]+)"/gi, `"$1":"${route}/$2"`);
+          body = body.replace(/"(redirect|location|url|path|next)":\s*"\/"/gi, `"$1":"${route}"`);
+          res.setHeader('content-length', Buffer.byteLength(body));
+          res.end(body);
         } else {
-          serverLog(`[网关调试] 非HTML内容，直接透传`);
+          serverLog(`[网关调试] 非HTML/JSON内容，直接透传，内容前100字符: ${body.substring(0, 100)}`);
           res._savedWriteHead(proxyRes.statusCode, proxyRes.headers);
           res.end(body);
         }
