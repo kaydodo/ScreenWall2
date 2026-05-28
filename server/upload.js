@@ -415,6 +415,13 @@ function getUploadPage() {
             transition: background 0.2s;
         }
         .delete-btn:hover { background: #fee2e2; }
+        .file-status {
+            font-size: 12px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            background: #f0fdf4;
+            color: #16a34a;
+        }
         .empty-state {
             text-align: center;
             padding: 30px;
@@ -553,15 +560,9 @@ function getUploadPage() {
                             <div class="existing-file-meta">\${formatSize(f.size)} · \${f.time}</div>
                         </div>
                     </div>
-                    <button class="delete-btn" onclick="deleteFile('\${f.name}')">删除</button>
+                    <span class="file-status">已上传</span>
                 </div>
             \`).join('');
-        }
-
-        async function deleteFile(name) {
-            if (!confirm('确定删除 ' + name + ' ?')) return;
-            await fetch('/delete?name=' + encodeURIComponent(name));
-            loadExistingFiles();
         }
 
         loadExistingFiles();
@@ -628,18 +629,6 @@ app.get('/files', async (req, res) => {
         res.json(list);
     } catch (e) {
         res.json([]);
-    }
-});
-
-app.delete('/delete', async (req, res) => {
-    if (!checkAuth(req)) return res.status(401).send('未授权');
-    const name = req.query.name;
-    if (!name) return res.status(400).send('缺少文件名');
-    try {
-        await fs.unlink(path.join(UPLOAD_DIR, name));
-        res.send('ok');
-    } catch (e) {
-        res.status(500).send(e.message);
     }
 });
 
