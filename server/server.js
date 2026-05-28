@@ -275,7 +275,9 @@ proxy.on('proxyRes', (proxyRes, req, res) => {
   if (route && proxyRes.headers['location']) {
     let location = proxyRes.headers['location'];
     if (location.startsWith('/') && !location.startsWith('//')) {
-      proxyRes.headers['location'] = route + location;
+      if (!location.startsWith(route + '/') && location !== route) {
+        proxyRes.headers['location'] = route + location;
+      }
     }
   }
 
