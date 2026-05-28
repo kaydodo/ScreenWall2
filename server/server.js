@@ -269,7 +269,7 @@ proxy.on('error', (err, req, res) => {
   }
 });
 proxy.on('proxyRes', (proxyRes, req, res) => {
-  if (req.url.includes('/nas/') || req._gatewayRoute === '/nas') {
+  if (req._gatewayRoute === '/nas' || (req._originalUrl && req._originalUrl.startsWith('/nas'))) {
     proxyRes.pipe(res);
     return;
   }
@@ -3920,6 +3920,33 @@ httpServer.on('request', async (req, res) => {
     try { urlObj = new URL(req.url, 'http://localhost'); } catch(e2) { urlObj = { searchParams: { get: () => null } }; }
   }
 
+  const cleanPath = pathname.replace(/\/$/, '');
+
+  // ========== 网关代理路由（优先处理，跳过安全头） ==========
+  for (const service of gatewayServices) {
+    const routeBase = service.route;
+    if (cleanPath === routeBase || cleanPath.startsWith(routeBase + '/')) {
+      req._originalUrl = req.url;
+      req.url = req.url.replace(routeBase, '') || '/';
+      req._gatewayRoute = routeBase;
+
+      const options = {
+        target: service.target,
+        changeOrigin: true,
+        followRedirects: true,
+        ws: true,
+        autoRewrite: true,
+        headers: {
+          host: new URL(service.target).host,
+          'x-forwarded-prefix': routeBase
+        }
+      };
+
+      proxy.web(req, res, options);
+      return;
+    }
+  }
+
   // 安全头 middleware：拦截所有 writeHead，自动注入安全头
   // 静态文件（CSS/JS/图片）不需要 CSP，只对 HTML/API 添加
   const middlewarePath = pathname.replace(/\/$/, '');
@@ -3962,32 +3989,6 @@ httpServer.on('request', async (req, res) => {
     });
     res.end();
     return;
-  }
-
-  const cleanPath = pathname.replace(/\/$/, '');
-
-  // ========== 网关代理路由 ==========
-  for (const service of gatewayServices) {
-    const routeBase = service.route;
-    if (cleanPath === routeBase || cleanPath.startsWith(routeBase + '/')) {
-      req.url = req.url.replace(routeBase, '') || '/';
-      req._gatewayRoute = routeBase;
-
-      const options = {
-        target: service.target,
-        changeOrigin: true,
-        followRedirects: true,
-        ws: true,
-        autoRewrite: true,
-        headers: {
-          host: new URL(service.target).host,
-          'x-forwarded-prefix': routeBase
-        }
-      };
-
-      proxy.web(req, res, options);
-      return;
-    }
   }
 
   // 网关管理页面登录
