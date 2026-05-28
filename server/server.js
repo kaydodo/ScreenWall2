@@ -268,17 +268,26 @@ proxy.on('error', (err, req, res) => {
   }
 });
 proxy.on('proxyRes', (proxyRes, req, res) => {
+  if (res.headersSent) return;
   const contentType = proxyRes.headers['content-type'] || '';
   if (contentType.includes('text/html')) {
     let chunks = [];
     proxyRes.on('data', (chunk) => chunks.push(chunk));
     proxyRes.on('end', () => {
+      if (res.headersSent) return;
       let body = Buffer.concat(chunks).toString('utf8');
       const route = req._gatewayRoute;
       if (route) {
-        body = body.replace(/(href|src|action)=["']\/([^"']+)["']/gi, `$1="${route}/$2"`);
+        body = body.replace(/(href|src|action)=["']\/((?!https?:|data:|#|\/)[^"']*)["']/gi, `$1="${route}/$2"`);
         body = body.replace(/url\(["']\/([^"']+)["']\)/gi, `url("${route}/$1")`);
         body = body.replace(/url\(\/([^)]+)\)/gi, `url(${route}/$1)`);
+        body = body.replace(/(fetch|axios\.get|axios\.post|axios\.put|axios\.delete)\(["']\/([^"']+)["']/gi, `$1("${route}/$2"`);
+        body = body.replace(/\.ajax\(\s*\{\s*url\s*:\s*["']\/([^"']+)["']/gi, `.ajax({ url: "${route}/$1"`);
+        body = body.replace(/\.location\s*=\s*["']\/([^"']+)["']/gi, `.location="${route}/$1"`);
+        body = body.replace(/\.location\.href\s*=\s*["']\/([^"']+)["']/gi, `.location.href="${route}/$1"`);
+        body = body.replace(/\.location\.pathname\s*=\s*["']\/([^"']+)["']/gi, `.location.pathname="${route}/$1"`);
+        body = body.replace(/\.push\(["']\/([^"']+)["']\)/gi, `.push("${route}/$1")`);
+        body = body.replace(/\.replace\(["']\/([^"']+)["']\)/gi, `.replace("${route}/$1")`);
       }
       res.setHeader('content-length', Buffer.byteLength(body));
       res.end(body);
@@ -3937,12 +3946,8 @@ httpServer.on('request', async (req, res) => {
   const cleanPath = pathname.replace(/\/$/, '');
 
   // ========== 网关代理路由 ==========
-  // 检查是否匹配网关代理服务
   for (const service of gatewayServices) {
-    let routeBase = service.route;
-    if (routeBase.endsWith('/*')) {
-      routeBase = routeBase.slice(0, -2);
-    }
+    const routeBase = service.route;
     if (cleanPath === routeBase || cleanPath.startsWith(routeBase + '/')) {
       const targetUrl = new URL(service.target);
       const newPath = cleanPath.slice(routeBase.length) || '/';
@@ -5008,7 +5013,7 @@ function getGatewayManagePage() {
     <h1>🌐 网关管理</h1>
     <div class="tip">
       <strong>使用说明：</strong><br>
-      • 路由路径：访问服务的URL路径，如 <code>/nas/*</code>（支持通配符匹配子路径）<br>
+      • 路由路径：访问服务的URL路径前缀，如 <code>/nas</code>（自动匹配子路径）<br>
       • 目标地址：服务的完整地址，如 <code>http://127.0.0.1:5244</code><br>
       • 保存后立即生效，无需重启服务
     </div>
