@@ -153,7 +153,7 @@ function getLoginPage(error = '') {
             <h1>文件上传服务</h1>
         </div>
         ${error ? `<div class="error">${error}</div>` : ''}
-        <form method="post" action="/login">
+        <form method="post" action="login">
             <div class="form-group">
                 <label>用户名</label>
                 <input type="text" name="username" required placeholder="请输入用户名">
@@ -433,7 +433,7 @@ function getUploadPage() {
 <body>
     <div class="header">
         <h1>📁 文件上传服务</h1>
-        <button class="logout-btn" onclick="fetch('/logout').then(() => location.reload())">退出登录</button>
+        <button class="logout-btn" onclick="fetch('logout').then(() => location.reload())">退出登录</button>
     </div>
     <div class="container">
         <div class="card">
@@ -516,7 +516,7 @@ function getUploadPage() {
             uploadBtn.disabled = true;
 
             const xhr = new XMLHttpRequest();
-            xhr.open('POST', '/upload');
+            xhr.open('POST', 'upload');
             xhr.upload.onprogress = (e) => {
                 if (e.lengthComputable) {
                     const pct = (e.loaded / e.total * 100).toFixed(1);
@@ -543,7 +543,7 @@ function getUploadPage() {
         }
 
         async function loadExistingFiles() {
-            const res = await fetch('/files');
+            const res = await fetch('files');
             const data = await res.json();
             const container = document.getElementById('existingFiles');
             document.getElementById('fileCount').textContent = '(' + data.length + ')';
