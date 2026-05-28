@@ -1,6 +1,21 @@
 const express = require('express');
 const { createProxyMiddleware } = require('http-proxy-middleware');
+const fs = require('fs');
+const path = require('path');
 const app = express();
+
+// ========== 加载与主Server相同的配置 ==========
+const CONFIG_PATH = path.join(__dirname, 'config.json');
+let AUTH_CFG = { username: 'admin', password: 'admin' }; // 默认值
+try {
+    const config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
+    if (config.auth) {
+        AUTH_CFG = config.auth;
+    }
+    console.log(`✅ 已加载管理员配置: 用户名=${AUTH_CFG.username}`);
+} catch (e) {
+    console.log(`⚠️  无法加载 config.json，使用默认管理员密码`);
+}
 
 // =======================【全部在这里填表即可，新增直接复制一行填写】=======================
 // 对外网关端口（主server继续使用3000端口）
@@ -63,14 +78,112 @@ function registerProxies() {
 // 初始注册
 registerProxies();
 
+// ======================= 密码验证中间件 =======================
+const validSessions = new Set();
+
+function generateSessionId() {
+    return Date.now().toString(36) + Math.random().toString(36).substr(2);
+}
+
+function requireAuth(req, res, next) {
+    const sessionId = req.cookies ? req.cookies.gateway_session : null;
+    if (sessionId && validSessions.has(sessionId)) {
+        return next();
+    }
+    // 返回登录页面
+    sendLoginPage(res);
+}
+
+function sendLoginPage(res) {
+    res.send(`
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>网关管理 - 登录</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,"Microsoft YaHei";}
+body{background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;}
+.login-box{background:#fff;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,0.3);padding:40px;width:100%;max-width:400px;}
+.login-box h1{font-size:24px;font-weight:600;color:#333;margin-bottom:8px;text-align:center;}
+.login-box p{font-size:14px;color:#888;text-align:center;margin-bottom:30px;}
+.form-group{margin-bottom:20px;}
+.form-group label{display:block;font-size:13px;color:#666;margin-bottom:8px;}
+.form-group input{width:100%;padding:12px 14px;border:1px solid #e2e8f0;border-radius:8px;font-size:15px;outline:none;transition:border 0.2s;}
+.form-group input:focus{border-color:#667eea;}
+.btn{width:100%;padding:12px;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;transition:all 0.2s;}
+.btn-primary{background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#fff;}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(102,126,234,0.4);}
+.error{color:#ef4444;font-size:13px;text-align:center;margin-top:16px;display:none;}
+</style>
+</head>
+<body>
+<div class="login-box">
+    <h1>🔐 网关管理</h1>
+    <p>请输入管理员密码</p>
+    <form id="loginForm">
+        <div class="form-group">
+            <label>用户名</label>
+            <input type="text" id="username" placeholder="请输入用户名" autocomplete="username">
+        </div>
+        <div class="form-group">
+            <label>密码</label>
+            <input type="password" id="password" placeholder="请输入密码" autocomplete="current-password">
+        </div>
+        <button type="submit" class="btn btn-primary">登录</button>
+        <div id="errorMsg" class="error">用户名或密码错误</div>
+    </form>
+</div>
+<script>
+document.getElementById('loginForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const username = document.getElementById('username').value;
+    const password = document.getElementById('password').value;
+    
+    const res = await fetch('/_gateway/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+    });
+    
+    const data = await res.json();
+    if (data.success) {
+        document.cookie = 'gateway_session=' + data.sessionId + '; path=/';
+        window.location.reload();
+    } else {
+        document.getElementById('errorMsg').style.display = 'block';
+    }
+});
+</script>
+</body>
+</html>
+    `);
+}
+
 // ======================= 热重载管理接口 =======================
 app.use(express.json());
+const cookieParser = require('cookie-parser');
+app.use(cookieParser());
+
+/**
+ * 登录接口
+ */
+app.post('/_gateway/login', (req, res) => {
+    const { username, password } = req.body;
+    if (username === AUTH_CFG.username && password === AUTH_CFG.password) {
+        const sessionId = generateSessionId();
+        validSessions.add(sessionId);
+        res.json({ success: true, sessionId });
+    } else {
+        res.json({ success: false });
+    }
+});
 
 /**
  * 网关管理页面
- * GET /_gateway/
  */
-app.get('/_gateway/', (req, res) => {
+app.get('/_gateway/', requireAuth, (req, res) => {
     res.send(`
 <!DOCTYPE html>
 <html lang="zh-CN">
@@ -82,9 +195,12 @@ app.get('/_gateway/', (req, res) => {
 *{margin:0;padding:0;box-sizing:border-box;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,"Microsoft YaHei";}
 body{background:#f5f7fa;padding:20px;}
 .container{max-width:900px;margin:0 auto;background:#fff;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.08);overflow:hidden;}
-.header{background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#fff;padding:24px 30px;}
-.header h1{font-size:24px;font-weight:600;margin-bottom:8px;}
+.header{background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#fff;padding:24px 30px;display:flex;justify-content:space-between;align-items:center;}
+.header h1{font-size:24px;font-weight:600;}
 .header p{opacity:0.9;font-size:14px;}
+.header-right{display:flex;gap:12px;align-items:center;}
+.logout-btn{padding:8px 16px;background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.3);color:#fff;border-radius:6px;font-size:14px;cursor:pointer;transition:all 0.2s;}
+.logout-btn:hover{background:rgba(255,255,255,0.3);}
 .content{padding:30px;}
 .section{margin-bottom:30px;}
 .section h2{font-size:16px;font-weight:600;color:#333;margin-bottom:16px;display:flex;align-items:center;gap:8px;}
@@ -121,8 +237,13 @@ body{background:#f5f7fa;padding:20px;}
 <body>
 <div class="container">
     <div class="header">
-        <h1>🖥️ 单端口聚合网关管理</h1>
-        <p>统一端口: <strong>${GatewayPort}</strong> &nbsp;&nbsp; 已挂载服务: <strong id="serviceCount">0</strong> 个</p>
+        <div>
+            <h1>🖥️ 单端口聚合网关管理</h1>
+            <p>统一端口: <strong>${GatewayPort}</strong> &nbsp;&nbsp; 已挂载服务: <strong id="serviceCount">0</strong> 个</p>
+        </div>
+        <div class="header-right">
+            <button class="logout-btn" onclick="logout()">退出登录</button>
+        </div>
     </div>
     <div class="content">
         <div class="info-box">
@@ -243,6 +364,11 @@ function testService(route) {
     window.open(route, '_blank');
 }
 
+function logout() {
+    document.cookie = 'gateway_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC';
+    window.location.reload();
+}
+
 loadConfig();
 </script>
 </body>
@@ -251,10 +377,9 @@ loadConfig();
 });
 
 /**
- * 获取当前服务配置
- * GET /_gateway/config
+ * 获取当前服务配置（需要验证）
  */
-app.get('/_gateway/config', (req, res) => {
+app.get('/_gateway/config', requireAuth, (req, res) => {
     res.json({
         success:true,
         port: GatewayPort,
@@ -263,11 +388,9 @@ app.get('/_gateway/config', (req, res) => {
 });
 
 /**
- * 更新服务配置（热重载）
- * POST /_gateway/config
- * Body: { services: [...] }
+ * 更新服务配置（热重载，需要验证）
  */
-app.post('/_gateway/config', (req, res) => {
+app.post('/_gateway/config', requireAuth, (req, res) => {
     try {
         if (req.body.services && Array.isArray(req.body.services)) {
             ServiceList = req.body.services;
@@ -292,11 +415,9 @@ app.post('/_gateway/config', (req, res) => {
 });
 
 /**
- * 添加新服务
- * POST /_gateway/service
- * Body: { route:"/xxx", target:"http://127.0.0.1:xxxx" }
+ * 添加新服务（需要验证）
  */
-app.post('/_gateway/service', (req, res) => {
+app.post('/_gateway/service', requireAuth, (req, res) => {
     try {
         const { route, target } = req.body;
         if (!route || !target) {
@@ -326,10 +447,9 @@ app.post('/_gateway/service', (req, res) => {
 });
 
 /**
- * 删除服务
- * DELETE /_gateway/service?route=/xxx
+ * 删除服务（需要验证）
  */
-app.delete('/_gateway/service', (req, res) => {
+app.delete('/_gateway/service', requireAuth, (req, res) => {
     try {
         const { route } = req.query;
         if (!route) {
@@ -372,11 +492,7 @@ const server = app.listen(GatewayPort,()=>{
     ServiceList.forEach(item=>{
         console.log(`   ${item.route.padEnd(10)} -> ${item.target}`)
     })
-    console.log(`\n🎛️  管理页面:`)
+    console.log(`\n🎛️  管理页面（需要密码）:`)
     console.log(`   http://127.0.0.1:${GatewayPort}/_gateway/`)
-    console.log(`\n🛠️  API接口:`)
-    console.log(`   GET    /_gateway/config          - 获取当前配置`)
-    console.log(`   POST   /_gateway/config          - 更新全部配置`)
-    console.log(`   POST   /_gateway/service         - 添加新服务`)
-    console.log(`   DELETE /_gateway/service?route=  - 删除服务`)
+    console.log(`\nℹ️  提示：管理密码与主Server管理员密码一致`)
 })
