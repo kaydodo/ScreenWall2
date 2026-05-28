@@ -306,6 +306,16 @@ proxy.on('proxyRes', (proxyRes, req, res) => {
   proxyRes.on('end', () => {
     if (res.headersSent) return;
     let body = Buffer.concat(chunks).toString('utf8');
+    
+    if (route && route !== '/nas') {
+      body = body.replace(/(src|href)="\/([^"]+)"/g, `$1="${route}/$2"`);
+      body = body.replace(/(src|href)="\/"/g, `$1="${route}"`);
+      body = body.replace(/window\.location\.href\s*=\s*'\/([^']+)'/g, `window.location.href='${route}/$1'`);
+      body = body.replace(/window\.location\.href\s*=\s*"\/([^"]+)"/g, `window.location.href="${route}/$1"`);
+      body = body.replace(/window\.location\.pathname\s*=\s*'\/([^']+)'/g, `window.location.pathname='${route}/$1'`);
+      body = body.replace(/window\.location\.pathname\s*=\s*"\/([^"]+)"/g, `window.location.pathname="${route}/$1"`);
+    }
+    
     res.setHeader('content-length', Buffer.byteLength(body));
     res.end(body);
   });
