@@ -269,7 +269,9 @@ proxy.on('error', (err, req, res) => {
   }
 });
 proxy.on('proxyRes', (proxyRes, req, res) => {
+  serverLog(`[网关调试] proxyRes: _gatewayRoute=${req._gatewayRoute}, _originalUrl=${req._originalUrl}, url=${req.url}`);
   if (req._gatewayRoute === '/nas' || (req._originalUrl && req._originalUrl.startsWith('/nas'))) {
+    serverLog(`[网关] NAS透传: ${req._originalUrl || req.url}`);
     res.writeHead(proxyRes.statusCode, proxyRes.headers);
     proxyRes.pipe(res);
     return;
@@ -3924,12 +3926,15 @@ httpServer.on('request', async (req, res) => {
   const cleanPath = pathname.replace(/\/$/, '');
 
   // ========== 网关代理路由（优先处理，跳过安全头） ==========
+  serverLog(`[网关调试] 路由匹配: cleanPath=${cleanPath}, gatewayServices数量=${gatewayServices.length}`);
   for (const service of gatewayServices) {
     const routeBase = service.route;
+    serverLog(`[网关调试] 检查路由: routeBase=${routeBase}, match=${cleanPath === routeBase || cleanPath.startsWith(routeBase + '/')}`);
     if (cleanPath === routeBase || cleanPath.startsWith(routeBase + '/')) {
       req._originalUrl = req.url;
       req.url = req.url.replace(routeBase, '') || '/';
       req._gatewayRoute = routeBase;
+      serverLog(`[网关] 匹配成功: ${routeBase} -> ${service.target}, 原始URL=${req._originalUrl}, 新URL=${req.url}`);
 
       const options = {
         target: service.target,
