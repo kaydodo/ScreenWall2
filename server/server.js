@@ -11,14 +11,6 @@ process.stderr.write = function(chunk, encoding, callback) {
   return originalStderrWrite(chunk, encoding, callback);
 };
 
-// 全局异常拦截（防止未知路径导致服务端崩溃）
-process.on('uncaughtException', (err) => {
-  serverError('[未捕获异常]', err.message, err.stack);
-});
-process.on('unhandledRejection', (reason) => {
-  serverError('[未处理Promise拒绝]', String(reason));
-});
-
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
@@ -119,6 +111,14 @@ function serverError(...args) {
     _logQueue.push(line);
     _flushLogQueue();
 }
+
+// 全局异常拦截（防止未知路径导致服务端崩溃）
+process.on('uncaughtException', (err) => {
+  serverError('[未捕获异常]', err.message, err.stack);
+});
+process.on('unhandledRejection', (reason) => {
+  serverError('[未处理Promise拒绝]', String(reason));
+});
 
 // ========== 公共配置文件（网页和客户端共享）==========
 let SERVER_CONFIG = {};
