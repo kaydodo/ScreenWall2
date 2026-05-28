@@ -274,21 +274,40 @@ proxy.on('proxyRes', (proxyRes, req, res) => {
   if (req._gatewayRoute === '/nas' || (req._originalUrl && req._originalUrl.startsWith('/nas'))) {
     const contentType = proxyRes.headers['content-type'] || '';
     const isHtml = contentType.includes('text/html');
-    serverLog(`[网关调试] NAS处理: contentType=${contentType}, isHtml=${isHtml}`);
+    const isJs = contentType.includes('javascript');
+    serverLog(`[网关调试] NAS处理: contentType=${contentType}, isHtml=${isHtml}, isJs=${isJs}`);
     
-    if (isHtml) {
-      serverLog(`[网关] NAS HTML路径替换开始`);
+    if (isHtml || isJs) {
+      serverLog(`[网关] NAS ${isHtml ? 'HTML' : 'JS'}路径替换开始`);
       let chunks = [];
       proxyRes.on('data', (chunk) => chunks.push(chunk));
       proxyRes.on('end', () => {
         let body = Buffer.concat(chunks).toString('utf8');
         body = body.replace(/(src|href|action)="\/([^"]+)"/g, '$1="/nas/$2"');
         body = body.replace(/(src|href|action)="\/"/g, '$1="/nas"');
+        body = body.replace(/"\/api\/([^"]+)"/g, '"\/nas/api/$1"');
+        body = body.replace(/'\/api\/([^']+)'/g, "'/nas/api/$1'");
+        body = body.replace(/"\/streamer\/([^"]+)"/g, '"\/nas/streamer/$1"');
+        body = body.replace(/'\/streamer\/([^']+)'/g, "'/nas/streamer/$1'");
+        body = body.replace(/"\/d\/([^"]+)"/g, '"\/nas/d/$1"');
+        body = body.replace(/'\/d\/([^']+)'/g, "'/nas/d/$1'");
+        body = body.replace(/"\/assets\/([^"]+)"/g, '"\/nas/assets/$1"');
+        body = body.replace(/'\/assets\/([^']+)'/g, "'/nas/assets/$1'");
+        body = body.replace(/window\.location\.href\s*=\s*'\/([^']+)'/g, "window.location.href='/nas/$1'");
+        body = body.replace(/window\.location\.href\s*=\s*"\/([^"]+)"/g, 'window.location.href="/nas/$1"');
+        body = body.replace(/window\.location\.pathname\s*=\s*'\/([^']+)'/g, "window.location.pathname='/nas/$1'");
+        body = body.replace(/window\.location\.pathname\s*=\s*"\/([^"]+)"/g, 'window.location.pathname="/nas/$1"');
+        body = body.replace(/window\.location\s*=\s*'\/([^']+)'/g, "window.location='/nas/$1'");
+        body = body.replace(/window\.location\s*=\s*"\/([^"]+)"/g, 'window.location="/nas/$1"');
+        body = body.replace(/fetch\(['"]\/([^'"]+)['"]\)/g, "fetch('/nas/$1')");
+        body = body.replace(/axios\(['"]\/([^'"]+)['"]\)/g, "axios('/nas/$1')");
+        body = body.replace(/\.then\(\s*\(\s*\)\s*=>\s*window\.location\s*=\s*'\/'/g, ".then(() => window.location='/nas'");
+        body = body.replace(/\.then\(\s*\(\s*\)\s*=>\s*window\.location\s*=\s*"\/"/g, '.then(() => window.location="/nas"');
         const headers = { ...proxyRes.headers };
         headers['content-length'] = Buffer.byteLength(body);
         res._savedWriteHead(proxyRes.statusCode, headers);
         res.end(body);
-        serverLog(`[网关] NAS HTML路径替换完成`);
+        serverLog(`[网关] NAS ${isHtml ? 'HTML' : 'JS'}路径替换完成`);
       });
     } else {
       serverLog(`[网关] NAS透传非HTML: ${req._originalUrl || req.url}`);
