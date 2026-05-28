@@ -3865,7 +3865,6 @@ wssBrowser.on('connection', (ws, req) => {
 const httpServer = http.createServer();
 
 httpServer.on('upgrade', (req, socket, head) => {
-  // 安全解析 URL，防止 host 头为空或无效导致崩溃
   let pathname = '/';
   try {
     const host = req.headers.host || 'localhost';
@@ -3887,6 +3886,29 @@ httpServer.on('upgrade', (req, socket, head) => {
     });
     return;
   }
+
+  for (const service of gatewayServices) {
+    const routeBase = service.route;
+    if (pathname === routeBase || pathname.startsWith(routeBase + '/')) {
+      const targetUrl = new URL(service.target);
+      const newPath = pathname.slice(routeBase.length) || '/';
+      req.url = newPath;
+      req._gatewayRoute = routeBase;
+      
+      const options = {
+        target: service.target,
+        changeOrigin: true,
+        ws: true,
+        headers: {
+          host: targetUrl.host,
+          'x-forwarded-prefix': routeBase
+        }
+      };
+      proxy.ws(req, socket, head, options);
+      return;
+    }
+  }
+
   socket.destroy();
 });
 
@@ -3965,6 +3987,7 @@ httpServer.on('request', async (req, res) => {
         target: service.target,
         changeOrigin: true,
         followRedirects: false,
+        ws: true,
         headers: {
           host: targetUrl.host,
           'x-forwarded-prefix': routeBase
