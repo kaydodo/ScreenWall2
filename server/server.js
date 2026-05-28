@@ -295,12 +295,7 @@ proxy.on('proxyRes', (proxyRes, req, res) => {
     let body = Buffer.concat(chunks).toString('utf8');
 
     if (route) {
-      body = body.replace(/(["'`])\/(?!\/|https?:|data:|#)([^"'`]*?)/g, `$1${route}/$2`);
-      body = body.replace(/window\.location\s*=\s*["']\/([^"']+)["']/g, `window.location="${route}/$1"`);
-      body = body.replace(/location\.href\s*=\s*["']\/([^"']+)["']/g, `location.href="${route}/$1"`);
-      body = body.replace(/location\.pathname\s*=\s*["']\/([^"']+)["']/g, `location.pathname="${route}/$1"`);
-      body = body.replace(/(fetch|axios|\.get|\.post|\.put|\.delete)\(["']\/([^"']+)["']/g, `$1("${route}/$2"`);
-      body = body.replace(/url\s*:\s*["']\/([^"']+)["']/g, `url:"${route}/$1"`);
+      body = body.replace(/(["'`])\/(?!\/|http|https|data:|#)([^"'`]*?)/g, `$1${route}/$2`);
     }
 
     res.setHeader('content-length', Buffer.byteLength(body));
