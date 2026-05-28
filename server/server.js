@@ -269,6 +269,10 @@ proxy.on('error', (err, req, res) => {
   }
 });
 proxy.on('proxyRes', (proxyRes, req, res) => {
+  if (req._gatewayRoute === '/nas') {
+    proxyRes.pipe(res);
+    return;
+  }
   if (res.headersSent) return;
   const route = req._gatewayRoute;
 
@@ -3966,22 +3970,20 @@ httpServer.on('request', async (req, res) => {
   for (const service of gatewayServices) {
     const routeBase = service.route;
     if (cleanPath === routeBase || cleanPath.startsWith(routeBase + '/')) {
-      const targetUrl = new URL(service.target);
-      const newPath = cleanPath.slice(routeBase.length) || '/';
-      const queryString = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
-      req.url = newPath + queryString;
+      req.url = req.url.replace(routeBase, '') || '/';
       req._gatewayRoute = routeBase;
-      
+
       const options = {
         target: service.target,
         changeOrigin: true,
-        followRedirects: false,
+        followRedirects: true,
         ws: true,
         headers: {
-          host: targetUrl.host,
+          host: new URL(service.target).host,
           'x-forwarded-prefix': routeBase
         }
       };
+
       proxy.web(req, res, options);
       return;
     }
