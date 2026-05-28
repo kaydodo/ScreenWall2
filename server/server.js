@@ -272,29 +272,9 @@ proxy.on('proxyRes', (proxyRes, req, res) => {
   serverLog(`[网关调试] proxyRes: _gatewayRoute=${req._gatewayRoute}, _originalUrl=${req._originalUrl}, url=${req.url}, headersSent=${res.headersSent}, _savedWriteHead=${res._savedWriteHead ? 'exists' : 'missing'}`);
   
   if (req._gatewayRoute === '/nas' || (req._originalUrl && req._originalUrl.startsWith('/nas'))) {
-    const contentType = proxyRes.headers['content-type'] || '';
-    const isHtml = contentType.includes('text/html');
-    serverLog(`[网关调试] NAS处理: contentType=${contentType}, isHtml=${isHtml}`);
-    
-    if (isHtml && res._savedWriteHead) {
-      serverLog(`[网关] NAS HTML处理开始`);
-      let chunks = [];
-      proxyRes.on('data', (chunk) => chunks.push(chunk));
-      proxyRes.on('end', () => {
-        serverLog(`[网关] NAS HTML处理完成, 准备发送响应`);
-        let body = Buffer.concat(chunks).toString('utf8');
-        body = body.replace(/(src|href)="\/assets\//g, '$1="/nas/assets/');
-        body = body.replace(/(src|href)="\/api\//g, '$1="/nas/api/');
-        const headers = { ...proxyRes.headers };
-        headers['content-length'] = Buffer.byteLength(body);
-        res._savedWriteHead(proxyRes.statusCode, headers);
-        res.end(body);
-      });
-    } else {
-      serverLog(`[网关] NAS透传非HTML: ${req._originalUrl || req.url}, contentType=${contentType}`);
-      res._savedWriteHead(proxyRes.statusCode, proxyRes.headers);
-      proxyRes.pipe(res);
-    }
+    serverLog(`[网关] NAS透传: ${req._originalUrl || req.url}`);
+    res._savedWriteHead(proxyRes.statusCode, proxyRes.headers);
+    proxyRes.pipe(res);
     return;
   }
   if (res.headersSent) return;
@@ -3953,8 +3933,13 @@ httpServer.on('request', async (req, res) => {
     serverLog(`[网关调试] 检查路由: routeBase=${routeBase}, match=${cleanPath === routeBase || cleanPath.startsWith(routeBase + '/')}`);
     if (cleanPath === routeBase || cleanPath.startsWith(routeBase + '/')) {
       req._originalUrl = req.url;
-      req.url = req.url.replace(routeBase, '') || '/';
       req._gatewayRoute = routeBase;
+      
+      if (routeBase === '/nas') {
+        req.url = req.url;
+      } else {
+        req.url = req.url.replace(routeBase, '') || '/';
+      }
       
       const _origWriteHead = res.writeHead.bind(res);
       res._savedWriteHead = _origWriteHead;
