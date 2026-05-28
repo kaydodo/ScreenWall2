@@ -269,16 +269,19 @@ proxy.on('error', (err, req, res) => {
   }
 });
 proxy.on('proxyRes', (proxyRes, req, res) => {
-  serverLog(`[网关调试] proxyRes: _gatewayRoute=${req._gatewayRoute}, _originalUrl=${req._originalUrl}, url=${req.url}, headersSent=${res.headersSent}`);
+  serverLog(`[网关调试] proxyRes: _gatewayRoute=${req._gatewayRoute}, _originalUrl=${req._originalUrl}, url=${req.url}, headersSent=${res.headersSent}, _savedWriteHead=${res._savedWriteHead ? 'exists' : 'missing'}`);
   
   if (req._gatewayRoute === '/nas' || (req._originalUrl && req._originalUrl.startsWith('/nas'))) {
     const contentType = proxyRes.headers['content-type'] || '';
     const isHtml = contentType.includes('text/html');
+    serverLog(`[网关调试] NAS处理: contentType=${contentType}, isHtml=${isHtml}`);
     
     if (isHtml && res._savedWriteHead) {
+      serverLog(`[网关] NAS HTML处理开始`);
       let chunks = [];
       proxyRes.on('data', (chunk) => chunks.push(chunk));
       proxyRes.on('end', () => {
+        serverLog(`[网关] NAS HTML处理完成, 准备发送响应`);
         let body = Buffer.concat(chunks).toString('utf8');
         body = body.replace(/(src|href)="\/assets\//g, '$1="/nas/assets/');
         body = body.replace(/(src|href)="\/api\//g, '$1="/nas/api/');
