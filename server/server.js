@@ -300,6 +300,15 @@ proxy.on('proxyRes', (proxyRes, req, res) => {
   if (!isHtml && !isJs && !isCss) {
     if (route === '/up') {
       serverLog(`[网关调试] /up路由contentType为空，statusCode=${proxyRes.statusCode}, headers=${JSON.stringify(proxyRes.headers)}`);
+      if (proxyRes.statusCode === 304) {
+        serverLog(`[网关调试] /up路由304响应，添加禁止缓存headers并返回200`);
+        proxyRes.headers['cache-control'] = 'no-store, no-cache, must-revalidate';
+        proxyRes.headers['pragma'] = 'no-cache';
+        proxyRes.headers['expires'] = '0';
+        res._savedWriteHead(200, proxyRes.headers);
+        res.end();
+        return;
+      }
       if (proxyRes.statusCode >= 300 && proxyRes.statusCode < 400 && proxyRes.headers['location']) {
         serverLog(`[网关调试] /up路由重定向响应: statusCode=${proxyRes.statusCode}, location=${proxyRes.headers['location']}`);
         res._savedWriteHead(proxyRes.statusCode, proxyRes.headers);
@@ -3993,6 +4002,9 @@ httpServer.on('request', async (req, res) => {
       req._originalUrl = req.url;
       req._gatewayRoute = routeBase;
       
+      delete req.headers['if-none-match'];
+      delete req.headers['if-modified-since'];
+      
       if (routeBase === '/nas') {
         req.url = req.url;
       } else {
@@ -4019,7 +4031,9 @@ httpServer.on('request', async (req, res) => {
         selfHandleResponse: routeBase === '/nas',
         headers: {
           host: new URL(service.target).host,
-          'x-forwarded-prefix': routeBase
+          'x-forwarded-prefix': routeBase,
+          'cache-control': 'no-cache',
+          'pragma': 'no-cache'
         }
       };
 
