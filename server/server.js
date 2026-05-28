@@ -298,6 +298,39 @@ proxy.on('proxyRes', (proxyRes, req, res) => {
   serverLog(`[网关调试] contentType=${contentType}, isHtml=${isHtml}, isJs=${isJs}, isCss=${isCss}`);
 
   if (!isHtml && !isJs && !isCss) {
+    if (route === '/up') {
+      serverLog(`[网关调试] /up路由contentType为空，尝试HTML处理`);
+      if (proxyRes.statusCode >= 300 && proxyRes.statusCode < 400 && proxyRes.headers['location']) {
+        serverLog(`[网关调试] /up路由重定向响应: statusCode=${proxyRes.statusCode}, location=${proxyRes.headers['location']}`);
+        res._savedWriteHead(proxyRes.statusCode, proxyRes.headers);
+        res.end();
+        return;
+      }
+      let chunks = [];
+      proxyRes.on('data', (chunk) => chunks.push(chunk));
+      proxyRes.on('end', () => {
+        if (res.headersSent) return;
+        let body = Buffer.concat(chunks).toString('utf8');
+        if (body.trim().startsWith('<') || body.includes('<html') || body.includes('<body')) {
+          serverLog(`[网关调试] 检测到HTML内容，执行路径替换`);
+          body = body.replace(/(src|href|action)="\/([^"]+)"/g, `$1="${route}/$2"`);
+          body = body.replace(/(src|href|action)="\/"/g, `$1="${route}"`);
+          body = body.replace(/window\.location\.href\s*=\s*'\/([^']+)'/g, `window.location.href='${route}/$1'`);
+          body = body.replace(/window\.location\.href\s*=\s*"\/([^"]+)"/g, `window.location.href="${route}/$1"`);
+          body = body.replace(/window\.location\.pathname\s*=\s*'\/([^']+)'/g, `window.location.pathname='${route}/$1'`);
+          body = body.replace(/window\.location\.pathname\s*=\s*"\/([^"]+)"/g, `window.location.pathname="${route}/$1"`);
+          body = body.replace(/window\.location\s*=\s*'\/([^']+)'/g, `window.location='${route}/$1'`);
+          body = body.replace(/window\.location\s*=\s*"\/([^"]+)"/g, `window.location="${route}/$1"`);
+          res.setHeader('content-length', Buffer.byteLength(body));
+          res.end(body);
+        } else {
+          serverLog(`[网关调试] 非HTML内容，直接透传`);
+          res._savedWriteHead(proxyRes.statusCode, proxyRes.headers);
+          res.end(body);
+        }
+      });
+      return;
+    }
     serverLog(`[网关调试] 非HTML/JS/CSS，直接透传`);
     proxyRes.pipe(res);
     return;
