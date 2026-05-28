@@ -3960,7 +3960,7 @@ httpServer.on('request', async (req, res) => {
         followRedirects: true,
         ws: true,
         autoRewrite: true,
-        selfHandleResponse: true,
+        selfHandleResponse: routeBase === '/nas',
         headers: {
           host: new URL(service.target).host,
           'x-forwarded-prefix': routeBase
