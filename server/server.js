@@ -28,6 +28,7 @@ const sharp = require('sharp');
 const Tesseract = require('tesseract.js');
 const { spawn, execFile } = require('child_process');
 const { promisify } = require('util');
+const httpProxy = require('http-proxy');
 
 // 异步函数包装
 const fsWriteFile = promisify(fs.writeFile);
@@ -227,6 +228,50 @@ const {
   security: SEC_CFG,
   client: CLIENT_CFG
 } = config;
+
+// ========== 网关代理配置 ==========
+const GATEWAY_CONFIG_PATH = path.join(__dirname, 'gateway.json');
+let gatewayServices = [];
+
+function loadGatewayConfig() {
+  if (fs.existsSync(GATEWAY_CONFIG_PATH)) {
+    try {
+      const raw = fs.readFileSync(GATEWAY_CONFIG_PATH, 'utf8');
+      gatewayServices = JSON.parse(raw);
+      serverLog(`[网关] 已加载 ${gatewayServices.length} 个代理服务配置`);
+    } catch (e) {
+      serverError('[网关] 加载配置失败:', e.message);
+      gatewayServices = [];
+    }
+  } else {
+    gatewayServices = [];
+  }
+}
+
+function saveGatewayConfig() {
+  try {
+    fs.writeFileSync(GATEWAY_CONFIG_PATH, JSON.stringify(gatewayServices, null, 2), 'utf8');
+    serverLog('[网关] 配置已保存');
+  } catch (e) {
+    serverError('[网关] 保存配置失败:', e.message);
+  }
+}
+
+loadGatewayConfig();
+
+const proxy = httpProxy.createProxyServer({});
+proxy.on('error', (err, req, res) => {
+  serverError('[网关代理错误]', err.message);
+  if (res && !res.headersSent) {
+    res.writeHead(502, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('网关代理错误');
+  }
+});
+
+const gatewaySessions = new Set();
+function generateSessionId() {
+  return Date.now().toString(36) + Math.random().toString(36).substr(2);
+}
 
 // ========== 设备权限管理配置 ==========
 const PERMISSIONS_PATH = path.join(__dirname, 'permissions.json');
@@ -3871,6 +3916,138 @@ httpServer.on('request', async (req, res) => {
 
   const cleanPath = pathname.replace(/\/$/, '');
 
+  // ========== 网关代理路由 ==========
+  // 检查是否匹配网关代理服务
+  for (const service of gatewayServices) {
+    if (cleanPath === service.route || cleanPath.startsWith(service.route + '/')) {
+      const targetUrl = new URL(service.target);
+      const options = {
+        target: service.target,
+        changeOrigin: true,
+        headers: {
+          host: targetUrl.host
+        }
+      };
+      proxy.web(req, res, options);
+      return;
+    }
+  }
+
+  // 网关管理页面登录
+  if (cleanPath === '/_gateway/login' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', () => {
+      try {
+        const { username, password } = JSON.parse(body || '{}');
+        if (username === AUTH_CFG.username && password === AUTH_CFG.password) {
+          const sessionId = generateSessionId();
+          gatewaySessions.add(sessionId);
+          res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify({ success: true, sessionId }));
+        } else {
+          res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify({ success: false }));
+        }
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ success: false }));
+      }
+    });
+    return;
+  }
+
+  // 网关管理页面（需要验证）
+  if (cleanPath === '/_gateway' || cleanPath === '/_gateway/') {
+    const cookies = req.headers.cookie || '';
+    const sessionMatch = cookies.match(/gateway_session=([^;]+)/);
+    const sessionId = sessionMatch ? sessionMatch[1] : null;
+    
+    if (!sessionId || !gatewaySessions.has(sessionId)) {
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(getGatewayLoginPage());
+      return;
+    }
+    
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.end(getGatewayManagePage());
+    return;
+  }
+
+  // 网关API：获取配置
+  if (cleanPath === '/_gateway/config' && req.method === 'GET') {
+    const cookies = req.headers.cookie || '';
+    const sessionMatch = cookies.match(/gateway_session=([^;]+)/);
+    if (!sessionMatch || !gatewaySessions.has(sessionMatch[1])) {
+      res.writeHead(401, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ success: false, message: '未授权' }));
+      return;
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({ success: true, services: gatewayServices }));
+    return;
+  }
+
+  // 网关API：添加服务
+  if (cleanPath === '/_gateway/service' && req.method === 'POST') {
+    const cookies = req.headers.cookie || '';
+    const sessionMatch = cookies.match(/gateway_session=([^;]+)/);
+    if (!sessionMatch || !gatewaySessions.has(sessionMatch[1])) {
+      res.writeHead(401, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ success: false, message: '未授权' }));
+      return;
+    }
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', () => {
+      try {
+        const { route, target } = JSON.parse(body || '{}');
+        if (!route || !target) {
+          res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify({ success: false, message: '参数不完整' }));
+          return;
+        }
+        gatewayServices = gatewayServices.filter(s => s.route !== route);
+        gatewayServices.push({ route, target });
+        saveGatewayConfig();
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ success: true, services: gatewayServices }));
+      } catch (e) {
+        res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ success: false, message: e.message }));
+      }
+    });
+    return;
+  }
+
+  // 网关API：删除服务
+  if (cleanPath === '/_gateway/service' && req.method === 'DELETE') {
+    const cookies = req.headers.cookie || '';
+    const sessionMatch = cookies.match(/gateway_session=([^;]+)/);
+    if (!sessionMatch || !gatewaySessions.has(sessionMatch[1])) {
+      res.writeHead(401, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ success: false, message: '未授权' }));
+      return;
+    }
+    const route = urlObj.searchParams.get('route');
+    if (!route) {
+      res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ success: false, message: '缺少route参数' }));
+      return;
+    }
+    const beforeLen = gatewayServices.length;
+    gatewayServices = gatewayServices.filter(s => s.route !== route);
+    if (gatewayServices.length === beforeLen) {
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ success: false, message: '未找到该服务' }));
+      return;
+    }
+    saveGatewayConfig();
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({ success: true, services: gatewayServices }));
+    return;
+  }
+
   // 客户端升级文件下载（需在 /api/ JSON 路由之前处理）
   if (cleanPath.startsWith('/api/update/')) {
     const exeName = cleanPath.replace('/api/update/', '');
@@ -4695,12 +4872,217 @@ function restartMuService() {
   }, MU_SERVICE_RESTART_DELAY);
 }
 
+function getGatewayLoginPage() {
+  return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>网关管理 - 登录</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+    .login-box { background: rgba(255,255,255,0.1); backdrop-filter: blur(10px); border-radius: 16px; padding: 40px; width: 360px; box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
+    h1 { color: #fff; text-align: center; margin-bottom: 30px; font-size: 24px; }
+    .form-group { margin-bottom: 20px; }
+    label { display: block; color: #aaa; margin-bottom: 8px; font-size: 14px; }
+    input { width: 100%; padding: 12px 16px; border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; background: rgba(255,255,255,0.1); color: #fff; font-size: 16px; outline: none; transition: border-color 0.3s; }
+    input:focus { border-color: #4a9eff; }
+    input::placeholder { color: rgba(255,255,255,0.4); }
+    button { width: 100%; padding: 14px; background: linear-gradient(135deg, #4a9eff 0%, #3a7bd5 100%); border: none; border-radius: 8px; color: #fff; font-size: 16px; font-weight: 600; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; }
+    button:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(74,158,255,0.4); }
+    button:active { transform: translateY(0); }
+    .error { color: #ff6b6b; text-align: center; margin-top: 16px; font-size: 14px; display: none; }
+  </style>
+</head>
+<body>
+  <div class="login-box">
+    <h1>🔐 网关管理登录</h1>
+    <div class="form-group">
+      <label>用户名</label>
+      <input type="text" id="username" placeholder="请输入用户名" autocomplete="username">
+    </div>
+    <div class="form-group">
+      <label>密码</label>
+      <input type="password" id="password" placeholder="请输入密码" autocomplete="current-password">
+    </div>
+    <button onclick="login()">登 录</button>
+    <div class="error" id="error">用户名或密码错误</div>
+  </div>
+  <script>
+    document.getElementById('password').addEventListener('keypress', e => { if (e.key === 'Enter') login(); });
+    async function login() {
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value;
+      if (!username || !password) return;
+      try {
+        const res = await fetch('/_gateway/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+        const data = await res.json();
+        if (data.success) {
+          document.cookie = 'gateway_session=' + data.sessionId + '; path=/; max-age=86400';
+          location.reload();
+        } else {
+          document.getElementById('error').style.display = 'block';
+        }
+      } catch (e) {
+        document.getElementById('error').textContent = '网络错误';
+        document.getElementById('error').style.display = 'block';
+      }
+    }
+  </script>
+</body>
+</html>`;
+}
+
+function getGatewayManagePage() {
+  return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>网关管理</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); min-height: 100vh; color: #fff; padding: 40px; }
+    .container { max-width: 900px; margin: 0 auto; }
+    h1 { font-size: 28px; margin-bottom: 30px; display: flex; align-items: center; gap: 12px; }
+    .card { background: rgba(255,255,255,0.08); backdrop-filter: blur(10px); border-radius: 12px; padding: 24px; margin-bottom: 24px; }
+    .card h2 { font-size: 18px; margin-bottom: 20px; color: #4a9eff; }
+    .form-row { display: flex; gap: 16px; margin-bottom: 16px; }
+    .form-group { flex: 1; }
+    label { display: block; color: #aaa; margin-bottom: 8px; font-size: 14px; }
+    input { width: 100%; padding: 10px 14px; border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; background: rgba(255,255,255,0.1); color: #fff; font-size: 14px; outline: none; }
+    input:focus { border-color: #4a9eff; }
+    input::placeholder { color: rgba(255,255,255,0.4); }
+    button { padding: 10px 20px; border: none; border-radius: 6px; font-size: 14px; cursor: pointer; transition: all 0.2s; }
+    .btn-primary { background: linear-gradient(135deg, #4a9eff 0%, #3a7bd5 100%); color: #fff; }
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(74,158,255,0.3); }
+    .btn-danger { background: linear-gradient(135deg, #ff6b6b 0%, #ee5a5a 100%); color: #fff; }
+    .btn-danger:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(255,107,107,0.3); }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.1); }
+    th { color: #aaa; font-weight: 500; font-size: 13px; }
+    td { font-size: 14px; }
+    .empty { text-align: center; color: #666; padding: 40px; }
+    .actions { display: flex; gap: 8px; }
+    .tip { background: rgba(74,158,255,0.1); border: 1px solid rgba(74,158,255,0.3); border-radius: 8px; padding: 16px; margin-bottom: 24px; font-size: 14px; line-height: 1.6; }
+    .tip code { background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px; font-family: monospace; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🌐 网关管理</h1>
+    <div class="tip">
+      <strong>使用说明：</strong><br>
+      • 路由路径：访问服务的URL路径，如 <code>/nas</code><br>
+      • 目标地址：服务的完整地址，如 <code>http://127.0.0.1:5244</code><br>
+      • 保存后立即生效，无需重启服务
+    </div>
+    <div class="card">
+      <h2>添加代理服务</h2>
+      <div class="form-row">
+        <div class="form-group">
+          <label>路由路径</label>
+          <input type="text" id="route" placeholder="/nas">
+        </div>
+        <div class="form-group">
+          <label>目标地址</label>
+          <input type="text" id="target" placeholder="http://127.0.0.1:5244">
+        </div>
+        <div class="form-group" style="flex: 0 0 100px; display: flex; align-items: flex-end;">
+          <button class="btn-primary" onclick="addService()">添加</button>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>已配置的服务</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>路由路径</th>
+            <th>目标地址</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="serviceList"></tbody>
+      </table>
+      <div class="empty" id="empty" style="display:none;">暂无配置的服务</div>
+    </div>
+  </div>
+  <script>
+    async function loadServices() {
+      const res = await fetch('/_gateway/config');
+      const data = await res.json();
+      const tbody = document.getElementById('serviceList');
+      const empty = document.getElementById('empty');
+      if (!data.success || !data.services || data.services.length === 0) {
+        tbody.innerHTML = '';
+        empty.style.display = 'block';
+        return;
+      }
+      empty.style.display = 'none';
+      tbody.innerHTML = data.services.map(s => \`
+        <tr>
+          <td><code>\${s.route}</code></td>
+          <td>\${s.target}</td>
+          <td class="actions">
+            <button class="btn-danger" onclick="deleteService('\${s.route}')">删除</button>
+          </td>
+        </tr>
+      \`).join('');
+    }
+    async function addService() {
+      const route = document.getElementById('route').value.trim();
+      const target = document.getElementById('target').value.trim();
+      if (!route || !target) return alert('请填写完整信息');
+      if (!route.startsWith('/')) return alert('路由路径必须以 / 开头');
+      try {
+        const res = await fetch('/_gateway/service', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ route, target })
+        });
+        const data = await res.json();
+        if (data.success) {
+          document.getElementById('route').value = '';
+          document.getElementById('target').value = '';
+          loadServices();
+        } else {
+          alert(data.message || '添加失败');
+        }
+      } catch (e) {
+        alert('网络错误');
+      }
+    }
+    async function deleteService(route) {
+      if (!confirm('确定删除该服务？')) return;
+      try {
+        const res = await fetch('/_gateway/service?route=' + encodeURIComponent(route), { method: 'DELETE' });
+        const data = await res.json();
+        if (data.success) {
+          loadServices();
+        } else {
+          alert(data.message || '删除失败');
+        }
+      } catch (e) {
+        alert('网络错误');
+      }
+    }
+    loadServices();
+  </script>
+</body>
+</html>`;
+}
+
 httpServer.listen(PORT, HOST, () => {
   serverLog(`  🖥️  屏幕墙服务端 v${SERVER_CONFIG.serverVersion || '未知'} 已启动`);
   serverLog(`   本地访问:     http://localhost:${PORT}`);
   serverLog(`   WebSocket端口: ${PORT}\n`);
   
-  // 确保服务器完全初始化后再启动 MU 服务
   setTimeout(async () => {
     await startMuService();
   }, 500);
