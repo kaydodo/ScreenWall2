@@ -267,6 +267,26 @@ proxy.on('error', (err, req, res) => {
     res.end('网关代理错误');
   }
 });
+proxy.on('proxyRes', (proxyRes, req, res) => {
+  const contentType = proxyRes.headers['content-type'] || '';
+  if (contentType.includes('text/html')) {
+    let chunks = [];
+    proxyRes.on('data', (chunk) => chunks.push(chunk));
+    proxyRes.on('end', () => {
+      let body = Buffer.concat(chunks).toString('utf8');
+      const route = req._gatewayRoute;
+      if (route) {
+        body = body.replace(/(href|src|action)=["']\/([^"']+)["']/gi, `$1="${route}/$2"`);
+        body = body.replace(/url\(["']\/([^"']+)["']\)/gi, `url("${route}/$1")`);
+        body = body.replace(/url\(\/([^)]+)\)/gi, `url(${route}/$1)`);
+      }
+      res.setHeader('content-length', Buffer.byteLength(body));
+      res.end(body);
+    });
+  } else {
+    proxyRes.pipe(res);
+  }
+});
 
 const gatewaySessions = new Set();
 function generateSessionId() {
@@ -3921,13 +3941,15 @@ httpServer.on('request', async (req, res) => {
   for (const service of gatewayServices) {
     if (cleanPath === service.route || cleanPath.startsWith(service.route + '/')) {
       const targetUrl = new URL(service.target);
-      const originalPath = req.url;
       const newPath = cleanPath.slice(service.route.length) || '/';
-      req.url = newPath;
+      const queryString = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+      req.url = newPath + queryString;
+      req._gatewayRoute = service.route;
       
       const options = {
         target: service.target,
         changeOrigin: true,
+        followRedirects: true,
         headers: {
           host: targetUrl.host
         }
