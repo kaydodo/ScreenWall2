@@ -93,6 +93,114 @@ ScreenWall2 是一套多设备屏幕监控与远控系统，支持同时监控�
 - 扫码登录米家账户获取设备列表
 - 配置后即可在服务端调用米家API
 
+### 11. 网关反向代理（v1.11.4 新增）
+- 集成 http-proxy 库实现反向代理
+- 支持多服务路由配置（gateway.json）
+- 网关管理页面（密码验证）
+- 配置热重载（无需重启）
+- 已实现路由：
+  - `/nas` → Alist 服务（5244端口）✅ 正常运行
+  - `/up` → 上传服务（3030端口）⚠️ 登录跳转未完成
+
+---
+
+## 网关功能详解（v1.11.4）
+
+### 功能概述
+
+在主 server.js 中集成网关功能，支持反向代理多个服务：
+- 主服务保持3000端口
+- 外网通过54321端口访问（路由器映射）
+- 网关管理页面需要密码验证，支持热重载
+
+### 技术实现
+
+#### 核心技术点
+
+| 技术点 | 说明 |
+|--------|------|
+| http-proxy | Node.js 反向代理库 |
+| selfHandleResponse | 控制响应处理方式 |
+| Location header 重写 | 处理重定向路径 |
+| HTML/JS 内容替换 | 正则表达式替换路径 |
+| 禁用缓存 | 移除 if-none-match 等 headers |
+
+#### NAS 路由（已完成）
+
+**配置**：`/nas` → `http://127.0.0.1:5244`
+
+**实现方式**：简单透传模式
+- 不剥离 `/nas` 前缀
+- 不做路径替换
+- 直接透传请求和响应
+
+**关键技术**：
+```javascript
+// 路由匹配时不剥离前缀
+if (routeBase === '/nas') {
+  req.url = req.url;  // 保持原路径
+}
+
+// proxyRes 处理时直接透传
+if (req._gatewayRoute === '/nas') {
+  res._savedWriteHead(proxyRes.statusCode, proxyRes.headers);
+  proxyRes.pipe(res);
+  return;
+}
+```
+
+**Alist 配置要求**：
+- 在 Alist 设置中配置 `site_url` 为 `http://外网地址:54321/nas`
+- 这样 Alist 生成的链接会自动带 `/nas` 前缀
+
+#### UP 路由（未完成）
+
+**配置**：`/up` → `http://127.0.0.1:3030`
+
+**当前问题**：登录后跳转到 `/login` 而不是 `/up/login`
+
+**已尝试的方案**：
+1. ✅ 禁用缓存（移除 if-none-match、if-modified-since headers）
+2. ✅ upload.js 所有路径改为相对路径
+3. ✅ Location header 重写
+4. ✅ HTML/JS 内容路径替换
+5. ⚠️ JSON 响应路径替换（已添加但未验证）
+
+**待验证**：
+- 重启 upload.js 服务（3030端口）
+- 清除浏览器缓存
+- 测试登录跳转
+
+**下一步方向**：
+1. 验证当前方案是否生效
+2. 如果仍不生效，检查目标服务的登录实现方式
+3. 可能需要分析目标服务的前端代码，找出跳转逻辑
+
+### 配置文件
+
+**gateway.json**（动态生成，不提交Git）：
+```json
+[
+  { "route": "/up", "target": "http://127.0.0.1:3030" },
+  { "route": "/nas", "target": "http://127.0.0.1:5244" }
+]
+```
+
+### 网关管理页面
+
+- 访问路径：`/gateway-admin`
+- 需要密码验证（与主服务密码相同）
+- 功能：添加/删除/修改路由配置
+- 支持热重载（修改后立即生效）
+
+### 相关文件
+
+| 文件 | 说明 |
+|------|------|
+| server/server.js | 网关代理逻辑（proxyRes 处理、路由匹配） |
+| server/gateway.json | 路由配置文件（动态生成） |
+| server/upload.js | 上传服务（已改为相对路径） |
+
 ---
 
 ## 目录结构
@@ -954,6 +1062,14 @@ if (id === 'MUMU-service') {
 | | | | 键值完全匹配keyclient.py的VK_CODES表：ENTER、CAPITAL、PAGEUP、PAGEDOWN、SCROLL、NUMPAD0-9等 |
 | | | | 取消PrintScreen、Win键、Fn键的映射（真实键盘上读不到键值） |
 | | | | 修复Enter键返回R、Win键返回L、CapsLock返回C等问题 |
+| **v1.11.4** | 2026-05-29 | - | 网关反向代理功能： |
+| | | | 集成 http-proxy 库实现多服务反向代理 |
+| | | | NAS 路由完成：简单透传模式，正常运行 |
+| | | | UP 路由进行中：登录跳转问题待解决 |
+| | | | 禁用缓存机制：移除 if-none-match/if-modified-since headers |
+| | | | upload.js 改为相对路径：login/logout/files/upload |
+| | | | 上传页面安全优化：移除删除功能，只显示文件状态和修改时间 |
+| | | | 报警面板修复：清除报警后立即刷新面板（添加 alarmsCleared 消息处理） |
 
 ---
 
