@@ -3978,7 +3978,7 @@ httpServer.on('request', async (req, res) => {
 
   const cleanPath = pathname.replace(/\/$/, '');
 
-  const NAS_SUB_PATHS = ['/streamer', '/d'];
+  const NAS_SUB_PATHS = ['/streamer'];
   const nasTarget = gatewayServices.find(s => s.route === '/nas')?.target || 'http://127.0.0.1:5244';
   for (const subPath of NAS_SUB_PATHS) {
     if (cleanPath === subPath || cleanPath.startsWith(subPath + '/')) {
