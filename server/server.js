@@ -3921,6 +3921,10 @@ httpServer.on('request', async (req, res) => {
   for (const service of gatewayServices) {
     if (cleanPath === service.route || cleanPath.startsWith(service.route + '/')) {
       const targetUrl = new URL(service.target);
+      const originalPath = req.url;
+      const newPath = cleanPath.slice(service.route.length) || '/';
+      req.url = newPath;
+      
       const options = {
         target: service.target,
         changeOrigin: true,
