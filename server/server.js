@@ -295,8 +295,10 @@ proxy.on('proxyRes', (proxyRes, req, res) => {
   const isHtml = contentType.includes('text/html');
   const isJs = contentType.includes('javascript');
   const isCss = contentType.includes('text/css');
+  serverLog(`[网关调试] contentType=${contentType}, isHtml=${isHtml}, isJs=${isJs}, isCss=${isCss}`);
 
   if (!isHtml && !isJs && !isCss) {
+    serverLog(`[网关调试] 非HTML/JS/CSS，直接透传`);
     proxyRes.pipe(res);
     return;
   }
@@ -308,12 +310,14 @@ proxy.on('proxyRes', (proxyRes, req, res) => {
     let body = Buffer.concat(chunks).toString('utf8');
     
     if (route && route !== '/nas') {
+      serverLog(`[网关调试] 路径替换: route=${route}, 原始内容长度=${body.length}`);
       body = body.replace(/(src|href)="\/([^"]+)"/g, `$1="${route}/$2"`);
       body = body.replace(/(src|href)="\/"/g, `$1="${route}"`);
       body = body.replace(/window\.location\.href\s*=\s*'\/([^']+)'/g, `window.location.href='${route}/$1'`);
       body = body.replace(/window\.location\.href\s*=\s*"\/([^"]+)"/g, `window.location.href="${route}/$1"`);
       body = body.replace(/window\.location\.pathname\s*=\s*'\/([^']+)'/g, `window.location.pathname='${route}/$1'`);
       body = body.replace(/window\.location\.pathname\s*=\s*"\/([^"]+)"/g, `window.location.pathname="${route}/$1"`);
+      serverLog(`[网关调试] 路径替换完成: 新内容长度=${body.length}`);
     }
     
     res.setHeader('content-length', Buffer.byteLength(body));
