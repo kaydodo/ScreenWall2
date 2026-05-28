@@ -294,11 +294,6 @@ proxy.on('proxyRes', (proxyRes, req, res) => {
   proxyRes.on('end', () => {
     if (res.headersSent) return;
     let body = Buffer.concat(chunks).toString('utf8');
-
-    if (route) {
-      body = body.replace(/(["'`])\/(?!\/|http|https|data:|#)/g, `$1${route}/`);
-    }
-
     res.setHeader('content-length', Buffer.byteLength(body));
     res.end(body);
   });
