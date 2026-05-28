@@ -3978,7 +3978,27 @@ httpServer.on('request', async (req, res) => {
 
   const cleanPath = pathname.replace(/\/$/, '');
 
-  // ========== 网关代理路由（优先处理，跳过安全头） ==========
+  const NAS_SUB_PATHS = ['/streamer', '/d'];
+  const nasTarget = gatewayServices.find(s => s.route === '/nas')?.target || 'http://127.0.0.1:5244';
+  for (const subPath of NAS_SUB_PATHS) {
+    if (cleanPath === subPath || cleanPath.startsWith(subPath + '/')) {
+      req._originalUrl = req.url;
+      req._gatewayRoute = '/nas';
+      req._nasSubPath = subPath;
+      serverLog(`[网关] NAS子路径匹配: ${subPath} -> ${nasTarget}, 原始URL=${req._originalUrl}`);
+      const _origWriteHead = res.writeHead.bind(res);
+      res._savedWriteHead = _origWriteHead;
+      res.writeHead = function(statusCode, headers) { return res; };
+      proxy.web(req, res, {
+        target: nasTarget,
+        changeOrigin: true,
+        selfHandleResponse: true,
+        headers: { host: new URL(nasTarget).host }
+      });
+      return;
+    }
+  }
+
   serverLog(`[网关调试] 路由匹配: cleanPath=${cleanPath}, gatewayServices数量=${gatewayServices.length}`);
   for (const service of gatewayServices) {
     const routeBase = service.route;
