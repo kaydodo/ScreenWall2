@@ -1332,6 +1332,12 @@ function connectWS() {
       }
     }
 
+    if (msg.type === 'alarmsCleared') {
+      // 服务端清除所有报警，同步清空本地记录并刷新面板
+      alarmRecords = [];
+      renderAlarmPanel();
+    }
+
     if (msg.type === 'tasksUpdate') {
       tasks = msg.tasks || [];
       renderAllTaskBadges();
