@@ -594,7 +594,8 @@ app.post('/login', express.urlencoded({ extended: true }), async (req, res) => {
         sessions.set(sessionId, { username, time: Date.now() });
         res.setHeader('Set-Cookie', `upload_session=${sessionId}; Path=/; HttpOnly; Max-Age=86400`);
         const prefix = req.headers['x-forwarded-prefix'] || '';
-        res.redirect(prefix + '/');
+        const redirectUrl = prefix === '' ? '/' : prefix;
+        res.redirect(redirectUrl);
     } else {
         res.send(getLoginPage('用户名或密码错误'));
     }

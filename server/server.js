@@ -295,7 +295,7 @@ proxy.on('proxyRes', (proxyRes, req, res) => {
     let body = Buffer.concat(chunks).toString('utf8');
 
     if (route) {
-      body = body.replace(/(["'`])\/(?!\/|http|https|data:|#)([^"'`]*?)/g, `$1${route}/$2`);
+      body = body.replace(/(["'`])\/(?!\/|http|https|data:|#)/g, `$1${route}/`);
     }
 
     res.setHeader('content-length', Buffer.byteLength(body));
@@ -3874,26 +3874,12 @@ httpServer.on('upgrade', (req, socket, head) => {
     pathname = req.url.split('?')[0].replace(/\/$/, '');
   }
 
-  if (pathname === '/ws/client') {
-    wssClient.handleUpgrade(req, socket, head, (ws) => {
-      wssClient.emit('connection', ws, req);
-    });
-    return;
-  }
-  if (pathname === '/ws/browser') {
-    wssBrowser.handleUpgrade(req, socket, head, (ws) => {
-      wssBrowser.emit('connection', ws, req);
-    });
-    return;
-  }
-
   for (const service of gatewayServices) {
     const routeBase = service.route;
     if (pathname === routeBase || pathname.startsWith(routeBase + '/')) {
       const targetUrl = new URL(service.target);
       const newPath = pathname.slice(routeBase.length) || '/';
       req.url = newPath;
-      req._gatewayRoute = routeBase;
       
       const options = {
         target: service.target,
@@ -3907,6 +3893,19 @@ httpServer.on('upgrade', (req, socket, head) => {
       proxy.ws(req, socket, head, options);
       return;
     }
+  }
+
+  if (pathname === '/ws/client') {
+    wssClient.handleUpgrade(req, socket, head, (ws) => {
+      wssClient.emit('connection', ws, req);
+    });
+    return;
+  }
+  if (pathname === '/ws/browser') {
+    wssBrowser.handleUpgrade(req, socket, head, (ws) => {
+      wssBrowser.emit('connection', ws, req);
+    });
+    return;
   }
 
   socket.destroy();
