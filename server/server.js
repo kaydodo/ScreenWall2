@@ -299,7 +299,7 @@ proxy.on('proxyRes', (proxyRes, req, res) => {
 
   if (!isHtml && !isJs && !isCss) {
     if (route === '/up') {
-      serverLog(`[网关调试] /up路由contentType为空，尝试HTML处理`);
+      serverLog(`[网关调试] /up路由contentType为空，statusCode=${proxyRes.statusCode}, headers=${JSON.stringify(proxyRes.headers)}`);
       if (proxyRes.statusCode >= 300 && proxyRes.statusCode < 400 && proxyRes.headers['location']) {
         serverLog(`[网关调试] /up路由重定向响应: statusCode=${proxyRes.statusCode}, location=${proxyRes.headers['location']}`);
         res._savedWriteHead(proxyRes.statusCode, proxyRes.headers);
@@ -311,6 +311,7 @@ proxy.on('proxyRes', (proxyRes, req, res) => {
       proxyRes.on('end', () => {
         if (res.headersSent) return;
         let body = Buffer.concat(chunks).toString('utf8');
+        serverLog(`[网关调试] /up路由响应体长度=${body.length}, 前100字符: ${body.substring(0, 100)}`);
         if (body.trim().startsWith('<') || body.includes('<html') || body.includes('<body')) {
           serverLog(`[网关调试] 检测到HTML内容，执行路径替换`);
           body = body.replace(/(src|href|action)="\/([^"]+)"/g, `$1="${route}/$2"`);
