@@ -357,6 +357,7 @@ proxy.on('proxyRes', (proxyRes, req, res) => {
   proxyRes.on('end', () => {
     if (res.headersSent) return;
     let body = Buffer.concat(chunks).toString('utf8');
+    serverLog(`[网关调试] HTML处理: route=${route}, 内容长度=${body.length}, 前50字符: ${body.substring(0, 50)}`);
     
     if (route && route !== '/nas') {
       serverLog(`[网关调试] 路径替换: route=${route}, 原始内容长度=${body.length}`);
