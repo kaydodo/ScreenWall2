@@ -269,12 +269,13 @@ proxy.on('error', (err, req, res) => {
   }
 });
 proxy.on('proxyRes', (proxyRes, req, res) => {
-  serverLog(`[网关调试] proxyRes: _gatewayRoute=${req._gatewayRoute}, _originalUrl=${req._originalUrl}, url=${req.url}`);
+  serverLog(`[网关调试] proxyRes: _gatewayRoute=${req._gatewayRoute}, _originalUrl=${req._originalUrl}, url=${req.url}, headersSent=${res.headersSent}`);
+  
   if (req._gatewayRoute === '/nas' || (req._originalUrl && req._originalUrl.startsWith('/nas'))) {
     const contentType = proxyRes.headers['content-type'] || '';
     const isHtml = contentType.includes('text/html');
     
-    if (isHtml) {
+    if (isHtml && res._savedWriteHead) {
       let chunks = [];
       proxyRes.on('data', (chunk) => chunks.push(chunk));
       proxyRes.on('end', () => {
@@ -283,12 +284,14 @@ proxy.on('proxyRes', (proxyRes, req, res) => {
         body = body.replace(/(src|href)="\/api\//g, '$1="/nas/api/');
         const headers = { ...proxyRes.headers };
         headers['content-length'] = Buffer.byteLength(body);
-        res.writeHead(proxyRes.statusCode, headers);
+        res._savedWriteHead(proxyRes.statusCode, headers);
         res.end(body);
       });
     } else {
-      serverLog(`[网关] NAS透传非HTML: ${req._originalUrl || req.url}`);
-      res.writeHead(proxyRes.statusCode, proxyRes.headers);
+      serverLog(`[网关] NAS透传非HTML: ${req._originalUrl || req.url}, contentType=${contentType}`);
+      if (!res.headersSent && res._savedWriteHead) {
+        res._savedWriteHead(proxyRes.statusCode, proxyRes.headers);
+      }
       proxyRes.pipe(res);
     }
     return;
@@ -3951,6 +3954,16 @@ httpServer.on('request', async (req, res) => {
       req._originalUrl = req.url;
       req.url = req.url.replace(routeBase, '') || '/';
       req._gatewayRoute = routeBase;
+      
+      const _origWriteHead = res.writeHead.bind(res);
+      res._savedWriteHead = _origWriteHead;
+      res.writeHead = function(statusCode, headers) {
+        if (req._gatewayRoute === '/nas') {
+          return res;
+        }
+        return _origWriteHead(statusCode, headers);
+      };
+      
       serverLog(`[网关] 匹配成功: ${routeBase} -> ${service.target}, 原始URL=${req._originalUrl}, 新URL=${req.url}`);
 
       const options = {
