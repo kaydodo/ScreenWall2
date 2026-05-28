@@ -270,48 +270,42 @@ proxy.on('error', (err, req, res) => {
 proxy.on('proxyRes', (proxyRes, req, res) => {
   if (res.headersSent) return;
   const route = req._gatewayRoute;
+
   if (route && proxyRes.headers['location']) {
     let location = proxyRes.headers['location'];
-    if (location.startsWith('/')) {
+    if (location.startsWith('/') && !location.startsWith('//')) {
       proxyRes.headers['location'] = route + location;
     }
   }
+
   const contentType = proxyRes.headers['content-type'] || '';
   const isHtml = contentType.includes('text/html');
   const isJs = contentType.includes('javascript');
   const isCss = contentType.includes('text/css');
-  
-  if (isHtml || isJs || isCss) {
-    let chunks = [];
-    proxyRes.on('data', (chunk) => chunks.push(chunk));
-    proxyRes.on('end', () => {
-      if (res.headersSent) return;
-      let body = Buffer.concat(chunks).toString('utf8');
-      if (route) {
-        body = body.replace(/(href|src|action)=["']\/([^"']+)["']/gi, (match, attr, path) => {
-          if (path.startsWith('http') || path.startsWith('//') || path.startsWith('data:') || path.startsWith('#')) {
-            return match;
-          }
-          return `${attr}="${route}/${path}"`;
-        });
-        body = body.replace(/url\(["']?\/([^"')]+)["']?\)/gi, `url("${route}/$1")`);
-        body = body.replace(/(fetch|axios\.get|axios\.post|axios\.put|axios\.delete)\(["']\/([^"']+)["']/gi, `$1("${route}/$2"`);
-        body = body.replace(/\.ajax\(\s*\{\s*url\s*:\s*["']\/([^"']+)["']/gi, `.ajax({ url: "${route}/$1"`);
-        body = body.replace(/\.location\s*=\s*["']\/([^"']+)["']/gi, `.location="${route}/$1"`);
-        body = body.replace(/\.location\.href\s*=\s*["']\/([^"']+)["']/gi, `.location.href="${route}/$1"`);
-        body = body.replace(/\.location\.pathname\s*=\s*["']\/([^"']+)["']/gi, `.location.pathname="${route}/$1"`);
-        body = body.replace(/\.push\(["']\/([^"']+)["']\)/gi, `.push("${route}/$1")`);
-        body = body.replace(/\.replace\(["']\/([^"']+)["']\)/gi, `.replace("${route}/$1")`);
-        body = body.replace(/["']\/api\/([^"']+)["']/gi, `"${route}/api/$1"`);
-        body = body.replace(/["']\/static\/([^"']+)["']/gi, `"${route}/static/$1"`);
-        body = body.replace(/["']\/assets\/([^"']+)["']/gi, `"${route}/assets/$1"`);
-      }
-      res.setHeader('content-length', Buffer.byteLength(body));
-      res.end(body);
-    });
-  } else {
+
+  if (!isHtml && !isJs && !isCss) {
     proxyRes.pipe(res);
+    return;
   }
+
+  let chunks = [];
+  proxyRes.on('data', (chunk) => chunks.push(chunk));
+  proxyRes.on('end', () => {
+    if (res.headersSent) return;
+    let body = Buffer.concat(chunks).toString('utf8');
+
+    if (route) {
+      body = body.replace(/(["'`])\/(?!\/|https?:|data:|#)([^"'`]*?)/g, `$1${route}/$2`);
+      body = body.replace(/window\.location\s*=\s*["']\/([^"']+)["']/g, `window.location="${route}/$1"`);
+      body = body.replace(/location\.href\s*=\s*["']\/([^"']+)["']/g, `location.href="${route}/$1"`);
+      body = body.replace(/location\.pathname\s*=\s*["']\/([^"']+)["']/g, `location.pathname="${route}/$1"`);
+      body = body.replace(/(fetch|axios|\.get|\.post|\.put|\.delete)\(["']\/([^"']+)["']/g, `$1("${route}/$2"`);
+      body = body.replace(/url\s*:\s*["']\/([^"']+)["']/g, `url:"${route}/$1"`);
+    }
+
+    res.setHeader('content-length', Buffer.byteLength(body));
+    res.end(body);
+  });
 });
 
 const gatewaySessions = new Set();
