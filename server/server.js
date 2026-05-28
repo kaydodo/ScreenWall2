@@ -12,6 +12,7 @@ process.stderr.write = function(chunk, encoding, callback) {
 };
 
 const http = require('http');
+const url = require('url');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -3865,19 +3866,11 @@ wssBrowser.on('connection', (ws, req) => {
 const httpServer = http.createServer();
 
 httpServer.on('upgrade', (req, socket, head) => {
-  let pathname = '/';
-  try {
-    const host = req.headers.host || 'localhost';
-    const urlObj = new URL(req.url, `http://${host}`);
-    pathname = urlObj.pathname.replace(/\/$/, '');
-  } catch (e) {
-    pathname = req.url.split('?')[0].replace(/\/$/, '');
-  }
+  const pathname = url.parse(req.url).pathname;
 
   for (const service of gatewayServices) {
     const routeBase = service.route;
     if (pathname === routeBase || pathname.startsWith(routeBase + '/')) {
-      const targetUrl = new URL(service.target);
       const newPath = pathname.slice(routeBase.length) || '/';
       req.url = newPath;
       
@@ -3886,7 +3879,7 @@ httpServer.on('upgrade', (req, socket, head) => {
         changeOrigin: true,
         ws: true,
         headers: {
-          host: targetUrl.host,
+          host: new URL(service.target).host,
           'x-forwarded-prefix': routeBase
         }
       };
