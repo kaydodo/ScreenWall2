@@ -272,9 +272,29 @@ proxy.on('proxyRes', (proxyRes, req, res) => {
   serverLog(`[网关调试] proxyRes: _gatewayRoute=${req._gatewayRoute}, _originalUrl=${req._originalUrl}, url=${req.url}, headersSent=${res.headersSent}, _savedWriteHead=${res._savedWriteHead ? 'exists' : 'missing'}`);
   
   if (req._gatewayRoute === '/nas' || (req._originalUrl && req._originalUrl.startsWith('/nas'))) {
-    serverLog(`[网关] NAS透传: ${req._originalUrl || req.url}`);
-    res._savedWriteHead(proxyRes.statusCode, proxyRes.headers);
-    proxyRes.pipe(res);
+    const contentType = proxyRes.headers['content-type'] || '';
+    const isHtml = contentType.includes('text/html');
+    serverLog(`[网关调试] NAS处理: contentType=${contentType}, isHtml=${isHtml}`);
+    
+    if (isHtml) {
+      serverLog(`[网关] NAS HTML路径替换开始`);
+      let chunks = [];
+      proxyRes.on('data', (chunk) => chunks.push(chunk));
+      proxyRes.on('end', () => {
+        let body = Buffer.concat(chunks).toString('utf8');
+        body = body.replace(/(src|href|action)="\/([^"]+)"/g, '$1="/nas/$2"');
+        body = body.replace(/(src|href|action)="\/"/g, '$1="/nas"');
+        const headers = { ...proxyRes.headers };
+        headers['content-length'] = Buffer.byteLength(body);
+        res._savedWriteHead(proxyRes.statusCode, headers);
+        res.end(body);
+        serverLog(`[网关] NAS HTML路径替换完成`);
+      });
+    } else {
+      serverLog(`[网关] NAS透传非HTML: ${req._originalUrl || req.url}`);
+      res._savedWriteHead(proxyRes.statusCode, proxyRes.headers);
+      proxyRes.pipe(res);
+    }
     return;
   }
   if (res.headersSent) return;
@@ -311,12 +331,15 @@ proxy.on('proxyRes', (proxyRes, req, res) => {
     
     if (route && route !== '/nas') {
       serverLog(`[网关调试] 路径替换: route=${route}, 原始内容长度=${body.length}`);
-      body = body.replace(/(src|href)="\/([^"]+)"/g, `$1="${route}/$2"`);
-      body = body.replace(/(src|href)="\/"/g, `$1="${route}"`);
+      body = body.replace(/(src|href|action)="\/([^"]+)"/g, `$1="${route}/$2"`);
+      body = body.replace(/(src|href|action)="\/"/g, `$1="${route}"`);
       body = body.replace(/window\.location\.href\s*=\s*'\/([^']+)'/g, `window.location.href='${route}/$1'`);
       body = body.replace(/window\.location\.href\s*=\s*"\/([^"]+)"/g, `window.location.href="${route}/$1"`);
       body = body.replace(/window\.location\.pathname\s*=\s*'\/([^']+)'/g, `window.location.pathname='${route}/$1'`);
       body = body.replace(/window\.location\.pathname\s*=\s*"\/([^"]+)"/g, `window.location.pathname="${route}/$1"`);
+      body = body.replace(/window\.location\s*=\s*'\/([^']+)'/g, `window.location='${route}/$1'`);
+      body = body.replace(/window\.location\s*=\s*"\/([^"]+)"/g, `window.location="${route}/$1"`);
+      body = body.replace(/<meta[^>]*http-equiv="refresh"[^>]*content="[^"]*url=\/([^"]+)"[^>]*>/gi, (match, path) => match.replace(`url=/${path}`, `url=${route}/${path}`));
       serverLog(`[网关调试] 路径替换完成: 新内容长度=${body.length}`);
     }
     
