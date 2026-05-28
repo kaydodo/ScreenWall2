@@ -5008,7 +5008,7 @@ function getGatewayManagePage() {
     <h1>🌐 网关管理</h1>
     <div class="tip">
       <strong>使用说明：</strong><br>
-      • 路由路径：访问服务的URL路径，如 <code>/nas</code><br>
+      • 路由路径：访问服务的URL路径，如 <code>/nas/*</code>（支持通配符匹配子路径）<br>
       • 目标地址：服务的完整地址，如 <code>http://127.0.0.1:5244</code><br>
       • 保存后立即生效，无需重启服务
     </div>

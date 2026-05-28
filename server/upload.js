@@ -42,41 +42,56 @@ function getLoginPage(error = '') {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>文件上传服务 - 登录</title>
     <style>
+        :root {
+            --bg-page: #f0f2f8;
+            --bg-card: #ffffff;
+            --border: #dce3f5;
+            --text-primary: #1a2332;
+            --text-secondary: #4a5568;
+            --text-muted: #8896b0;
+            --accent: #4f7ef7;
+            --accent-dark: #3b62d8;
+            --accent-light: #eef2ff;
+            --shadow-md: 0 4px 16px rgba(80,100,180,0.12);
+            --radius-md: 14px;
+            --radius-sm: 8px;
+        }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background: var(--bg-page);
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
         }
         .login-container {
-            background: white;
+            background: var(--bg-card);
             padding: 40px;
-            border-radius: 16px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            border-radius: var(--radius-md);
+            box-shadow: var(--shadow-md);
             width: 400px;
             max-width: 90%;
+            border: 1px solid var(--border);
         }
         .logo {
             text-align: center;
             margin-bottom: 30px;
         }
         .logo-icon {
-            width: 80px;
-            height: 80px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border-radius: 20px;
+            width: 64px;
+            height: 64px;
+            background: var(--accent-light);
+            border-radius: 16px;
             display: flex;
             align-items: center;
             justify-content: center;
             margin: 0 auto 15px;
-            font-size: 36px;
+            font-size: 28px;
         }
         h1 {
-            font-size: 24px;
-            color: #333;
+            font-size: 22px;
+            color: var(--text-primary);
             font-weight: 600;
         }
         .form-group {
@@ -85,47 +100,49 @@ function getLoginPage(error = '') {
         label {
             display: block;
             margin-bottom: 8px;
-            color: #555;
+            color: var(--text-secondary);
             font-size: 14px;
             font-weight: 500;
         }
         input[type="text"], input[type="password"] {
             width: 100%;
-            padding: 14px 16px;
-            border: 2px solid #e0e0e0;
-            border-radius: 10px;
-            font-size: 16px;
-            transition: border-color 0.3s, box-shadow 0.3s;
+            padding: 12px 14px;
+            border: 1.5px solid var(--border);
+            border-radius: var(--radius-sm);
+            font-size: 15px;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            background: var(--bg-card);
+            color: var(--text-primary);
         }
         input[type="text"]:focus, input[type="password"]:focus {
             outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-light);
         }
         button[type="submit"] {
             width: 100%;
-            padding: 16px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 14px;
+            background: var(--accent);
             border: none;
-            border-radius: 10px;
+            border-radius: var(--radius-sm);
             color: white;
-            font-size: 16px;
+            font-size: 15px;
             font-weight: 600;
             cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
+            transition: background 0.2s;
         }
         button[type="submit"]:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+            background: var(--accent-dark);
         }
         .error {
-            background: #fee;
-            color: #c00;
+            background: #fef2f2;
+            color: #dc2626;
             padding: 12px;
-            border-radius: 8px;
+            border-radius: var(--radius-sm);
             margin-bottom: 20px;
             text-align: center;
             font-size: 14px;
+            border: 1px solid #fecaca;
         }
     </style>
 </head>
@@ -160,226 +177,250 @@ function getUploadPage() {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>文件上传服务</title>
     <style>
+        :root {
+            --bg-page: #f0f2f8;
+            --bg-card: #ffffff;
+            --bg-hover: #eef1fa;
+            --border: #dce3f5;
+            --text-primary: #1a2332;
+            --text-secondary: #4a5568;
+            --text-muted: #8896b0;
+            --accent: #4f7ef7;
+            --accent-dark: #3b62d8;
+            --accent-light: #eef2ff;
+            --shadow-sm: 0 1px 4px rgba(80,100,180,0.08);
+            --shadow-md: 0 4px 16px rgba(80,100,180,0.12);
+            --radius-md: 14px;
+            --radius-sm: 8px;
+        }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #f5f7fa;
+            font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background: var(--bg-page);
             min-height: 100vh;
+            color: var(--text-primary);
         }
         .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            padding: 20px 40px;
+            background: var(--bg-card);
+            padding: 16px 40px;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            border-bottom: 1.5px solid var(--border);
+            box-shadow: var(--shadow-sm);
         }
         .header h1 {
-            color: white;
-            font-size: 24px;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-        .logout-btn {
-            background: rgba(255,255,255,0.2);
-            border: none;
-            color: white;
-            padding: 10px 20px;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 14px;
-            transition: background 0.3s;
-        }
-        .logout-btn:hover { background: rgba(255,255,255,0.3); }
-        .container {
-            max-width: 1200px;
-            margin: 40px auto;
-            padding: 0 20px;
-        }
-        .card {
-            background: white;
-            border-radius: 16px;
-            padding: 30px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-            margin-bottom: 30px;
-        }
-        .card-title {
-            font-size: 18px;
+            color: var(--text-primary);
+            font-size: 20px;
             font-weight: 600;
-            color: #333;
-            margin-bottom: 20px;
             display: flex;
             align-items: center;
             gap: 10px;
         }
+        .logout-btn {
+            background: var(--bg-hover);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            padding: 8px 16px;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.2s;
+        }
+        .logout-btn:hover { background: var(--border); }
+        .container {
+            max-width: 1000px;
+            margin: 30px auto;
+            padding: 0 20px;
+        }
+        .card {
+            background: var(--bg-card);
+            border-radius: var(--radius-md);
+            padding: 24px;
+            box-shadow: var(--shadow-sm);
+            margin-bottom: 24px;
+            border: 1px solid var(--border);
+        }
+        .card-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
         .upload-area {
-            border: 3px dashed #ddd;
-            border-radius: 16px;
-            padding: 60px 40px;
+            border: 2px dashed var(--border);
+            border-radius: var(--radius-md);
+            padding: 50px 30px;
             text-align: center;
-            transition: border-color 0.3s, background 0.3s;
+            transition: border-color 0.2s, background 0.2s;
             cursor: pointer;
         }
         .upload-area:hover, .upload-area.dragover {
-            border-color: #667eea;
-            background: rgba(102, 126, 234, 0.05);
+            border-color: var(--accent);
+            background: var(--accent-light);
         }
         .upload-icon {
-            font-size: 64px;
-            margin-bottom: 20px;
+            font-size: 48px;
+            margin-bottom: 16px;
         }
         .upload-text {
-            color: #666;
-            font-size: 18px;
-            margin-bottom: 10px;
+            color: var(--text-secondary);
+            font-size: 16px;
+            margin-bottom: 8px;
         }
         .upload-hint {
-            color: #999;
-            font-size: 14px;
+            color: var(--text-muted);
+            font-size: 13px;
         }
         #fileInput { display: none; }
         .file-list {
-            margin-top: 20px;
+            margin-top: 16px;
             text-align: left;
         }
         .file-item {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 12px 16px;
-            background: #f8f9fa;
-            border-radius: 8px;
+            padding: 10px 14px;
+            background: var(--bg-page);
+            border-radius: var(--radius-sm);
             margin-bottom: 8px;
         }
         .file-name {
             font-size: 14px;
-            color: #333;
+            color: var(--text-primary);
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 8px;
         }
         .file-size {
-            color: #999;
+            color: var(--text-muted);
             font-size: 12px;
         }
         .remove-btn {
-            background: #ff4757;
-            color: white;
-            border: none;
-            padding: 6px 12px;
+            background: #fef2f2;
+            color: #dc2626;
+            border: 1px solid #fecaca;
+            padding: 5px 10px;
             border-radius: 6px;
             cursor: pointer;
             font-size: 12px;
+            transition: background 0.2s;
         }
+        .remove-btn:hover { background: #fee2e2; }
         .upload-btn {
             width: 100%;
-            padding: 16px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 14px;
+            background: var(--accent);
             border: none;
-            border-radius: 10px;
+            border-radius: var(--radius-sm);
             color: white;
-            font-size: 16px;
+            font-size: 15px;
             font-weight: 600;
             cursor: pointer;
-            margin-top: 20px;
-            transition: transform 0.2s, box-shadow 0.2s;
+            margin-top: 16px;
+            transition: background 0.2s;
         }
         .upload-btn:hover:not(:disabled) {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+            background: var(--accent-dark);
         }
         .upload-btn:disabled {
             opacity: 0.5;
             cursor: not-allowed;
         }
         .progress-container {
-            margin-top: 20px;
+            margin-top: 16px;
             display: none;
         }
         .progress-bar {
             width: 100%;
-            height: 8px;
-            background: #e0e0e0;
-            border-radius: 4px;
+            height: 6px;
+            background: var(--border);
+            border-radius: 3px;
             overflow: hidden;
         }
         .progress-fill {
             height: 100%;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: var(--accent);
             width: 0%;
             transition: width 0.3s;
         }
         .progress-text {
             text-align: center;
-            margin-top: 10px;
-            color: #666;
-            font-size: 14px;
+            margin-top: 8px;
+            color: var(--text-secondary);
+            font-size: 13px;
         }
         .result {
-            margin-top: 20px;
-            padding: 16px;
-            border-radius: 10px;
+            margin-top: 16px;
+            padding: 14px;
+            border-radius: var(--radius-sm);
             text-align: center;
+            font-size: 14px;
         }
         .result.success {
-            background: #e8f5e9;
-            color: #2e7d32;
+            background: #f0fdf4;
+            color: #16a34a;
+            border: 1px solid #bbf7d0;
         }
         .result.error {
-            background: #ffebee;
-            color: #c62828;
+            background: #fef2f2;
+            color: #dc2626;
+            border: 1px solid #fecaca;
         }
         .existing-files {
-            max-height: 400px;
+            max-height: 350px;
             overflow-y: auto;
         }
         .existing-file-item {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 14px 16px;
-            background: #f8f9fa;
-            border-radius: 10px;
-            margin-bottom: 10px;
-            transition: background 0.3s;
+            padding: 12px 14px;
+            background: var(--bg-page);
+            border-radius: var(--radius-sm);
+            margin-bottom: 8px;
+            transition: background 0.2s;
         }
         .existing-file-item:hover {
-            background: #f0f1f2;
+            background: var(--bg-hover);
         }
         .existing-file-info {
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 10px;
         }
         .existing-file-icon {
-            font-size: 24px;
+            font-size: 20px;
         }
         .existing-file-name {
             font-weight: 500;
-            color: #333;
+            color: var(--text-primary);
         }
         .existing-file-meta {
             font-size: 12px;
-            color: #999;
+            color: var(--text-muted);
         }
         .delete-btn {
-            background: #ff4757;
-            color: white;
-            border: none;
-            padding: 8px 16px;
+            background: #fef2f2;
+            color: #dc2626;
+            border: 1px solid #fecaca;
+            padding: 6px 12px;
             border-radius: 6px;
             cursor: pointer;
-            font-size: 13px;
-            transition: background 0.3s;
+            font-size: 12px;
+            transition: background 0.2s;
         }
-        .delete-btn:hover { background: #ff3344; }
+        .delete-btn:hover { background: #fee2e2; }
         .empty-state {
             text-align: center;
-            padding: 40px;
-            color: #999;
+            padding: 30px;
+            color: var(--text-muted);
         }
-        .empty-icon { font-size: 48px; margin-bottom: 16px; }
+        .empty-icon { font-size: 40px; margin-bottom: 12px; }
     </style>
 </head>
 <body>
