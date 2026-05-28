@@ -3978,6 +3978,7 @@ httpServer.on('request', async (req, res) => {
         changeOrigin: true,
         followRedirects: true,
         ws: true,
+        autoRewrite: true,
         headers: {
           host: new URL(service.target).host,
           'x-forwarded-prefix': routeBase
