@@ -292,9 +292,7 @@ proxy.on('proxyRes', (proxyRes, req, res) => {
       });
     } else {
       serverLog(`[网关] NAS透传非HTML: ${req._originalUrl || req.url}, contentType=${contentType}`);
-      if (!res.headersSent && res._savedWriteHead) {
-        res._savedWriteHead(proxyRes.statusCode, proxyRes.headers);
-      }
+      res._savedWriteHead(proxyRes.statusCode, proxyRes.headers);
       proxyRes.pipe(res);
     }
     return;
@@ -3975,6 +3973,7 @@ httpServer.on('request', async (req, res) => {
         followRedirects: true,
         ws: true,
         autoRewrite: true,
+        selfHandleResponse: true,
         headers: {
           host: new URL(service.target).host,
           'x-forwarded-prefix': routeBase
