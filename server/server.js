@@ -277,16 +277,24 @@ proxy.on('proxyRes', (proxyRes, req, res) => {
     }
   }
   const contentType = proxyRes.headers['content-type'] || '';
-  if (contentType.includes('text/html')) {
+  const isHtml = contentType.includes('text/html');
+  const isJs = contentType.includes('javascript');
+  const isCss = contentType.includes('text/css');
+  
+  if (isHtml || isJs || isCss) {
     let chunks = [];
     proxyRes.on('data', (chunk) => chunks.push(chunk));
     proxyRes.on('end', () => {
       if (res.headersSent) return;
       let body = Buffer.concat(chunks).toString('utf8');
       if (route) {
-        body = body.replace(/(href|src|action)=["']\/((?!https?:|data:|#|\/)[^"']*)["']/gi, `$1="${route}/$2"`);
-        body = body.replace(/url\(["']\/([^"']+)["']\)/gi, `url("${route}/$1")`);
-        body = body.replace(/url\(\/([^)]+)\)/gi, `url(${route}/$1)`);
+        body = body.replace(/(href|src|action)=["']\/([^"']+)["']/gi, (match, attr, path) => {
+          if (path.startsWith('http') || path.startsWith('//') || path.startsWith('data:') || path.startsWith('#')) {
+            return match;
+          }
+          return `${attr}="${route}/${path}"`;
+        });
+        body = body.replace(/url\(["']?\/([^"')]+)["']?\)/gi, `url("${route}/$1")`);
         body = body.replace(/(fetch|axios\.get|axios\.post|axios\.put|axios\.delete)\(["']\/([^"']+)["']/gi, `$1("${route}/$2"`);
         body = body.replace(/\.ajax\(\s*\{\s*url\s*:\s*["']\/([^"']+)["']/gi, `.ajax({ url: "${route}/$1"`);
         body = body.replace(/\.location\s*=\s*["']\/([^"']+)["']/gi, `.location="${route}/$1"`);
@@ -294,6 +302,9 @@ proxy.on('proxyRes', (proxyRes, req, res) => {
         body = body.replace(/\.location\.pathname\s*=\s*["']\/([^"']+)["']/gi, `.location.pathname="${route}/$1"`);
         body = body.replace(/\.push\(["']\/([^"']+)["']\)/gi, `.push("${route}/$1")`);
         body = body.replace(/\.replace\(["']\/([^"']+)["']\)/gi, `.replace("${route}/$1")`);
+        body = body.replace(/["']\/api\/([^"']+)["']/gi, `"${route}/api/$1"`);
+        body = body.replace(/["']\/static\/([^"']+)["']/gi, `"${route}/static/$1"`);
+        body = body.replace(/["']\/assets\/([^"']+)["']/gi, `"${route}/assets/$1"`);
       }
       res.setHeader('content-length', Buffer.byteLength(body));
       res.end(body);
@@ -3964,9 +3975,10 @@ httpServer.on('request', async (req, res) => {
       const options = {
         target: service.target,
         changeOrigin: true,
-        followRedirects: true,
+        followRedirects: false,
         headers: {
-          host: targetUrl.host
+          host: targetUrl.host,
+          'x-forwarded-prefix': routeBase
         }
       };
       proxy.web(req, res, options);
