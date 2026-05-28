@@ -269,7 +269,7 @@ proxy.on('error', (err, req, res) => {
   }
 });
 proxy.on('proxyRes', (proxyRes, req, res) => {
-  if (req._gatewayRoute === '/nas') {
+  if (req.url.includes('/nas/') || req._gatewayRoute === '/nas') {
     proxyRes.pipe(res);
     return;
   }
