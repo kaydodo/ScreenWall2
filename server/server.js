@@ -270,6 +270,7 @@ proxy.on('error', (err, req, res) => {
 });
 proxy.on('proxyRes', (proxyRes, req, res) => {
   if (req._gatewayRoute === '/nas' || (req._originalUrl && req._originalUrl.startsWith('/nas'))) {
+    res.writeHead(proxyRes.statusCode, proxyRes.headers);
     proxyRes.pipe(res);
     return;
   }
@@ -3941,6 +3942,10 @@ httpServer.on('request', async (req, res) => {
           'x-forwarded-prefix': routeBase
         }
       };
+
+      if (res._origWriteHead) {
+        res.writeHead = res._origWriteHead;
+      }
 
       proxy.web(req, res, options);
       return;
