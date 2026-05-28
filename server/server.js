@@ -3939,12 +3939,16 @@ httpServer.on('request', async (req, res) => {
   // ========== 网关代理路由 ==========
   // 检查是否匹配网关代理服务
   for (const service of gatewayServices) {
-    if (cleanPath === service.route || cleanPath.startsWith(service.route + '/')) {
+    let routeBase = service.route;
+    if (routeBase.endsWith('/*')) {
+      routeBase = routeBase.slice(0, -2);
+    }
+    if (cleanPath === routeBase || cleanPath.startsWith(routeBase + '/')) {
       const targetUrl = new URL(service.target);
-      const newPath = cleanPath.slice(service.route.length) || '/';
+      const newPath = cleanPath.slice(routeBase.length) || '/';
       const queryString = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
       req.url = newPath + queryString;
-      req._gatewayRoute = service.route;
+      req._gatewayRoute = routeBase;
       
       const options = {
         target: service.target,
