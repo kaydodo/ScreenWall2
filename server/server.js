@@ -269,6 +269,13 @@ proxy.on('error', (err, req, res) => {
 });
 proxy.on('proxyRes', (proxyRes, req, res) => {
   if (res.headersSent) return;
+  const route = req._gatewayRoute;
+  if (route && proxyRes.headers['location']) {
+    let location = proxyRes.headers['location'];
+    if (location.startsWith('/')) {
+      proxyRes.headers['location'] = route + location;
+    }
+  }
   const contentType = proxyRes.headers['content-type'] || '';
   if (contentType.includes('text/html')) {
     let chunks = [];
@@ -276,7 +283,6 @@ proxy.on('proxyRes', (proxyRes, req, res) => {
     proxyRes.on('end', () => {
       if (res.headersSent) return;
       let body = Buffer.concat(chunks).toString('utf8');
-      const route = req._gatewayRoute;
       if (route) {
         body = body.replace(/(href|src|action)=["']\/((?!https?:|data:|#|\/)[^"']*)["']/gi, `$1="${route}/$2"`);
         body = body.replace(/url\(["']\/([^"']+)["']\)/gi, `url("${route}/$1")`);
