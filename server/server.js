@@ -8,7 +8,7 @@ process.stderr.write = function(chunk, encoding, callback) {
     if (callback) callback();
     return true;
   }
-  if (typeof chunk === 'string' && chunk.includes('DEP0060')) {
+  if (typeof chunk === 'string' && (chunk.includes('DEP0060') || chunk.includes('DEP0169'))) {
     if (callback) callback();
     return true;
   }
@@ -29,17 +29,18 @@ const httpProxy = require('http-proxy');
 const { formidable } = require('formidable');
 
 const UPLOAD_DIR = path.join(__dirname, 'public');
-const uploadSessions = new Map();
-
-function generateUploadSessionId() {
-    return crypto.randomBytes(32).toString('hex');
-}
 
 function checkUploadAuth(req) {
     const cookie = req.headers.cookie || '';
-    const match = cookie.match(/upload_session=([^;]+)/);
+    const match = cookie.match(/upload_auth=([^;]+)/);
     if (!match) return false;
-    return uploadSessions.has(match[1]);
+    const token = Buffer.from(match[1], 'base64').toString('utf8');
+    try {
+        const { u, p } = JSON.parse(token);
+        return u === AUTH_CFG.username && p === AUTH_CFG.password;
+    } catch (e) {
+        return false;
+    }
 }
 
 function getUploadLoginPage(error = '') {
@@ -771,9 +772,17 @@ proxy.on('proxyRes', (proxyRes, req, res) => {
   });
 });
 
-const gatewaySessions = new Set();
-function generateSessionId() {
-  return Date.now().toString(36) + Math.random().toString(36).substr(2);
+function checkGatewayAuth(req) {
+    const cookie = req.headers.cookie || '';
+    const match = cookie.match(/gateway_auth=([^;]+)/);
+    if (!match) return false;
+    const token = Buffer.from(match[1], 'base64').toString('utf8');
+    try {
+        const { u, p } = JSON.parse(token);
+        return u === AUTH_CFG.username && p === AUTH_CFG.password;
+    } catch (e) {
+        return false;
+    }
 }
 
 // ========== 设备权限管理配置 ==========
@@ -4391,10 +4400,9 @@ async function handleUploadRequest(req, res, cleanPath) {
             const username = params.get('username') || '';
             const password = params.get('password') || '';
             if (username === AUTH_CFG.username && password === AUTH_CFG.password) {
-                const sessionId = generateUploadSessionId();
-                uploadSessions.set(sessionId, { username, time: Date.now() });
+                const token = Buffer.from(JSON.stringify({ u: username, p: password })).toString('base64');
                 res.writeHead(302, {
-                    'Set-Cookie': `upload_session=${sessionId}; Path=/; HttpOnly; Max-Age=86400`,
+                    'Set-Cookie': `upload_auth=${token}; Path=/; Max-Age=86400`,
                     'Location': '/_upload'
                 });
                 res.end();
@@ -4407,11 +4415,8 @@ async function handleUploadRequest(req, res, cleanPath) {
     }
 
     if (cleanPath === '/_upload/logout') {
-        const cookie = req.headers.cookie || '';
-        const match = cookie.match(/upload_session=([^;]+)/);
-        if (match) uploadSessions.delete(match[1]);
         res.writeHead(302, {
-            'Set-Cookie': 'upload_session=; Path=/; Max-Age=0',
+            'Set-Cookie': 'upload_auth=; Path=/; Max-Age=0',
             'Location': '/_upload'
         });
         res.end();
@@ -4606,10 +4611,9 @@ httpServer.on('request', async (req, res) => {
       try {
         const { username, password } = JSON.parse(body || '{}');
         if (username === AUTH_CFG.username && password === AUTH_CFG.password) {
-          const sessionId = generateSessionId();
-          gatewaySessions.add(sessionId);
+          const token = Buffer.from(JSON.stringify({ u: username, p: password })).toString('base64');
           res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-          res.end(JSON.stringify({ success: true, sessionId }));
+          res.end(JSON.stringify({ success: true, token }));
         } else {
           res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
           res.end(JSON.stringify({ success: false }));
@@ -4624,11 +4628,7 @@ httpServer.on('request', async (req, res) => {
 
   // 网关管理页面（需要验证）
   if (cleanPath === '/_gateway' || cleanPath === '/_gateway/') {
-    const cookies = req.headers.cookie || '';
-    const sessionMatch = cookies.match(/gateway_session=([^;]+)/);
-    const sessionId = sessionMatch ? sessionMatch[1] : null;
-    
-    if (!sessionId || !gatewaySessions.has(sessionId)) {
+    if (!checkGatewayAuth(req)) {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       res.end(getGatewayLoginPage());
       return;
@@ -4641,9 +4641,7 @@ httpServer.on('request', async (req, res) => {
 
   // 网关API：获取配置
   if (cleanPath === '/_gateway/config' && req.method === 'GET') {
-    const cookies = req.headers.cookie || '';
-    const sessionMatch = cookies.match(/gateway_session=([^;]+)/);
-    if (!sessionMatch || !gatewaySessions.has(sessionMatch[1])) {
+    if (!checkGatewayAuth(req)) {
       res.writeHead(401, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify({ success: false, message: '未授权' }));
       return;
@@ -4655,9 +4653,7 @@ httpServer.on('request', async (req, res) => {
 
   // 网关API：添加服务
   if (cleanPath === '/_gateway/service' && req.method === 'POST') {
-    const cookies = req.headers.cookie || '';
-    const sessionMatch = cookies.match(/gateway_session=([^;]+)/);
-    if (!sessionMatch || !gatewaySessions.has(sessionMatch[1])) {
+    if (!checkGatewayAuth(req)) {
       res.writeHead(401, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify({ success: false, message: '未授权' }));
       return;
@@ -4687,9 +4683,7 @@ httpServer.on('request', async (req, res) => {
 
   // 网关API：删除服务
   if (cleanPath === '/_gateway/service' && req.method === 'DELETE') {
-    const cookies = req.headers.cookie || '';
-    const sessionMatch = cookies.match(/gateway_session=([^;]+)/);
-    if (!sessionMatch || !gatewaySessions.has(sessionMatch[1])) {
+    if (!checkGatewayAuth(req)) {
       res.writeHead(401, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify({ success: false, message: '未授权' }));
       return;
@@ -5588,7 +5582,7 @@ function getGatewayLoginPage() {
         });
         const data = await res.json();
         if (data.success) {
-          document.cookie = 'gateway_session=' + data.sessionId + '; path=/; max-age=86400';
+          document.cookie = 'gateway_auth=' + data.token + '; path=/; max-age=86400';
           location.reload();
         } else {
           document.getElementById('error').style.display = 'block';
