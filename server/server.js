@@ -8,6 +8,10 @@ process.stderr.write = function(chunk, encoding, callback) {
     if (callback) callback();
     return true;
   }
+  if (typeof chunk === 'string' && chunk.includes('DEP0060')) {
+    if (callback) callback();
+    return true;
+  }
   return originalStderrWrite(chunk, encoding, callback);
 };
 
@@ -22,7 +26,7 @@ const Tesseract = require('tesseract.js');
 const { spawn, execFile } = require('child_process');
 const { promisify } = require('util');
 const httpProxy = require('http-proxy');
-const formidable = require('formidable');
+const { formidable } = require('formidable');
 
 const UPLOAD_DIR = path.join(__dirname, 'public');
 const uploadSessions = new Map();
@@ -4453,8 +4457,7 @@ async function handleUploadRequest(req, res, cleanPath) {
         const form = formidable({
             maxFileSize: 2 * 1024 * 1024 * 1024,
             uploadDir: UPLOAD_DIR,
-            keepExtensions: true,
-            filename: (name, ext) => name + ext
+            keepExtensions: true
         });
         form.parse(req, (err, fields, files) => {
             if (err) {
@@ -4462,13 +4465,15 @@ async function handleUploadRequest(req, res, cleanPath) {
                 res.end('上传失败：' + err.message);
                 return;
             }
-            const file = files.file;
-            if (!file || !file.length) {
+            const fileArr = files.file;
+            if (!fileArr || !fileArr.length) {
                 res.writeHead(400, { 'Content-Type': 'text/plain' });
                 res.end('请选择文件');
                 return;
             }
-            const uploadedFile = file[0];
+            const uploadedFile = fileArr[0];
+            const targetPath = path.join(UPLOAD_DIR, uploadedFile.originalFilename);
+            fs.renameSync(uploadedFile.filepath, targetPath);
             res.writeHead(200, { 'Content-Type': 'text/plain' });
             res.end(uploadedFile.originalFilename + ' 上传成功');
         });
@@ -4524,8 +4529,6 @@ httpServer.on('request', async (req, res) => {
         }
         return _origWriteHead(statusCode, headers);
       };
-      
-      serverLog(`[网关] 匹配: ${routeBase} -> ${service.target}`);
 
       const options = {
         target: service.target,
