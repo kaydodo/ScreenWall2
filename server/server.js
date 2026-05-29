@@ -4383,17 +4383,9 @@ async function handleUploadRequest(req, res, cleanPath) {
         let body = '';
         req.on('data', chunk => body += chunk);
         req.on('end', () => {
-            const lines = body.split('\r\n');
-            const fields = {};
-            for (const line of lines) {
-                const eqIdx = line.indexOf('=');
-                if (eqIdx > 0) {
-                    const key = line.substring(0, eqIdx);
-                    const value = decodeURIComponent(line.substring(eqIdx + 1).replace(/\+/g, ' '));
-                    fields[key] = value;
-                }
-            }
-            const { username, password } = fields;
+            const params = new URLSearchParams(body);
+            const username = params.get('username') || '';
+            const password = params.get('password') || '';
             if (username === AUTH_CFG.username && password === AUTH_CFG.password) {
                 const sessionId = generateUploadSessionId();
                 uploadSessions.set(sessionId, { username, time: Date.now() });
@@ -4533,7 +4525,7 @@ httpServer.on('request', async (req, res) => {
         return _origWriteHead(statusCode, headers);
       };
       
-      serverLog(`[网关] 匹配成功: ${routeBase} -> ${service.target}, 原始URL=${req._originalUrl}, 新URL=${req.url}`);
+      serverLog(`[网关] 匹配: ${routeBase} -> ${service.target}`);
 
       const options = {
         target: service.target,
