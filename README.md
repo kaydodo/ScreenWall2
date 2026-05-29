@@ -100,7 +100,13 @@ ScreenWall2 是一套多设备屏幕监控与远控系统，支持同时监控�
 - 配置热重载（无需重启）
 - 已实现路由：
   - `/nas` → Alist 服务（5244端口）✅ 正常运行
-  - `/up` → 上传服务（3030端口）⚠️ 登录跳转未完成
+
+### 12. 文件上传功能（v1.11.4 集成）
+- 上传功能已集成到主服务（`/_upload` 路径）
+- 原独立 upload.js 服务已废弃并删除
+- 密码验证使用主服务配置
+- 支持大文件上传（最大 2GB）
+- 每次请求验证密码（不使用 session）
 
 ---
 
@@ -153,35 +159,16 @@ if (req._gatewayRoute === '/nas') {
 - 在 Alist 设置中配置 `site_url` 为 `http://外网地址:54321/nas`
 - 这样 Alist 生成的链接会自动带 `/nas` 前缀
 
-#### UP 路由（未完成）
-
-**配置**：`/up` → `http://127.0.0.1:3030`
-
-**当前问题**：登录后跳转到 `/login` 而不是 `/up/login`
-
-**已尝试的方案**：
-1. ✅ 禁用缓存（移除 if-none-match、if-modified-since headers）
-2. ✅ upload.js 所有路径改为相对路径
-3. ✅ Location header 重写
-4. ✅ HTML/JS 内容路径替换
-5. ⚠️ JSON 响应路径替换（已添加但未验证）
-
-**待验证**：
-- 重启 upload.js 服务（3030端口）
-- 清除浏览器缓存
-- 测试登录跳转
-
-**下一步方向**：
-1. 验证当前方案是否生效
-2. 如果仍不生效，检查目标服务的登录实现方式
-3. 可能需要分析目标服务的前端代码，找出跳转逻辑
+**Alist 看门狗脚本**：
+- 项目提供 Alist 看门狗启动脚本（`alist_start.bat`、`alist_watchdog.ps1`、`alist_stop.bat`）
+- 每5秒检测端口5244，自动重启 alist.exe
+- 使用方法：将脚本复制到 `D:\alist` 目录，运行 `start.bat` 启动
 
 ### 配置文件
 
 **gateway.json**（动态生成，不提交Git）：
 ```json
 [
-  { "route": "/up", "target": "http://127.0.0.1:3030" },
   { "route": "/nas", "target": "http://127.0.0.1:5244" }
 ]
 ```
@@ -199,7 +186,9 @@ if (req._gatewayRoute === '/nas') {
 |------|------|
 | server/server.js | 网关代理逻辑（proxyRes 处理、路由匹配） |
 | server/gateway.json | 路由配置文件（动态生成） |
-| server/upload.js | 上传服务（已改为相对路径） |
+| alist_start.bat | Alist 看门狗启动脚本 |
+| alist_watchdog.ps1 | Alist 看门狗 PowerShell 脚本 |
+| alist_stop.bat | Alist 停止脚本 |
 
 ---
 
@@ -1065,11 +1054,13 @@ if (id === 'MUMU-service') {
 | **v1.11.4** | 2026-05-29 | - | 网关反向代理功能： |
 | | | | 集成 http-proxy 库实现多服务反向代理 |
 | | | | NAS 路由完成：简单透传模式，正常运行 |
-| | | | UP 路由进行中：登录跳转问题待解决 |
 | | | | 禁用缓存机制：移除 if-none-match/if-modified-since headers |
-| | | | upload.js 改为相对路径：login/logout/files/upload |
-| | | | 上传页面安全优化：移除删除功能，只显示文件状态和修改时间 |
 | | | | 报警面板修复：清除报警后立即刷新面板（添加 alarmsCleared 消息处理） |
+| | | | 上传功能集成：集成到主服务 `/_upload` 路径，删除独立 upload.js |
+| | | | 密码验证优化：改为每次请求验证，不使用 session |
+| | | | formidable v3 兼容：解构导入 `{ formidable }`，修复上传卡住问题 |
+| | | | Alist 看门狗：提供启动/停止脚本，自动重启 alist.exe |
+| | | | stderr 过滤：屏蔽 DEP0060/DEP0169 警告 |
 
 ---
 
