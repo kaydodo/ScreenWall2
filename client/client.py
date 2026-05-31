@@ -19,7 +19,7 @@ import time
 import webbrowser
 
 # 客户端版本号（每次功能更新时手动递增）
-CLIENT_VERSION = "1.11.6"
+CLIENT_VERSION = "1.11.7"
 
 
 def _get_mac_address():
@@ -1655,7 +1655,6 @@ class ScreenWallClient:
         self.registered = False
         self.hq_mode = False
         self.hq_streaming = False
-        self.hq_1080 = False  # 1080p 预览模式（临时开启，不受 720p 上限限制）
         self.target_width = 480
         self.target_height = 270
         self._tasks = []
@@ -2446,10 +2445,7 @@ class ScreenWallClient:
                 # 继续发送主画面，不丢帧！
 
             # 根据模式确定截图参数
-            if self.hq_1080:
-                hq = True
-                hq_limit = 1080
-            elif self.hq_mode:
+            if self.hq_mode:
                 hq = True
                 hq_limit = self.target_height
             else:
@@ -2473,7 +2469,7 @@ class ScreenWallClient:
                     # 二进制帧: [0x01][devIdLen:1][flags:1][reserved:1][screenW:2BE][screenH:2BE][deviceId][webpBuffer]
                     device_id_bytes = cfg["deviceId"].encode('utf8')
                     flags = 0
-                    if self.hq_mode or self.hq_1080:
+                    if self.hq_mode:
                         flags |= 0x01
                     header = struct.pack('>BBBBHH', 0x01, len(device_id_bytes), flags, 0, off_w, off_h)
                     binary_frame = header + device_id_bytes + img_bytes
@@ -2531,19 +2527,16 @@ class ScreenWallClient:
                         if level == 0:
                             self.hq_mode = False
                             self.hq_streaming = False
-                            self.hq_1080 = False
                             self.target_width = 480
                             self.target_height = 270
                         elif level == 1:
                             self.hq_mode = True
                             self.hq_streaming = True
-                            self.hq_1080 = False
                             self.target_width = 854
                             self.target_height = 480
                         elif level == 2:
                             self.hq_mode = True
                             self.hq_streaming = True
-                            self.hq_1080 = False
                             self.target_width = 1280
                             self.target_height = 720
 
