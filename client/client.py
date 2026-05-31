@@ -19,7 +19,7 @@ import time
 import webbrowser
 
 # 客户端版本号（每次功能更新时手动递增）
-CLIENT_VERSION = "1.11.3"
+CLIENT_VERSION = "1.11.4"
 
 
 def _get_mac_address():
@@ -1349,6 +1349,131 @@ def _tray_on_open_self_service(icon, item):
     
     _check_permission_and_open(host, port, device_id, 'selfService', '自助登号', device_name)
 
+def _set_resolution_1080p():
+    """设置分辨率为 1920x1080 @ 60Hz"""
+    import ctypes
+    from ctypes import wintypes
+    
+    class DEVMODE(ctypes.Structure):
+        _fields_ = [
+            ("dmDeviceName", wintypes.WCHAR * 32),
+            ("dmSpecVersion", wintypes.WORD),
+            ("dmDriverVersion", wintypes.WORD),
+            ("dmSize", wintypes.WORD),
+            ("dmDriverExtra", wintypes.WORD),
+            ("dmFields", wintypes.DWORD),
+            ("dmPositionX", ctypes.c_long),
+            ("dmPositionY", ctypes.c_long),
+            ("dmDisplayOrientation", wintypes.DWORD),
+            ("dmDisplayFixedOutput", wintypes.DWORD),
+            ("dmColor", wintypes.SHORT),
+            ("dmDuplex", wintypes.SHORT),
+            ("dmYResolution", wintypes.SHORT),
+            ("dmTTOption", wintypes.SHORT),
+            ("dmCollate", wintypes.SHORT),
+            ("dmFormName", wintypes.WCHAR * 32),
+            ("dmLogPixels", wintypes.SHORT),
+            ("dmBitsPerPel", wintypes.DWORD),
+            ("dmPelsWidth", wintypes.DWORD),
+            ("dmPelsHeight", wintypes.DWORD),
+            ("dmDisplayFlags", wintypes.DWORD),
+            ("dmDisplayFrequency", wintypes.DWORD),
+            ("dmICMMethod", wintypes.DWORD),
+            ("dmICMIntent", wintypes.DWORD),
+            ("dmMediaType", wintypes.DWORD),
+            ("dmDitherType", wintypes.DWORD),
+            ("dmReserved1", wintypes.DWORD),
+            ("dmReserved2", wintypes.DWORD),
+            ("dmPanningWidth", wintypes.DWORD),
+            ("dmPanningHeight", wintypes.DWORD),
+        ]
+    
+    ENUM_CURRENT_SETTINGS = -1
+    CDS_UPDATEREGISTRY = 0x01
+    CDS_RESET = 0x40000000
+    DISP_CHANGE_SUCCESSFUL = 0
+    
+    user32 = ctypes.windll.user32
+    
+    def enum_display_settings(device_name, mode_num, dev_mode):
+        return user32.EnumDisplaySettingsW(device_name, mode_num, ctypes.byref(dev_mode))
+    
+    def change_display_settings(dev_mode, flags):
+        return user32.ChangeDisplaySettingsW(ctypes.byref(dev_mode), flags)
+    
+    try:
+        current = DEVMODE()
+        current.dmSize = ctypes.sizeof(DEVMODE)
+        
+        if enum_display_settings(None, ENUM_CURRENT_SETTINGS, current):
+            if (current.dmPelsWidth == 1920 and 
+                current.dmPelsHeight == 1080 and 
+                current.dmDisplayFrequency == 60):
+                return True, "已是目标分辨率"
+        
+        target_mode = None
+        mode_num = 0
+        while True:
+            dm = DEVMODE()
+            dm.dmSize = ctypes.sizeof(DEVMODE)
+            if not enum_display_settings(None, mode_num, dm):
+                break
+            
+            if (dm.dmPelsWidth == 1920 and 
+                dm.dmPelsHeight == 1080 and 
+                dm.dmDisplayFrequency == 60):
+                target_mode = dm
+                break
+            
+            mode_num += 1
+        
+        if target_mode is None:
+            return False, "不支持 1920x1080 @ 60Hz"
+        
+        result = change_display_settings(target_mode, CDS_UPDATEREGISTRY | CDS_RESET)
+        
+        if result == DISP_CHANGE_SUCCESSFUL:
+            return True, "分辨率已调整为 1920x1080 @ 60Hz"
+        else:
+            return False, f"设置失败 (错误码: {result})"
+    
+    except Exception as e:
+        return False, f"设置异常: {str(e)}"
+
+def _tray_on_set_resolution_1080p(icon, item):
+    """托盘菜单点击：调整1080P分辨率"""
+    success, message = _set_resolution_1080p()
+    
+    try:
+        import tkinter as tk
+        from tkinter import messagebox
+        
+        root = tk.Tk()
+        root.withdraw()
+        root.attributes('-topmost', True)
+        root.lift()
+        root.focus_force()
+        
+        if success:
+            messagebox.showinfo("分辨率调整", message)
+        else:
+            messagebox.showwarning("分辨率调整失败", message)
+        
+        root.destroy()
+    except Exception:
+        import ctypes
+        MB_ICONINFO = 0x40 if success else 0x30
+        MB_OK = 0x0
+        MB_TOPMOST = 0x40000
+        MB_SETFOREGROUND = 0x10000
+        
+        ctypes.windll.user32.MessageBoxW(
+            None,
+            message,
+            "分辨率调整" if success else "分辨率调整失败",
+            MB_ICONINFO | MB_OK | MB_TOPMOST | MB_SETFOREGROUND
+        )
+
 def _get_chromium_browser_path():
     common_paths = [
         r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
@@ -1408,6 +1533,7 @@ def _build_menu():
         MenuItem(f"ScreenWall v{CLIENT_VERSION}", lambda i, t: None, enabled=False),
         MenuItem("打开屏幕墙", _tray_on_open_screenwall),
         MenuItem("自助登号", _tray_on_open_self_service),
+        MenuItem("调整1080P分辨率", _tray_on_set_resolution_1080p),
         MenuItem("启动远控", _tray_on_toggle_keyboard,
                  checked=lambda item: _keyboard_enabled),
         MenuItem("游戏掉线报警", _tray_on_toggle_alarm,
