@@ -19,7 +19,7 @@ import time
 import webbrowser
 
 # 客户端版本号（每次功能更新时手动递增）
-CLIENT_VERSION = "1.11.7"
+CLIENT_VERSION = "1.11.8"
 
 
 def _get_mac_address():
@@ -2451,51 +2451,55 @@ class ScreenWallClient:
             else:
                 hq = False
                 hq_limit = 720
-            capt = ScreenCapturer(cfg["quality"], cfg["resizeW"], cfg["resizeH"], monitor_index=_current_monitor_index)
-            img_bytes = None
-            try:
-                img_bytes = capt.capture(hq=hq, hq_limit=hq_limit, hq_quality=30)
-            except Exception as e:
-                print(f"[截图] 异常: {e}")
-            finally:
-                capt.close()
-
-            if img_bytes:
+            # 帧发送优化：队列有积压时跳过截图，避免时间累积
+            # 先检查队列状态
+            if len(self._frame_queue) > 0:
+                # 队列有积压：尝试发送队列中的帧，不截图
                 try:
-                    # WebP：比 JPEG 体积小 25-35%，且支持有损压缩
-                    img_format = "image/webp"
-                    # 获取当前分辨率（实时同步到服务端，用于鼠标点击坐标映射）
-                    off_x, off_y, off_w, off_h = _get_current_monitor_offset()
-                    # 二进制帧: [0x01][devIdLen:1][flags:1][reserved:1][screenW:2BE][screenH:2BE][deviceId][webpBuffer]
-                    device_id_bytes = cfg["deviceId"].encode('utf8')
-                    flags = 0
-                    if self.hq_mode:
-                        flags |= 0x01
-                    header = struct.pack('>BBBBHH', 0x01, len(device_id_bytes), flags, 0, off_w, off_h)
-                    binary_frame = header + device_id_bytes + img_bytes
-                    
-                    # 帧队列管理：队列满时丢弃旧帧
-                    if len(self._frame_queue) >= self._frame_queue_max:
-                        self._frame_queue.pop(0)
-                        self._frame_dropped += 1
-                    
-                    self._frame_queue.append(binary_frame)
-                    
-                    # 非阻塞发送：带超时
-                    try:
-                        await asyncio.wait_for(ws.send(self._frame_queue[0]), timeout=self._send_timeout)
-                        self._frame_queue.pop(0)
-                        self._last_frame_time = time.time()
-                    except asyncio.TimeoutError:
-                        # 发送超时：丢弃当前帧，继续下一帧
-                        if self._frame_queue:
-                            self._frame_queue.pop(0)
-                        self._frame_dropped += 1
-                    except Exception:
-                        break
-                        
+                    await asyncio.wait_for(ws.send(self._frame_queue[0]), timeout=self._send_timeout)
+                    self._frame_queue.pop(0)
+                    self._last_frame_time = time.time()
+                except asyncio.TimeoutError:
+                    # 发送超时：清空队列，重新开始
+                    self._frame_queue.clear()
+                    self._frame_dropped += 1
                 except Exception:
                     break
+            else:
+                # 队列空：截图并发送
+                capt = ScreenCapturer(cfg["quality"], cfg["resizeW"], cfg["resizeH"], monitor_index=_current_monitor_index)
+                img_bytes = None
+                try:
+                    img_bytes = capt.capture(hq=hq, hq_limit=hq_limit, hq_quality=30)
+                except Exception as e:
+                    print(f"[截图] 异常: {e}")
+                finally:
+                    capt.close()
+
+                if img_bytes:
+                    try:
+                        img_format = "image/webp"
+                        off_x, off_y, off_w, off_h = _get_current_monitor_offset()
+                        device_id_bytes = cfg["deviceId"].encode('utf8')
+                        flags = 0
+                        if self.hq_mode:
+                            flags |= 0x01
+                        header = struct.pack('>BBBBHH', 0x01, len(device_id_bytes), flags, 0, off_w, off_h)
+                        binary_frame = header + device_id_bytes + img_bytes
+                        
+                        # 直接发送，不入队（队列空时）
+                        try:
+                            await asyncio.wait_for(ws.send(binary_frame), timeout=self._send_timeout)
+                            self._last_frame_time = time.time()
+                        except asyncio.TimeoutError:
+                            # 发送超时：入队等待下次发送
+                            self._frame_queue.append(binary_frame)
+                            self._frame_dropped += 1
+                        except Exception:
+                            break
+                            
+                    except Exception:
+                        break
 
             # HQ 模式使用服务器指定的间隔，LQ 使用配置的间隔
             # interval = self.hq_interval if (self.hq_mode and self.hq_interval) else cfg["interval"]
