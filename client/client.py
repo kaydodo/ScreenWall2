@@ -19,7 +19,7 @@ import time
 import webbrowser
 
 # 客户端版本号（每次功能更新时手动递增）
-CLIENT_VERSION = "1.11.5"
+CLIENT_VERSION = "1.11.6"
 
 
 def _get_mac_address():
@@ -2556,13 +2556,15 @@ class ScreenWallClient:
                         operator_name = data.get("operatorName")
                         business_name = data.get("businessName")
                         if timestamp:
-                            capt = ScreenCapturer(quality=30, resize_w=1920, resize_h=1080, monitor_index=_current_monitor_index)
+                            # 获取当前屏幕分辨率，使用原尺寸截图（保持清晰度用于二维码识别）
+                            off_x, off_y, off_w, off_h = _get_current_monitor_offset()
+                            capt = ScreenCapturer(quality=30, resize_w=off_w, resize_h=off_h, monitor_index=_current_monitor_index)
                             try:
-                                img_bytes = capt.capture(hq=False, is_static=True)
+                                # hq=True + hq_limit=off_h 表示不缩放，保持原尺寸
+                                img_bytes = capt.capture(hq=True, hq_limit=off_h, is_static=True)
                             finally:
                                 capt.close()
                             if img_bytes:
-                                off_x, off_y, off_w, off_h = _get_current_monitor_offset()
                                 payload = {
                                     "type": "hdScreenshot",
                                     "deviceId": cfg["deviceId"],
