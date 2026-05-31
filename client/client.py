@@ -19,7 +19,7 @@ import time
 import webbrowser
 
 # 客户端版本号（每次功能更新时手动递增）
-CLIENT_VERSION = "1.11.4"
+CLIENT_VERSION = "1.11.5"
 
 
 def _get_mac_address():
@@ -1677,6 +1677,12 @@ class ScreenWallClient:
         self._uu_version = None         # UU远程版本缓存
         self._uu_version_time = 0       # UU版本缓存时间
         self._uu_install_triggered = False  # UU安装只触发一次
+        # 帧发送优化：队列 + 超时 + 丢帧
+        self._frame_queue = []          # 帧队列（最多保留2帧）
+        self._frame_queue_max = 2       # 队列最大长度
+        self._send_timeout = 0.5        # 发送超时（500ms）
+        self._frame_dropped = 0         # 丢弃帧计数（用于日志）
+        self._last_frame_time = 0       # 上次成功发送帧的时间
         # 刷新托盘菜单，确保显示正确的键盘状态
         _rebuild_tray_icon()
         if _keyboard_enabled:
@@ -2471,7 +2477,27 @@ class ScreenWallClient:
                         flags |= 0x01
                     header = struct.pack('>BBBBHH', 0x01, len(device_id_bytes), flags, 0, off_w, off_h)
                     binary_frame = header + device_id_bytes + img_bytes
-                    await ws.send(binary_frame)
+                    
+                    # 帧队列管理：队列满时丢弃旧帧
+                    if len(self._frame_queue) >= self._frame_queue_max:
+                        self._frame_queue.pop(0)
+                        self._frame_dropped += 1
+                    
+                    self._frame_queue.append(binary_frame)
+                    
+                    # 非阻塞发送：带超时
+                    try:
+                        await asyncio.wait_for(ws.send(self._frame_queue[0]), timeout=self._send_timeout)
+                        self._frame_queue.pop(0)
+                        self._last_frame_time = time.time()
+                    except asyncio.TimeoutError:
+                        # 发送超时：丢弃当前帧，继续下一帧
+                        if self._frame_queue:
+                            self._frame_queue.pop(0)
+                        self._frame_dropped += 1
+                    except Exception:
+                        break
+                        
                 except Exception:
                     break
 
