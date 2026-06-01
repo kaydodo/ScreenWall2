@@ -19,7 +19,7 @@ import time
 import webbrowser
 
 # 客户端版本号（每次功能更新时手动递增）
-CLIENT_VERSION = "1.11.8"
+CLIENT_VERSION = "1.12.0"
 
 
 def _get_mac_address():
@@ -1676,12 +1676,21 @@ class ScreenWallClient:
         self._uu_version = None         # UU远程版本缓存
         self._uu_version_time = 0       # UU版本缓存时间
         self._uu_install_triggered = False  # UU安装只触发一次
-        # 帧发送优化：队列 + 超时 + 丢帧
-        self._frame_queue = []          # 帧队列（最多保留2帧）
-        self._frame_queue_max = 2       # 队列最大长度
-        self._send_timeout = 0.5        # 发送超时（500ms）
+        # 帧发送优化：完全异步发送 + 节拍器主线程 + 定时兜底重置
+        self._frame_queue = []          # 帧队列（最多保留3帧）
+        self._send_timeout = 0.5        # 发送超时（500ms，动态调整）
         self._frame_dropped = 0         # 丢弃帧计数（用于日志）
+        self._last_reset_time = time.time()  # 上次兜底重置时间
+        self._cumulative_delay = 0      # 累积延迟（用于追赶）
         self._last_frame_time = 0       # 上次成功发送帧的时间
+        # 增强层：网络感知评分 + 自适应帧率
+        self._send_success_count = 0    # 发送成功计数（滑动窗口）
+        self._send_total_count = 0      # 发送总计数（滑动窗口）
+        self._send_window_size = 30     # 评分窗口大小（30帧，约5秒）
+        self._network_quality = 1.0     # 网络质量评分（0-1）
+        self._current_fps = 6           # 当前帧率（自适应）
+        # 完全异步架构：截图信号事件
+        self._capture_signal = asyncio.Event()  # 截图信号事件
         # 刷新托盘菜单，确保显示正确的键盘状态
         _rebuild_tray_icon()
         if _keyboard_enabled:
@@ -2323,13 +2332,21 @@ class ScreenWallClient:
         listen_task = asyncio.create_task(self._listen(ws, cfg))
         self._tasks.append(listen_task)
 
+        # 启动独立发送协程：负责从队列中取出帧并发送
+        send_task = asyncio.create_task(self._async_send_worker(ws))
+        self._tasks.append(send_task)
+
+        # 启动独立截图协程：负责截图、压缩、打包
+        capture_task = asyncio.create_task(self._capture_worker(cfg))
+        self._tasks.append(capture_task)
+
         # 注册后立即发一次心跳检查版本（不等 30 秒心跳周期）
         # TODO: 测试完心跳机制后可以取消注释
         # asyncio.create_task(self._immediate_version_check(ws, cfg))
         # self._tasks.append(self._tasks[-1])
 
         while self.running:
-            frame_start = time.time()  # 记录帧开始时间
+            # 纯节拍器模式：不记录开始时间，只负责定时发出截图信号
             
             # 热更新配置
             new_cfg = self._get_config()
@@ -2442,31 +2459,38 @@ class ScreenWallClient:
                         asyncio.create_task(send_alarm_screenshot())
                 except Exception:
                     break
-                # 继续发送主画面，不丢帧！
 
-            # 根据模式确定截图参数
-            if self.hq_mode:
-                hq = True
-                hq_limit = self.target_height
-            else:
-                hq = False
-                hq_limit = 720
-            # 帧发送优化：队列有积压时跳过截图，避免时间累积
-            # 先检查队列状态
-            if len(self._frame_queue) > 0:
-                # 队列有积压：尝试发送队列中的帧，不截图
-                try:
-                    await asyncio.wait_for(ws.send(self._frame_queue[0]), timeout=self._send_timeout)
-                    self._frame_queue.pop(0)
-                    self._last_frame_time = time.time()
-                except asyncio.TimeoutError:
-                    # 发送超时：清空队列，重新开始
-                    self._frame_queue.clear()
-                    self._frame_dropped += 1
-                except Exception:
+            # 纯节拍器模式：主线程只负责定时发出截图信号
+            # 截图、压缩、打包由独立协程 _capture_worker 处理
+            # 发送由独立协程 _async_send_worker 处理
+            self._capture_signal.set()  # 发出截图信号
+            self._capture_signal.clear()  # 立即清除，等待下次循环
+
+            # 自适应帧率：根据网络质量动态调整
+            # 网络质量好时 6fps，一般时 4fps，差时 2fps
+            target_interval = 1 / self._current_fps  # 自适应帧间隔
+            await asyncio.sleep(target_interval)  # 纯节拍：固定间隔，不补偿
+
+        await self._cleanup_ws()
+
+    async def _capture_worker(self, cfg):
+        """独立截图协程：负责截图、压缩、打包，不阻塞主线程节拍"""
+        while self.running:
+            try:
+                # 等待截图信号
+                await self._capture_signal.wait()
+                if not self.running:
                     break
-            else:
-                # 队列空：截图并发送
+                
+                # 根据模式确定截图参数
+                if self.hq_mode:
+                    hq = True
+                    hq_limit = self.target_height
+                else:
+                    hq = False
+                    hq_limit = 720
+                
+                # 执行截图和压缩
                 capt = ScreenCapturer(cfg["quality"], cfg["resizeW"], cfg["resizeH"], monitor_index=_current_monitor_index)
                 img_bytes = None
                 try:
@@ -2477,39 +2501,103 @@ class ScreenWallClient:
                     capt.close()
 
                 if img_bytes:
+                    # 打包帧
+                    off_x, off_y, off_w, off_h = _get_current_monitor_offset()
+                    device_id_bytes = cfg["deviceId"].encode('utf8')
+                    flags = 0
+                    if self.hq_mode:
+                        flags |= 0x01
+                    header = struct.pack('>BBBBHH', 0x01, len(device_id_bytes), flags, 0, off_w, off_h)
+                    binary_frame = header + device_id_bytes + img_bytes
+                    
+                    # 放入发送队列
+                    self._frame_queue.append(binary_frame)
+                    # 队列最大长度限制，自动丢弃旧帧
+                    if len(self._frame_queue) > 3:
+                        self._frame_queue = self._frame_queue[-3:]
+                        self._frame_dropped += 1
+                
+                # 定时兜底重置：每60分钟重置一次，防止累积误差
+                current_time = time.time()
+                if current_time - self._last_reset_time > 60 * 60:  # 60分钟
+                    self._last_reset_time = current_time
+                    self._frame_queue.clear()
+                    self._cumulative_delay = 0
+                    print(f"[帧发送] 定时兜底重置")
+                    
+            except Exception as e:
+                print(f"[截图协程] 异常: {e}")
+                await asyncio.sleep(0.1)  # 出错时短暂等待
+
+    async def _async_send_worker(self, ws):
+        """独立发送协程：从队列中取出帧并异步发送，不阻塞主线程节拍"""
+        while self.running:
+            try:
+                # 队列有帧时发送
+                if len(self._frame_queue) > 0:
+                    # 只取最新帧，丢弃旧帧
+                    frame_to_send = self._frame_queue[-1]
+                    # 清空队列（只保留要发送的这一帧）
+                    self._frame_queue = []
+                    
                     try:
-                        img_format = "image/webp"
-                        off_x, off_y, off_w, off_h = _get_current_monitor_offset()
-                        device_id_bytes = cfg["deviceId"].encode('utf8')
-                        flags = 0
-                        if self.hq_mode:
-                            flags |= 0x01
-                        header = struct.pack('>BBBBHH', 0x01, len(device_id_bytes), flags, 0, off_w, off_h)
-                        binary_frame = header + device_id_bytes + img_bytes
-                        
-                        # 直接发送，不入队（队列空时）
-                        try:
-                            await asyncio.wait_for(ws.send(binary_frame), timeout=self._send_timeout)
-                            self._last_frame_time = time.time()
-                        except asyncio.TimeoutError:
-                            # 发送超时：入队等待下次发送
-                            self._frame_queue.append(binary_frame)
-                            self._frame_dropped += 1
-                        except Exception:
-                            break
-                            
-                    except Exception:
+                        await asyncio.wait_for(ws.send(frame_to_send), timeout=self._send_timeout)
+                        self._last_frame_time = time.time()
+                        # 发送成功：更新网络质量评分
+                        self._update_network_quality(True)
+                    except asyncio.TimeoutError:
+                        # 发送超时：帧已丢弃，等待下一次
+                        self._frame_dropped += 1
+                        print(f"[帧发送] 发送超时，帧已丢弃")
+                        # 发送失败：更新网络质量评分
+                        self._update_network_quality(False)
+                    except Exception as e:
+                        print(f"[帧发送] 发送异常: {e}")
+                        # 发送失败：更新网络质量评分
+                        self._update_network_quality(False)
                         break
+                else:
+                    # 队列为空，短暂等待
+                    await asyncio.sleep(0.01)  # 10ms 轮询间隔
+            except Exception as e:
+                print(f"[发送协程] 异常: {e}")
+                break
 
-            # HQ 模式使用服务器指定的间隔，LQ 使用配置的间隔
-            # interval = self.hq_interval if (self.hq_mode and self.hq_interval) else cfg["interval"]
-            # 统一 6fps（~166.7ms），动态 sleep 补偿处理耗时
-            target_interval = 1 / 6  # 目标帧间隔 ~166.7ms（6fps）
-            elapsed = time.time() - frame_start  # 本帧已耗时
-            sleep_time = max(0, target_interval - elapsed)  # 动态 sleep
-            await asyncio.sleep(sleep_time)
+    def _update_network_quality(self, success):
+        """更新网络质量评分（滑动窗口）"""
+        # 更新计数
+        self._send_total_count += 1
+        if success:
+            self._send_success_count += 1
+        
+        # 滑动窗口：超过窗口大小时，移除最早的记录
+        if self._send_total_count > self._send_window_size:
+            # 简单滑动：窗口满时，重置窗口重新开始计数
+            # （实际可以更精细，但这个实现已经足够简单有效）
+            self._send_success_count = 1 if success else 0
+            self._send_total_count = 1
+        
+        # 计算网络质量评分（0-1）
+        if self._send_total_count > 0:
+            self._network_quality = self._send_success_count / self._send_total_count
+        
+        # 根据网络质量调整参数
+        self._adapt_to_network_quality()
 
-        await self._cleanup_ws()
+    def _adapt_to_network_quality(self):
+        """根据网络质量自适应调整参数"""
+        # 网络质量好（成功率 > 90%）
+        if self._network_quality > 0.9:
+            self._send_timeout = 0.5  # 500ms
+            self._current_fps = 6
+        # 网络质量一般（成功率 60%-90%）
+        elif self._network_quality > 0.6:
+            self._send_timeout = 0.8  # 800ms
+            self._current_fps = 4
+        # 网络质量差（成功率 < 60%）
+        else:
+            self._send_timeout = 1.0  # 1000ms
+            self._current_fps = 2
 
     async def _listen(self, ws, cfg):
         try:
