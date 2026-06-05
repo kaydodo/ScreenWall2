@@ -29,6 +29,33 @@ while ($true) {
         break
     }
 
+    # 先检查端口是否监听（快速判断服务是否运行）
+    $portInUse = Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue | Where-Object { $_.State -eq "Listen" }
+    
+    if (-not $portInUse) {
+        # 服务完全没有运行，立即启动（不需要等待2次失败）
+        "[$(Get-Date -Format 'yyyy/MM/dd HH:mm:ss')] SERVER DOWN, starting..." | Out-File $Log -Append
+        $newProc = Start-Process -FilePath "node" -ArgumentList "server.js" -WorkingDirectory $ServerDir -PassThru -WindowStyle Minimized
+        
+        Start-Sleep 3
+        
+        try {
+            $verify = Invoke-WebRequest -Uri $HealthUrl -TimeoutSec $HealthTimeout -UseBasicParsing -ErrorAction Stop
+            if ($verify.StatusCode -eq 200) {
+                "[$(Get-Date -Format 'yyyy/MM/dd HH:mm:ss')] SERVER OK (PID $($newProc.Id))" | Out-File $Log -Append
+            } else {
+                "[$(Get-Date -Format 'yyyy/MM/dd HH:mm:ss')] SERVER START FAILED (status $($verify.StatusCode))" | Out-File $Log -Append
+            }
+        } catch {
+            "[$(Get-Date -Format 'yyyy/MM/dd HH:mm:ss')] SERVER START FAILED (no response)" | Out-File $Log -Append
+        }
+        
+        $failCount = 0
+        Start-Sleep 5
+        continue
+    }
+
+    # 端口监听中，检查健康状态（检测假死）
     $healthOk = $false
     $statusCode = 0
     
@@ -55,7 +82,7 @@ while ($true) {
         "[$(Get-Date -Format 'yyyy/MM/dd HH:mm:ss')] Fail count: $failCount/$FailThreshold" | Out-File $Log -Append
         
         if ($failCount >= $FailThreshold) {
-            "[$(Get-Date -Format 'yyyy/MM/dd HH:mm:ss')] KILLING SERVICE..." | Out-File $Log -Append
+            "[$(Get-Date -Format 'yyyy/MM/dd HH:mm:ss')] KILLING SERVICE (frozen)..." | Out-File $Log -Append
             
             $proc = Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue | 
                     Where-Object { $_.State -eq "Listen" } | 
@@ -67,7 +94,6 @@ while ($true) {
                     "[$(Get-Date -Format 'yyyy/MM/dd HH:mm:ss')] Killed PID $p" | Out-File $Log -Append
                 }
             } else {
-                "[$(Get-Date -Format 'yyyy/MM/dd HH:mm:ss')] No process on port $Port, killing all node..." | Out-File $Log -Append
                 Stop-Process -Name node -Force -ErrorAction SilentlyContinue
             }
             
