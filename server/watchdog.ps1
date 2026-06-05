@@ -74,9 +74,33 @@ while ($true) {
             Start-Sleep 2
             
             "[$(Get-Date -Format 'yyyy/MM/dd HH:mm:ss')] STARTING SERVICE..." | Out-File $Log -Append
-            $newProc = Start-Process -FilePath "node" -ArgumentList "server.js" -WorkingDirectory $ServerDir -PassThru -WindowStyle Minimized
+            $newProc = Start-Process -FilePath "node" -ArgumentList "server.js" -WorkingDirectory $ServerDir -PassThru
             
             Start-Sleep 3
+            
+            # 启动后最小化窗口（等待3秒让用户看到启动日志）
+            if ($newProc) {
+                try {
+                    Add-Type @"
+                        using System;
+                        using System.Runtime.InteropServices;
+                        public class Win32 {
+                            [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+                            [DllImport("user32.dll")] public static extern IntPtr FindWindow(string lpClassName, string lpWindowName);
+                        }
+"@
+                    # SW_MINIMIZE = 6
+                    $hwnd = $newProc.MainWindowHandle
+                    if ($hwnd -ne 0) {
+                        [Win32]::ShowWindow($hwnd, 6)
+                        "[$(Get-Date -Format 'yyyy/MM/dd HH:mm:ss')] Window minimized" | Out-File $Log -Append
+                    }
+                } catch {
+                    # 最小化失败不影响服务运行
+                }
+            }
+            
+            Start-Sleep 2
             
             try {
                 $verify = Invoke-WebRequest -Uri $HealthUrl -TimeoutSec $HealthTimeout -UseBasicParsing -ErrorAction Stop
