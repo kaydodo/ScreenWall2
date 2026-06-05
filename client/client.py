@@ -2508,6 +2508,16 @@ class ScreenWallClient:
                 except Exception as e:
                     print(f"[截图] 异常: {e}")
                 
+                # 截图失败时重置截图器，下次循环重新创建
+                if img_bytes is None:
+                    if self._capturer:
+                        try:
+                            self._capturer.close()
+                        except Exception:
+                            pass
+                    self._capturer = None
+                    self._capturer_monitor_index = None
+                
                 if img_bytes:
                     # 打包帧
                     off_x, off_y, off_w, off_h = _get_current_monitor_offset()
