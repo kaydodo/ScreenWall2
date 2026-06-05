@@ -1234,12 +1234,12 @@ async function deleteDeviceCompletely(deviceId) {
           try {
             await fsUnlink(path.join(ALARM_SCREENSHOTS_DIR, file));
           } catch (e) {
-            logger.error(`[清理] 删除报警截图失败: ${file} - ${e.message}`);
+            serverError(`[清理] 删除报警截图失败: ${file} - ${e.message}`);
           }
         }
       }
     } catch (e) {
-      logger.error(`[清理] 读取报警截图目录失败: ${e.message}`);
+      serverError(`[清理] 读取报警截图目录失败: ${e.message}`);
     }
   })();
 
@@ -2861,7 +2861,7 @@ function notifyWallClients(eventType, data) {
   try {
     msg = JSON.stringify({ type: 'wallStateUpdate', eventType, ...processedData, devices: getDeviceListPayload(), groups: groups });
   } catch (e) {
-    logger.error(`[Wall] notifyWallClients stringify failed: ${e.message}`);
+    serverError(`[Wall] notifyWallClients stringify failed: ${e.message}`);
     return;
   }
   for (const [ws, subscription] of wallClients) {
@@ -4184,7 +4184,7 @@ wssBrowser.on('connection', (ws, req) => {
           const sent = sendToClient(targetId, { type: 'switchMonitor', monitorIndex: monitorIdx });
           if (sent) {
             dev.monitorIndex = monitorIdx;
-            logger.info(`[Monitor] 服务端切换 ${dev.deviceName} → 显示器 ${monitorIdx}`);
+            serverLog(`[Monitor] 服务端切换 ${dev.deviceName} → 显示器 ${monitorIdx}`);
             broadcastToBrowsers({ type: 'deviceList', devices: getDeviceListPayload() });
             notifyWallClients('monitorSwitched', { deviceId: targetId, monitorIndex: monitorIdx });
           } else {
@@ -4194,7 +4194,7 @@ wssBrowser.on('connection', (ws, req) => {
           ws.send(JSON.stringify({ type: 'switchMonitorResult', success: false, reason: 'device not found' }));
         }
       } catch (err) {
-        logger.error(`[Monitor] switchMonitor error: ${err.message}`);
+        serverError(`[Monitor] switchMonitor error: ${err.message}`);
         ws.send(JSON.stringify({ type: 'switchMonitorResult', success: false, reason: 'server error' }));
       }
     }
@@ -4209,10 +4209,10 @@ wssBrowser.on('connection', (ws, req) => {
         if (dev) {
           dev.monitorOffsetX = offsetX;
           dev.monitorOffsetY = offsetY;
-          logger.info(`[Monitor] ${dev.deviceName} 偏移量更新 → (${offsetX}, ${offsetY})`);
+          serverLog(`[Monitor] ${dev.deviceName} 偏移量更新 → (${offsetX}, ${offsetY})`);
         }
       } catch (err) {
-        logger.error(`[Monitor] monitorOffsetUpdate error: ${err.message}`);
+        serverError(`[Monitor] monitorOffsetUpdate error: ${err.message}`);
       }
     }
 
