@@ -833,8 +833,13 @@ async function reloadServerConfigAsync() {
         if (srcExists) {
           await fsCopyFile(serverJsSrc, serverJsDest);
           await fsUnlink(serverJsSrc);
-          SERVER_CONFIG.serverSelfUpdate = '0';
-          await fsWriteFile(SERVER_CONFIG_PATH, JSON.stringify(SERVER_CONFIG, null, 2), 'utf8');
+          // 写入配置时只保留原始字段，不写入动态添加的 uuVersion
+          const configToSave = {
+            serverSelfUpdate: '0',
+            serverVersion: SERVER_CONFIG.serverVersion,
+            uuDownloadUrl: SERVER_CONFIG.uuDownloadUrl
+          };
+          await fsWriteFile(SERVER_CONFIG_PATH, JSON.stringify(configToSave, null, 2), 'utf8');
           serverLog('[自更新] 更新完成，即将退出（看门狗会自动重启）...');
           setTimeout(() => { process.exit(0); }, 1000);
         } else {
