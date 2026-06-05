@@ -1653,7 +1653,13 @@ function _flushBrowserBatch() {
 function _scheduleBrowserBatch() {
   if (!_browserBatchScheduled) {
     _browserBatchScheduled = true;
-    setImmediate(_flushBrowserBatch);
+    // 内网使用 process.nextTick（更快），外网使用 setImmediate（减少压力）
+    const hasInternalClients = Array.from(browserClients).some(ws => ws._isInternal);
+    if (hasInternalClients) {
+      process.nextTick(_flushBrowserBatch);
+    } else {
+      setImmediate(_flushBrowserBatch);
+    }
   }
 }
 // 报警截图查重缓存（存储最近一张 640×360 截图）
