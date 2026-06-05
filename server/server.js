@@ -1653,13 +1653,7 @@ function _flushBrowserBatch() {
 function _scheduleBrowserBatch() {
   if (!_browserBatchScheduled) {
     _browserBatchScheduled = true;
-    // 内网使用 process.nextTick（更快），外网使用 setImmediate（减少压力）
-    const hasInternalClients = Array.from(browserClients).some(ws => ws._isInternal);
-    if (hasInternalClients) {
-      process.nextTick(_flushBrowserBatch);
-    } else {
-      setImmediate(_flushBrowserBatch);
-    }
+    setImmediate(_flushBrowserBatch);
   }
 }
 // 报警截图查重缓存（存储最近一张 640×360 截图）
@@ -2927,8 +2921,37 @@ wssClient.on('connection', (ws, req) => {
           const now = Date.now();
           dev.lastSeen = now;
           if (!dev.online) { dev.online = true; broadcastToBrowsers({ type: 'deviceList', devices: getDeviceListPayload() }); }
-          _browserBatch.set(deviceId, { buffer: webpBuffer, timestamp: now, isHQ, screenWidth, screenHeight });
-          _scheduleBrowserBatch();
+          
+          // 内网立即推送，外网批量推送
+          const internalClients = [];
+          const externalClients = [];
+          for (const browserWs of browserClients) {
+            if (browserWs.readyState !== 1) continue;
+            if (browserWs._isInternal) {
+              internalClients.push(browserWs);
+            } else if (!browserWs._isMobile) {
+              externalClients.push(browserWs);
+            }
+          }
+          
+          // 内网：立即推送，不缓存
+          for (const browserWs of internalClients) {
+            const vpData = viewportSubscriptions.get(browserWs);
+            if (vpData && !wallClients.has(browserWs)) {
+              if (vpData.deviceIds.has(deviceId)) {
+                sendBinaryScreenshot(browserWs, 0x10, deviceId, webpBuffer, screenWidth, screenHeight, isHQ);
+              }
+            } else if (!previewClients.has(browserWs) && !wallClients.has(browserWs)) {
+              sendBinaryScreenshot(browserWs, 0x10, deviceId, webpBuffer, screenWidth, screenHeight, isHQ);
+            }
+          }
+          
+          // 外网：批量推送（保持缓存机制）
+          if (externalClients.length > 0) {
+            _browserBatch.set(deviceId, { buffer: webpBuffer, timestamp: now, isHQ, screenWidth, screenHeight });
+            _scheduleBrowserBatch();
+          }
+          
           const inWall = monitorWallDevices.has(deviceId);
           if (inWall) { 
             _wallBatch.set(deviceId, { buffer: webpBuffer, timestamp: now, screenWidth, screenHeight }); 
