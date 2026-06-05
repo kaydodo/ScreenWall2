@@ -88,6 +88,7 @@ function initAlarmWorker() {
     serverError('[Worker] 报警线程错误:', err.message);
     alarmWorker = null;
     alarmWorkerReady = false;
+    setTimeout(() => initAlarmWorker(), 1000);
   });
   
   alarmWorker.on('exit', (code) => {
@@ -96,6 +97,7 @@ function initAlarmWorker() {
     }
     alarmWorker = null;
     alarmWorkerReady = false;
+    setTimeout(() => initAlarmWorker(), 1000);
   });
 }
 
