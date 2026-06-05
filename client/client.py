@@ -19,7 +19,7 @@ import time
 import webbrowser
 
 # 客户端版本号（每次功能更新时手动递增）
-CLIENT_VERSION = "1.13.2"
+CLIENT_VERSION = "1.13.3"
 
 
 def _get_mac_address():
@@ -1069,28 +1069,10 @@ class ScreenCapturer:
                     pic.save(buf, format="WEBP", lossless=True)
                     img_bytes = buf.getvalue()
                 else:
-                    if is_static:
-                        pic.save(buf, format="WEBP", quality=30, method=6)
-                    elif not hq:
-                        pic.save(buf, format="WEBP", quality=30, method=6)
-                    else:
-                        pic.save(buf, format="WEBP", quality=30, method=6)
+                    pic.save(buf, format="WEBP", quality=30, method=6)
                     img_bytes = buf.getvalue()
             except Exception:
-                # 最后的兜底：创建一张空白灰色图片
-                try:
-                    from PIL import Image
-                    pic = Image.new('RGB', (self.resize_w, self.resize_h), color=(51, 51, 51))
-                    buf = BytesIO()
-                    if is_static:
-                        pic.save(buf, format="WEBP", quality=30, method=6)
-                    elif not hq:
-                        pic.save(buf, format="WEBP", quality=30, method=6)
-                    else:
-                        pic.save(buf, format="WEBP", quality=30, method=6)
-                    img_bytes = buf.getvalue()
-                except Exception:
-                    pass
+                pass
 
         return img_bytes
 
@@ -2481,7 +2463,7 @@ class ScreenWallClient:
                 except Exception as e:
                     print(f"[截图] 异常: {e}")
                 
-                # 截图失败时重置截图器，下次循环重新创建
+                # 截图失败时重置截图器，等待5秒后重试
                 if img_bytes is None:
                     if self._capturer:
                         try:
@@ -2490,6 +2472,9 @@ class ScreenWallClient:
                             pass
                     self._capturer = None
                     self._capturer_monitor_index = None
+                    print(f"[截图] 截图失败，等待5秒后重试...")
+                    await asyncio.sleep(5)
+                    continue
                 
                 if img_bytes:
                     # 打包帧
