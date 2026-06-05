@@ -1582,8 +1582,8 @@ let _browserFlushing = false;
 
 // 帧率间隔（毫秒）
 const FRAME_INTERVAL_MOBILE = 500; // 2fps
-const FRAME_INTERVAL_INTERNAL = 166; // ~6fps
-const FRAME_INTERVAL_EXTERNAL = 250; // 4fps
+const FRAME_INTERVAL_INTERNAL = 0;  // 内网不节流，客户端已限制
+const FRAME_INTERVAL_EXTERNAL = 333; // ~3fps
 
 function _flushBrowserBatch() {
   if (_browserFlushing) {
