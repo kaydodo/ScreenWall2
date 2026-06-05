@@ -78,7 +78,7 @@ function initAlarmWorker() {
         alarmWorker.postMessage(task);
       }
     } else if (msg.type === 'alarmResult') {
-      handleAlarmResult(msg.deviceId, msg.result);
+      handleAlarmResult(msg.deviceId, msg.imageBuffer, msg.result);
     } else if (msg.type === 'alarmError') {
       serverError(`[Worker] ${msg.deviceId} 报警处理失败: ${msg.error}`);
     }
@@ -118,7 +118,7 @@ function sendAlarmToWorker(deviceId, imageBuffer, templateBuffer, templateRegion
   }
 }
 
-function handleAlarmResult(deviceId, result) {
+function handleAlarmResult(deviceId, imageBuffer, result) {
   if (result.type === 'verify') {
     const state = alarmStates.get(deviceId);
     if (!state) return;
@@ -142,11 +142,11 @@ function handleAlarmResult(deviceId, result) {
       alarmStates.set(deviceId, state);
     }
   } else if (result.type === 'detect' && result.alarm) {
-    createAlarmRecord(deviceId, result);
+    createAlarmRecord(deviceId, imageBuffer, result);
   }
 }
 
-function createAlarmRecord(deviceId, result) {
+function createAlarmRecord(deviceId, imageBuffer, result) {
   const dev = devices.get(deviceId);
   if (!dev) return;
   
@@ -168,6 +168,11 @@ function createAlarmRecord(deviceId, result) {
   
   const screenshotId = crypto.randomUUID();
   const screenshotPath = path.join(ALARM_SCREENSHOTS_DIR, `${screenshotId}.png`);
+  
+  // 保存截图文件（异步，不阻塞）
+  fsWriteFile(screenshotPath, imageBuffer).catch(e => {
+    serverError('[报警] 保存截图失败:', e.message);
+  });
   
   const dayStart = new Date(result.timestamp).setHours(0, 0, 0, 0);
   let occurrenceCount = 1;

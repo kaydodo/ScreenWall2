@@ -223,7 +223,12 @@ parentPort.on('message', async (msg) => {
   if (msg.type === 'processAlarm') {
     try {
       const result = await processAlarmImage(msg.imageBuffer, msg.templateBuffer, msg.templateRegion);
-      parentPort.postMessage({ type: 'alarmResult', deviceId: msg.deviceId, result });
+      parentPort.postMessage({ 
+        type: 'alarmResult', 
+        deviceId: msg.deviceId, 
+        imageBuffer: msg.imageBuffer,
+        result 
+      });
     } catch (e) {
       parentPort.postMessage({ type: 'alarmError', deviceId: msg.deviceId, error: e.message });
     }
