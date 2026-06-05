@@ -659,273 +659,273 @@ def _rgb_from_dxgi_surface(dxgiSurf, width, height, pitch):
 
 
 
-def _capture_dxgi(width, height):
+class DXGICapturer:
     """
-    使用 DXGI Desktop Duplication API 截取全屏，返回 numpy array (RGB) 或 None。
-    速度比 mss 快 ~3-5x，直接走 GPU。
+    缓存 DXGI Desktop Duplication COM 链的捕获器。
+    避免每帧重新初始化 COM 链，解决"每秒卡顿一次"问题。
     """
-    import ctypes, numpy as np
-    from ctypes import wintypes as w
+    _ctypes_setup = False
 
-    # ── GUID / IID ──────────────────────────────────────
-    class GUID(ctypes.Structure):
-        _fields_ = [
-            ("Data1", ctypes.c_uint32),
-            ("Data2", ctypes.c_uint16),
-            ("Data3", ctypes.c_uint16),
-            ("Data4", ctypes.c_ubyte * 8),
-        ]
-    def iid(a,b,c,d0,d1,d2,d3,d4,d5,d6,d7):
-        return GUID(a,b,c,d0,d1,d2,d3,d4,d5,d6,d7,d7)
+    def __init__(self, width, height):
+        self.width = width
+        self.height = height
+        self.pFactory = None
+        self.pAdapter = None
+        self.pDevice = None
+        self.pD3DDevice = None
+        self.pOutput = None
+        self.pOutput1 = None
+        self.pDup = None
+        self._initialized = False
 
-    IID_IDXGIFactory    = iid(0x7B72,0x3545,0x4781,0x82,0xE9,0x12,0xF9,0x3A,0xB3,0x51,0x5E)
-    IID_IDXGIDevice     = iid(0x54,0xEE,0x1A,0x8C,0xCC,0x89,0x34,0xFB,0xD1,0x0C,0xFE)
-    IID_IDXGIAdapter    = iid(0x2411,0xE7,0xA5,0x9B,0xAD,0xCF,0x75,0x7F,0x49,0xD8,0xFA)
-    IID_IDXGIOutput     = iid(0xAE,0x02,0xEA,0x4F,0x37,0x86,0x7A,0x4A,0xD2,0x84,0x0F)
-    IID_IDXGIOutputDuplication = iid(0xA,0x9A2,0xD4,0xF8,0xE9,0x2C,0x9F,0x3F,0xB5,0xC2,0x1F)
-    IID_ID3D11Device    = iid(0x72,0x49B2,0x40D5,0x9A,0x5C,0x2C,0x50,0x07,0x2F,0xAF,0x7A)
-    IID_ID3D11Texture2D = iid(0x73,0x216D,0x5F,0x3D,0x8B,0x5B,0x18,0xF5,0x57,0x8A,0xC5)
-    IID_IDXGISurface    = iid(0x4,0x34,0x2C,0xCA,0xA2,0xB2,0x1C,0x40,0x79,0x5C,0xB3)
+        if not DXGICapturer._ctypes_setup:
+            self._setup_ctypes()
+            DXGICapturer._ctypes_setup = True
 
-    # ── ctypes types ─────────────────────────────────────
-    PVOID   = ctypes.c_void_p
-    BOOL    = ctypes.c_int
-    UINT    = ctypes.c_uint
-    DWORD   = ctypes.c_uint32
-    HRESULT = ctypes.c_long
-    LPVOID  = ctypes.c_void_p
-    LPCWSTR = ctypes.c_wchar_p
+        self._init_com_chain()
 
-    DXGI_OUTDUPL_FRAME_INFO = ctypes.Structure
-    class _DXGI_OUTDUPL_FRAME_INFO(DXGI_OUTDUPL_FRAME_INFO):
-        _fields_ = [
-            ("AccumulatedFrames", UINT),
-            ("PresentCount", UINT),
-            ("PresentDuration", ctypes.c_ulonglong),
-            ("LastMouseUpdateTime", ctypes.c_ulonglong),
-            ("TotalMetadataBufferSize", UINT),
-            ("MetadataBufferSize", UINT),
-            ("OrientationPresent", DWORD),
-        ]
+    def _setup_ctypes(self):
+        """设置所有 ctypes 结构体和 COM 接口定义（只调用一次）"""
+        import ctypes
 
-    DXGI_MODE_ROTATION = UINT
-    DXGI_SWAP_CHAIN_DESC = ctypes.Structure
-    class _DXGI_SWAP_CHAIN_DESC(DXGI_SWAP_CHAIN_DESC):
-        _fields_ = [
-            ("Width", UINT),
-            ("Height", UINT),
-            ("RefreshRate", ctypes.c_ulonglong),
-            ("Format", ctypes.c_int),
-            ("ScanlineOrdering", ctypes.c_int),
-            ("Scaling", ctypes.c_int),
-            ("BufferCount", UINT),
-            ("BufferUsage", DWORD),
-            ("OutputWindow", PVOID),
-            ("SampleDesc", ctypes.c_uint * 2),
-            ("Windowed", BOOL),
-            ("SwapEffect", DWORD),
-            ("Flags", DWORD),
-        ]
+        class GUID(ctypes.Structure):
+            _fields_ = [
+                ("Data1", ctypes.c_uint32),
+                ("Data2", ctypes.c_uint16),
+                ("Data3", ctypes.c_uint16),
+                ("Data4", ctypes.c_ubyte * 8),
+            ]
 
-    # ── COM interface definitions ────────────────────────
-    class IDXGIFactory(ctypes.Structure):
-        _fields_ = [
-            ("lpVtbl", PVOID),
-        ]
-    class IDXGIDevice(ctypes.Structure):
-        _fields_ = [
-            ("lpVtbl", PVOID),
-        ]
-    class IDXGIDevice1(ctypes.Structure):
-        _fields_ = [
-            ("lpVtbl", PVOID),
-        ]
-    class IDXGIAdapter(ctypes.Structure):
-        _fields_ = [
-            ("lpVtbl", PVOID),
-        ]
-    class IDXGIOutput(ctypes.Structure):
-        _fields_ = [
-            ("lpVtbl", PVOID),
-        ]
-    class IDXGIOutput1(ctypes.Structure):
-        _fields_ = [
-            ("lpVtbl", PVOID),
-        ]
-    class IDXGIOutputDuplication(ctypes.Structure):
-        _fields_ = [
-            ("lpVtbl", PVOID),
-        ]
-    class ID3D11Device(ctypes.Structure):
-        _fields_ = [
-            ("lpVtbl", PVOID),
-        ]
-    class ID3D11Texture2D(ctypes.Structure):
-        _fields_ = [
-            ("lpVtbl", PVOID),
-        ]
-    class IDXGISurface(ctypes.Structure):
-        _fields_ = [
-            ("lpVtbl", PVOID),
-        ]
+        def iid(a, b, c, d0, d1, d2, d3, d4, d5, d6, d7):
+            return GUID(a, b, c, d0, d1, d2, d3, d4, d5, d6, d7, d7)
 
-    # ── DXGI.dll ─────────────────────────────────────────
-    dxgi = ctypes.windll.dxgi
-    DXGICreateFactory = dxgi.DXGIGetFactory
-    DXGICreateFactory.argtypes = [GUID, PVOID]
-    DXGICreateFactories = getattr(dxgi, 'DXGIGetFactory', None)
-    if not DXGICreateFactories:
-        try:
-            DXGICreateFactories = dxgi.CreateDXGIFactory2
-        except AttributeError:
-            return None
+        DXGICapturer.GUID = GUID
+        DXGICapturer.iid = staticmethod(iid)
+        DXGICapturer.IID_IDXGIFactory = iid(0x7B72, 0x3545, 0x4781, 0x82, 0xE9, 0x12, 0xF9, 0x3A, 0xB3, 0x51, 0x5E)
+        DXGICapturer.IID_IDXGIDevice = iid(0x54, 0xEE, 0x1A, 0x8C, 0xCC, 0x89, 0x34, 0xFB, 0xD1, 0x0C, 0xFE)
+        DXGICapturer.IID_IDXGIAdapter = iid(0x2411, 0xE7, 0xA5, 0x9B, 0xAD, 0xCF, 0x75, 0x7F, 0x49, 0xD8, 0xFA)
+        DXGICapturer.IID_IDXGIOutput = iid(0xAE, 0x02, 0xEA, 0x4F, 0x37, 0x86, 0x7A, 0x4A, 0xD2, 0x84, 0x0F)
+        DXGICapturer.IID_IDXGIOutputDuplication = iid(0xA, 0x9A2, 0xD4, 0xF8, 0xE9, 0x2C, 0x9F, 0x3F, 0xB5, 0xC2, 0x1F)
+        DXGICapturer.IID_ID3D11Device = iid(0x72, 0x49B2, 0x40D5, 0x9A, 0x5C, 0x2C, 0x50, 0x07, 0x2F, 0xAF, 0x7A)
+        DXGICapturer.IID_ID3D11Texture2D = iid(0x73, 0x216D, 0x5F, 0x3D, 0x8B, 0x5B, 0x18, 0xF5, 0x57, 0x8A, 0xC5)
+        DXGICapturer.IID_IDXGISurface = iid(0x4, 0x34, 0x2C, 0xCA, 0xA2, 0xB2, 0x1C, 0x40, 0x79, 0x5C, 0xB3)
+        DXGICapturer.IID_IDXGIOutput1 = iid(0x00, 0x79E, 0x5C, 0xA7, 0xC6, 0xA2, 0xF9, 0x3F, 0x60, 0x06, 0xC8)
 
-    DXGIGetFactory = getattr(ctypes.windll.dxgi, 'CreateDXGIFactory2', None)
-    if not DXGIGetFactory:
-        try:
-            DXGIGetFactory = ctypes.windll.dxgi.DXGIGetFactory
-        except AttributeError:
-            return None
+        DXGICapturer.PVOID = ctypes.c_void_p
+        DXGICapturer.BOOL = ctypes.c_int
+        DXGICapturer.UINT = ctypes.c_uint
+        DXGICapturer.DWORD = ctypes.c_uint32
+        DXGICapturer.HRESULT = ctypes.c_long
 
-    def com_call(obj, vtbl_idx, *args, restype=HRESULT):
-        """通用 COM vtable 调用。obj.lpVtbl[vtbl_idx] 是函数指针。"""
+        class DXGI_OUTDUPL_FRAME_INFO(ctypes.Structure):
+            _fields_ = [
+                ("AccumulatedFrames", DXGICapturer.UINT),
+                ("PresentCount", DXGICapturer.UINT),
+                ("PresentDuration", ctypes.c_ulonglong),
+                ("LastMouseUpdateTime", ctypes.c_ulonglong),
+                ("TotalMetadataBufferSize", DXGICapturer.UINT),
+                ("MetadataBufferSize", DXGICapturer.UINT),
+                ("OrientationPresent", DXGICapturer.DWORD),
+            ]
+        DXGICapturer.DXGI_OUTDUPL_FRAME_INFO = DXGI_OUTDUPL_FRAME_INFO
+
+        class IDXGIFactory(ctypes.Structure):
+            _fields_ = [("lpVtbl", DXGICapturer.PVOID)]
+        class IDXGIDevice(ctypes.Structure):
+            _fields_ = [("lpVtbl", DXGICapturer.PVOID)]
+        class IDXGIAdapter(ctypes.Structure):
+            _fields_ = [("lpVtbl", DXGICapturer.PVOID)]
+        class IDXGIOutput(ctypes.Structure):
+            _fields_ = [("lpVtbl", DXGICapturer.PVOID)]
+        class IDXGIOutput1(ctypes.Structure):
+            _fields_ = [("lpVtbl", DXGICapturer.PVOID)]
+        class IDXGIOutputDuplication(ctypes.Structure):
+            _fields_ = [("lpVtbl", DXGICapturer.PVOID)]
+        class ID3D11Device(ctypes.Structure):
+            _fields_ = [("lpVtbl", DXGICapturer.PVOID)]
+        class IDXGISurface(ctypes.Structure):
+            _fields_ = [("lpVtbl", DXGICapturer.PVOID)]
+
+        DXGICapturer.IDXGIFactory = IDXGIFactory
+        DXGICapturer.IDXGIDevice = IDXGIDevice
+        DXGICapturer.IDXGIAdapter = IDXGIAdapter
+        DXGICapturer.IDXGIOutput = IDXGIOutput
+        DXGICapturer.IDXGIOutput1 = IDXGIOutput1
+        DXGICapturer.IDXGIOutputDuplication = IDXGIOutputDuplication
+        DXGICapturer.ID3D11Device = ID3D11Device
+        DXGICapturer.IDXGISurface = IDXGISurface
+
+    def _com_call(self, obj, vtbl_idx, *args, restype=None):
+        """通用 COM vtable 调用"""
+        import ctypes
+        if restype is None:
+            restype = DXGICapturer.HRESULT
         try:
             vtbl = ctypes.cast(obj.lpVtbl, ctypes.POINTER(ctypes.c_void_p))
             fn = vtbl[vtbl_idx]
-            fn_ptr = ctypes.cast(fn, ctypes.CFUNCTYPE(restype, PVOID, *([PVOID] * len(args))))
+            fn_ptr = ctypes.cast(fn, ctypes.CFUNCTYPE(restype, DXGICapturer.PVOID, *([DXGICapturer.PVOID] * len(args))))
             return fn_ptr(fn, *args)
         except Exception:
             return -1
 
-    # ── CoInitializeEx ───────────────────────────────────
-    try:
-        ctypes.windll.ole32.CoInitializeEx(None, 0x2)  # COINIT_APARTMENTTHREADED
-    except Exception:
-        pass
+    def _init_com_chain(self):
+        """初始化 COM 链：Factory → Adapter → Device → Output → OutputDuplication"""
+        import ctypes
 
-    # ── Create DXGIFactory ───────────────────────────────
-    ppFactory = ctypes.c_void_p()
-    hr = DXGIGetFactory(0, ctypes.byref(ppFactory))
-    if hr != 0:
-        return None
-    pFactory = ctypes.cast(ppFactory, ctypes.POINTER(IDXGIFactory))
+        try:
+            ctypes.windll.ole32.CoInitializeEx(None, 0x2)
+        except Exception:
+            pass
 
-    # ── Enum adapters → find GPU → get device ───────────
-    for adapter_idx in range(8):
-        ppAdapter = ctypes.c_void_p()
-        hr = com_call(pFactory, 4, ctypes.byref(ppAdapter), adapter_idx)  # EnumAdapters
-        if hr != 0 or not ppAdapter.value:
-            break
-        pAdapter = ctypes.cast(ppAdapter, ctypes.POINTER(IDXGIDevice))
+        DXGIGetFactory = getattr(ctypes.windll.dxgi, 'CreateDXGIFactory2', None)
+        if not DXGIGetFactory:
+            try:
+                DXGIGetFactory = ctypes.windll.dxgi.DXGIGetFactory
+            except AttributeError:
+                return
 
-        # Get IDXGIDevice from adapter
-        ppDevice = ctypes.c_void_p()
-        hr = com_call(pAdapter, 0, IID_IDXGIDevice, ctypes.byref(ppDevice))  # QueryInterface
-        if hr != 0 or not ppDevice.value:
-            continue
-        pDevice = ctypes.cast(ppDevice, ctypes.POINTER(IDXGIDevice))
+        ppFactory = ctypes.c_void_p()
+        hr = DXGIGetFactory(0, ctypes.byref(ppFactory))
+        if hr != 0 or not ppFactory.value:
+            return
+        self.pFactory = ctypes.cast(ppFactory, ctypes.POINTER(DXGICapturer.IDXGIFactory))
 
-        # Create D3D11 device (D3D_DRIVER_TYPE_HARDWARE = 0)
-        # Try with NULL since adapter is already set
-        ppD3DDevice = ctypes.c_void_p()
-        D3D11CreateDevice = getattr(ctypes.windll.d3d11, 'D3D11CreateDevice', None)
-        if D3D11CreateDevice:
-            hr = D3D11CreateDevice(
-                pAdapter, 0, None, 0x200,  # D3D11_CREATE_DEVICE_BGRA_SUPPORT
-                None, 0, 7,  # D3D11_SDK_VERSION
-                ctypes.byref(ppD3DDevice), None, None
-            )
-        if not D3D11CreateDevice or hr != 0:
-            # Try software fallback
-            hr = D3D11CreateDevice(
-                None, 1, None, 0x200,
-                None, 0, 7,
-                ctypes.byref(ppD3DDevice), None, None
-            )
-        if hr != 0 or not ppD3DDevice.value:
-            continue
-        pD3DDevice = ctypes.cast(ppD3DDevice, ctypes.POINTER(ID3D11Device))
+        for adapter_idx in range(8):
+            ppAdapter = ctypes.c_void_p()
+            hr = self._com_call(self.pFactory, 4, ctypes.byref(ppAdapter), adapter_idx)
+            if hr != 0 or not ppAdapter.value:
+                break
+            self.pAdapter = ctypes.cast(ppAdapter, ctypes.POINTER(DXGICapturer.IDXGIAdapter))
 
-        # Get output (desktop)
-        ppOutput = ctypes.c_void_p()
-        hr = com_call(pAdapter, 5, 0, ctypes.byref(ppOutput))  # EnumOutputs
-        if hr != 0 or not ppOutput.value:
-            continue
-        pOutput = ctypes.cast(ppOutput, ctypes.POINTER(IDXGIOutput))
-
-        # Query IDXGIOutput1 for DuplicateOutput
-        ppOutput1 = ctypes.c_void_p()
-        IID_IDXGIOutput1 = iid(0x00,0x79E,0x5C,0xA7,0xC6,0xA2,0xF9,0x3F,0x60,0x06,0xC8)
-        hr = com_call(pOutput, 0, IID_IDXGIOutput1, ctypes.byref(ppOutput1))
-        if hr != 0 or not ppOutput1.value:
-            continue
-        pOutput1 = ctypes.cast(ppOutput1, ctypes.POINTER(IDXGIOutput1))
-
-        # DuplicateOutput
-        ppDup = ctypes.c_void_p()
-        hr = com_call(pOutput1, 15, pDevice, ctypes.byref(ppDup))  # DuplicateOutput
-        if hr != 0 or not ppDup.value:
-            continue
-        pDup = ctypes.cast(ppDup, ctypes.POINTER(IDXGIOutputDuplication))
-
-        # ── Acquire frame ────────────────────────────────
-        frame_info = _DXGI_OUTDUPL_FRAME_INFO()
-        ppDesktop = ctypes.c_void_p()
-        hr = com_call(pDup, 0, ctypes.byref(frame_info), ctypes.byref(ppDesktop))  # AcquireNextFrame
-        if hr != 0 or not ppDesktop.value:
-            # 可能需要先 ReleaseFrame
-            com_call(pDup, 1)  # ReleaseFrame
-            hr = com_call(pDup, 0, 100, ctypes.byref(frame_info), ctypes.byref(ppDesktop))
-            if hr != 0 or not ppDesktop.value:
-                com_call(pDup, 1)
+            ppDevice = ctypes.c_void_p()
+            hr = self._com_call(self.pAdapter, 0, DXGICapturer.IID_IDXGIDevice, ctypes.byref(ppDevice))
+            if hr != 0 or not ppDevice.value:
                 continue
+            self.pDevice = ctypes.cast(ppDevice, ctypes.POINTER(DXGICapturer.IDXGIDevice))
 
-        pSurf = ctypes.cast(ppDesktop, ctypes.POINTER(IDXGISurface))
+            ppD3DDevice = ctypes.c_void_p()
+            D3D11CreateDevice = getattr(ctypes.windll.d3d11, 'D3D11CreateDevice', None)
+            if D3D11CreateDevice:
+                hr = D3D11CreateDevice(
+                    self.pAdapter, 0, None, 0x200,
+                    None, 0, 7,
+                    ctypes.byref(ppD3DDevice), None, None
+                )
+            if not D3D11CreateDevice or hr != 0:
+                hr = D3D11CreateDevice(
+                    None, 1, None, 0x200,
+                    None, 0, 7,
+                    ctypes.byref(ppD3DDevice), None, None
+                )
+            if hr != 0 or not ppD3DDevice.value:
+                continue
+            self.pD3DDevice = ctypes.cast(ppD3DDevice, ctypes.POINTER(DXGICapturer.ID3D11Device))
 
-        # Map surface → get raw BGRA bytes
+            ppOutput = ctypes.c_void_p()
+            hr = self._com_call(self.pAdapter, 5, 0, ctypes.byref(ppOutput))
+            if hr != 0 or not ppOutput.value:
+                continue
+            self.pOutput = ctypes.cast(ppOutput, ctypes.POINTER(DXGICapturer.IDXGIOutput))
+
+            ppOutput1 = ctypes.c_void_p()
+            hr = self._com_call(self.pOutput, 0, DXGICapturer.IID_IDXGIOutput1, ctypes.byref(ppOutput1))
+            if hr != 0 or not ppOutput1.value:
+                continue
+            self.pOutput1 = ctypes.cast(ppOutput1, ctypes.POINTER(DXGICapturer.IDXGIOutput1))
+
+            ppDup = ctypes.c_void_p()
+            hr = self._com_call(self.pOutput1, 15, self.pDevice, ctypes.byref(ppDup))
+            if hr != 0 or not ppDup.value:
+                continue
+            self.pDup = ctypes.cast(ppDup, ctypes.POINTER(DXGICapturer.IDXGIOutputDuplication))
+            self._initialized = True
+            break
+
+    def capture(self):
+        """每帧只做 AcquireNextFrame → Map → Copy → ReleaseFrame"""
+        if not self._initialized or not self.pDup:
+            return None
+
+        import ctypes
+        import numpy as np
+
+        frame_info = DXGICapturer.DXGI_OUTDUPL_FRAME_INFO()
+        ppDesktop = ctypes.c_void_p()
+
+        hr = self._com_call(self.pDup, 0, ctypes.byref(frame_info), ctypes.byref(ppDesktop))
+        if hr != 0 or not ppDesktop.value:
+            self._com_call(self.pDup, 1)
+            hr = self._com_call(self.pDup, 0, ctypes.byref(frame_info), ctypes.byref(ppDesktop))
+            if hr != 0 or not ppDesktop.value:
+                self._com_call(self.pDup, 1)
+                return None
+
+        pSurf = ctypes.cast(ppDesktop, ctypes.POINTER(DXGICapturer.IDXGISurface))
+
         subresource = ctypes.c_uint(0)
-        mapped_rect = (ctypes.c_long * 5)()  # pBits, RowPitch, ...
-        hr = com_call(pSurf, 5, subresource, 1, ctypes.byref(mapped_rect))  # Map
+        mapped_rect = (ctypes.c_long * 5)()
+        hr = self._com_call(pSurf, 5, subresource, 1, ctypes.byref(mapped_rect))
         if hr != 0:
-            com_call(pDup, 1)
-            continue
+            self._com_call(self.pDup, 1)
+            return None
 
         try:
             row_pitch = mapped_rect[1]
             bits = mapped_rect[0]
             if not bits:
-                com_call(pDup, 1)
-                continue
-
-            # Build BGRA numpy array
-            class _D3D11_MAPPED_TEX2D(ctypes.Structure):
-                _fields_ = [("pData", PVOID), ("RowPitch", UINT), ("DepthPitch", UINT)]
+                return None
 
             src = ctypes.cast(bits, ctypes.POINTER(ctypes.c_ubyte))
-            total_rows = height
-            total_cols = width
+            total_rows = self.height
+            total_cols = self.width
             arr = np.empty((total_rows, total_cols, 3), dtype=np.uint8)
             for r in range(total_rows):
                 row = np.ctypeslib.as_array(src, shape=(total_cols, 4))
-                arr[r, :, 0] = row[:, 2]   # R (from BGRA)
-                arr[r, :, 1] = row[:, 1]   # G
-                arr[r, :, 2] = row[:, 0]   # B
+                arr[r, :, 0] = row[:, 2]
+                arr[r, :, 1] = row[:, 1]
+                arr[r, :, 2] = row[:, 0]
                 src = ctypes.cast(
                     ctypes.addressof(src.contents) + row_pitch,
                     ctypes.POINTER(ctypes.c_ubyte)
                 )
-            com_call(pSurf, 6)  # Unmap
-            com_call(pDup, 1)   # ReleaseFrame
             return arr
         finally:
             try:
-                com_call(pSurf, 6)  # Unmap
+                self._com_call(pSurf, 6)
             except Exception:
                 pass
-            com_call(pDup, 1)   # ReleaseFrame
-        break
+            self._com_call(self.pDup, 1)
 
-    return None
+    def close(self):
+        """清理资源"""
+        self.pDup = None
+        self.pOutput1 = None
+        self.pOutput = None
+        self.pD3DDevice = None
+        self.pDevice = None
+        self.pAdapter = None
+        self.pFactory = None
+        self._initialized = False
+
+
+_dxgi_capturer = None
+
+
+def _capture_dxgi(width, height):
+    """
+    使用缓存的 DXGI Desktop Duplication API 截取全屏，返回 numpy array (RGB) 或 None。
+    """
+    global _dxgi_capturer
+
+    if _dxgi_capturer is None or _dxgi_capturer.width != width or _dxgi_capturer.height != height:
+        if _dxgi_capturer is not None:
+            _dxgi_capturer.close()
+        _dxgi_capturer = DXGICapturer(width, height)
+
+    if not _dxgi_capturer._initialized:
+        return None
+
+    return _dxgi_capturer.capture()
 
 
 class ScreenCapturer:
