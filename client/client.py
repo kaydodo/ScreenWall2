@@ -19,7 +19,7 @@ import time
 import webbrowser
 
 # 客户端版本号（每次功能更新时手动递增）
-CLIENT_VERSION = "1.13.1"
+CLIENT_VERSION = "1.13.2"
 
 
 def _get_mac_address():
@@ -958,19 +958,6 @@ class ScreenCapturer:
             return m["left"], m["top"], m["width"], m["height"]
         return 0, 0, 1920, 1080
 
-    def _is_img_valid(self, pic, min_size=5000):
-        """检查图片是否有效（不是纯黑或过小）"""
-        try:
-            from PIL import ImageStat
-            stat = ImageStat.Stat(pic)
-            avg_brightness = sum(stat.mean) / 3
-            # 如果图片太小或太暗，认为无效
-            if avg_brightness < 5:
-                return False
-            return True
-        except Exception:
-            return True
-
     def capture(self, hq=False, lossless=False, hq_limit=720, hq_quality=30, is_static=False):
         # hq_limit: HQ 模式分辨率上限，默认 720p（普通预览），可设为 1080（高清预览）
         # is_static: 是否为静态截图（收藏/报警），静态用 WebP 质量 30，实时流全量 WebP
@@ -998,10 +985,6 @@ class ScreenCapturer:
                         if rgb is not None:
                             from PIL import Image
                             pic = Image.fromarray(rgb, "RGB")
-                            
-                            # 检查图片有效性
-                            if not self._is_img_valid(pic):
-                                raise Exception("Invalid black image from DXGI")
                             
                             use_dxgi = True
                             self._dxgi_consecutive_failures = 0  # 重置失败计数
@@ -1047,10 +1030,6 @@ class ScreenCapturer:
                     from PIL import Image
                     pic = Image.frombytes("RGB", frame.size, frame.bgra, "raw", "BGRX").convert("RGB")
                     
-                    # 检查图片有效性
-                    if not self._is_img_valid(pic):
-                        raise Exception("Invalid image from MSS")
-                        
                     if not hq:
                         pic.thumbnail((self.resize_w, self.resize_h), Image.LANCZOS)
                     if hq and (pic.width > int(hq_limit * 16 / 9) or pic.height > hq_limit):
@@ -1080,12 +1059,6 @@ class ScreenCapturer:
                 from PIL import ImageGrab
                 pic = ImageGrab.grab()
                 pic = pic.convert("RGB")
-                
-                # 最后一层检查，即使 ImageGrab 失败也不放弃
-                if not self._is_img_valid(pic):
-                    # 创建一张空白图片作为最后的兜底
-                    from PIL import Image
-                    pic = Image.new('RGB', (self.resize_w, self.resize_h), color=(51, 51, 51))
                 
                 if not hq:
                     pic.thumbnail((self.resize_w, self.resize_h), Image.LANCZOS)
