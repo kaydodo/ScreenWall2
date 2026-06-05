@@ -1691,6 +1691,9 @@ class ScreenWallClient:
         self._current_fps = 6           # 当前帧率（自适应）
         # 完全异步架构：截图信号事件
         self._capture_signal = asyncio.Event()  # 截图信号事件
+        # 截图器缓存：避免每帧重新初始化 MSS
+        self._capturer = None  # 缓存的 ScreenCapturer 对象
+        self._capturer_monitor_index = _current_monitor_index  # 当前显示器索引
         # 刷新托盘菜单，确保显示正确的键盘状态
         _rebuild_tray_icon()
         if _keyboard_enabled:
@@ -2490,16 +2493,21 @@ class ScreenWallClient:
                     hq = False
                     hq_limit = 720
                 
-                # 执行截图和压缩
-                capt = ScreenCapturer(cfg["quality"], cfg["resizeW"], cfg["resizeH"], monitor_index=_current_monitor_index)
+                # 使用缓存的截图器，避免每帧重新初始化 MSS
+                # 只有显示器切换时才重新创建
+                if self._capturer is None or self._capturer_monitor_index != _current_monitor_index:
+                    if self._capturer:
+                        self._capturer.close()
+                    self._capturer = ScreenCapturer(cfg["quality"], cfg["resizeW"], cfg["resizeH"], monitor_index=_current_monitor_index)
+                    self._capturer_monitor_index = _current_monitor_index
+                
+                capt = self._capturer
                 img_bytes = None
                 try:
                     img_bytes = capt.capture(hq=hq, hq_limit=hq_limit, hq_quality=30)
                 except Exception as e:
                     print(f"[截图] 异常: {e}")
-                finally:
-                    capt.close()
-
+                
                 if img_bytes:
                     # 打包帧
                     off_x, off_y, off_w, off_h = _get_current_monitor_offset()
@@ -2814,6 +2822,10 @@ class ScreenWallClient:
             except Exception:
                 pass
         self._tasks.clear()
+        # 清理缓存的截图器
+        if self._capturer:
+            self._capturer.close()
+            self._capturer = None
         # 等待任务真正取消
         await asyncio.sleep(0.1)
 
