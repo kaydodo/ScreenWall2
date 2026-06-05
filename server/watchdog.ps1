@@ -81,7 +81,7 @@ while ($true) {
         $failCount++
         "[$(Get-Date -Format 'yyyy/MM/dd HH:mm:ss')] Fail count: $failCount/$FailThreshold" | Out-File $Log -Append
         
-        if ($failCount >= $FailThreshold) {
+        if ($failCount -ge $FailThreshold) {
             "[$(Get-Date -Format 'yyyy/MM/dd HH:mm:ss')] KILLING SERVICE (frozen)..." | Out-File $Log -Append
             
             $proc = Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue | 
