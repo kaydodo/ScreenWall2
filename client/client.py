@@ -1693,7 +1693,7 @@ class ScreenWallClient:
         self._capture_signal = asyncio.Event()  # 截图信号事件
         # 截图器缓存：避免每帧重新初始化 MSS
         self._capturer = None  # 缓存的 ScreenCapturer 对象
-        self._capturer_monitor_index = _current_monitor_index  # 当前显示器索引
+        self._capturer_monitor_index = None  # 初始化为 None，确保第一次创建截图器
         # 刷新托盘菜单，确保显示正确的键盘状态
         _rebuild_tray_icon()
         if _keyboard_enabled:
