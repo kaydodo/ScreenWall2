@@ -2014,6 +2014,10 @@ async function persistDevices() {
         macAddress: d.macAddress || null,
         lastSeen: d.lastSeen,
         groupId: d.groupId || null,
+        monitorIndex: d.monitorIndex || 1,
+        monitorCount: d.monitorCount || 1,
+        screenWidth: d.screenWidth || null,
+        screenHeight: d.screenHeight || null,
         // 持久化时 Buffer 转 base64（避免存成巨大数组），加载后直接可用
         screenshot: d.screenshot ? (Buffer.isBuffer(d.screenshot) ? 'data:image/webp;base64,' + d.screenshot.toString('base64') : d.screenshot) : null,
       }));
