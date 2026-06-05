@@ -1,5 +1,5 @@
-# ScreenWall Watchdog
-# Keeps node server.js running automatically
+# ScreenWall Watchdog (Enhanced)
+# Checks HTTP health endpoint instead of just port
 
 $ErrorActionPreference = "SilentlyContinue"
 $Log = "$env:TEMP\sw_server_watchdog.log"
@@ -7,14 +7,19 @@ $StopFile = "$env:TEMP\sw_server.stop"
 $PIDFile = "$env:TEMP\sw_watchdog.pid"
 $ServerDir = "D:\ScreenWall2\server"
 $Port = 3000
+$HealthUrl = "http://localhost:$Port/_health"
+$HealthTimeout = 5
+$FailThreshold = 2
 
-# Record this watchdog PID so stop.bat can kill us
 $MyPID = $PID
 $MyPID | Out-File -FilePath $PIDFile -Encoding ASCII
 
 $null > $Log
 "=========================================" | Out-File $Log -Append
 "[$(Get-Date -Format 'yyyy/MM/dd HH:mm:ss')] WATCHDOG START (PID $MyPID)" | Out-File $Log -Append
+"[$(Get-Date -Format 'yyyy/MM/dd HH:mm:ss')] Health URL: $HealthUrl" | Out-File $Log -Append
+
+$failCount = 0
 
 while ($true) {
     if (Test-Path $StopFile) {
@@ -24,20 +29,72 @@ while ($true) {
         break
     }
 
-    $portInUse = Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue | Where-Object { $_.State -eq "Listen" }
-
-    if (-not $portInUse) {
-        "[$(Get-Date -Format 'yyyy/MM/dd HH:mm:ss')] SERVER DOWN, starting..." | Out-File $Log -Append
-        $proc = Start-Process -FilePath "node" -ArgumentList "server.js" -WorkingDirectory $ServerDir -PassThru -WindowStyle Minimized
-        Start-Sleep 2
-
-        $verify = Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue | Where-Object { $_.State -eq "Listen" }
-        if ($verify) {
-            "[$(Get-Date -Format 'yyyy/MM/dd HH:mm:ss')] SERVER OK (PID $($proc.Id))" | Out-File $Log -Append
+    $healthOk = $false
+    $statusCode = 0
+    
+    try {
+        $response = Invoke-WebRequest -Uri $HealthUrl -TimeoutSec $HealthTimeout -UseBasicParsing -ErrorAction Stop
+        $statusCode = $response.StatusCode
+        if ($statusCode -eq 200) {
+            $healthOk = $true
+            $failCount = 0
+        } elseif ($statusCode -eq 503) {
+            "[$(Get-Date -Format 'yyyy/MM/dd HH:mm:ss')] HEALTH 503 - event loop blocked" | Out-File $Log -Append
+        }
+    } catch {
+        $errorMsg = $_.Exception.Message
+        if ($errorMsg -match "timed out") {
+            "[$(Get-Date -Format 'yyyy/MM/dd HH:mm:ss')] HEALTH TIMEOUT - service frozen" | Out-File $Log -Append
         } else {
-            "[$(Get-Date -Format 'yyyy/MM/dd HH:mm:ss')] SERVER START FAILED" | Out-File $Log -Append
+            "[$(Get-Date -Format 'yyyy/MM/dd HH:mm:ss')] HEALTH FAILED - $errorMsg" | Out-File $Log -Append
+        }
+    }
+
+    if (-not $healthOk) {
+        $failCount++
+        "[$(Get-Date -Format 'yyyy/MM/dd HH:mm:ss')] Fail count: $failCount/$FailThreshold" | Out-File $Log -Append
+        
+        if ($failCount >= $FailThreshold) {
+            "[$(Get-Date -Format 'yyyy/MM/dd HH:mm:ss')] KILLING SERVICE..." | Out-File $Log -Append
+            
+            $proc = Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue | 
+                    Where-Object { $_.State -eq "Listen" } | 
+                    Select-Object -ExpandProperty OwningProcess -Unique
+            
+            if ($proc) {
+                foreach ($p in $proc) {
+                    Stop-Process -Id $p -Force -ErrorAction SilentlyContinue
+                    "[$(Get-Date -Format 'yyyy/MM/dd HH:mm:ss')] Killed PID $p" | Out-File $Log -Append
+                }
+            } else {
+                "[$(Get-Date -Format 'yyyy/MM/dd HH:mm:ss')] No process on port $Port, killing all node..." | Out-File $Log -Append
+                Stop-Process -Name node -Force -ErrorAction SilentlyContinue
+            }
+            
+            Start-Sleep 2
+            
+            "[$(Get-Date -Format 'yyyy/MM/dd HH:mm:ss')] STARTING SERVICE..." | Out-File $Log -Append
+            $newProc = Start-Process -FilePath "node" -ArgumentList "server.js" -WorkingDirectory $ServerDir -PassThru -WindowStyle Minimized
+            
+            Start-Sleep 3
+            
+            try {
+                $verify = Invoke-WebRequest -Uri $HealthUrl -TimeoutSec $HealthTimeout -UseBasicParsing -ErrorAction Stop
+                if ($verify.StatusCode -eq 200) {
+                    "[$(Get-Date -Format 'yyyy/MM/dd HH:mm:ss')] SERVICE OK (PID $($newProc.Id))" | Out-File $Log -Append
+                } else {
+                    "[$(Get-Date -Format 'yyyy/MM/dd HH:mm:ss')] SERVICE START FAILED (status $($verify.StatusCode))" | Out-File $Log -Append
+                }
+            } catch {
+                "[$(Get-Date -Format 'yyyy/MM/dd HH:mm:ss')] SERVICE START FAILED (no response)" | Out-File $Log -Append
+            }
+            
+            $failCount = 0
         }
     }
 
     Start-Sleep 5
 }
+
+Remove-Item $PIDFile -Force -ErrorAction SilentlyContinue
+"[$(Get-Date -Format 'yyyy/MM/dd HH:mm:ss')] WATCHDOG EXIT" | Out-File $Log -Append

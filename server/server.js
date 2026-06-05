@@ -27,8 +27,202 @@ const { spawn, execFile } = require('child_process');
 const { promisify } = require('util');
 const httpProxy = require('http-proxy');
 const { formidable } = require('formidable');
+const { Worker } = require('worker_threads');
 
 const UPLOAD_DIR = path.join(__dirname, 'public');
+
+// ========== 服务健康自检机制 ==========
+let lastHeartbeat = Date.now();
+let heartbeatInterval = null;
+let alarmWorker = null;
+let alarmWorkerReady = false;
+const alarmWorkerQueue = [];
+const HEARTBEAT_INTERVAL_MS = 1000;
+const HEARTBEAT_TIMEOUT_MS = 10000;
+
+function startHeartbeat() {
+  if (heartbeatInterval) return;
+  heartbeatInterval = setInterval(() => {
+    lastHeartbeat = Date.now();
+  }, HEARTBEAT_INTERVAL_MS);
+  serverLog('[健康] 心跳自检已启动');
+}
+
+function checkHealth() {
+  const now = Date.now();
+  const elapsed = now - lastHeartbeat;
+  return {
+    healthy: elapsed < HEARTBEAT_TIMEOUT_MS,
+    elapsed,
+    lastHeartbeat
+  };
+}
+
+function initAlarmWorker() {
+  if (alarmWorker) return;
+  
+  const workerPath = path.join(__dirname, 'alarm-worker.js');
+  if (!fs.existsSync(workerPath)) {
+    serverError('[Worker] alarm-worker.js 不存在，报警处理将在主线程执行');
+    return;
+  }
+  
+  alarmWorker = new Worker(workerPath);
+  
+  alarmWorker.on('message', (msg) => {
+    if (msg.type === 'workerReady') {
+      alarmWorkerReady = true;
+      serverLog('[Worker] 报警处理线程已就绪');
+      while (alarmWorkerQueue.length > 0) {
+        const task = alarmWorkerQueue.shift();
+        alarmWorker.postMessage(task);
+      }
+    } else if (msg.type === 'alarmResult') {
+      handleAlarmResult(msg.deviceId, msg.result);
+    } else if (msg.type === 'alarmError') {
+      serverError(`[Worker] ${msg.deviceId} 报警处理失败: ${msg.error}`);
+    }
+  });
+  
+  alarmWorker.on('error', (err) => {
+    serverError('[Worker] 报警线程错误:', err.message);
+    alarmWorker = null;
+    alarmWorkerReady = false;
+  });
+  
+  alarmWorker.on('exit', (code) => {
+    if (code !== 0) {
+      serverError(`[Worker] 报警线程异常退出 (code=${code})`);
+    }
+    alarmWorker = null;
+    alarmWorkerReady = false;
+  });
+}
+
+function sendAlarmToWorker(deviceId, imageBuffer, templateBuffer, templateRegion) {
+  const task = {
+    type: 'processAlarm',
+    deviceId,
+    imageBuffer,
+    templateBuffer,
+    templateRegion
+  };
+  
+  if (alarmWorkerReady && alarmWorker) {
+    alarmWorker.postMessage(task);
+  } else {
+    alarmWorkerQueue.push(task);
+    if (!alarmWorker) {
+      initAlarmWorker();
+    }
+  }
+}
+
+function handleAlarmResult(deviceId, result) {
+  if (result.type === 'verify') {
+    const state = alarmStates.get(deviceId);
+    if (!state) return;
+    
+    if (result.shouldEnd) {
+      state.verifyCount++;
+      if (state.verifyCount >= 2) {
+        alarmStates.set(deviceId, {
+          state: 'idle',
+          verifyCount: 0,
+          templateRegion: null,
+          templateBuffer: null,
+          lastImage: null,
+          occurrenceCount: state.occurrenceCount,
+        });
+      } else {
+        alarmStates.set(deviceId, state);
+      }
+    } else {
+      state.verifyCount = 0;
+      alarmStates.set(deviceId, state);
+    }
+  } else if (result.type === 'detect' && result.alarm) {
+    createAlarmRecord(deviceId, result);
+  }
+}
+
+function createAlarmRecord(deviceId, result) {
+  const dev = devices.get(deviceId);
+  if (!dev) return;
+  
+  const deviceName = dev.deviceName;
+  const groupName = getGroupNameForDevice(deviceId);
+  const cellStr = getCellStrForDevice(deviceId);
+  
+  const imageMd5 = result.imageMd5;
+  const prev = alarmPrevCache.get(deviceId);
+  if (prev && prev.md5 === imageMd5) return;
+  alarmPrevCache.set(deviceId, { md5: imageMd5, time: result.timestamp });
+  
+  for (const client of wssClient.clients) {
+    if (client._deviceId === deviceId && client.readyState === 1) {
+      client.send(JSON.stringify({ type: 'requestHdScreenshot', purpose: 'alarm', timestamp: result.timestamp }));
+      break;
+    }
+  }
+  
+  const screenshotId = crypto.randomUUID();
+  const screenshotPath = path.join(ALARM_SCREENSHOTS_DIR, `${screenshotId}.png`);
+  
+  const dayStart = new Date(result.timestamp).setHours(0, 0, 0, 0);
+  let occurrenceCount = 1;
+  for (const rec of alarmRecords) {
+    if (rec.deviceId === deviceId && rec.timestamp >= dayStart) {
+      if (rec.occurrenceCount && rec.occurrenceCount >= occurrenceCount) {
+        occurrenceCount = rec.occurrenceCount + 1;
+      }
+    }
+  }
+  
+  const record = {
+    id: crypto.randomUUID(),
+    deviceId,
+    deviceName,
+    uuDeviceId: dev.uuDeviceId || null,
+    screenshot: `/alarm-screenshots/${screenshotId}.png`,
+    screenshotId,
+    screenshotPath,
+    timestamp: result.timestamp,
+    groupName,
+    cellStr,
+    occurrenceCount,
+    status: 'confirmed',
+    matchedKeyword: result.matchedKeyword,
+    region: result.region,
+    regionSize: result.regionSize,
+    isFullScreenshot: false,
+  };
+  
+  alarmRecords.push(record);
+  persistAlarmRecords();
+  
+  serverLog(`[报警] ${deviceName} 触发报警 (第${occurrenceCount}次)`);
+  
+  alarmStates.set(deviceId, {
+    state: 'verifying',
+    verifyCount: 0,
+    templateRegion: result.templateRegion,
+    templateBuffer: result.templateBuffer,
+    lastImage: null,
+    occurrenceCount,
+  });
+  
+  broadcastToBrowsers({ type: 'alarm', alarm: record });
+}
+
+function getCellStrForDevice(deviceId) {
+  for (const [idx, devId] of Object.entries(gridLayout)) {
+    if (devId === deviceId) {
+      return ' 格:' + String(parseInt(idx) + 1).padStart(2, '0');
+    }
+  }
+  return '';
+}
 
 function checkUploadAuth(req) {
     const cookie = req.headers.cookie || '';
@@ -3104,22 +3298,14 @@ wssClient.on('connection', (ws, req) => {
           }
         }
 
-        // 【合并修复】心跳中附带的报警截图，走 processAlarmImage 处理
+        // 【合并修复】心跳中附带的报警截图，发送到 Worker Thread 处理
         const alarmImgData = msg.alarmScreenshot;
         if (alarmImgData) {
-
           const imgBuffer = Buffer.from(alarmImgData.replace(/^data:image\/\w+;base64,/, ''), 'base64');
-          
-          processAlarmImage(dev.deviceId, imgBuffer, {
-            deviceName: dev.deviceName,
-            uuDeviceId: dev.uuDeviceId || null,
-            groupName: '',
-            cellStr: '',
-            screenWidth: dev.screenWidth || 1920,
-            screenHeight: dev.screenHeight || 1080,
-          }).catch(err => {
-            serverError(`[报警] ${dev.deviceName} 处理失败:`, err.message);
-          });
+          const state = alarmStates.get(dev.deviceId);
+          const templateBuffer = state?.templateBuffer || null;
+          const templateRegion = state?.templateRegion || null;
+          sendAlarmToWorker(dev.deviceId, imgBuffer, templateBuffer, templateRegion);
         }
 
         ws.send(JSON.stringify({
@@ -3137,45 +3323,17 @@ wssClient.on('connection', (ws, req) => {
 
     if (msg.type === 'alarm' && msg.deviceId) {
       const dev = devices.get(msg.deviceId);
-      const deviceName = dev ? dev.deviceName : (msg.deviceName || '未知设备');
-      
-      // 查找设备所在格子号和分组名
-      let cellStr = '';
-      let groupName = '';
-      for (const [idx, devId] of Object.entries(gridLayout)) {
-        if (devId === msg.deviceId) {
-          cellStr = ' 格:' + String(parseInt(idx) + 1).padStart(2, '0');
-          break;
-        }
-      }
-      if (dev && dev.groupId) {
-        const grp = groups.find(g => g.id === dev.groupId);
-        if (grp) groupName = '(' + grp.name + ')';
-      }
       
       // 获取图片数据
       const imageData = msg.image;
-      if (!imageData) {
-        // 无图片数据不打印
-        return;
-      }
+      if (!imageData) return;
       
-      // 转换 base64 为 buffer
+      // 转换 base64 为 buffer，发送到 Worker Thread 处理
       const imageBuffer = Buffer.from(imageData.replace(/^data:image\/\w+;base64,/, ''), 'base64');
-      
-      // 处理报警图片
-      const deviceInfo = {
-        deviceName,
-        uuDeviceId: msg.uuDeviceId || dev?.uuDeviceId || null,
-        groupName,
-        cellStr,
-        screenWidth: dev?.screenWidth || msg.screenWidth || 1920,
-        screenHeight: dev?.screenHeight || msg.screenHeight || 1080,
-      };
-      
-      processAlarmImage(msg.deviceId, imageBuffer, deviceInfo).catch(err => {
-        serverError(`[报警] ${deviceName} 处理失败:`, err.message);
-      });
+      const state = alarmStates.get(msg.deviceId);
+      const templateBuffer = state?.templateBuffer || null;
+      const templateRegion = state?.templateRegion || null;
+      sendAlarmToWorker(msg.deviceId, imageBuffer, templateBuffer, templateRegion);
     }  // end if alarm
 
     if (msg.type === 'cameraClicked') {
@@ -4506,6 +4664,20 @@ httpServer.on('request', async (req, res) => {
 
   const cleanPath = pathname.replace(/\/$/, '');
 
+  // ========== 健康检查端点（看门狗使用）==========
+  if (cleanPath === '/_health') {
+    const health = checkHealth();
+    if (health.healthy) {
+      res.writeHead(200, { 'Content-Type': 'text/plain' });
+      res.end('ok');
+    } else {
+      serverError(`[健康] 事件循环阻塞 ${health.elapsed}ms`);
+      res.writeHead(503, { 'Content-Type': 'text/plain' });
+      res.end('blocked');
+    }
+    return;
+  }
+
   if (cleanPath === '/_upload' || cleanPath.startsWith('/_upload/')) {
     handleUploadRequest(req, res, cleanPath);
     return;
@@ -5740,7 +5912,14 @@ function getGatewayManagePage() {
 httpServer.listen(PORT, HOST, () => {
   serverLog(`  🖥️  屏幕墙服务端 v${SERVER_CONFIG.serverVersion || '未知'} 已启动`);
   serverLog(`   本地访问:     http://localhost:${PORT}`);
-  serverLog(`   WebSocket端口: ${PORT}\n`);
+  serverLog(`   WebSocket端口: ${PORT}`);
+  serverLog(`   健康检查:     http://localhost:${PORT}/_health\n`);
+  
+  // 启动心跳自检
+  startHeartbeat();
+  
+  // 初始化报警处理 Worker Thread
+  initAlarmWorker();
   
   setTimeout(async () => {
     await startMuService();
