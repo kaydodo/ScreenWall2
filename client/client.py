@@ -1785,9 +1785,25 @@ class ScreenWallClient:
             # 安装完成后清除版本缓存
             self._uu_version = None
             self._uu_version_time = 0
-            # 等安装完成
-            await asyncio.sleep(10)
-            # 安装完成后重置标志，下次心跳再次比对（确认是否成功）
+            
+            # 检测 GameViewer.exe 进程出现（最多等待120秒）
+            max_wait = 120
+            waited = 0
+            while waited < max_wait:
+                await asyncio.sleep(2)
+                waited += 2
+                # 检查进程是否存在
+                try:
+                    result = subprocess.run(['tasklist', '/FI', 'IMAGENAME eq GameViewer.exe'], 
+                                          capture_output=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW)
+                    if 'GameViewer.exe' in result.stdout:
+                        # 进程出现，再等待3秒让UU完全启动
+                        await asyncio.sleep(3)
+                        break
+                except Exception:
+                    pass
+            
+            # 安装完成后重置标志
             self._uu_install_triggered = False
             # 心跳升级时：重新执行初始化（设置密码 + 获取ID）
             if not is_startup:
