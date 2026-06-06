@@ -19,7 +19,7 @@ import time
 import webbrowser
 
 # 客户端版本号（每次功能更新时手动递增）
-CLIENT_VERSION = "1.13.4"
+CLIENT_VERSION = "1.14.0"
 
 
 def _get_mac_address():
@@ -2492,12 +2492,8 @@ class ScreenWallClient:
                     header = struct.pack('>BBBBHH', 0x01, len(device_id_bytes), flags, 0, off_w, off_h)
                     binary_frame = header + device_id_bytes + img_bytes
                     
-                    # 放入发送队列
-                    self._frame_queue.append(binary_frame)
-                    # 队列最大长度限制，自动丢弃旧帧
-                    if len(self._frame_queue) > 3:
-                        self._frame_queue = self._frame_queue[-3:]
-                        self._frame_dropped += 1
+                    # 放入发送队列（最大1帧，新帧入队丢弃旧帧）
+                    self._frame_queue = [binary_frame]
                 
                 # 定时兜底重置：每60分钟重置一次，防止累积误差
                 current_time = time.time()
