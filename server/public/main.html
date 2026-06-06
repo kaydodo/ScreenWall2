@@ -558,22 +558,6 @@ let previewScreenWidth = 1280;
 let previewScreenHeight = 720;
 let serverConfig = {};
 
-// 拖拽状态
-let dragState = {
-  active: false,
-  startIndex: null,
-  currentIndex: null,
-  targetIndex: -1,
-  element: null,
-  timer: null,
-  startX: 0,
-  startY: 0,
-  offsetX: 0,
-  offsetY: 0,
-  cellWidth: 0,
-  cellHeight: 0
-};
-
 // 页面加载时读取服务端配置
 async function loadServerConfig() {
   try {
