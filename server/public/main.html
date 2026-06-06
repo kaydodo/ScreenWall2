@@ -2160,7 +2160,10 @@ function createCellElement(index) {
     if (cell && cell.deviceId) toggleFavorite(cell.deviceId);
   };
 
-  initDragEvents(el, index);
+  // 移动端禁用拖拽功能
+  if (!isMobile) {
+    initDragEvents(el, index);
+  }
 
   return el;
 }
