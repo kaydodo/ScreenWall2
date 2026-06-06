@@ -1102,11 +1102,17 @@ function connectWS() {
 
   // 独立定帧渲染：帧缓存 + 固定帧率渲染器
   const _frameCache = new Map(); // deviceId -> { blobUrl, screenWidth, screenHeight, isHQ }
-  const _renderInterval = 83; // 12fps 渲染帧率
+  const _renderIntervalDesktop = 83;  // 12fps（桌面端）
+  const _renderIntervalMobile = 667;  // 1.5fps（手机端）
   let _renderTimer = null;
+  
+  function _getRenderInterval() {
+    return isMobile ? _renderIntervalMobile : _renderIntervalDesktop;
+  }
   
   function _startFrameRenderer() {
     if (_renderTimer) return;
+    const interval = _getRenderInterval();
     _renderTimer = setInterval(() => {
       for (const [deviceId, frameData] of _frameCache) {
         if (!frameData || !frameData.blobUrl) continue;
@@ -1128,7 +1134,7 @@ function connectWS() {
         // 清理已渲染的帧缓存
         _frameCache.delete(deviceId);
       }
-    }, _renderInterval);
+    }, interval);
   }
   
   function _stopFrameRenderer() {
@@ -1136,6 +1142,11 @@ function connectWS() {
       clearInterval(_renderTimer);
       _renderTimer = null;
     }
+  }
+  
+  function _restartFrameRenderer() {
+    _stopFrameRenderer();
+    _startFrameRenderer();
   }
   
   _startFrameRenderer();
@@ -3843,6 +3854,10 @@ window.matchMedia('(max-width: 768px)').addEventListener('change', function() {
   isMobile = window.matchMedia('(max-width: 768px)').matches;
   if (typeof updateStats === 'function') {
     updateStats();
+  }
+  // 重启渲染器以适应新的帧率
+  if (typeof _restartFrameRenderer === 'function') {
+    _restartFrameRenderer();
   }
 });
 

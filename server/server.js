@@ -1529,7 +1529,7 @@ function sendBinaryScreenshot(ws, frameType, deviceId, webpBuffer, screenWidth, 
 }
 
 // 帧率间隔（毫秒）
-const FRAME_INTERVAL_MOBILE = 500; // 2fps
+const FRAME_INTERVAL_MOBILE = 667; // 1.5fps
 const FRAME_INTERVAL_INTERNAL = 83;  // ~12fps（内网节流）
 const FRAME_INTERVAL_EXTERNAL = 333; // ~3fps
 
