@@ -1636,6 +1636,7 @@ function _flushWallBatch() {
     return;
   }
 
+  const WALL_FRAME_INTERVAL_INTERNAL = 83;  // ~12fps（内网节流）
   const WALL_FRAME_INTERVAL_EXTERNAL = 333; // 外网3fps
 
   try {
@@ -1647,6 +1648,7 @@ function _flushWallBatch() {
 
       const isInternal = wallWs._isInternal;
       const now = Date.now();
+      const frameInterval = isInternal ? WALL_FRAME_INTERVAL_INTERNAL : WALL_FRAME_INTERVAL_EXTERNAL;
 
       for (let i = 0; i < layout.deviceIds.length; i++) {
         const deviceId = layout.deviceIds[i];
@@ -1655,13 +1657,10 @@ function _flushWallBatch() {
         const data = _wallBatch.get(deviceId);
         if (!data || !data.buffer) continue;
 
-        // 外网节流
-        if (!isInternal) {
-          const lastTime = wallWs._lastWallFrameTime?.get(deviceId) || 0;
-          if (now - lastTime < WALL_FRAME_INTERVAL_EXTERNAL) continue;
-          if (!wallWs._lastWallFrameTime) wallWs._lastWallFrameTime = new Map();
-          wallWs._lastWallFrameTime.set(deviceId, now);
-        }
+        const lastTime = wallWs._lastWallFrameTime?.get(deviceId) || 0;
+        if (now - lastTime < frameInterval) continue;
+        if (!wallWs._lastWallFrameTime) wallWs._lastWallFrameTime = new Map();
+        wallWs._lastWallFrameTime.set(deviceId, now);
 
         sendBinaryScreenshot(wallWs, 0x10, deviceId, data.buffer, data.screenWidth || 0, data.screenHeight || 0, false);
       }

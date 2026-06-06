@@ -543,11 +543,12 @@ var stats = {
 var isInternalConnection = true;
 var _wallFrameCache = new Map(); // deviceId -> { blobUrl, timestamp }
 var _wallRenderScheduled = false;
-var _wallRenderInterval = 333; // 外网3fps
+var _wallRenderIntervalInternal = 83;  // 内网~12fps
+var _wallRenderIntervalExternal = 333; // 外网3fps
 var _wallLastRenderTime = new Map(); // deviceId -> timestamp
 
 function _wallGetRenderInterval() {
-  return isInternalConnection ? 0 : _wallRenderInterval;
+  return isInternalConnection ? _wallRenderIntervalInternal : _wallRenderIntervalExternal;
 }
 
 function _wallScheduleRender() {
