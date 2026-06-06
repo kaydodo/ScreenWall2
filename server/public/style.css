@@ -890,7 +890,17 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
 .wall-cell.dragging {
   opacity: 0.9;
   cursor: grabbing;
-  transition: transform 0.1s;
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+
+.wall-cell.drag-target-before {
+  border-color: #4CAF50;
+  box-shadow: 0 0 12px rgba(76, 175, 80, 0.5);
+}
+
+.wall-cell.drag-target-after {
+  border-color: #4CAF50;
+  box-shadow: 0 0 12px rgba(76, 175, 80, 0.5);
 }
 
 .cell-preview {
