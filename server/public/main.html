@@ -6105,15 +6105,21 @@ function refreshMonitorDeviceList() {
   var container = document.getElementById('monitorDeviceList');
   if (!container) return;
   
+  // 保存滚动位置
+  var savedScrollTop = container.scrollTop;
+  
+  // 如果正在操作复选框，延迟刷新
+  if (isMicroRefreshLocked()) {
+    setTimeout(refreshMonitorDeviceList, 100);
+    return;
+  }
+  
   var html = '';
-  // 按名称自然排序
   var sortedDevices = devices.slice().sort(function(a, b) { return naturalCompare(a.deviceName || '', b.deviceName || ''); });
   sortedDevices.forEach(function(d) {
-    // 从 groups 中查找分组名称
     var groupObj = groups.find(function(g) { return g.id === d.groupId; });
     var groupInfo = groupObj ? groupObj.name : '未分组';
     var cellInfo = '';
-    // 查找设备所在的格子
     for (var idx = 0; idx < gridCells.length; idx++) {
       if (gridCells[idx] && gridCells[idx].deviceId === d.deviceId) {
         cellInfo = '格' + getPositionLabel(idx);
@@ -6123,7 +6129,6 @@ function refreshMonitorDeviceList() {
     var infoStr = cellInfo ? groupInfo + ' / ' + cellInfo : groupInfo;
     var isChecked = monitorWallState.selectedDevices.indexOf(d.deviceId) >= 0;
     var statusClass = d.online ? 'online' : 'offline';
-    // 不再限制已上墙设备，允许自由选择
     var alreadySelected = monitorWallState.selectedDevices.indexOf(d.deviceId) >= 0;
 
     html += '<label class="monitor-device-item ' + statusClass + '">' +
@@ -6140,6 +6145,10 @@ function refreshMonitorDeviceList() {
     html = '<div class="monitor-empty">暂无设备</div>';
   }
   container.innerHTML = html;
+  
+  // 恢复滚动位置
+  container.scrollTop = savedScrollTop;
+  
   updateMonitorPreview();
 }
 
