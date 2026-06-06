@@ -1102,12 +1102,16 @@ function connectWS() {
 
   // 独立定帧渲染：帧缓存 + 固定帧率渲染器
   const _frameCache = new Map(); // deviceId -> { blobUrl, screenWidth, screenHeight, isHQ }
-  const _renderIntervalDesktop = 83;  // 12fps（桌面端）
-  const _renderIntervalMobile = 667;  // 1.5fps（手机端）
+  const _renderIntervalInternal = 83;   // 12fps（内网）
+  const _renderIntervalExternal = 200;  // 5fps（外网）
+  const _renderIntervalMobile = 667;    // 1.5fps（手机端）
   let _renderTimer = null;
+  let isInternalConnection = true;  // 默认内网
   
   function _getRenderInterval() {
-    return isMobile ? _renderIntervalMobile : _renderIntervalDesktop;
+    if (isMobile) return _renderIntervalMobile;
+    if (!isInternalConnection) return _renderIntervalExternal;
+    return _renderIntervalInternal;
   }
   
   function _startFrameRenderer() {
@@ -1246,6 +1250,16 @@ function connectWS() {
         var vEl = document.getElementById('topbarVersion');
         if (vEl) vEl.textContent = 'v' + msg.serverVersion;
       }
+      
+      // 设置内外网连接状态
+      if (msg.isInternal !== undefined) {
+        isInternalConnection = msg.isInternal;
+        // 根据内外网状态重启渲染器
+        if (typeof _restartFrameRenderer === 'function') {
+          _restartFrameRenderer();
+        }
+      }
+      
       // 保存之前的设备在线状态（用于服务端重启后保持状态）
       const prevOnlineStatus = new Map();
       devices.forEach(function(d) {
