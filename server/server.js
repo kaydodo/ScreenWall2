@@ -4223,8 +4223,16 @@ wssBrowser.on('connection', (ws, req) => {
     // 移动端模式：浏览器上报是否为移动端
     if (msg.type === 'setMobileMode') {
       ws._isMobile = !!msg.isMobile;
-      // 移动端模式时清空帧率追踪，重新开始
       ws._lastFrameTime.clear();
+    }
+
+    // 格子拖拽排序更新
+    if (msg.type === 'updateGrid') {
+      if (msg.layout) {
+        gridLayout = msg.layout;
+        await persistGrid();
+        broadcastToBrowsers({ type: 'grid', cells: getGridPayload() });
+      }
     }
 
     // Step 3: 视口懒加载 - 浏览器上报当前可见格子和裁剪参数

@@ -875,17 +875,22 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
   border-radius: var(--radius-md);
   border: 1.5px solid var(--border);
   overflow: hidden;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s;
   position: relative;
   display: flex;
   flex-direction: column;
-  /* 高度由内容决定（预览图 aspect-ratio + footer） */
   height: auto;
 }
 
 .wall-cell:hover {
   border-color: var(--border-hover);
   box-shadow: var(--shadow-md);
+}
+
+.wall-cell.dragging {
+  opacity: 0.9;
+  cursor: grabbing;
+  transition: transform 0.1s;
 }
 
 .cell-preview {
