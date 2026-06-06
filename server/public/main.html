@@ -737,7 +737,7 @@ function connectWS() {
 
   // 独立定帧渲染：帧缓存 + 固定帧率渲染器
   const _frameCache = new Map(); // deviceId -> { blobUrl, screenWidth, screenHeight, isHQ }
-  const _renderInterval = 100; // 10fps 渲染帧率
+  const _renderInterval = 83; // 12fps 渲染帧率
   let _renderTimer = null;
   
   function _startFrameRenderer() {
