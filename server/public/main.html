@@ -721,14 +721,15 @@ function onDragMove(e) {
   let insertIndex = -1;
   let insertPos = null;
   
+  const tolerance = 40;
+  
   for (let i = 0; i < cells.length - 1; i++) {
     const currentRect = cells[i].getBoundingClientRect();
     const nextRect = cells[i + 1].getBoundingClientRect();
     
     const midX = (currentRect.right + nextRect.left) / 2;
-    const tolerance = 30;
     
-    if (clientY >= currentRect.top && clientY <= currentRect.bottom) {
+    if (clientY >= currentRect.top - tolerance && clientY <= currentRect.bottom + tolerance) {
       if (clientX >= midX - tolerance && clientX <= midX + tolerance) {
         insertIndex = i;
         insertPos = 'after';
@@ -737,17 +738,19 @@ function onDragMove(e) {
     }
   }
   
-  if (clientY >= gridRect.top && clientY <= gridRect.bottom) {
+  if (insertIndex < 0 && clientY >= gridRect.top && clientY <= gridRect.bottom) {
     const firstRect = cells[0].getBoundingClientRect();
-    if (clientX < firstRect.left + 30 && clientY >= firstRect.top && clientY <= firstRect.bottom) {
+    if (clientX <= firstRect.left + tolerance && clientY >= firstRect.top - tolerance && clientY <= firstRect.bottom + tolerance) {
       insertIndex = 0;
       insertPos = 'before';
     }
     
-    const lastRect = cells[cells.length - 1].getBoundingClientRect();
-    if (clientX > lastRect.right - 30 && clientY >= lastRect.top && clientY <= lastRect.bottom) {
-      insertIndex = cells.length - 1;
-      insertPos = 'after';
+    if (insertIndex < 0) {
+      const lastRect = cells[cells.length - 1].getBoundingClientRect();
+      if (clientX >= lastRect.right - tolerance && clientY >= lastRect.top - tolerance && clientY <= lastRect.bottom + tolerance) {
+        insertIndex = cells.length - 1;
+        insertPos = 'after';
+      }
     }
   }
   
@@ -869,21 +872,24 @@ function reorderCells(fromIndex, toIndex) {
   const grid = document.getElementById('mainGrid');
   const movedCell = gridCells[fromIndex];
   
+  const newGridCells = [...gridCells];
   if (fromIndex < toIndex) {
     for (let i = fromIndex; i < toIndex - 1; i++) {
-      gridCells[i] = gridCells[i + 1];
-      if (gridCells[i]) gridCells[i].index = i;
+      newGridCells[i] = gridCells[i + 1];
+      if (newGridCells[i]) newGridCells[i].index = i;
     }
-    gridCells[toIndex - 1] = movedCell;
+    newGridCells[toIndex - 1] = movedCell;
     if (movedCell) movedCell.index = toIndex - 1;
   } else {
     for (let i = fromIndex; i > toIndex; i--) {
-      gridCells[i] = gridCells[i - 1];
-      if (gridCells[i]) gridCells[i].index = i;
+      newGridCells[i] = gridCells[i - 1];
+      if (newGridCells[i]) newGridCells[i].index = i;
     }
-    gridCells[toIndex] = movedCell;
+    newGridCells[toIndex] = movedCell;
     if (movedCell) movedCell.index = toIndex;
   }
+  
+  gridCells = newGridCells;
   
   const cells = Array.from(grid.children);
   const draggedCell = cells[fromIndex];
@@ -894,7 +900,8 @@ function reorderCells(fromIndex, toIndex) {
     grid.insertBefore(draggedCell, cells[toIndex]);
   }
   
-  cells.forEach((cell, idx) => {
+  const updatedCells = Array.from(grid.children);
+  updatedCells.forEach((cell, idx) => {
     cell.dataset.index = idx;
   });
   
@@ -1729,6 +1736,33 @@ function connectWS() {
           }
         }
       });
+      
+      // 重新排列 DOM 元素以匹配 gridCells 数组顺序
+      const grid = document.getElementById('mainGrid');
+      const cells = Array.from(grid.children);
+      
+      // 按照 gridCells 顺序重新排列 DOM
+      gridCells.forEach(function(c, idx) {
+        if (c && c.deviceId) {
+          const targetCell = cells.find(function(cell) { return cell.dataset.deviceId === c.deviceId; });
+          if (targetCell) {
+            const currentPos = Array.from(grid.children).indexOf(targetCell);
+            if (currentPos !== idx) {
+              if (idx >= grid.children.length) {
+                grid.appendChild(targetCell);
+              } else {
+                grid.insertBefore(targetCell, grid.children[idx]);
+              }
+            }
+          }
+        }
+      });
+      
+      // 更新所有格子的 dataset.index
+      Array.from(grid.children).forEach(function(cell, idx) {
+        cell.dataset.index = idx;
+      });
+      
       // 刷新格子 DOM
       gridCells.forEach(function(c) {
         if (c && c.deviceId) updateCellElement(c.index);
