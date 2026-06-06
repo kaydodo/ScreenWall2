@@ -1776,6 +1776,7 @@ function connectWS() {
 
     if (msg.type === 'grid') {
       // 格子信息完全从服务器获取
+      const oldGridCells = [...gridCells];
       gridCells = msg.cells;
       // 从 devices 数组同步在线状态到 gridCells（而不是反过来）
       gridCells.forEach(function(c) {
@@ -1788,42 +1789,60 @@ function connectWS() {
         }
       });
       
-      // 强制刷新格子区：按 gridCells 顺序重新排列 DOM
+      // 检查格子顺序是否变化
       const grid = document.getElementById('mainGrid');
       const existingCells = Array.from(grid.children);
-      const cellMap = new Map();
+      let orderChanged = false;
       
-      // 收集所有现有格子到 Map（按 deviceId）
-      existingCells.forEach(function(cell) {
-        const deviceId = cell.dataset.deviceId;
-        if (deviceId) {
-          cellMap.set(deviceId, cell);
+      if (oldGridCells.length !== gridCells.length) {
+        orderChanged = true;
+      } else {
+        for (let i = 0; i < gridCells.length; i++) {
+          const oldDeviceId = oldGridCells[i] ? oldGridCells[i].deviceId : null;
+          const newDeviceId = gridCells[i] ? gridCells[i].deviceId : null;
+          if (oldDeviceId !== newDeviceId) {
+            orderChanged = true;
+            break;
+          }
         }
-      });
-      
-      // 清空 grid
-      while (grid.firstChild) {
-        grid.removeChild(grid.firstChild);
       }
       
-      // 按 gridCells 顺序重新添加格子
-      gridCells.forEach(function(c, idx) {
-        if (c && c.deviceId && cellMap.has(c.deviceId)) {
-          const cell = cellMap.get(c.deviceId);
-          cell.dataset.index = idx;
-          grid.appendChild(cell);
-        } else if (c && c.deviceId) {
-          // 新设备，创建新格子
-          const newCell = createCellElement(idx);
-          grid.appendChild(newCell);
-        } else {
-          // 空格子
-          const emptyCell = createCellElement(idx);
-          grid.appendChild(emptyCell);
+      // 只有顺序变化时才重新排列 DOM
+      if (orderChanged) {
+        const cellMap = new Map();
+        
+        // 收集所有现有格子到 Map（按 deviceId）
+        existingCells.forEach(function(cell) {
+          const deviceId = cell.dataset.deviceId;
+          if (deviceId) {
+            cellMap.set(deviceId, cell);
+          }
+        });
+        
+        // 清空 grid
+        while (grid.firstChild) {
+          grid.removeChild(grid.firstChild);
         }
-      });
+        
+        // 按 gridCells 顺序重新添加格子
+        gridCells.forEach(function(c, idx) {
+          if (c && c.deviceId && cellMap.has(c.deviceId)) {
+            const cell = cellMap.get(c.deviceId);
+            cell.dataset.index = idx;
+            grid.appendChild(cell);
+          } else if (c && c.deviceId) {
+            // 新设备，创建新格子
+            const newCell = createCellElement(idx);
+            grid.appendChild(newCell);
+          } else {
+            // 空格子
+            const emptyCell = createCellElement(idx);
+            grid.appendChild(emptyCell);
+          }
+        });
+      }
       
-      // 强制刷新所有格子内容
+      // 更新所有格子内容（不清空 DOM）
       for (let i = 0; i < gridCells.length; i++) {
         updateCellElement(i);
       }
