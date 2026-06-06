@@ -1765,24 +1765,36 @@ function connectWS() {
       
       // 重新排列 DOM 元素以匹配 gridCells 数组顺序
       const grid = document.getElementById('mainGrid');
-      const cells = Array.from(grid.children);
       
-      // 按照 gridCells 顺序重新排列 DOM
-      gridCells.forEach(function(c, idx) {
-        if (c && c.deviceId) {
-          const targetCell = cells.find(function(cell) { return cell.dataset.deviceId === c.deviceId; });
-          if (targetCell) {
-            const currentPos = Array.from(grid.children).indexOf(targetCell);
-            if (currentPos !== idx) {
-              if (idx >= grid.children.length) {
-                grid.appendChild(targetCell);
+      // 按照 gridCells 顺序重新排列 DOM（每次都重新获取当前DOM状态）
+      for (let targetIdx = 0; targetIdx < gridCells.length; targetIdx++) {
+        const c = gridCells[targetIdx];
+        if (!c || !c.deviceId) continue;
+        
+        // 在当前DOM中找到该设备的格子
+        const currentCells = Array.from(grid.children);
+        const targetCell = currentCells.find(function(cell) { return cell.dataset.deviceId === c.deviceId; });
+        
+        if (targetCell) {
+          const currentIdx = currentCells.indexOf(targetCell);
+          // 如果当前位置不是目标位置，移动到正确位置
+          if (currentIdx !== targetIdx) {
+            // 移动到目标位置
+            if (targetIdx >= grid.children.length) {
+              grid.appendChild(targetCell);
+            } else {
+              // 获取目标位置的参考节点
+              const refNode = grid.children[targetIdx];
+              // 如果要移动的节点已经在参考节点前面，需要用 nextSibling
+              if (currentIdx < targetIdx) {
+                grid.insertBefore(targetCell, refNode.nextSibling);
               } else {
-                grid.insertBefore(targetCell, grid.children[idx]);
+                grid.insertBefore(targetCell, refNode);
               }
             }
           }
         }
-      });
+      }
       
       // 更新所有格子的 dataset.index
       Array.from(grid.children).forEach(function(cell, idx) {
