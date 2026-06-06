@@ -1636,21 +1636,34 @@ function _flushWallBatch() {
     return;
   }
 
+  const WALL_FRAME_INTERVAL_EXTERNAL = 333; // 外网3fps
+
   try {
     for (const wallWs of wallClients.keys()) {
       if (wallWs.readyState !== 1) continue;
 
       const layout = wallLayouts.get(wallWs);
-      if (layout) {
-        for (let i = 0; i < layout.deviceIds.length; i++) {
-          const deviceId = layout.deviceIds[i];
-          if (!deviceId) continue;
+      if (!layout) continue;
 
-          const data = _wallBatch.get(deviceId);
-          if (!data || !data.buffer) continue;
+      const isInternal = wallWs._isInternal;
+      const now = Date.now();
 
-          sendBinaryScreenshot(wallWs, 0x10, deviceId, data.buffer, data.screenWidth || 0, data.screenHeight || 0, false);
+      for (let i = 0; i < layout.deviceIds.length; i++) {
+        const deviceId = layout.deviceIds[i];
+        if (!deviceId) continue;
+
+        const data = _wallBatch.get(deviceId);
+        if (!data || !data.buffer) continue;
+
+        // 外网节流
+        if (!isInternal) {
+          const lastTime = wallWs._lastWallFrameTime?.get(deviceId) || 0;
+          if (now - lastTime < WALL_FRAME_INTERVAL_EXTERNAL) continue;
+          if (!wallWs._lastWallFrameTime) wallWs._lastWallFrameTime = new Map();
+          wallWs._lastWallFrameTime.set(deviceId, now);
         }
+
+        sendBinaryScreenshot(wallWs, 0x10, deviceId, data.buffer, data.screenWidth || 0, data.screenHeight || 0, false);
       }
     }
     _wallBatch.clear();
@@ -4459,6 +4472,7 @@ wssBrowser.on('connection', (ws, req) => {
       wallClients.set(ws, { devices: newDevices });
       serverLog(`[监控墙] 订阅 ${deviceList.length} 个设备`);
       
+      ws.send(JSON.stringify({ type: 'state', isInternal: ws._isInternal }));
       ws.send(JSON.stringify({ type: 'walledDevices', devices: Array.from(newDevices) }));
     }
 

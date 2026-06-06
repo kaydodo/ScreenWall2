@@ -539,6 +539,56 @@ var stats = {
   lastReport: performance.now()
 };
 
+// ── 内网/外网判断和定帧渲染 ──────────────────────────────────
+var isInternalConnection = true;
+var _wallFrameCache = new Map(); // deviceId -> { blobUrl, timestamp }
+var _wallRenderScheduled = false;
+var _wallRenderInterval = 333; // 外网3fps
+var _wallLastRenderTime = new Map(); // deviceId -> timestamp
+
+function _wallGetRenderInterval() {
+  return isInternalConnection ? 0 : _wallRenderInterval;
+}
+
+function _wallScheduleRender() {
+  if (_wallRenderScheduled) return;
+  _wallRenderScheduled = true;
+  requestAnimationFrame(_wallFlushRender);
+}
+
+function _wallFlushRender() {
+  _wallRenderScheduled = false;
+  
+  const interval = _wallGetRenderInterval();
+  const now = performance.now();
+  
+  _wallFrameCache.forEach(function(cache, deviceId) {
+    if (!cache.blobUrl) return;
+    
+    // 外网节流
+    if (interval > 0) {
+      const lastTime = _wallLastRenderTime.get(deviceId) || 0;
+      if (now - lastTime < interval) return;
+      _wallLastRenderTime.set(deviceId, now);
+    }
+    
+    const el = document.getElementById('img_' + deviceId);
+    if (el) {
+      const oldBlobUrl = el._blobUrl;
+      el.src = cache.blobUrl;
+      el._blobUrl = cache.blobUrl;
+      if (oldBlobUrl) URL.revokeObjectURL(oldBlobUrl);
+      el.classList.remove('wall-img-hidden');
+      el.classList.remove('grayscale');
+      el.style.display = 'block';
+      el.style.opacity = '1';
+      var tsEl = document.getElementById('ts_' + deviceId);
+      if (tsEl) tsEl.textContent = formatDate(new Date());
+      stats.framesRendered++;
+    }
+  });
+}
+
 // ── 自愈帧计数 ──────────────────────────────────────────────
 var frameHealCount = new Map(); // deviceId -> count
 var WALL_FRAME_HEAL_THRESHOLD = 2; // 至少收到2帧才恢复离线格子
@@ -698,7 +748,6 @@ function connectWebSocket() {
   ws.onopen = function() {
     console.log('[监控墙] WebSocket 连接成功，发送 subscribeWall', wallData.devices.map(function(d) { return d.id; }));
     
-    // 上报布局信息，服务端根据布局计算帧尺寸
     var cfg = compactLayouts[wallData.layout];
     var rows = cfg ? cfg.rows : Math.sqrt(wallData.layout);
     var cols = cfg ? cfg.cols : Math.sqrt(wallData.layout);
@@ -713,22 +762,17 @@ function connectWebSocket() {
 
   ws.onclose = function() {
     stats.wsReconnects++;
-    // 重连
     setTimeout(connectWebSocket, 3000);
   };
 
-  ws.onerror = function(err) {
-    // console.error('WebSocket error:', err);
-  };
+  ws.onerror = function(err) {};
 
   ws.onmessage = function(e) {
-    // ── 二进制帧（server → 监控墙）──
     if (e.data instanceof ArrayBuffer) {
       try {
         const view = new DataView(e.data);
         const data = new Uint8Array(e.data);
         const frameType = data[0];
-        // 统一使用 0x10 帧
         if (frameType === 0x10) {
           const devIdLen = data[1];
           const flags = data[2];
@@ -741,9 +785,8 @@ function connectWebSocket() {
           const webpBuf = e.data.slice(off);
           const blob = new Blob([webpBuf], { type: 'image/webp' });
           const blobUrl = URL.createObjectURL(blob);
+          stats.framesReceived++;
 
-          // ★ 预览激活时停止格子渲染（和主页面一样）★★★
-          // ★ 设备离线时也停止格子渲染，避免覆盖离线图 ★★★
           const dev = devices[devId];
           if (dev && dev.online === false) {
             var count = frameHealCount.has(devId) ? frameHealCount.get(devId) : 0;
@@ -781,19 +824,11 @@ function connectWebSocket() {
           }
 
           if (!dev || dev.online !== false) {
-            const el = document.getElementById('img_' + devId);
-            if (el) {
-              const oldBlobUrl = el._blobUrl;
-              el.src = blobUrl;
-              el._blobUrl = blobUrl;
-              if (oldBlobUrl) URL.revokeObjectURL(oldBlobUrl);
-              el.classList.remove('wall-img-hidden');
-              el.classList.remove('grayscale');
-              el.style.display = 'block';
-              el.style.opacity = '1';
-              var tsEl = document.getElementById('ts_' + devId);
-              if (tsEl) tsEl.textContent = formatDate(new Date());
-            }
+            // 存入缓存，触发定帧渲染
+            const oldCache = _wallFrameCache.get(devId);
+            if (oldCache && oldCache.blobUrl) URL.revokeObjectURL(oldCache.blobUrl);
+            _wallFrameCache.set(devId, { blobUrl: blobUrl, timestamp: performance.now() });
+            _wallScheduleRender();
           } else {
             URL.revokeObjectURL(blobUrl);
           }
@@ -801,18 +836,21 @@ function connectWebSocket() {
       } catch(ex) {}
       return;
     }
-    // ── JSON 消息 ──
     try {
       var data = JSON.parse(e.data);
-      // 二进制0x10帧已负责动态画面，跳过JSON静态图路径
       if (data.type === 'wallScreenshot' || data.type === 'wallScreenshotBatch') return;
+
+      if (data.type === 'state') {
+        if (data.isInternal !== undefined) {
+          isInternalConnection = data.isInternal;
+        }
+      }
 
       if (data.type === 'wallStateUpdate') {
         handleWallStateUpdate(data);
       }
 
       if (data.type === 'walledDevices') {
-        // console.log('[Wall] Subscribed devices:', data.devices);
       }
 
       // 设备预览状态更新（包含离线截图）
