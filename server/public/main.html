@@ -936,6 +936,8 @@ function reorderCells(fromIndex, toIndex) {
   }
 }
 
+let _isDragUpdate = false;  // 拖动更新标记
+
 function saveGridLayout() {
   const layout = {};
   for (let i = 0; i < gridCells.length; i++) {
@@ -943,6 +945,9 @@ function saveGridLayout() {
       layout[i] = gridCells[i].deviceId;
     }
   }
+  
+  // 设置拖动更新标记
+  _isDragUpdate = true;
   
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'updateGrid', layout }));
@@ -1789,12 +1794,16 @@ function connectWS() {
         }
       });
       
-      // 检查格子顺序是否变化
+      // 检查格子顺序是否变化或是否为拖动更新
       const grid = document.getElementById('mainGrid');
       const existingCells = Array.from(grid.children);
       let orderChanged = false;
       
-      if (oldGridCells.length !== gridCells.length) {
+      // 拖动更新时强制刷新
+      if (_isDragUpdate) {
+        orderChanged = true;
+        _isDragUpdate = false;  // 重置标记
+      } else if (oldGridCells.length !== gridCells.length) {
         orderChanged = true;
       } else {
         for (let i = 0; i < gridCells.length; i++) {
