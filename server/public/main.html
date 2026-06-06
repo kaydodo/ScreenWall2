@@ -603,8 +603,29 @@ function downloadUU() {
   }
 }
 
-// 拖拽功能
-const DRAG_HOLD_TIME = 500;
+// 拖拽功能 - 两阶段长按检测
+const DRAG_HINT_TIME = 300;  // 0.3秒鼠标提示
+const DRAG_START_TIME = 800; // 0.8秒进入拖拽模式
+
+let dragState = {
+  hintTimer: null,
+  startTimer: null,
+  active: false,
+  hintActive: false,
+  startIndex: null,
+  element: null,
+  cloneEl: null,
+  insertLine: null,
+  startX: 0,
+  startY: 0,
+  offsetX: 0,
+  offsetY: 0,
+  cellWidth: 0,
+  cellHeight: 0,
+  targetIndex: -1,
+  moved: false,
+  insertPosition: null
+};
 
 function initDragEvents(cellEl, index) {
   cellEl.addEventListener('mousedown', (e) => {
@@ -615,7 +636,18 @@ function initDragEvents(cellEl, index) {
     dragState.startY = e.clientY;
     dragState.offsetX = e.clientX - rect.left;
     dragState.offsetY = e.clientY - rect.top;
-    dragState.timer = setTimeout(() => startDrag(index, e), DRAG_HOLD_TIME);
+    dragState.cellWidth = rect.width;
+    dragState.cellHeight = rect.height;
+    dragState.element = cellEl;
+    
+    dragState.hintTimer = setTimeout(() => {
+      dragState.hintActive = true;
+      cellEl.style.cursor = 'grab';
+    }, DRAG_HINT_TIME);
+    
+    dragState.startTimer = setTimeout(() => {
+      startDrag(index, e);
+    }, DRAG_START_TIME);
   });
   
   cellEl.addEventListener('touchstart', (e) => {
@@ -626,32 +658,48 @@ function initDragEvents(cellEl, index) {
     dragState.startY = touch.clientY;
     dragState.offsetX = touch.clientX - rect.left;
     dragState.offsetY = touch.clientY - rect.top;
-    dragState.timer = setTimeout(() => startDrag(index, e), DRAG_HOLD_TIME);
+    dragState.cellWidth = rect.width;
+    dragState.cellHeight = rect.height;
+    dragState.element = cellEl;
+    
+    dragState.hintTimer = setTimeout(() => {
+      dragState.hintActive = true;
+    }, DRAG_HINT_TIME);
+    
+    dragState.startTimer = setTimeout(() => {
+      startDrag(index, e);
+    }, DRAG_START_TIME);
   }, { passive: true });
 }
 
 function startDrag(index, e) {
   if (dragState.active) return;
   dragState.active = true;
-  dragState.currentIndex = index;
+  dragState.moved = false;
   
-  const grid = document.getElementById('mainGrid');
-  const cell = grid.children[index];
+  const cell = dragState.element;
   if (!cell) return;
   
-  const rect = cell.getBoundingClientRect();
-  dragState.element = cell;
-  dragState.cellWidth = rect.width;
-  dragState.cellHeight = rect.height;
+  cell.style.cursor = 'grabbing';
+  cell.classList.add('drag-source');
   
-  cell.classList.add('dragging');
-  cell.style.position = 'fixed';
-  cell.style.zIndex = '1000';
-  cell.style.width = rect.width + 'px';
-  cell.style.transform = 'scale(1.05)';
-  cell.style.boxShadow = '0 8px 32px rgba(0,0,0,0.3)';
+  const clone = cell.cloneNode(true);
+  clone.classList.add('drag-clone');
+  clone.style.position = 'fixed';
+  clone.style.zIndex = '1000';
+  clone.style.width = dragState.cellWidth + 'px';
+  clone.style.pointerEvents = 'none';
+  clone.style.cursor = 'grabbing';
+  document.body.appendChild(clone);
+  dragState.cloneEl = clone;
   
-  moveDragElement(e);
+  const line = document.createElement('div');
+  line.className = 'drag-insert-line';
+  line.style.display = 'none';
+  document.body.appendChild(line);
+  dragState.insertLine = line;
+  
+  moveCloneElement(e);
   
   document.addEventListener('mousemove', onDragMove);
   document.addEventListener('mouseup', onDragEnd);
@@ -659,131 +707,191 @@ function startDrag(index, e) {
   document.addEventListener('touchend', onDragEnd);
 }
 
-function moveDragElement(e) {
-  if (!dragState.element) return;
+function moveCloneElement(e) {
+  if (!dragState.cloneEl) return;
   
   const clientX = e.touches ? e.touches[0].clientX : e.clientX;
   const clientY = e.touches ? e.touches[0].clientY : e.clientY;
   
-  dragState.element.style.left = (clientX - dragState.offsetX * 1.05) + 'px';
-  dragState.element.style.top = (clientY - dragState.offsetY * 1.05) + 'px';
+  dragState.cloneEl.style.left = (clientX - dragState.offsetX) + 'px';
+  dragState.cloneEl.style.top = (clientY - dragState.offsetY) + 'px';
 }
 
 function onDragMove(e) {
-  if (!dragState.active || !dragState.element) return;
+  if (!dragState.active) return;
   e.preventDefault();
-  
-  moveDragElement(e);
   
   const clientX = e.touches ? e.touches[0].clientX : e.clientX;
   const clientY = e.touches ? e.touches[0].clientY : e.clientY;
   
+  if (Math.abs(clientX - dragState.startX) > 5 || Math.abs(clientY - dragState.startY) > 5) {
+    dragState.moved = true;
+  }
+  
+  moveCloneElement(e);
+  
   const grid = document.getElementById('mainGrid');
   const cells = Array.from(grid.children);
+  const gridRect = grid.getBoundingClientRect();
   
-  let targetIndex = -1;
-  const centerX = clientX;
-  const centerY = clientY;
+  let insertIndex = -1;
+  let insertPos = null;
   
-  for (let i = 0; i < cells.length; i++) {
-    if (cells[i] === dragState.element) continue;
+  for (let i = 0; i < cells.length - 1; i++) {
+    const currentRect = cells[i].getBoundingClientRect();
+    const nextRect = cells[i + 1].getBoundingClientRect();
     
-    const rect = cells[i].getBoundingClientRect();
-    const cellCenterX = rect.left + rect.width / 2;
-    const cellCenterY = rect.top + rect.height / 2;
+    const midX = (currentRect.right + nextRect.left) / 2;
+    const tolerance = 30;
     
-    if (centerX >= rect.left && centerX <= rect.right && centerY >= rect.top && centerY <= rect.bottom) {
-      targetIndex = i;
-      break;
+    if (clientY >= currentRect.top && clientY <= currentRect.bottom) {
+      if (clientX >= midX - tolerance && clientX <= midX + tolerance) {
+        insertIndex = i;
+        insertPos = 'after';
+        break;
+      }
     }
   }
   
-  if (targetIndex >= 0 && targetIndex !== dragState.currentIndex) {
-    highlightTargetCell(targetIndex);
-    dragState.targetIndex = targetIndex;
+  if (clientY >= gridRect.top && clientY <= gridRect.bottom) {
+    const firstRect = cells[0].getBoundingClientRect();
+    if (clientX < firstRect.left + 30 && clientY >= firstRect.top && clientY <= firstRect.bottom) {
+      insertIndex = 0;
+      insertPos = 'before';
+    }
+    
+    const lastRect = cells[cells.length - 1].getBoundingClientRect();
+    if (clientX > lastRect.right - 30 && clientY >= lastRect.top && clientY <= lastRect.bottom) {
+      insertIndex = cells.length - 1;
+      insertPos = 'after';
+    }
+  }
+  
+  if (insertIndex >= 0 && insertPos) {
+    dragState.targetIndex = insertIndex;
+    dragState.insertPosition = insertPos;
+    showInsertLine(insertIndex, insertPos);
   } else {
-    clearHighlight();
     dragState.targetIndex = -1;
+    dragState.insertPosition = null;
+    hideInsertLine();
   }
 }
 
-function highlightTargetCell(index) {
+function showInsertLine(index, pos) {
+  if (!dragState.insertLine) return;
+  
   const grid = document.getElementById('mainGrid');
   const cells = Array.from(grid.children);
   
-  cells.forEach((cell, i) => {
-    if (cell === dragState.element) return;
-    cell.classList.remove('drag-target-before', 'drag-target-after');
-  });
+  if (index < 0 || index >= cells.length) return;
   
-  if (index >= 0 && cells[index]) {
-    const startIndex = dragState.startIndex;
-    if (index < startIndex) {
-      cells[index].classList.add('drag-target-before');
-    } else if (index > startIndex) {
-      cells[index].classList.add('drag-target-after');
-    }
+  const cellRect = cells[index].getBoundingClientRect();
+  
+  dragState.insertLine.style.display = 'block';
+  
+  if (pos === 'before') {
+    dragState.insertLine.style.left = (cellRect.left - 4) + 'px';
+  } else {
+    dragState.insertLine.style.left = (cellRect.right + 4) + 'px';
   }
+  
+  dragState.insertLine.style.top = cellRect.top + 'px';
+  dragState.insertLine.style.height = cellRect.height + 'px';
 }
 
-function clearHighlight() {
-  const grid = document.getElementById('mainGrid');
-  const cells = Array.from(grid.children);
-  cells.forEach(cell => {
-    cell.classList.remove('drag-target-before', 'drag-target-after');
-  });
+function hideInsertLine() {
+  if (dragState.insertLine) {
+    dragState.insertLine.style.display = 'none';
+  }
 }
 
 function onDragEnd(e) {
-  if (!dragState.active) return;
+  clearDragTimers();
   
   document.removeEventListener('mousemove', onDragMove);
   document.removeEventListener('mouseup', onDragEnd);
   document.removeEventListener('touchmove', onDragMove);
   document.removeEventListener('touchend', onDragEnd);
   
-  if (dragState.timer) {
-    clearTimeout(dragState.timer);
-    dragState.timer = null;
+  if (dragState.hintActive && !dragState.active) {
+    if (dragState.element) {
+      dragState.element.style.cursor = '';
+    }
   }
   
-  clearHighlight();
-  
-  if (dragState.element) {
-    dragState.element.classList.remove('dragging');
-    dragState.element.style.position = '';
-    dragState.element.style.zIndex = '';
-    dragState.element.style.width = '';
-    dragState.element.style.left = '';
-    dragState.element.style.top = '';
-    dragState.element.style.transform = '';
-    dragState.element.style.boxShadow = '';
+  if (dragState.active) {
+    hideInsertLine();
+    
+    if (dragState.cloneEl) {
+      dragState.cloneEl.remove();
+      dragState.cloneEl = null;
+    }
+    
+    if (dragState.element) {
+      dragState.element.classList.remove('drag-source');
+      dragState.element.style.cursor = '';
+    }
+    
+    if (dragState.insertLine) {
+      dragState.insertLine.remove();
+      dragState.insertLine = null;
+    }
+    
+    if (dragState.moved && dragState.targetIndex >= 0 && dragState.insertPosition) {
+      const finalIndex = dragState.insertPosition === 'before' ? dragState.targetIndex : dragState.targetIndex + 1;
+      if (finalIndex !== dragState.startIndex && finalIndex >= 0 && finalIndex <= gridCells.length) {
+        reorderCells(dragState.startIndex, finalIndex);
+        saveGridLayout();
+      }
+    }
   }
   
-  if (dragState.targetIndex >= 0 && dragState.targetIndex !== dragState.startIndex) {
-    reorderCells(dragState.startIndex, dragState.targetIndex);
-    saveGridLayout();
+  if (dragState.moved) {
+    e.preventDefault();
+    e.stopPropagation();
+    const clickBlocker = (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      document.removeEventListener('click', clickBlocker, true);
+    };
+    document.addEventListener('click', clickBlocker, true);
   }
   
   dragState.active = false;
+  dragState.hintActive = false;
   dragState.startIndex = null;
-  dragState.currentIndex = null;
-  dragState.targetIndex = -1;
   dragState.element = null;
+  dragState.targetIndex = -1;
+  dragState.insertPosition = null;
+  dragState.moved = false;
+}
+
+function clearDragTimers() {
+  if (dragState.hintTimer) {
+    clearTimeout(dragState.hintTimer);
+    dragState.hintTimer = null;
+  }
+  if (dragState.startTimer) {
+    clearTimeout(dragState.startTimer);
+    dragState.startTimer = null;
+  }
 }
 
 function reorderCells(fromIndex, toIndex) {
-  const grid = document.getElementById('mainGrid');
+  if (fromIndex === toIndex) return;
+  if (toIndex < 0 || toIndex > gridCells.length) return;
   
+  const grid = document.getElementById('mainGrid');
   const movedCell = gridCells[fromIndex];
   
   if (fromIndex < toIndex) {
-    for (let i = fromIndex; i < toIndex; i++) {
+    for (let i = fromIndex; i < toIndex - 1; i++) {
       gridCells[i] = gridCells[i + 1];
       if (gridCells[i]) gridCells[i].index = i;
     }
-    gridCells[toIndex] = movedCell;
-    if (movedCell) movedCell.index = toIndex;
+    gridCells[toIndex - 1] = movedCell;
+    if (movedCell) movedCell.index = toIndex - 1;
   } else {
     for (let i = fromIndex; i > toIndex; i--) {
       gridCells[i] = gridCells[i - 1];
@@ -796,13 +904,12 @@ function reorderCells(fromIndex, toIndex) {
   const cells = Array.from(grid.children);
   const draggedCell = cells[fromIndex];
   
-  if (fromIndex < toIndex) {
-    grid.insertBefore(draggedCell, cells[toIndex].nextSibling);
+  if (toIndex >= cells.length) {
+    grid.appendChild(draggedCell);
   } else {
     grid.insertBefore(draggedCell, cells[toIndex]);
   }
   
-  cells = Array.from(grid.children);
   cells.forEach((cell, idx) => {
     cell.dataset.index = idx;
   });
@@ -825,16 +932,8 @@ function saveGridLayout() {
   }
 }
 
-function cancelDrag() {
-  if (dragState.timer) {
-    clearTimeout(dragState.timer);
-    dragState.timer = null;
-  }
-  dragState.startIndex = null;
-}
-
-document.addEventListener('mouseup', cancelDrag);
-document.addEventListener('touchend', cancelDrag);
+document.addEventListener('mouseup', clearDragTimers);
+document.addEventListener('touchend', clearDragTimers);
 let inputFocused = false;    // 输入框激活时暂停格子刷新
 let microRefreshLockUntil = 0;
 function lockMicroRefresh(ms) {

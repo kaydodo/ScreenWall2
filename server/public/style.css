@@ -903,6 +903,28 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
   box-shadow: 0 0 12px rgba(76, 175, 80, 0.5);
 }
 
+.wall-cell.drag-source {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.drag-clone {
+  opacity: 0.95;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+  border-radius: 14px;
+  transform: scale(1.02);
+  transition: transform 0.1s;
+}
+
+.drag-insert-line {
+  position: fixed;
+  width: 3px;
+  background: var(--accent);
+  border-radius: 2px;
+  z-index: 1001;
+  box-shadow: 0 0 8px rgba(79, 126, 247, 0.6);
+}
+
 .cell-preview {
   position: relative;
   width: 100%;
