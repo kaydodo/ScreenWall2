@@ -1533,13 +1533,143 @@ const FRAME_INTERVAL_MOBILE = 500; // 2fps
 const FRAME_INTERVAL_INTERNAL = 83;  // ~12fps（内网节流）
 const FRAME_INTERVAL_EXTERNAL = 333; // ~3fps
 
-// 手机端和外网批量推送间隔
-const BATCH_PUSH_INTERVAL_MOBILE = 500;    // 手机端批量推送间隔
-const BATCH_PUSH_INTERVAL_EXTERNAL = 333;  // 外网批量推送间隔
+// 共享批量推送缓存（所有浏览器共享）
+const _browserBatch = new Map();
+let _browserBatchScheduled = false;
+let _browserFlushing = false;
 
-// 批量推送缓存：ws -> { frames: Map<deviceId, frameData>, lastPush: timestamp }
-const batchPushCache = new Map();
-let batchPushTimer = null;
+// 监控墙批量推送缓存
+const _wallBatch = new Map();
+let _wallBatchScheduled = false;
+let _wallFlushing = false;
+
+// 浏览器批量推送
+function _flushBrowserBatch() {
+  if (_browserFlushing) {
+    _browserBatchScheduled = false;
+    return;
+  }
+  _browserFlushing = true;
+  _browserBatchScheduled = false;
+  
+  if (_browserBatch.size === 0 || browserClients.size === 0) {
+    _browserBatch.clear();
+    _browserFlushing = false;
+    return;
+  }
+
+  try {
+    for (const browserWs of browserClients) {
+      if (browserWs.readyState !== 1) continue;
+
+      // 获取该连接的帧率间隔
+      let frameInterval = FRAME_INTERVAL_INTERNAL;
+      if (browserWs._isMobile) {
+        frameInterval = FRAME_INTERVAL_MOBILE;
+      } else if (!browserWs._isInternal) {
+        frameInterval = FRAME_INTERVAL_EXTERNAL;
+      }
+
+      const now = Date.now();
+
+      // 检查视口订阅
+      const vpData = viewportSubscriptions.get(browserWs);
+      if (vpData && !wallClients.has(browserWs)) {
+        if (vpData.deviceIds.size === 0) continue;
+        
+        for (const [deviceId, data] of _browserBatch) {
+          if (!vpData.deviceIds.has(deviceId)) continue;
+          if (!data.buffer) continue;
+
+          // 帧率节流
+          const lastTime = browserWs._lastFrameTime.get(deviceId) || 0;
+          if (now - lastTime < frameInterval) continue;
+          browserWs._lastFrameTime.set(deviceId, now);
+
+          sendBinaryScreenshot(browserWs, 0x10, deviceId, data.buffer, data.screenWidth || 0, data.screenHeight || 0, data.isHQ || false);
+        }
+      } else {
+        if (!previewClients.has(browserWs) && !wallClients.has(browserWs)) {
+          for (const [deviceId, data] of _browserBatch) {
+            if (!data.buffer) continue;
+
+            // 帧率节流
+            const lastTime = browserWs._lastFrameTime.get(deviceId) || 0;
+            if (now - lastTime < frameInterval) continue;
+            browserWs._lastFrameTime.set(deviceId, now);
+
+            sendBinaryScreenshot(browserWs, 0x10, deviceId, data.buffer, data.screenWidth || 0, data.screenHeight || 0, data.isHQ || false);
+          }
+        }
+      }
+    }
+    _browserBatch.clear();
+  } catch(e) { serverLog('[browserBatch] 批量推送失败:', e.message); }
+  
+  _browserFlushing = false;
+  
+  if (_browserBatch.size > 0) {
+    _browserBatchScheduled = false;
+    _scheduleBrowserBatch();
+  }
+}
+
+function _scheduleBrowserBatch() {
+  if (!_browserBatchScheduled) {
+    _browserBatchScheduled = true;
+    setImmediate(_flushBrowserBatch);
+  }
+}
+
+// 监控墙批量推送
+function _flushWallBatch() {
+  if (_wallFlushing) {
+    _wallBatchScheduled = false;
+    return;
+  }
+  _wallFlushing = true;
+  _wallBatchScheduled = false;
+  
+  if (_wallBatch.size === 0 || wallClients.size === 0) {
+    _wallBatch.clear();
+    _wallFlushing = false;
+    return;
+  }
+
+  try {
+    for (const wallWs of wallClients.keys()) {
+      if (wallWs.readyState !== 1) continue;
+
+      const layout = wallLayouts.get(wallWs);
+      if (layout) {
+        for (let i = 0; i < layout.deviceIds.length; i++) {
+          const deviceId = layout.deviceIds[i];
+          if (!deviceId) continue;
+
+          const data = _wallBatch.get(deviceId);
+          if (!data || !data.buffer) continue;
+
+          sendBinaryScreenshot(wallWs, 0x10, deviceId, data.buffer, data.screenWidth || 0, data.screenHeight || 0, false);
+        }
+      }
+    }
+    _wallBatch.clear();
+  } catch(e) { serverLog('[wallBatch] 批量推送失败:', e.message); }
+  
+  _wallFlushing = false;
+  
+  if (_wallBatch.size > 0) {
+    _wallBatchScheduled = false;
+    _scheduleWallBatch();
+  }
+}
+
+function _scheduleWallBatch() {
+  if (!_wallBatchScheduled) {
+    _wallBatchScheduled = true;
+    setImmediate(_flushWallBatch);
+  }
+}
 
 // 报警截图查重缓存（存储最近一张 640×360 截图）
 const alarmPrevCache = new Map(); // deviceId -> { md5, time }
@@ -2811,74 +2941,14 @@ wssClient.on('connection', (ws, req) => {
           dev.lastSeen = now;
           if (!dev.online) { dev.online = true; broadcastToBrowsers({ type: 'deviceList', devices: getDeviceListPayload() }); }
           
-          // 帧推送：内网立即转发，手机端和外网使用批量推送
-          for (const browserWs of browserClients) {
-            if (browserWs.readyState !== 1) continue;
-            
-            // 内网：立即转发
-            if (browserWs._isInternal && !browserWs._isMobile) {
-              const lastTime = browserWs._lastFrameTime.get(deviceId) || 0;
-              if (now - lastTime < FRAME_INTERVAL_INTERNAL) continue;
-              browserWs._lastFrameTime.set(deviceId, now);
-              
-              // 检查视口订阅
-              const vpData = viewportSubscriptions.get(browserWs);
-              if (vpData && !wallClients.has(browserWs)) {
-                if (!vpData.deviceIds.has(deviceId)) continue;
-              }
-              
-              if (!previewClients.has(browserWs) && !wallClients.has(browserWs)) {
-                sendBinaryScreenshot(browserWs, 0x10, deviceId, webpBuffer, screenWidth, screenHeight, isHQ);
-              }
-            } else {
-              // 手机端和外网：加入批量推送缓存
-              if (!batchPushCache.has(browserWs)) {
-                batchPushCache.set(browserWs, { frames: new Map(), lastPush: 0 });
-              }
-              const cache = batchPushCache.get(browserWs);
-              cache.frames.set(deviceId, { webpBuffer, screenWidth, screenHeight, isHQ });
-            }
-          }
+          // 帧推送：存入共享缓存，触发批量推送
+          _browserBatch.set(deviceId, { buffer: webpBuffer, timestamp: now, isHQ, screenWidth, screenHeight });
+          _scheduleBrowserBatch();
           
-          // 启动批量推送定时器
-          if (!batchPushTimer) {
-            batchPushTimer = setInterval(() => {
-              const now = Date.now();
-              for (const [ws, cache] of batchPushCache) {
-                if (ws.readyState !== 1 || cache.frames.size === 0) continue;
-                
-                const interval = ws._isMobile ? BATCH_PUSH_INTERVAL_MOBILE : BATCH_PUSH_INTERVAL_EXTERNAL;
-                if (now - cache.lastPush < interval) continue;
-                
-                cache.lastPush = now;
-                
-                // 检查视口订阅
-                const vpData = viewportSubscriptions.get(ws);
-                
-                for (const [devId, frame] of cache.frames) {
-                  if (vpData && !wallClients.has(ws)) {
-                    if (!vpData.deviceIds.has(devId)) continue;
-                  }
-                  
-                  if (!previewClients.has(ws) && !wallClients.has(ws)) {
-                    sendBinaryScreenshot(ws, 0x10, devId, frame.webpBuffer, frame.screenWidth, frame.screenHeight, frame.isHQ);
-                  }
-                }
-                
-                cache.frames.clear();
-              }
-            }, 50);
-          }
-          
-          // 监控墙立即推送
+          // 监控墙批量推送
           if (monitorWallDevices.has(deviceId)) {
-            for (const wallWs of wallClients) {
-              if (wallWs.readyState !== 1) continue;
-              const lastTime = wallWs._lastFrameTime.get(deviceId) || 0;
-              if (now - lastTime < FRAME_INTERVAL_INTERNAL) continue;
-              wallWs._lastFrameTime.set(deviceId, now);
-              sendBinaryScreenshot(wallWs, 0x10, deviceId, webpBuffer, screenWidth, screenHeight, isHQ);
-            }
+            _wallBatch.set(deviceId, { buffer: webpBuffer, timestamp: now, screenWidth, screenHeight });
+            _scheduleWallBatch();
           }
           
           // 预览客户端立即推送
@@ -3477,7 +3547,6 @@ wssBrowser.on('connection', (ws, req) => {
   ws.on('close', () => {
     clearInterval(pingInterval);
     browserClients.delete(ws);
-    batchPushCache.delete(ws);
   });
 
   ws.on('message', async (raw) => {
@@ -4465,7 +4534,6 @@ wssBrowser.on('connection', (ws, req) => {
     wallLayouts.delete(ws);
     viewportSubscriptions.delete(ws);
     unsubscribeAllLevel(ws);
-    batchPushCache.delete(ws);
 
     // 清理 per-ws 追踪变量
     wallClients.delete(ws);
