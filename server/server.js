@@ -1531,7 +1531,7 @@ function sendBinaryScreenshot(ws, frameType, deviceId, webpBuffer, screenWidth, 
 // 帧率间隔（毫秒）
 const FRAME_INTERVAL_MOBILE = 667; // 1.5fps
 const FRAME_INTERVAL_INTERNAL = 83;  // ~12fps（内网节流）
-const FRAME_INTERVAL_EXTERNAL = 200; // 5fps
+const FRAME_INTERVAL_EXTERNAL = 333; // 3fps
 
 // 共享批量推送缓存（所有浏览器共享）
 const _browserBatch = new Map();

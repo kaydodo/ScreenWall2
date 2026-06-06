@@ -1103,7 +1103,7 @@ function connectWS() {
   // 独立定帧渲染：帧缓存 + 固定帧率渲染器
   const _frameCache = new Map(); // deviceId -> { blobUrl, screenWidth, screenHeight, isHQ }
   const _renderIntervalInternal = 83;   // 12fps（内网）
-  const _renderIntervalExternal = 200;  // 5fps（外网）
+  const _renderIntervalExternal = 333;  // 3fps（外网）
   const _renderIntervalMobile = 667;    // 1.5fps（手机端）
   let _renderTimer = null;
   let isInternalConnection = true;  // 默认内网
