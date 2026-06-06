@@ -717,39 +717,65 @@ function onDragMove(e) {
   const grid = document.getElementById('mainGrid');
   const cells = Array.from(grid.children);
   const gridRect = grid.getBoundingClientRect();
+  const cols = parseInt(document.getElementById('selGrid').value) || 4;
   
   let insertIndex = -1;
   let insertPos = null;
   
   const tolerance = 40;
   
+  // 检查相邻格子中间的插入位置
   for (let i = 0; i < cells.length - 1; i++) {
     const currentRect = cells[i].getBoundingClientRect();
     const nextRect = cells[i + 1].getBoundingClientRect();
     
-    const midX = (currentRect.right + nextRect.left) / 2;
+    // 判断是否在同一行：top 值相近
+    const sameRow = Math.abs(currentRect.top - nextRect.top) < 20;
     
-    if (clientY >= currentRect.top - tolerance && clientY <= currentRect.bottom + tolerance) {
-      if (clientX >= midX - tolerance && clientX <= midX + tolerance) {
-        insertIndex = i;
-        insertPos = 'after';
-        break;
+    if (sameRow) {
+      const midX = (currentRect.right + nextRect.left) / 2;
+      
+      if (clientY >= currentRect.top - tolerance && clientY <= currentRect.bottom + tolerance) {
+        if (clientX >= midX - tolerance && clientX <= midX + tolerance) {
+          insertIndex = i;
+          insertPos = 'after';
+          break;
+        }
       }
     }
   }
   
-  if (insertIndex < 0 && clientY >= gridRect.top && clientY <= gridRect.bottom) {
-    const firstRect = cells[0].getBoundingClientRect();
-    if (clientX <= firstRect.left + tolerance && clientY >= firstRect.top - tolerance && clientY <= firstRect.bottom + tolerance) {
-      insertIndex = 0;
-      insertPos = 'before';
+  // 检查每行左侧（每行的第一个格子前）
+  if (insertIndex < 0) {
+    for (let row = 0; row < Math.ceil(cells.length / cols); row++) {
+      const firstInRowIndex = row * cols;
+      if (firstInRowIndex >= cells.length) break;
+      
+      const firstRect = cells[firstInRowIndex].getBoundingClientRect();
+      
+      if (clientY >= firstRect.top - tolerance && clientY <= firstRect.bottom + tolerance) {
+        if (clientX <= firstRect.left + tolerance) {
+          insertIndex = firstInRowIndex;
+          insertPos = 'before';
+          break;
+        }
+      }
     }
-    
-    if (insertIndex < 0) {
-      const lastRect = cells[cells.length - 1].getBoundingClientRect();
-      if (clientX >= lastRect.right - tolerance && clientY >= lastRect.top - tolerance && clientY <= lastRect.bottom + tolerance) {
-        insertIndex = cells.length - 1;
-        insertPos = 'after';
+  }
+  
+  // 检查每行右侧（每行的最后一个格子后）
+  if (insertIndex < 0) {
+    for (let row = 0; row < Math.ceil(cells.length / cols); row++) {
+      const lastInRowIndex = Math.min((row + 1) * cols - 1, cells.length - 1);
+      
+      const lastRect = cells[lastInRowIndex].getBoundingClientRect();
+      
+      if (clientY >= lastRect.top - tolerance && clientY <= lastRect.bottom + tolerance) {
+        if (clientX >= lastRect.right - tolerance) {
+          insertIndex = lastInRowIndex;
+          insertPos = 'after';
+          break;
+        }
       }
     }
   }
