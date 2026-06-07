@@ -11,6 +11,10 @@ import base64
 from aiohttp import web
 import watchdog.observers
 import watchdog.events
+try:
+    import winreg
+except ImportError:
+    winreg = None
 
 if getattr(sys, 'frozen', False):
     APP_DIR = Path(sys.executable).parent
@@ -19,6 +23,8 @@ else:
 
 CONFIG_FILE = APP_DIR / 'dual_image_config.json'
 DEFAULT_PORT = 8765
+AUTOSTART_REG_KEY = r'Software\Microsoft\Windows\CurrentVersion\Run'
+AUTOSTART_REG_VALUE = 'DualImageMonitor'
 
 class DualImageMonitor:
     def __init__(self):
@@ -46,7 +52,9 @@ class DualImageMonitor:
         return {
             'left_image': '',
             'right_image': '',
-            'port': DEFAULT_PORT
+            'port': DEFAULT_PORT,
+            'auto_startup': False,
+            'auto_start_service': False
         }
     
     def save_config(self):
@@ -55,7 +63,7 @@ class DualImageMonitor:
     def setup_gui(self):
         self.root = tk.Tk()
         self.root.title('双图监控服务')
-        self.root.geometry('420x250')
+        self.root.geometry('420x300')
         self.root.resizable(False, False)
         self.root.iconbitmap(default='')
         
@@ -87,6 +95,27 @@ class DualImageMonitor:
         ttk.Entry(right_frame, textvariable=self.right_var, width=28).pack(side=tk.LEFT, padx=5)
         ttk.Button(right_frame, text='选择', command=self.select_right_image).pack(side=tk.LEFT, padx=3)
         
+        options_frame = ttk.Frame(main_frame)
+        options_frame.pack(fill=tk.X, pady=5)
+        
+        self.auto_startup_var = tk.BooleanVar(value=self.config.get('auto_startup', False))
+        self.auto_startup_cb = ttk.Checkbutton(
+            options_frame,
+            text='自动开机启动',
+            variable=self.auto_startup_var,
+            command=self.toggle_auto_startup
+        )
+        self.auto_startup_cb.pack(side=tk.LEFT, padx=5)
+        
+        self.auto_start_service_var = tk.BooleanVar(value=self.config.get('auto_start_service', False))
+        self.auto_start_service_cb = ttk.Checkbutton(
+            options_frame,
+            text='自动启动服务',
+            variable=self.auto_start_service_var,
+            command=self.toggle_auto_start_service
+        )
+        self.auto_start_service_cb.pack(side=tk.LEFT, padx=5)
+        
         control_frame = ttk.Frame(main_frame)
         control_frame.pack(fill=tk.X, pady=10)
         
@@ -100,6 +129,8 @@ class DualImageMonitor:
         ttk.Label(control_frame, textvariable=self.status_var).pack(side=tk.LEFT, padx=10)
         
         self.root.protocol('WM_DELETE_WINDOW', self.on_close)
+        
+        self.check_autostart_registry()
         
     def select_left_image(self):
         file = filedialog.askopenfilename(
@@ -120,6 +151,81 @@ class DualImageMonitor:
             self.right_var.set(file)
             self.config['right_image'] = file
             self.save_config()
+    
+    def check_can_auto_start_service(self):
+        left_img = self.left_var.get()
+        right_img = self.right_var.get()
+        if not left_img or not right_img:
+            return False
+        if not os.path.exists(left_img) or not os.path.exists(right_img):
+            return False
+        try:
+            int(self.port_var.get())
+        except:
+            return False
+        if not CONFIG_FILE.exists():
+            return False
+        return True
+    
+    def toggle_auto_start_service(self):
+        if self.auto_start_service_var.get():
+            if not self.check_can_auto_start_service():
+                self.auto_start_service_var.set(False)
+                messagebox.showwarning('提示', '请先设置图片')
+                return
+        self.config['auto_start_service'] = self.auto_start_service_var.get()
+        self.save_config()
+    
+    def check_autostart_registry(self):
+        if winreg is None:
+            self.auto_startup_var.set(False)
+            self.config['auto_startup'] = False
+            return
+        try:
+            key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, AUTOSTART_REG_KEY)
+            value, _ = winreg.QueryValueEx(key, AUTOSTART_REG_VALUE)
+            winreg.CloseKey(key)
+            if value:
+                self.auto_startup_var.set(True)
+                self.config['auto_startup'] = True
+            else:
+                self.auto_startup_var.set(False)
+                self.config['auto_startup'] = False
+        except:
+            self.auto_startup_var.set(False)
+            self.config['auto_startup'] = False
+    
+    def toggle_auto_startup(self):
+        enabled = self.auto_startup_var.get()
+        self.config['auto_startup'] = enabled
+        self.save_config()
+        
+        if winreg is None:
+            self.auto_startup_var.set(False)
+            messagebox.showerror('错误', '注册表操作不可用')
+            return
+        
+        try:
+            if enabled:
+                exe_path = str(sys.executable) if getattr(sys, 'frozen', False) else str(Path(sys.executable))
+                key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, AUTOSTART_REG_KEY, 0, winreg.KEY_SET_VALUE)
+                winreg.SetValueEx(key, AUTOSTART_REG_VALUE, 0, winreg.REG_SZ, exe_path)
+                winreg.CloseKey(key)
+            else:
+                try:
+                    key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, AUTOSTART_REG_KEY, 0, winreg.KEY_SET_VALUE)
+                    winreg.DeleteValue(key, AUTOSTART_REG_VALUE)
+                    winreg.CloseKey(key)
+                except:
+                    pass
+        except Exception as e:
+            self.auto_startup_var.set(not enabled)
+            messagebox.showerror('错误', f'操作失败: {e}')
+    
+    def start_auto_startup_service_check(self):
+        if self.config.get('auto_start_service', False):
+            if self.check_can_auto_start_service():
+                self.start_server()
             
     def start_server(self):
         if self.server_running:
@@ -439,6 +545,7 @@ connect();
         self.root.destroy()
         
     def run(self):
+        self.root.after(100, self.start_auto_startup_service_check)
         self.root.mainloop()
 
 class ImageChangeHandler(watchdog.events.FileSystemEventHandler):
