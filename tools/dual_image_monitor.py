@@ -3,7 +3,6 @@ import sys
 import json
 import asyncio
 import threading
-import time
 from pathlib import Path
 from datetime import datetime
 import tkinter as tk
@@ -30,8 +29,6 @@ class DualImageMonitor:
         self.cache_ready = {'left': False, 'right': False}
         self.ws_clients = set()
         self.last_mtime = {'left': 0, 'right': 0}
-        self.left_folder = ''
-        self.right_folder = ''
         
         self.setup_gui()
         
@@ -53,7 +50,7 @@ class DualImageMonitor:
     def setup_gui(self):
         self.root = tk.Tk()
         self.root.title('双图监控服务')
-        self.root.geometry('500x280')
+        self.root.geometry('420x200')
         self.root.resizable(False, False)
         
         main_frame = ttk.Frame(self.root, padding=10)
@@ -64,25 +61,25 @@ class DualImageMonitor:
         
         self.port_var = tk.StringVar(value=str(self.config.get('port', DEFAULT_PORT)))
         ttk.Label(port_frame, text='端口:').pack(side=tk.LEFT, padx=5)
-        ttk.Entry(port_frame, textvariable=self.port_var, width=10).pack(side=tk.LEFT, padx=5)
-        ttk.Label(port_frame, text='（外部访问: http://IP:端口）').pack(side=tk.LEFT, padx=5)
+        ttk.Entry(port_frame, textvariable=self.port_var, width=8).pack(side=tk.LEFT, padx=5)
+        ttk.Label(port_frame, text='（访问: http://IP:端口）').pack(side=tk.LEFT, padx=5)
         
         image_frame = ttk.LabelFrame(main_frame, text='图片设置', padding=5)
         image_frame.pack(fill=tk.X, pady=5)
         
         left_frame = ttk.Frame(image_frame)
-        left_frame.pack(fill=tk.X, pady=3)
+        left_frame.pack(fill=tk.X, pady=2)
         ttk.Label(left_frame, text='左5发图片:').pack(side=tk.LEFT, padx=5)
         self.left_var = tk.StringVar(value=self.config.get('left_image', ''))
-        ttk.Entry(left_frame, textvariable=self.left_var, width=35).pack(side=tk.LEFT, padx=5)
-        ttk.Button(left_frame, text='选择', command=self.select_left_image).pack(side=tk.LEFT, padx=5)
+        ttk.Entry(left_frame, textvariable=self.left_var, width=28).pack(side=tk.LEFT, padx=5)
+        ttk.Button(left_frame, text='选择', command=self.select_left_image).pack(side=tk.LEFT, padx=3)
         
         right_frame = ttk.Frame(image_frame)
-        right_frame.pack(fill=tk.X, pady=3)
+        right_frame.pack(fill=tk.X, pady=2)
         ttk.Label(right_frame, text='右5发图片:').pack(side=tk.LEFT, padx=5)
         self.right_var = tk.StringVar(value=self.config.get('right_image', ''))
-        ttk.Entry(right_frame, textvariable=self.right_var, width=35).pack(side=tk.LEFT, padx=5)
-        ttk.Button(right_frame, text='选择', command=self.select_right_image).pack(side=tk.LEFT, padx=5)
+        ttk.Entry(right_frame, textvariable=self.right_var, width=28).pack(side=tk.LEFT, padx=5)
+        ttk.Button(right_frame, text='选择', command=self.select_right_image).pack(side=tk.LEFT, padx=3)
         
         control_frame = ttk.Frame(main_frame)
         control_frame.pack(fill=tk.X, pady=10)
@@ -94,26 +91,9 @@ class DualImageMonitor:
         self.stop_btn.pack(side=tk.LEFT, padx=10)
         
         self.status_var = tk.StringVar(value='状态: 未启动')
-        ttk.Label(control_frame, textvariable=self.status_var).pack(side=tk.LEFT, padx=20)
-        
-        log_frame = ttk.LabelFrame(main_frame, text='日志', padding=5)
-        log_frame.pack(fill=tk.BOTH, expand=True, pady=5)
-        
-        self.log_text = tk.Text(log_frame, height=5, state=tk.DISABLED)
-        self.log_text.pack(fill=tk.BOTH, expand=True)
-        
-        scrollbar = ttk.Scrollbar(log_frame, orient=tk.VERTICAL, command=self.log_text.yview)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        self.log_text.config(yscrollcommand=scrollbar.set)
+        ttk.Label(control_frame, textvariable=self.status_var).pack(side=tk.LEFT, padx=10)
         
         self.root.protocol('WM_DELETE_WINDOW', self.on_close)
-        
-    def log(self, msg):
-        timestamp = datetime.now().strftime('%H:%M:%S')
-        self.log_text.config(state=tk.NORMAL)
-        self.log_text.insert(tk.END, f'[{timestamp}] {msg}\n')
-        self.log_text.see(tk.END)
-        self.log_text.config(state=tk.DISABLED)
         
     def select_left_image(self):
         file = filedialog.askopenfilename(
@@ -123,9 +103,7 @@ class DualImageMonitor:
         if file:
             self.left_var.set(file)
             self.config['left_image'] = file
-            self.left_folder = os.path.dirname(file)
             self.save_config()
-            self.log(f'左5发图片: {os.path.basename(file)}')
             
     def select_right_image(self):
         file = filedialog.askopenfilename(
@@ -135,9 +113,7 @@ class DualImageMonitor:
         if file:
             self.right_var.set(file)
             self.config['right_image'] = file
-            self.right_folder = os.path.dirname(file)
             self.save_config()
-            self.log(f'右5发图片: {os.path.basename(file)}')
             
     def start_server(self):
         if self.server_running:
@@ -169,13 +145,10 @@ class DualImageMonitor:
         self.server_running = True
         self.start_btn.config(state=tk.DISABLED)
         self.stop_btn.config(state=tk.NORMAL)
-        self.status_var.set(f'状态: 运行中 (端口 {port})')
+        self.status_var.set(f'运行中 (端口 {port})')
         
         self.server_thread = threading.Thread(target=self.run_server, daemon=True)
         self.server_thread.start()
-        
-        self.log(f'服务启动，端口: {port}')
-        self.log(f'访问地址: http://localhost:{port}')
         
         self.start_file_monitor()
         
@@ -192,7 +165,6 @@ class DualImageMonitor:
         self.start_btn.config(state=tk.NORMAL)
         self.stop_btn.config(state=tk.DISABLED)
         self.status_var.set('状态: 已停止')
-        self.log('服务已停止')
         
     def run_server(self):
         self.loop = asyncio.new_event_loop()
@@ -222,7 +194,6 @@ class DualImageMonitor:
         await ws.prepare(request)
         
         self.ws_clients.add(ws)
-        self.log('WebSocket客户端连接')
         
         if self.cache_ready['left'] and self.cache_ready['right']:
             await self.send_images_to_client(ws)
@@ -234,7 +205,6 @@ class DualImageMonitor:
             pass
         
         self.ws_clients.discard(ws)
-        self.log('WebSocket客户端断开')
         
         return ws
         
@@ -281,20 +251,17 @@ class DualImageMonitor:
             self.image_cache['left'] = self.read_image(left_path)
             self.cache_ready['left'] = True
             self.last_mtime['left'] = os.path.getmtime(left_path)
-            self.log(f'已加载左5发图片: {os.path.basename(left_path)}')
         
         if right_path and os.path.exists(right_path):
             self.image_cache['right'] = self.read_image(right_path)
             self.cache_ready['right'] = True
             self.last_mtime['right'] = os.path.getmtime(right_path)
-            self.log(f'已加载右5发图片: {os.path.basename(right_path)}')
                 
     def read_image(self, path):
         try:
             with open(path, 'rb') as f:
                 return f.read()
-        except Exception as e:
-            self.log(f'读取图片失败: {e}')
+        except:
             return None
             
     def start_file_monitor(self):
@@ -315,7 +282,6 @@ class DualImageMonitor:
                 self.observer.schedule(handler, right_folder, recursive=False)
         
         self.observer.start()
-        self.log('开始监测图片文件')
         
     def stop_file_monitor(self):
         if self.observer:
@@ -345,13 +311,9 @@ class DualImageMonitor:
         self.image_cache[side] = self.read_image(path)
         self.cache_ready[side] = True
         
-        label = '左5发' if side == 'left' else '右5发'
-        self.log(f'{label}图片已更新')
-        
         if self.cache_ready['left'] and self.cache_ready['right']:
             if self.loop and self.server_running:
                 asyncio.run_coroutine_threadsafe(self.broadcast_images(), self.loop)
-                self.log('已推送双图更新')
                 
     def get_html_page(self):
         return '''<!DOCTYPE html>
@@ -377,7 +339,6 @@ html, body {
   align-items: center;
   justify-content: center;
   gap: 20px;
-  padding: 20px;
 }
 .image-box {
   display: flex;
@@ -409,70 +370,34 @@ html, body {
   font-weight: 600;
   color: #fff;
 }
-.status-bar {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  padding: 10px 20px;
-  background: #0f0f1a;
-  border-top: 1px solid #3a3a5e;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.status-text {
-  color: #888;
-  font-size: 14px;
-}
-.connected { color: #22c55e; }
-.disconnected { color: #ef4444; }
 </style>
 </head>
 <body>
 <div class="container">
   <div class="image-box">
     <div class="image-wrapper">
-      <img id="leftImage" alt="左5块" src="">
+      <img id="leftImage" alt="左5发" src="">
     </div>
-    <div class="label-box">左5块</div>
+    <div class="label-box">左5发</div>
   </div>
   <div class="image-box">
     <div class="image-wrapper">
-      <img id="rightImage" alt="右5块" src="">
+      <img id="rightImage" alt="右5发" src="">
     </div>
-    <div class="label-box">右5块</div>
+    <div class="label-box">右5发</div>
   </div>
-</div>
-<div class="status-bar">
-  <span class="status-text" id="statusText">状态: 未连接</span>
-  <span class="status-text" id="lastUpdate">最后更新: --</span>
 </div>
 <script>
 var ws = null;
 var leftImg = document.getElementById('leftImage');
 var rightImg = document.getElementById('rightImage');
-var statusText = document.getElementById('statusText');
-var lastUpdate = document.getElementById('lastUpdate');
 
 function connect() {
   var wsUrl = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws';
   ws = new WebSocket(wsUrl);
   
-  ws.onopen = function() {
-    statusText.textContent = '状态: 已连接';
-    statusText.className = 'status-text connected';
-  };
-  
   ws.onclose = function() {
-    statusText.textContent = '状态: 未连接';
-    statusText.className = 'status-text disconnected';
     setTimeout(connect, 3000);
-  };
-  
-  ws.onerror = function() {
-    statusText.textContent = '状态: 连接错误';
-    statusText.className = 'status-text disconnected';
   };
   
   ws.onmessage = function(e) {
@@ -484,10 +409,6 @@ function connect() {
         }
         if (data.right) {
           rightImg.src = 'data:image/webp;base64,' + data.right;
-        }
-        if (data.timestamp) {
-          var t = new Date(data.timestamp);
-          lastUpdate.textContent = '最后更新: ' + t.toLocaleTimeString();
         }
       }
     } catch(err) {}
