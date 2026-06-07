@@ -1397,6 +1397,23 @@ def _tray_on_set_resolution_1080p(icon, item):
     """托盘菜单点击：调整1080P分辨率"""
     success, message = _set_resolution_1080p()
     
+    if success:
+        try:
+            global _dxgi_capturer
+            if _dxgi_capturer:
+                _dxgi_capturer.close()
+                _dxgi_capturer = None
+            
+            client = getattr(sys, '_client_instance', None)
+            if client:
+                if client._capturer:
+                    client._capturer.close()
+                    client._capturer = None
+                    client._capturer_monitor_index = None
+                client._reconnect_async()
+        except Exception:
+            pass
+    
     try:
         import tkinter as tk
         from tkinter import messagebox
