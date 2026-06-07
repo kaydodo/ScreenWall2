@@ -50,8 +50,9 @@ class DualImageMonitor:
     def setup_gui(self):
         self.root = tk.Tk()
         self.root.title('双图监控服务')
-        self.root.geometry('420x220')
+        self.root.geometry('420x250')
         self.root.resizable(False, False)
+        self.root.iconbitmap(default='')
         
         main_frame = ttk.Frame(self.root, padding=10)
         main_frame.pack(fill=tk.BOTH, expand=True)
