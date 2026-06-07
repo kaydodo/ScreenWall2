@@ -12,7 +12,12 @@ from aiohttp import web
 import watchdog.observers
 import watchdog.events
 
-CONFIG_FILE = Path(__file__).parent / 'dual_image_config.json'
+if getattr(sys, 'frozen', False):
+    APP_DIR = Path(sys.executable).parent
+else:
+    APP_DIR = Path(__file__).parent
+
+CONFIG_FILE = APP_DIR / 'dual_image_config.json'
 DEFAULT_PORT = 8765
 
 class DualImageMonitor:
