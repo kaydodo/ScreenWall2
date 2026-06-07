@@ -19,7 +19,7 @@ import time
 import webbrowser
 
 # 客户端版本号（每次功能更新时手动递增）
-CLIENT_VERSION = "1.14.3"
+CLIENT_VERSION = "1.14.4"
 
 
 def _get_mac_address():
@@ -1397,7 +1397,8 @@ def _tray_on_set_resolution_1080p(icon, item):
     """托盘菜单点击：调整1080P分辨率"""
     success, message = _set_resolution_1080p()
     
-    if success:
+    # 只有真正切换成功时才需要清理缓存和重新注册
+    if success and message == "分辨率已调整为 1920x1080 @ 60Hz":
         try:
             global _dxgi_capturer
             if _dxgi_capturer:
@@ -1424,10 +1425,12 @@ def _tray_on_set_resolution_1080p(icon, item):
         root.lift()
         root.focus_force()
         
-        if success:
+        if message == "已是目标分辨率":
             messagebox.showinfo("分辨率调整", message)
+        elif success:
+            messagebox.showinfo("分辨率调整", "已成功切换到 1920x1080 @ 60Hz")
         else:
-            messagebox.showwarning("分辨率调整失败", message)
+            messagebox.showwarning("分辨率调整失败", "无法切换分辨率")
         
         root.destroy()
     except Exception:
@@ -1437,9 +1440,17 @@ def _tray_on_set_resolution_1080p(icon, item):
         MB_TOPMOST = 0x40000
         MB_SETFOREGROUND = 0x10000
         
+        display_msg = message
+        if message == "已是目标分辨率":
+            display_msg = message
+        elif success:
+            display_msg = "已成功切换到 1920x1080 @ 60Hz"
+        else:
+            display_msg = "无法切换分辨率"
+        
         ctypes.windll.user32.MessageBoxW(
             None,
-            message,
+            display_msg,
             "分辨率调整" if success else "分辨率调整失败",
             MB_ICONINFO | MB_OK | MB_TOPMOST | MB_SETFOREGROUND
         )
@@ -1664,6 +1675,10 @@ class ScreenWallClient:
         # 截图器缓存：避免每帧重新初始化 MSS
         self._capturer = None  # 缓存的 ScreenCapturer 对象
         self._capturer_monitor_index = None  # 初始化为 None，确保第一次创建截图器
+        # 分辨率变化检测
+        self._last_check_resolution_w = 0
+        self._last_check_resolution_h = 0
+        self._last_resolution_check_time = 0
         # 刷新托盘菜单，确保显示正确的键盘状态
         _rebuild_tray_icon()
         if _keyboard_enabled:
@@ -2527,6 +2542,28 @@ class ScreenWallClient:
                     self._frame_queue.clear()
                     self._cumulative_delay = 0
                     print(f"[帧发送] 定时兜底重置")
+                
+                # 定时检查分辨率变化：每5秒检查一次
+                if current_time - self._last_resolution_check_time > 5:
+                    self._last_resolution_check_time = current_time
+                    try:
+                        off_x, off_y, off_w, off_h = _get_current_monitor_offset()
+                        if (self._last_check_resolution_w != 0 and self._last_check_resolution_h != 0) and (self._last_check_resolution_w != off_w or self._last_check_resolution_h != off_h):
+                            # 分辨率变化了，清理缓存并重新连接
+                            print(f"[分辨率检测] 检测到分辨率变化: {self._last_check_resolution_w}x{self._last_check_resolution_h} -> {off_w}x{off_h}")
+                            global _dxgi_capturer
+                            if _dxgi_capturer:
+                                _dxgi_capturer.close()
+                                _dxgi_capturer = None
+                            if self._capturer:
+                                self._capturer.close()
+                                self._capturer = None
+                                self._capturer_monitor_index = None
+                            self._reconnect_async()
+                        self._last_check_resolution_w = off_w
+                        self._last_check_resolution_h = off_h
+                    except Exception as e:
+                        print(f"[分辨率检测] 检查异常: {e}")
                     
             except Exception as e:
                 print(f"[截图协程] 异常: {e}")
