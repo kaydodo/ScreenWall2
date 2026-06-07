@@ -2897,7 +2897,6 @@ def main():
     if saved_idx < 1 or saved_idx > len(monitors):
         saved_idx = 1
     _current_monitor_index = saved_idx
-    _update_cached_monitor_offset()
 
     # 检查开机自启状态，默认开启
     auto_start_enabled = is_auto_start_enabled()
