@@ -19,7 +19,7 @@ import time
 import webbrowser
 
 # 客户端版本号（每次功能更新时手动递增）
-CLIENT_VERSION = "1.14.1"
+CLIENT_VERSION = "1.14.2"
 
 
 def _get_mac_address():
@@ -74,12 +74,10 @@ def _get_all_monitors():
 
 
 _current_monitor_index = 1
-_cached_monitor_offset = (0, 0, 1920, 1080)
 
 
-def _update_cached_monitor_offset():
-    """更新显示器偏移量缓存"""
-    global _cached_monitor_offset
+def _get_current_monitor_offset():
+    """返回当前选中显示器的偏移量 (offset_x, offset_y, width, height)，实时获取"""
     try:
         import mss
         sct = mss.mss()
@@ -89,14 +87,9 @@ def _update_cached_monitor_offset():
         if idx < 1:
             idx = 1
         m = monitors[idx]
-        _cached_monitor_offset = (m["left"], m["top"], m["width"], m["height"])
+        return (m["left"], m["top"], m["width"], m["height"])
     except Exception:
-        _cached_monitor_offset = (0, 0, 1920, 1080)
-
-
-def _get_current_monitor_offset():
-    """返回当前选中显示器的偏移量 (offset_x, offset_y, width, height)"""
-    return _cached_monitor_offset
+        return (0, 0, 1920, 1080)
 
 
 def _switch_monitor(idx):
@@ -107,7 +100,6 @@ def _switch_monitor(idx):
         if idx < 1 or idx > len(monitors):
             idx = 1
         _current_monitor_index = idx
-        _update_cached_monitor_offset()
         cfg = load_config()
         cfg["monitorIndex"] = idx
         save_config(cfg)
