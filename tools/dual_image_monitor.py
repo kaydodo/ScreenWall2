@@ -295,15 +295,19 @@ class DualImageMonitor:
         right_path = self.config.get('right_image', '')
         
         side = None
-        if path == left_path:
+        if os.path.normpath(path) == os.path.normpath(left_path):
             side = 'left'
-        elif path == right_path:
+        elif os.path.normpath(path) == os.path.normpath(right_path):
             side = 'right'
         
         if not side:
             return
         
-        current_mtime = os.path.getmtime(path)
+        try:
+            current_mtime = os.path.getmtime(path)
+        except:
+            return
+        
         if current_mtime <= self.last_mtime[side]:
             return
         
@@ -312,9 +316,8 @@ class DualImageMonitor:
         self.image_cache[side] = self.read_image(path)
         self.cache_ready[side] = True
         
-        if self.cache_ready['left'] and self.cache_ready['right']:
-            if self.loop and self.server_running:
-                asyncio.run_coroutine_threadsafe(self.broadcast_images(), self.loop)
+        if self.loop and self.server_running:
+            asyncio.run_coroutine_threadsafe(self.broadcast_images(), self.loop)
                 
     def get_html_page(self):
         return '''<!DOCTYPE html>
@@ -340,15 +343,20 @@ html, body {
   align-items: center;
   justify-content: center;
   gap: 20px;
+  width: 100%;
+  height: 100%;
+  padding: 20px;
 }
 .image-box {
   display: flex;
   flex-direction: column;
   align-items: center;
+  flex: 1;
+  max-width: 50%;
 }
 .image-wrapper {
-  width: 640px;
-  height: 512px;
+  width: 100%;
+  height: calc(100% - 50px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -358,8 +366,8 @@ html, body {
   overflow: hidden;
 }
 .image-wrapper img {
-  width: 640px;
-  height: 512px;
+  max-width: 100%;
+  max-height: 100%;
   object-fit: contain;
 }
 .label-box {

@@ -20,6 +20,7 @@ def main():
         '--onefile',
         '--windowed',
         '--name', 'DualImageMonitor',
+        '--icon', 'NONE',
         '--distpath', dist_dir,
         '--workpath', os.path.join(tools_dir, 'build'),
         '--specpath', tools_dir,
