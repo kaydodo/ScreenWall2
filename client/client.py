@@ -19,7 +19,7 @@ import time
 import webbrowser
 
 # 客户端版本号（每次功能更新时手动递增）
-CLIENT_VERSION = "1.14.4"
+CLIENT_VERSION = "1.14.5"
 
 
 def _get_mac_address():
@@ -1400,18 +1400,9 @@ def _tray_on_set_resolution_1080p(icon, item):
     # 只有真正切换成功时才需要清理缓存和重新注册
     if success and message == "分辨率已调整为 1920x1080 @ 60Hz":
         try:
-            global _dxgi_capturer
-            if _dxgi_capturer:
-                _dxgi_capturer.close()
-                _dxgi_capturer = None
-            
             client = getattr(sys, '_client_instance', None)
             if client:
-                if client._capturer:
-                    client._capturer.close()
-                    client._capturer = None
-                    client._capturer_monitor_index = None
-                client._reconnect_async()
+                client._fast_reregister_async()
         except Exception:
             pass
     
@@ -1575,8 +1566,8 @@ def _tray_on_toggle_keyboard(icon, item):
             client._close_keyclient()
         # 刷新托盘菜单勾选状态
         _rebuild_tray_icon()
-        # 强制断开重连，让服务端重走 register 流程，广播最新 supportsKeyClient 状态
-        client._reconnect_async()
+        # 使用快速重注册，让服务端重走 register 流程，广播最新 supportsKeyClient 状态
+        client._fast_reregister_async()
     else:
         _rebuild_tray_icon()
 
@@ -1980,10 +1971,8 @@ class ScreenWallClient:
                 return 1920, 1080
 
     def _on_monitor_switch(self, idx):
-        """显示器切换回调：触发重连，让服务端通过 register 拿到新偏移量"""
-        # info 开始")
-        self._reconnect_async()
-        # info _reconnect_async 已调度")
+        """显示器切换回调：使用快速重注册，让服务端通过 register 拿到新偏移量"""
+        self._fast_reregister_async()
 
     def _get_uu_device_id_async(self):
         """
@@ -2549,17 +2538,9 @@ class ScreenWallClient:
                     try:
                         off_x, off_y, off_w, off_h = _get_current_monitor_offset()
                         if (self._last_check_resolution_w != 0 and self._last_check_resolution_h != 0) and (self._last_check_resolution_w != off_w or self._last_check_resolution_h != off_h):
-                            # 分辨率变化了，清理缓存并重新连接
+                            # 分辨率变化了，使用快速重注册
                             print(f"[分辨率检测] 检测到分辨率变化: {self._last_check_resolution_w}x{self._last_check_resolution_h} -> {off_w}x{off_h}")
-                            global _dxgi_capturer
-                            if _dxgi_capturer:
-                                _dxgi_capturer.close()
-                                _dxgi_capturer = None
-                            if self._capturer:
-                                self._capturer.close()
-                                self._capturer = None
-                                self._capturer_monitor_index = None
-                            self._reconnect_async()
+                            self._fast_reregister_async()
                         self._last_check_resolution_w = off_w
                         self._last_check_resolution_h = off_h
                     except Exception as e:
@@ -2807,8 +2788,8 @@ class ScreenWallClient:
                         _keyboard_enabled = True
                         if _tray_icon:
                             _tray_icon.menu = _build_menu()
-                        # 重新注册
-                        self._reconnect_async()
+                        # 使用快速重注册
+                        self._fast_reregister_async()
 
                     elif msg_type == "setKeyboardDisabled":
                         _set_keyboard_enabled(False)
@@ -2816,7 +2797,7 @@ class ScreenWallClient:
                         _keyboard_enabled = False
                         if _tray_icon:
                             _tray_icon.menu = _build_menu()
-                        self._reconnect_async()
+                        self._fast_reregister_async()
 
                     elif msg_type == "heartbeat":
                         # 服务端心跳响应：检查是否需要升级客户端
@@ -2860,6 +2841,65 @@ class ScreenWallClient:
             self._capturer = None
         # 等待任务真正取消
         await asyncio.sleep(0.1)
+
+    def _fast_reregister_async(self):
+        """快速重新注册：不清空连接，只清理截图器缓存并重新发送register消息"""
+        loop = getattr(sys, '_client_loop', None)
+        if loop and self.running:
+            async def _do_reregister():
+                try:
+                    # 清理截图器缓存
+                    global _dxgi_capturer
+                    if _dxgi_capturer:
+                        _dxgi_capturer.close()
+                        _dxgi_capturer = None
+                    if self._capturer:
+                        self._capturer.close()
+                        self._capturer = None
+                        self._capturer_monitor_index = None
+                    
+                    # 如果连接可用，直接发送register消息
+                    if self.ws:
+                        cfg = self._get_config()
+                        has_kb = _keyboard_enabled
+                        sw, sh = self._get_screen_res()
+                        all_monitors = _get_all_monitors()
+                        off_x, off_y, off_w, off_h = _get_current_monitor_offset()
+                        payload = {
+                            "type":            "register",
+                            "deviceId":        cfg["deviceId"],
+                            "deviceName":      cfg["deviceName"],
+                            "uuDeviceId":      cfg["uuDeviceId"],
+                            "localDeviceName": cfg["deviceName"],
+                            "supportsKeyClient": has_kb,
+                            "version":         CLIENT_VERSION,
+                            "monitorIndex":    _current_monitor_index,
+                            "monitorCount":    len(all_monitors),
+                            "screenWidth":     off_w,
+                            "screenHeight":    off_h,
+                            "monitorOffsetX":  off_x,
+                            "monitorOffsetY":  off_y,
+                            "uuInstalled":     self._is_uu_installed(),
+                            "uuVersion":       self._get_uu_version(),
+                            "macAddress":      _get_mac_address(),
+                        }
+                        await self.ws.send(json.dumps(payload))
+                        self.registered = True
+                        print("[快速重注册] register消息已发送")
+                except Exception as e:
+                    print(f"[快速重注册] 失败: {e}")
+                    # 如果快速重注册失败，回退到完整重连
+                    if self.ws:
+                        try:
+                            await self.ws.close()
+                        except Exception:
+                            pass
+            try:
+                asyncio.run_coroutine_threadsafe(_do_reregister(), loop)
+            except Exception as e:
+                pass
+        else:
+            pass
 
     def _reconnect_async(self):
         """从托盘菜单调用，强制断开当前连接并重连（让服务端重走 register 流程）"""
