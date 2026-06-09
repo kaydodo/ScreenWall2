@@ -5064,10 +5064,14 @@ function renderConfigPowerList() {
   html += '</div>';
   el.innerHTML = html;
   
-  // Restore focus and selection (don't restore value, it should show new data)
+  // Restore focus, value and selection
   if (activeInputDeviceId) {
     var inputEl = el.querySelector('input[data-deviceid="' + activeInputDeviceId + '"]');
     if (inputEl) {
+      // Restore the user's input value
+      if (activeInputValue !== null) {
+        inputEl.value = activeInputValue;
+      }
       inputEl.focus();
       if (activeSelectionStart !== null && activeSelectionEnd !== null) {
         try {
