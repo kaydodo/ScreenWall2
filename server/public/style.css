@@ -548,51 +548,6 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
   border-color: var(--accent);
 }
 
-/* 配置中心分组名/开关机修改弹窗 */
-.config-rename-popup {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 8px 4px;
-  padding-right: 2px;
-  background: var(--bg-card);
-  border: 1px solid var(--border-active);
-  border-radius: 4px;
-  box-shadow: var(--shadow-md);
-  z-index: 1000;
-}
-
-.config-rename-popup .config-rename-btn {
-  flex-shrink: 0;
-  width: 36px;
-  padding: 2px 6px;
-}
-
-.config-rename-input {
-  flex: 1;
-  height: 22px;
-  padding: 0 6px;
-  font-size: 12px;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  background: var(--bg);
-  color: var(--text-primary);
-  outline: none;
-  min-width: 0;
-}
-
-.config-rename-input:focus {
-  border-color: var(--accent);
-}
-
-.config-rename-btn {
-  flex-shrink: 0;
-}
 
 .si-rename-btn {
   flex-shrink: 0;

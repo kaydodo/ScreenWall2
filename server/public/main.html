@@ -4748,7 +4748,7 @@ function renderConfigGroupList() {
   if (!el) return;
 
   // 保存当前打开的弹窗状态（不依赖锁定机制，使用保存-恢复）
-  var openPopupId = document.querySelector('.config-rename-popup[style*="flex"]')?.id;
+  var openPopupId = document.querySelector('.rename-popup[style*="flex"]')?.id;
   var openGroupId = null;
   var openInputValue = null;
   var openCursorPos = null;
@@ -4792,9 +4792,9 @@ function renderConfigGroupList() {
     // Group name as text (not input)
     html += '<span id="groupNameText_' + g.id + '" style="flex:1;min-width:0;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escHtml(g.name) + '</span>';
     // Rename popup (hidden by default)
-    html += '<div class="config-rename-popup" id="groupRenamePopup_' + g.id + '" style="display:none;">';
-    html += '<input type="text" class="config-rename-input" id="groupRenameInput_' + g.id + '" value="' + escHtml(g.name) + '" placeholder="分组名称" />';
-    html += '<button class="btn btn-xs config-rename-btn" onclick="event.stopPropagation();confirmGroupRename(\'' + g.id + '\')">确定</button>';
+    html += '<div class="rename-popup" id="groupRenamePopup_' + g.id + '" style="display:none;">';
+    html += '<input type="text" class="rename-popup-input" id="groupRenameInput_' + g.id + '" value="' + escHtml(g.name) + '" placeholder="分组名称" />';
+    html += '<button class="btn btn-xs si-rename-btn" onclick="event.stopPropagation();confirmGroupRename(\'' + g.id + '\')">确定</button>';
     html += '</div>';
 
     html += '<span style="font-size:11px;color:var(--text-muted);flex-shrink:0;">' + deviceCount + '台</span>';
@@ -5018,7 +5018,7 @@ function renderConfigPowerList() {
   if (!el) return;
 
   // 保存当前打开的弹窗状态（不依赖锁定机制，使用保存-恢复）
-  var openPopupId = document.querySelector('.config-rename-popup[style*="flex"]')?.id;
+  var openPopupId = document.querySelector('.rename-popup[style*="flex"]')?.id;
   var openDeviceId = null;
   var openInputValue = null;
   var openCursorPos = null;
@@ -5064,9 +5064,9 @@ function renderConfigPowerList() {
     // Scene name as text (not input)
     html += '<span id="powerSceneText_' + d.deviceId + '" style="flex:1;min-width:0;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:' + (scene ? 'var(--text)' : 'var(--text-muted)') + ';">' + (scene ? escHtml(scene) : '未配置') + '</span>';
     // Rename popup (hidden by default)
-    html += '<div class="config-rename-popup" id="powerScenePopup_' + d.deviceId + '" style="display:none;">';
-    html += '<input type="text" class="config-rename-input" id="powerSceneInput_' + d.deviceId + '" value="' + escHtml(scene) + '" placeholder="场景名" />';
-    html += '<button class="btn btn-xs config-rename-btn" onclick="event.stopPropagation();confirmPowerSceneRename(\'' + d.deviceId + '\')">确定</button>';
+    html += '<div class="rename-popup" id="powerScenePopup_' + d.deviceId + '" style="display:none;">';
+    html += '<input type="text" class="rename-popup-input" id="powerSceneInput_' + d.deviceId + '" value="' + escHtml(scene) + '" placeholder="场景名" />';
+    html += '<button class="btn btn-xs si-rename-btn" onclick="event.stopPropagation();confirmPowerSceneRename(\'' + d.deviceId + '\')">确定</button>';
     html += '</div>';
     html += '<button class="btn btn-xs si-rename-btn" onclick="event.stopPropagation();showPowerScenePopup(\'' + d.deviceId + '\')">修改</button>';
     html += '</div></div>';
@@ -5236,7 +5236,7 @@ function deleteGroupDirect(id) {
 // 分组名修改弹窗（类似侧边栏设备更名）
 function showGroupRenamePopup(groupId) {
   // 先关闭其他弹窗
-  document.querySelectorAll('.config-rename-popup').forEach(function(popup) {
+  document.querySelectorAll('.rename-popup').forEach(function(popup) {
     popup.style.display = 'none';
   });
   
@@ -5934,7 +5934,7 @@ function savePowerSceneInline(deviceId) {
 // 开关机场景修改弹窗（类似侧边栏设备更名）
 function showPowerScenePopup(deviceId) {
   // 先关闭其他弹窗
-  document.querySelectorAll('.config-rename-popup').forEach(function(popup) {
+  document.querySelectorAll('.rename-popup').forEach(function(popup) {
     popup.style.display = 'none';
   });
   
