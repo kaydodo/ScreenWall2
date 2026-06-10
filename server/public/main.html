@@ -4809,7 +4809,7 @@ function renderConfigGroupList() {
     html += '</div>';
     // Buttons on right side: 修改 + 加入 + 删除
     html += '<div style="display:flex;gap:6px;flex-shrink:0;">';
-    html += '<button onclick="event.stopPropagation();showGroupRenamePopup(\'' + g.id + '\')" style="padding:3px 8px;background:var(--bg-hover);color:var(--text-muted);border:1px solid var(--border);border-radius:4px;cursor:pointer;font-size:11px;">修改</button>';
+    html += '<button class="btn btn-xs si-rename-btn" onclick="event.stopPropagation();showGroupRenamePopup(\'' + g.id + '\')">修改</button>';
     html += '<button onclick="addToGroup(\'' + g.id + '\')" style="padding:3px 8px;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px;">加入</button>';
     html += '<button onclick="deleteGroupDirect(\'' + g.id + '\')" style="padding:3px 8px;background:#666;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px;">删除</button>';
     html += '</div></div>';
@@ -5050,7 +5050,7 @@ function renderConfigPowerList() {
     html += '<input type="text" class="config-rename-input" id="powerSceneInput_' + d.deviceId + '" value="' + escHtml(scene) + '" placeholder="场景名" />';
     html += '<button class="btn btn-xs config-rename-btn" onclick="event.stopPropagation();confirmPowerSceneRename(\'' + d.deviceId + '\')">确定</button>';
     html += '</div>';
-    html += '<button onclick="event.stopPropagation();showPowerScenePopup(\'' + d.deviceId + '\')" style="padding:6px 10px;background:var(--bg-hover);color:var(--text-muted);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:11px;flex-shrink:0;">修改</button>';
+    html += '<button class="btn btn-xs si-rename-btn" onclick="event.stopPropagation();showPowerScenePopup(\'' + d.deviceId + '\')">修改</button>';
     html += '</div></div>';
   });
   html += '</div>';
