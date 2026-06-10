@@ -1584,12 +1584,8 @@ function connectWS() {
       if (document.getElementById('powerOverlay').style.display === 'flex') {
         renderPowerBody();
       }
-      // 刷新配置中心弹窗中的分组列表和未分组设备列表
-      if (document.getElementById('configOverlay').style.display === 'flex') {
-        renderConfigGroupList();
-        renderConfigUngroupedList();
-      }
-      refreshConfigDialogIfOpen();  // 配置对话框打开时刷新
+      // 刷新配置中心（根据当前tab刷新）
+      refreshConfigDialogIfOpen();
       // 刷新监控弹窗设备列表
       if (document.getElementById('monitorOverlay').style.display === 'flex') {
         refreshMonitorDeviceList();
@@ -1622,11 +1618,8 @@ function connectWS() {
       if (document.getElementById('powerOverlay').style.display === 'flex') {
         renderPowerBody();
       }
-      // 刷新配置中心弹窗中的开关机列表
-      if (document.getElementById('configOverlay').style.display === 'flex') {
-        renderConfigPowerList();
-      }
-      refreshConfigDialogIfOpen();  // 配置对话框打开时刷新
+      // 刷新配置中心（根据当前tab刷新）
+      refreshConfigDialogIfOpen();
     }
 
     if (msg.type === 'powerSceneResult') {
@@ -1713,8 +1706,6 @@ function connectWS() {
           }
         });
         persistGroups();
-        renderConfigGroupList();
-        renderConfigUngroupedList();
         rebuildSidebar();
         gridCells.forEach(function(c, idx) {
           if (c && c.deviceId) updateCellElement(idx);
