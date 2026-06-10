@@ -4843,6 +4843,16 @@ function renderConfigGroupList() {
       input.value = openInputValue;
     }
     input.focus();
+    // 重新绑定键盘事件
+    input.onkeydown = function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        confirmGroupRename(openGroupId);
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        hideGroupRenamePopup(openGroupId);
+      }
+    };
   }
 }
 
@@ -5065,6 +5075,16 @@ function renderConfigPowerList() {
       input.value = openInputValue;
     }
     input.focus();
+    // 重新绑定键盘事件
+    input.onkeydown = function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        confirmPowerSceneRename(openDeviceId);
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        hidePowerScenePopup(openDeviceId);
+      }
+    };
   }
 }
 
