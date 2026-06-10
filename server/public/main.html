@@ -4747,23 +4747,8 @@ function renderConfigGroupList() {
   var el = document.getElementById('configGroupList');
   if (!el) return;
 
-  // 保存当前打开的弹窗状态（不依赖锁定机制，使用保存-恢复）
-  var openPopupId = document.querySelector('.rename-popup[style*="flex"]')?.id;
-  var openGroupId = null;
-  var openInputValue = null;
-  var openCursorPos = null;
-  
-  if (openPopupId) {
-    // 分组名弹窗：groupRenamePopup_xxx
-    if (openPopupId.startsWith('groupRenamePopup_')) {
-      openGroupId = openPopupId.replace('groupRenamePopup_', '');
-      var inputEl = document.getElementById('groupRenameInput_' + openGroupId);
-      if (inputEl) {
-        openInputValue = inputEl.value;
-        openCursorPos = inputEl.selectionStart;
-      }
-    }
-  }
+  // 输入框激活时跳过刷新，避免输入内容被覆盖
+  if (isMicroRefreshLocked()) return;
 
   var html = '';
   if (!groups || groups.length === 0) {
@@ -4825,42 +4810,6 @@ function renderConfigGroupList() {
     html += '</div>';
   });
   el.innerHTML = html;
-  
-  // 恢复之前打开的弹窗
-  if (openGroupId && document.getElementById('groupRenamePopup_' + openGroupId)) {
-    var popup = document.getElementById('groupRenamePopup_' + openGroupId);
-    var input = document.getElementById('groupRenameInput_' + openGroupId);
-    popup.style.display = 'flex';
-    if (input && openInputValue) {
-      input.value = openInputValue;
-      // 恢复光标位置
-      if (openCursorPos !== null) {
-        input.setSelectionRange(openCursorPos, openCursorPos);
-      }
-    }
-    if (input) {
-      input.focus();
-      // 重新绑定键盘事件
-      input.onkeydown = function(e) {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          confirmGroupRename(openGroupId);
-        } else if (e.key === 'Escape') {
-          e.preventDefault();
-          hideGroupRenamePopup(openGroupId);
-        }
-      };
-    }
-    // 重新绑定点击外部关闭
-    setTimeout(function() {
-      document.addEventListener('click', function closePopup(e) {
-        if (!popup.contains(e.target)) {
-          hideGroupRenamePopup(openGroupId);
-          document.removeEventListener('click', closePopup);
-        }
-      });
-    }, 100);
-  }
 }
 
 function renderConfigUngroupedList() {
@@ -5017,23 +4966,8 @@ function renderConfigPowerList() {
   var el = document.getElementById('configPowerList');
   if (!el) return;
 
-  // 保存当前打开的弹窗状态（不依赖锁定机制，使用保存-恢复）
-  var openPopupId = document.querySelector('.rename-popup[style*="flex"]')?.id;
-  var openDeviceId = null;
-  var openInputValue = null;
-  var openCursorPos = null;
-  
-  if (openPopupId) {
-    // 开关机弹窗：powerScenePopup_xxx
-    if (openPopupId.startsWith('powerScenePopup_')) {
-      openDeviceId = openPopupId.replace('powerScenePopup_', '');
-      var inputEl = document.getElementById('powerSceneInput_' + openDeviceId);
-      if (inputEl) {
-        openInputValue = inputEl.value;
-        openCursorPos = inputEl.selectionStart;
-      }
-    }
-  }
+  // 输入框激活时跳过刷新，避免输入内容被覆盖
+  if (isMicroRefreshLocked()) return;
 
   var allDevices = devices.slice().sort(function(a, b) { return naturalCompare(a.deviceName, b.deviceName); });
 
@@ -5073,42 +5007,6 @@ function renderConfigPowerList() {
   });
   html += '</div>';
   el.innerHTML = html;
-  
-  // 恢复之前打开的弹窗
-  if (openDeviceId && document.getElementById('powerScenePopup_' + openDeviceId)) {
-    var popup = document.getElementById('powerScenePopup_' + openDeviceId);
-    var input = document.getElementById('powerSceneInput_' + openDeviceId);
-    popup.style.display = 'flex';
-    if (input && openInputValue) {
-      input.value = openInputValue;
-      // 恢复光标位置
-      if (openCursorPos !== null) {
-        input.setSelectionRange(openCursorPos, openCursorPos);
-      }
-    }
-    if (input) {
-      input.focus();
-      // 重新绑定键盘事件
-      input.onkeydown = function(e) {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          confirmPowerSceneRename(openDeviceId);
-        } else if (e.key === 'Escape') {
-          e.preventDefault();
-          hidePowerScenePopup(openDeviceId);
-        }
-      };
-    }
-    // 重新绑定点击外部关闭
-    setTimeout(function() {
-      document.addEventListener('click', function closePopup(e) {
-        if (!popup.contains(e.target)) {
-          hidePowerScenePopup(openDeviceId);
-          document.removeEventListener('click', closePopup);
-        }
-      });
-    }, 100);
-  }
 }
 
 function openMigrateDialog() {
@@ -5252,6 +5150,10 @@ function showGroupRenamePopup(groupId) {
   // 显示弹窗
   popup.style.display = 'flex';
   
+  // 锁定微刷新
+  inputFocused = true;
+  lockMicroRefresh(30000);
+  
   // 聚焦输入框，光标放在最右侧
   input.focus();
   input.setSelectionRange(input.value.length, input.value.length);
@@ -5283,6 +5185,9 @@ function hideGroupRenamePopup(groupId) {
   if (popup) {
     popup.style.display = 'none';
   }
+  // 解锁微刷新
+  inputFocused = false;
+  microRefreshLockUntil = 0;
 }
 
 function confirmGroupRename(groupId) {
@@ -5950,6 +5855,10 @@ function showPowerScenePopup(deviceId) {
   // 显示弹窗
   popup.style.display = 'flex';
   
+  // 锁定微刷新
+  inputFocused = true;
+  lockMicroRefresh(30000);
+  
   // 聚焦输入框，光标放在最右侧
   input.focus();
   input.setSelectionRange(input.value.length, input.value.length);
@@ -5981,6 +5890,9 @@ function hidePowerScenePopup(deviceId) {
   if (popup) {
     popup.style.display = 'none';
   }
+  // 解锁微刷新
+  inputFocused = false;
+  microRefreshLockUntil = 0;
 }
 
 function confirmPowerSceneRename(deviceId) {
