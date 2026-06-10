@@ -4828,10 +4828,14 @@ function renderConfigGroupList() {
   });
   el.innerHTML = html;
   
-  // Restore focus and selection (don't restore value, it should show new data)
+  // Restore focus, value and selection
   if (activeInputId) {
     var inputEl = document.getElementById(activeInputId);
     if (inputEl) {
+      // Restore the user's input value
+      if (activeInputValue !== null) {
+        inputEl.value = activeInputValue;
+      }
       inputEl.focus();
       if (activeSelectionStart !== null && activeSelectionEnd !== null) {
         try {
