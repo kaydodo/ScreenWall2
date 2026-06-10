@@ -926,6 +926,21 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
   box-shadow: 0 0 8px rgba(79, 126, 247, 0.6);
 }
 
+.swap-hint {
+  position: fixed;
+  width: 40px;
+  height: 24px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 14px;
+  font-weight: bold;
+  text-align: center;
+  line-height: 24px;
+  border-radius: 4px;
+  z-index: 1001;
+  box-shadow: 0 2px 8px rgba(79, 126, 247, 0.6);
+}
+
 .cell-preview {
   position: relative;
   width: 100%;

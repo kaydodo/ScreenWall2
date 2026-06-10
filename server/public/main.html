@@ -608,7 +608,10 @@ let dragState = {
   cellHeight: 0,
   targetIndex: -1,
   moved: false,
-  insertPosition: null
+  insertPosition: null,
+  swapMode: false,
+  swapTargetIndex: -1,
+  swapHintEl: null
 };
 
 function initDragEvents(cellEl, index) {
@@ -721,15 +724,52 @@ function onDragMove(e) {
   
   let insertIndex = -1;
   let insertPos = null;
+  let swapIndex = -1;
   
   const tolerance = 40;
+  const swapThreshold = 0.35;
+  
+  // 先检查是否在某个格子的偏中心位置（交换模式）
+  for (let i = 0; i < cells.length; i++) {
+    if (i === dragState.startIndex) continue;
+    
+    const cellRect = cells[i].getBoundingClientRect();
+    const cellCenterX = (cellRect.left + cellRect.right) / 2;
+    const cellCenterY = (cellRect.top + cellRect.bottom) / 2;
+    const cellWidth = cellRect.width;
+    const cellHeight = cellRect.height;
+    
+    if (clientX >= cellRect.left && clientX <= cellRect.right &&
+        clientY >= cellRect.top && clientY <= cellRect.bottom) {
+      const offsetXRatio = (clientX - cellCenterX) / (cellWidth / 2);
+      const offsetYRatio = (clientY - cellCenterY) / (cellHeight / 2);
+      
+      if (Math.abs(offsetXRatio) > swapThreshold || Math.abs(offsetYRatio) > swapThreshold) {
+        swapIndex = i;
+        break;
+      }
+    }
+  }
+  
+  if (swapIndex >= 0) {
+    dragState.swapMode = true;
+    dragState.swapTargetIndex = swapIndex;
+    dragState.targetIndex = -1;
+    dragState.insertPosition = null;
+    hideInsertLine();
+    showSwapHint(swapIndex);
+    return;
+  }
+  
+  dragState.swapMode = false;
+  dragState.swapTargetIndex = -1;
+  hideSwapHint();
   
   // 检查相邻格子中间的插入位置
   for (let i = 0; i < cells.length - 1; i++) {
     const currentRect = cells[i].getBoundingClientRect();
     const nextRect = cells[i + 1].getBoundingClientRect();
     
-    // 判断是否在同一行：top 值相近
     const sameRow = Math.abs(currentRect.top - nextRect.top) < 20;
     
     if (sameRow) {
@@ -745,7 +785,7 @@ function onDragMove(e) {
     }
   }
   
-  // 检查每行左侧（每行的第一个格子前）
+  // 检查每行左侧
   if (insertIndex < 0) {
     for (let row = 0; row < Math.ceil(cells.length / cols); row++) {
       const firstInRowIndex = row * cols;
@@ -763,7 +803,7 @@ function onDragMove(e) {
     }
   }
   
-  // 检查每行右侧（每行的最后一个格子后）
+  // 检查每行右侧
   if (insertIndex < 0) {
     for (let row = 0; row < Math.ceil(cells.length / cols); row++) {
       const lastInRowIndex = Math.min((row + 1) * cols - 1, cells.length - 1);
@@ -819,6 +859,33 @@ function hideInsertLine() {
   }
 }
 
+function showSwapHint(index) {
+  const grid = document.getElementById('mainGrid');
+  const cells = Array.from(grid.children);
+  
+  if (index < 0 || index >= cells.length) return;
+  
+  const cellRect = cells[index].getBoundingClientRect();
+  
+  if (!dragState.swapHintEl) {
+    const hint = document.createElement('div');
+    hint.className = 'swap-hint';
+    hint.innerHTML = '↔';
+    document.body.appendChild(hint);
+    dragState.swapHintEl = hint;
+  }
+  
+  dragState.swapHintEl.style.display = 'block';
+  dragState.swapHintEl.style.left = (cellRect.left + cellRect.width / 2 - 20) + 'px';
+  dragState.swapHintEl.style.top = (cellRect.top - 30) + 'px';
+}
+
+function hideSwapHint() {
+  if (dragState.swapHintEl) {
+    dragState.swapHintEl.style.display = 'none';
+  }
+}
+
 function onDragEnd(e) {
   clearDragTimers();
   
@@ -835,6 +902,7 @@ function onDragEnd(e) {
   
   if (dragState.active) {
     hideInsertLine();
+    hideSwapHint();
     
     if (dragState.cloneEl) {
       dragState.cloneEl.remove();
@@ -851,11 +919,23 @@ function onDragEnd(e) {
       dragState.insertLine = null;
     }
     
-    if (dragState.moved && dragState.targetIndex >= 0 && dragState.insertPosition) {
-      const finalIndex = dragState.insertPosition === 'before' ? dragState.targetIndex : dragState.targetIndex + 1;
-      if (finalIndex !== dragState.startIndex && finalIndex >= 0 && finalIndex <= gridCells.length) {
-        reorderCells(dragState.startIndex, finalIndex);
-        saveGridLayout();
+    if (dragState.swapHintEl) {
+      dragState.swapHintEl.remove();
+      dragState.swapHintEl = null;
+    }
+    
+    if (dragState.moved) {
+      if (dragState.swapMode && dragState.swapTargetIndex >= 0) {
+        if (dragState.swapTargetIndex !== dragState.startIndex) {
+          swapCells(dragState.startIndex, dragState.swapTargetIndex);
+          saveGridLayout();
+        }
+      } else if (dragState.targetIndex >= 0 && dragState.insertPosition) {
+        const finalIndex = dragState.insertPosition === 'before' ? dragState.targetIndex : dragState.targetIndex + 1;
+        if (finalIndex !== dragState.startIndex && finalIndex >= 0 && finalIndex <= gridCells.length) {
+          reorderCells(dragState.startIndex, finalIndex);
+          saveGridLayout();
+        }
       }
     }
   }
@@ -878,6 +958,8 @@ function onDragEnd(e) {
   dragState.targetIndex = -1;
   dragState.insertPosition = null;
   dragState.moved = false;
+  dragState.swapMode = false;
+  dragState.swapTargetIndex = -1;
 }
 
 function clearDragTimers() {
@@ -934,6 +1016,40 @@ function reorderCells(fromIndex, toIndex) {
   for (let i = Math.min(fromIndex, toIndex); i <= Math.max(fromIndex, toIndex); i++) {
     updateCellElement(i);
   }
+}
+
+function swapCells(index1, index2) {
+  if (index1 === index2) return;
+  if (index1 < 0 || index2 < 0 || index1 >= gridCells.length || index2 >= gridCells.length) return;
+  
+  const grid = document.getElementById('mainGrid');
+  const cells = Array.from(grid.children);
+  
+  const temp = gridCells[index1];
+  gridCells[index1] = gridCells[index2];
+  gridCells[index2] = temp;
+  
+  if (gridCells[index1]) gridCells[index1].index = index1;
+  if (gridCells[index2]) gridCells[index2].index = index2;
+  
+  const cell1 = cells[index1];
+  const cell2 = cells[index2];
+  
+  if (index1 < index2) {
+    grid.insertBefore(cell2, cell1);
+    grid.insertBefore(cell1, cells[index2 + 1] || null);
+  } else {
+    grid.insertBefore(cell1, cell2);
+    grid.insertBefore(cell2, cells[index1 + 1] || null);
+  }
+  
+  const updatedCells = Array.from(grid.children);
+  updatedCells.forEach((cell, idx) => {
+    cell.dataset.index = idx;
+  });
+  
+  updateCellElement(index1);
+  updateCellElement(index2);
 }
 
 let _isDragUpdate = false;  // 拖动更新标记
