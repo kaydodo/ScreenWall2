@@ -741,10 +741,10 @@ function onDragMove(e) {
     
     if (clientX >= cellRect.left && clientX <= cellRect.right &&
         clientY >= cellRect.top && clientY <= cellRect.bottom) {
-      const offsetXRatio = (clientX - cellCenterX) / (cellWidth / 2);
-      const offsetYRatio = (clientY - cellCenterY) / (cellHeight / 2);
+      const offsetXRatio = Math.abs((clientX - cellCenterX) / (cellWidth / 2));
+      const offsetYRatio = Math.abs((clientY - cellCenterY) / (cellHeight / 2));
       
-      if (Math.abs(offsetXRatio) > swapThreshold || Math.abs(offsetYRatio) > swapThreshold) {
+      if (offsetXRatio <= swapThreshold && offsetYRatio <= swapThreshold) {
         swapIndex = i;
         break;
       }
