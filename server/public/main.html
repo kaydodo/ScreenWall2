@@ -5264,8 +5264,9 @@ function hideGroupRenamePopup(groupId) {
   if (popup) {
     popup.style.display = 'none';
   }
-  // 解锁微刷新
+  // 解锁微刷新（同时解除两种锁定）
   inputFocused = false;
+  microRefreshLockUntil = 0;
 }
 
 function confirmGroupRename(groupId) {
@@ -5968,8 +5969,9 @@ function hidePowerScenePopup(deviceId) {
   if (popup) {
     popup.style.display = 'none';
   }
-  // 解锁微刷新
+  // 解锁微刷新（同时解除两种锁定）
   inputFocused = false;
+  microRefreshLockUntil = 0;
 }
 
 function confirmPowerSceneRename(deviceId) {
