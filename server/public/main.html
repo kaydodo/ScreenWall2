@@ -5287,6 +5287,7 @@ function confirmGroupRename(groupId) {
   g.name = name;
   persistGroups();
   ws.send(JSON.stringify({ type: 'groupUpdate', groups: groups }));
+  hideGroupRenamePopup(groupId);  // 隐藏弹窗
   rebuildSidebar();
   renderAlarmPanel();
   renderConfigGroupList();
@@ -5979,6 +5980,7 @@ function confirmPowerSceneRename(deviceId) {
   
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'setPowerScene', deviceId: deviceId, sceneName: sceneName }));
+    hidePowerScenePopup(deviceId);  // 隐藏弹窗
     showToast('场景已保存: ' + (sceneName || '(未配置)'), 'success');
   } else {
     showToast('连接断开，保存失败', 'error');
