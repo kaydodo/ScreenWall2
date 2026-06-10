@@ -1023,8 +1023,6 @@ let powerScenes = {};     // 开关机场景配置 { deviceId: sceneName }
 let editingPowerDeviceId = null;  // 当前编辑的设备ID
 
 let editingGroupId = null;        // 当前编辑的分组ID
-let configGroupEditingInputId = null;  // 正在编辑的分组输入框ID
-let configPowerEditingInputId = null;  // 正在编辑的开关机输入框ID
 let configUngroupedSelectedIds = new Set();  // 未分组设备选中的设备ID集合
 let favorites = [];       // 收藏设备列表 [{ deviceId, deviceName, groupId, cellIndex }]
 let collections = [];     // 截图集合 [{ timestamp, items: [...] }]
@@ -4758,20 +4756,6 @@ function renderConfigGroupList() {
   var el = document.getElementById('configGroupList');
   if (!el) return;
 
-  // Save active element info before render
-  var activeEl = document.activeElement;
-  var activeInputId = null;
-  var activeInputValue = null;
-  var activeSelectionStart = null;
-  var activeSelectionEnd = null;
-  
-  if (activeEl && activeEl.id && activeEl.id.startsWith('groupName_')) {
-    activeInputId = activeEl.id;
-    activeInputValue = activeEl.value;
-    activeSelectionStart = activeEl.selectionStart;
-    activeSelectionEnd = activeEl.selectionEnd;
-  }
-
   var html = '';
   if (!groups || groups.length === 0) {
     el.innerHTML = '<div style="color:var(--text-muted);font-size:13px;padding:8px 0;">暂无分组</div>';
@@ -4787,23 +4771,28 @@ function renderConfigGroupList() {
     var groupColor = g.color || '';
 
     html += '<div style="margin-bottom:8px;padding:10px 12px;background:var(--bg-page);border-radius:8px;">';
-    // Header row: color + name input + buttons
+    // Header row: color + name text + buttons
     html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">';
-    html += '<div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0;">';
+    html += '<div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0;position:relative;">';
     // Color indicator
     if (groupColor) {
       html += '<div onclick="showGroupColorPicker(\'' + g.id + '\')" style="width:16px;height:16px;border-radius:50%;background:' + groupColor + ';cursor:pointer;flex-shrink:0;border:1px solid rgba(0,0,0,0.1);" title="点击更换颜色"></div>';
     } else {
       html += '<div onclick="showGroupColorPicker(\'' + g.id + '\')" style="width:16px;height:16px;border-radius:50%;background:#ddd;cursor:pointer;flex-shrink:0;border:1px solid rgba(0,0,0,0.1);" title="点击更换颜色"></div>';
     }
-    // Group name as inline input
-    html += '<input id="groupName_' + g.id + '" name="groupName" aria-label="分组名称" type="text" value="' + escHtml(g.name) + '" style="flex:1;min-width:0;padding:4px 8px;background:var(--bg-card);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px;" />';
+    // Group name as text (not input)
+    html += '<span id="groupNameText_' + g.id + '" style="flex:1;min-width:0;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escHtml(g.name) + '</span>';
+    // Rename popup (hidden by default)
+    html += '<div class="config-rename-popup" id="groupRenamePopup_' + g.id + '" style="display:none;">';
+    html += '<input type="text" class="config-rename-input" id="groupRenameInput_' + g.id + '" value="' + escHtml(g.name) + '" placeholder="分组名称" />';
+    html += '<button class="btn btn-xs config-rename-btn" onclick="event.stopPropagation();confirmGroupRename(\'' + g.id + '\')">确定</button>';
+    html += '</div>';
 
     html += '<span style="font-size:11px;color:var(--text-muted);flex-shrink:0;">' + deviceCount + '台</span>';
     html += '</div>';
-    // Buttons on right side: 修改 (save) + 加入 + 删除
+    // Buttons on right side: 修改 + 加入 + 删除
     html += '<div style="display:flex;gap:6px;flex-shrink:0;">';
-    html += '<button onclick="saveGroupName(\'' + g.id + '\')" style="padding:3px 8px;background:var(--bg-hover);color:var(--text-muted);border:1px solid var(--border);border-radius:4px;cursor:pointer;font-size:11px;">修改</button>';
+    html += '<button onclick="event.stopPropagation();showGroupRenamePopup(\'' + g.id + '\')" style="padding:3px 8px;background:var(--bg-hover);color:var(--text-muted);border:1px solid var(--border);border-radius:4px;cursor:pointer;font-size:11px;">修改</button>';
     html += '<button onclick="addToGroup(\'' + g.id + '\')" style="padding:3px 8px;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px;">加入</button>';
     html += '<button onclick="deleteGroupDirect(\'' + g.id + '\')" style="padding:3px 8px;background:#666;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px;">删除</button>';
     html += '</div></div>';
@@ -4827,44 +4816,6 @@ function renderConfigGroupList() {
     html += '</div>';
   });
   el.innerHTML = html;
-  
-  // Restore focus, value and selection
-  if (activeInputId) {
-    var inputEl = document.getElementById(activeInputId);
-    if (inputEl) {
-      // Restore the user's input value
-      if (activeInputValue !== null) {
-        inputEl.value = activeInputValue;
-      }
-      inputEl.focus();
-      if (activeSelectionStart !== null && activeSelectionEnd !== null) {
-        try {
-          inputEl.setSelectionRange(activeSelectionStart, activeSelectionEnd);
-        } catch(e) {}
-      }
-    }
-  }
-  
-  // Bind focus events to lock refresh
-  el.querySelectorAll('input[name="groupName"]').forEach(function(input) {
-    input.addEventListener('focus', function() {
-      configGroupEditingInputId = this.id;
-      inputFocused = true;
-      lockMicroRefresh(30000);
-    });
-    input.addEventListener('blur', function() {
-      // Don't clear immediately, wait to allow clicking save button
-      setTimeout(function() {
-        var stillFocused = document.activeElement && document.activeElement.id === input.id;
-        if (!stillFocused) {
-          configGroupEditingInputId = null;
-          if (!configPowerEditingInputId) {
-            inputFocused = false;
-          }
-        }
-      }, 100);
-    });
-  });
 }
 
 function renderConfigUngroupedList() {
@@ -5021,20 +4972,6 @@ function renderConfigPowerList() {
   var el = document.getElementById('configPowerList');
   if (!el) return;
 
-  // Save active element info before render
-  var activeEl = document.activeElement;
-  var activeInputDeviceId = null;
-  var activeInputValue = null;
-  var activeSelectionStart = null;
-  var activeSelectionEnd = null;
-  
-  if (activeEl && activeEl.name === 'powerScene') {
-    activeInputDeviceId = activeEl.getAttribute('data-deviceid');
-    activeInputValue = activeEl.value;
-    activeSelectionStart = activeEl.selectionStart;
-    activeSelectionEnd = activeEl.selectionEnd;
-  }
-
   var allDevices = devices.slice().sort(function(a, b) { return naturalCompare(a.deviceName, b.deviceName); });
 
   if (allDevices.length === 0) {
@@ -5060,53 +4997,19 @@ function renderConfigPowerList() {
     if (cellInfo) html += (groupName ? ' | ' : '') + cellInfo;
     if (!d.online) html += (groupName || cellInfo ? ' | ' : '') + '<span style="color:var(--offline);">离线</span>';
     html += '</div>';
-    html += '<div style="display:flex;align-items:center;gap:6px;">';
-    html += '<input type="text" name="powerScene" aria-label="场景名" value="' + escHtml(scene) + '" placeholder="场景名" data-deviceid="' + d.deviceId + '" style="flex:1;min-width:0;padding:6px 8px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;" />';
-    html += '<button onclick="saveConfigPowerScene(\'' + d.deviceId + '\')" style="padding:6px 10px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:11px;flex-shrink:0;">保存</button>';
+    html += '<div style="display:flex;align-items:center;gap:6px;position:relative;">';
+    // Scene name as text (not input)
+    html += '<span id="powerSceneText_' + d.deviceId + '" style="flex:1;min-width:0;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:' + (scene ? 'var(--text)' : 'var(--text-muted)') + ';">' + (scene ? escHtml(scene) : '未配置') + '</span>';
+    // Rename popup (hidden by default)
+    html += '<div class="config-rename-popup" id="powerScenePopup_' + d.deviceId + '" style="display:none;">';
+    html += '<input type="text" class="config-rename-input" id="powerSceneInput_' + d.deviceId + '" value="' + escHtml(scene) + '" placeholder="场景名" />';
+    html += '<button class="btn btn-xs config-rename-btn" onclick="event.stopPropagation();confirmPowerSceneRename(\'' + d.deviceId + '\')">确定</button>';
+    html += '</div>';
+    html += '<button onclick="event.stopPropagation();showPowerScenePopup(\'' + d.deviceId + '\')" style="padding:6px 10px;background:var(--bg-hover);color:var(--text-muted);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:11px;flex-shrink:0;">修改</button>';
     html += '</div></div>';
   });
   html += '</div>';
   el.innerHTML = html;
-  
-  // Restore focus, value and selection
-  if (activeInputDeviceId) {
-    var inputEl = el.querySelector('input[data-deviceid="' + activeInputDeviceId + '"]');
-    if (inputEl) {
-      // Restore the user's input value
-      if (activeInputValue !== null) {
-        inputEl.value = activeInputValue;
-      }
-      inputEl.focus();
-      if (activeSelectionStart !== null && activeSelectionEnd !== null) {
-        try {
-          inputEl.setSelectionRange(activeSelectionStart, activeSelectionEnd);
-        } catch(e) {}
-      }
-    }
-  }
-  
-  // Bind focus events to lock refresh
-  el.querySelectorAll('input[name="powerScene"]').forEach(function(input) {
-    input.addEventListener('focus', function() {
-      configPowerEditingInputId = this.getAttribute('data-deviceid');
-      inputFocused = true;
-      lockMicroRefresh(30000);
-    });
-    input.addEventListener('blur', function() {
-      // Don't clear immediately, wait to allow clicking save button
-      setTimeout(function() {
-        var stillFocused = document.activeElement && 
-          (document.activeElement.name === 'powerScene' && 
-          document.activeElement.getAttribute('data-deviceid') === input.getAttribute('data-deviceid'));
-        if (!stillFocused) {
-          configPowerEditingInputId = null;
-          if (!configGroupEditingInputId) {
-            inputFocused = false;
-          }
-        }
-      }, 100);
-    });
-  });
 }
 
 function openMigrateDialog() {
@@ -5231,28 +5134,80 @@ function deleteGroupDirect(id) {
   showToast('已删除分组: ' + gName, 'success');
 }
 
-function saveGroupName(groupId) {
-  var input = document.getElementById('groupName_' + groupId);
-  if (!input) {
-    showToast('未找到分组输入框', 'error');
-    return;
+// 分组名修改弹窗（类似侧边栏设备更名）
+function showGroupRenamePopup(groupId) {
+  // 先关闭其他弹窗
+  document.querySelectorAll('.config-rename-popup').forEach(function(popup) {
+    popup.style.display = 'none';
+  });
+  
+  var popup = document.getElementById('groupRenamePopup_' + groupId);
+  var input = document.getElementById('groupRenameInput_' + groupId);
+  var nameText = document.getElementById('groupNameText_' + groupId);
+  
+  if (!popup || !input) return;
+  
+  // 设置输入框值为当前名字
+  input.value = nameText ? nameText.textContent : '';
+  
+  // 显示弹窗
+  popup.style.display = 'flex';
+  
+  // 聚焦输入框并选中文字
+  input.focus();
+  input.select();
+  
+  // 绑定键盘事件
+  input.onkeydown = function(e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      confirmGroupRename(groupId);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      hideGroupRenamePopup(groupId);
+    }
+  };
+  
+  // 点击外部关闭
+  setTimeout(function() {
+    document.addEventListener('click', function closePopup(e) {
+      if (!popup.contains(e.target)) {
+        hideGroupRenamePopup(groupId);
+        document.removeEventListener('click', closePopup);
+      }
+    });
+  }, 100);
+}
+
+function hideGroupRenamePopup(groupId) {
+  var popup = document.getElementById('groupRenamePopup_' + groupId);
+  if (popup) {
+    popup.style.display = 'none';
   }
+}
+
+function confirmGroupRename(groupId) {
+  var input = document.getElementById('groupRenameInput_' + groupId);
+  if (!input) return;
+  
   var name = input.value.trim();
   if (!name) {
     showToast('分组名称不能为空', 'error');
     return;
   }
+  
   var g = groups.find(function(gg) { return gg.id === groupId; });
   if (!g) {
     showToast('未找到分组', 'error');
     return;
   }
+  
   g.name = name;
   persistGroups();
   ws.send(JSON.stringify({ type: 'groupUpdate', groups: groups }));
   rebuildSidebar();
   renderAlarmPanel();
-  renderConfigGroupList();  // 重新渲染分组列表，更新输入框的值
+  renderConfigGroupList();
   showToast('分组已保存', 'success');
 }
 
@@ -5876,10 +5831,64 @@ function savePowerSceneInline(deviceId) {
   }
 }
 
-function saveConfigPowerScene(deviceId) {
-  var input = document.querySelector('input[data-deviceid="' + deviceId + '"]');
+// 开关机场景修改弹窗（类似侧边栏设备更名）
+function showPowerScenePopup(deviceId) {
+  // 先关闭其他弹窗
+  document.querySelectorAll('.config-rename-popup').forEach(function(popup) {
+    popup.style.display = 'none';
+  });
+  
+  var popup = document.getElementById('powerScenePopup_' + deviceId);
+  var input = document.getElementById('powerSceneInput_' + deviceId);
+  var sceneText = document.getElementById('powerSceneText_' + deviceId);
+  
+  if (!popup || !input) return;
+  
+  // 设置输入框值为当前场景名
+  input.value = powerScenes[deviceId] || '';
+  
+  // 显示弹窗
+  popup.style.display = 'flex';
+  
+  // 聚焦输入框并选中文字
+  input.focus();
+  input.select();
+  
+  // 绑定键盘事件
+  input.onkeydown = function(e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      confirmPowerSceneRename(deviceId);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      hidePowerScenePopup(deviceId);
+    }
+  };
+  
+  // 点击外部关闭
+  setTimeout(function() {
+    document.addEventListener('click', function closePopup(e) {
+      if (!popup.contains(e.target)) {
+        hidePowerScenePopup(deviceId);
+        document.removeEventListener('click', closePopup);
+      }
+    });
+  }, 100);
+}
+
+function hidePowerScenePopup(deviceId) {
+  var popup = document.getElementById('powerScenePopup_' + deviceId);
+  if (popup) {
+    popup.style.display = 'none';
+  }
+}
+
+function confirmPowerSceneRename(deviceId) {
+  var input = document.getElementById('powerSceneInput_' + deviceId);
   if (!input) return;
+  
   var sceneName = input.value.trim();
+  
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'setPowerScene', deviceId: deviceId, sceneName: sceneName }));
     showToast('场景已保存: ' + (sceneName || '(未配置)'), 'success');
