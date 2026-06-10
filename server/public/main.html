@@ -670,6 +670,11 @@ function startDrag(index, e) {
   cell.style.cursor = 'grabbing';
   cell.classList.add('drag-source');
   
+  // 隐藏所有UU按钮
+  document.querySelectorAll('.uu-float-btn').forEach(btn => {
+    btn.style.display = 'none';
+  });
+  
   const clone = cell.cloneNode(true);
   clone.classList.add('drag-clone');
   clone.style.position = 'fixed';
@@ -867,10 +872,6 @@ function showSwapHint(index) {
   
   const cellRect = cells[index].getBoundingClientRect();
   
-  // 隐藏目标格子的UU按钮
-  const uuBtn = document.getElementById('uubtn_' + index);
-  if (uuBtn) uuBtn.style.display = 'none';
-  
   if (!dragState.swapHintEl) {
     const hint = document.createElement('div');
     hint.className = 'swap-hint';
@@ -881,17 +882,12 @@ function showSwapHint(index) {
   
   dragState.swapHintEl.style.display = 'block';
   dragState.swapHintEl.style.left = (cellRect.left + cellRect.width / 2 - 20) + 'px';
-  dragState.swapHintEl.style.top = (cellRect.top - 30) + 'px';
+  dragState.swapHintEl.style.top = (cellRect.top + cellRect.height / 2 - 12) + 'px';
 }
 
 function hideSwapHint() {
   if (dragState.swapHintEl) {
     dragState.swapHintEl.style.display = 'none';
-  }
-  // 恢复目标格子的UU按钮
-  if (dragState.swapTargetIndex >= 0) {
-    const uuBtn = document.getElementById('uubtn_' + dragState.swapTargetIndex);
-    if (uuBtn) uuBtn.style.display = 'flex';
   }
 }
 
@@ -932,6 +928,14 @@ function onDragEnd(e) {
       dragState.swapHintEl.remove();
       dragState.swapHintEl = null;
     }
+    
+    // 恢复所有UU按钮
+    gridCells.forEach((c, idx) => {
+      const uuBtn = document.getElementById('uubtn_' + idx);
+      if (uuBtn && c && c.deviceId && c.online) {
+        uuBtn.style.display = 'flex';
+      }
+    });
     
     if (dragState.moved) {
       if (dragState.swapMode && dragState.swapTargetIndex >= 0) {
