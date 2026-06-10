@@ -5252,9 +5252,9 @@ function showGroupRenamePopup(groupId) {
   // 显示弹窗
   popup.style.display = 'flex';
   
-  // 聚焦输入框并选中文字
+  // 聚焦输入框，光标放在最右侧
   input.focus();
-  input.select();
+  input.setSelectionRange(input.value.length, input.value.length);
   
   // 绑定键盘事件
   input.onkeydown = function(e) {
@@ -5950,9 +5950,9 @@ function showPowerScenePopup(deviceId) {
   // 显示弹窗
   popup.style.display = 'flex';
   
-  // 聚焦输入框并选中文字
+  // 聚焦输入框，光标放在最右侧
   input.focus();
-  input.select();
+  input.setSelectionRange(input.value.length, input.value.length);
   
   // 绑定键盘事件
   input.onkeydown = function(e) {

@@ -558,7 +558,7 @@ body.sidebar-collapsed .sidebar-collapse-btn:hover::after {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 2px 4px;
+  padding: 8px 4px;
   padding-right: 2px;
   background: var(--bg-card);
   border: 1px solid var(--border-active);
