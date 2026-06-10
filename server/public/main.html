@@ -670,11 +670,6 @@ function startDrag(index, e) {
   cell.style.cursor = 'grabbing';
   cell.classList.add('drag-source');
   
-  // 隐藏所有UU按钮
-  document.querySelectorAll('.uu-float-btn').forEach(btn => {
-    btn.style.display = 'none';
-  });
-  
   const clone = cell.cloneNode(true);
   clone.classList.add('drag-clone');
   clone.style.position = 'fixed';
@@ -865,24 +860,21 @@ function hideInsertLine() {
 }
 
 function showSwapHint(index) {
-  const grid = document.getElementById('mainGrid');
-  const cells = Array.from(grid.children);
+  if (!dragState.cloneEl) return;
   
-  if (index < 0 || index >= cells.length) return;
-  
-  const cellRect = cells[index].getBoundingClientRect();
+  const cloneRect = dragState.cloneEl.getBoundingClientRect();
   
   if (!dragState.swapHintEl) {
     const hint = document.createElement('div');
     hint.className = 'swap-hint';
-    hint.innerHTML = '↔';
+    hint.innerHTML = '↔ 交换位置';
     document.body.appendChild(hint);
     dragState.swapHintEl = hint;
   }
   
-  dragState.swapHintEl.style.display = 'block';
-  dragState.swapHintEl.style.left = (cellRect.left + cellRect.width / 2 - 20) + 'px';
-  dragState.swapHintEl.style.top = (cellRect.top + cellRect.height / 2 - 12) + 'px';
+  dragState.swapHintEl.style.display = 'flex';
+  dragState.swapHintEl.style.left = (cloneRect.left + cloneRect.width / 2 - 75) + 'px';
+  dragState.swapHintEl.style.top = (cloneRect.top - 50) + 'px';
 }
 
 function hideSwapHint() {
@@ -928,14 +920,6 @@ function onDragEnd(e) {
       dragState.swapHintEl.remove();
       dragState.swapHintEl = null;
     }
-    
-    // 恢复所有UU按钮
-    gridCells.forEach((c, idx) => {
-      const uuBtn = document.getElementById('uubtn_' + idx);
-      if (uuBtn && c && c.deviceId && c.online) {
-        uuBtn.style.display = 'flex';
-      }
-    });
     
     if (dragState.moved) {
       if (dragState.swapMode && dragState.swapTargetIndex >= 0) {
