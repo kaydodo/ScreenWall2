@@ -4839,18 +4839,19 @@ function renderConfigGroupList() {
     if (input && openInputValue) {
       input.value = openInputValue;
     }
-    input.focus();
-    input.select();
-    // 重新绑定键盘事件
-    input.onkeydown = function(e) {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        confirmGroupRename(openGroupId);
-      } else if (e.key === 'Escape') {
-        e.preventDefault();
-        hideGroupRenamePopup(openGroupId);
-      }
-    };
+    if (input) {
+      input.focus();
+      // 重新绑定键盘事件
+      input.onkeydown = function(e) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          confirmGroupRename(openGroupId);
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          hideGroupRenamePopup(openGroupId);
+        }
+      };
+    }
     // 重新绑定点击外部关闭
     setTimeout(function() {
       document.addEventListener('click', function closePopup(e) {
@@ -5078,18 +5079,19 @@ function renderConfigPowerList() {
     if (input && openInputValue) {
       input.value = openInputValue;
     }
-    input.focus();
-    input.select();
-    // 重新绑定键盘事件
-    input.onkeydown = function(e) {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        confirmPowerSceneRename(openDeviceId);
-      } else if (e.key === 'Escape') {
-        e.preventDefault();
-        hidePowerScenePopup(openDeviceId);
-      }
-    };
+    if (input) {
+      input.focus();
+      // 重新绑定键盘事件
+      input.onkeydown = function(e) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          confirmPowerSceneRename(openDeviceId);
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          hidePowerScenePopup(openDeviceId);
+        }
+      };
+    }
     // 重新绑定点击外部关闭
     setTimeout(function() {
       document.addEventListener('click', function closePopup(e) {
