@@ -4751,13 +4751,17 @@ function renderConfigGroupList() {
   var openPopupId = document.querySelector('.config-rename-popup[style*="flex"]')?.id;
   var openGroupId = null;
   var openInputValue = null;
+  var openCursorPos = null;
   
   if (openPopupId) {
     // 分组名弹窗：groupRenamePopup_xxx
     if (openPopupId.startsWith('groupRenamePopup_')) {
       openGroupId = openPopupId.replace('groupRenamePopup_', '');
       var inputEl = document.getElementById('groupRenameInput_' + openGroupId);
-      if (inputEl) openInputValue = inputEl.value;
+      if (inputEl) {
+        openInputValue = inputEl.value;
+        openCursorPos = inputEl.selectionStart;
+      }
     }
   }
 
@@ -4829,6 +4833,10 @@ function renderConfigGroupList() {
     popup.style.display = 'flex';
     if (input && openInputValue) {
       input.value = openInputValue;
+      // 恢复光标位置
+      if (openCursorPos !== null) {
+        input.setSelectionRange(openCursorPos, openCursorPos);
+      }
     }
     if (input) {
       input.focus();
@@ -5013,13 +5021,17 @@ function renderConfigPowerList() {
   var openPopupId = document.querySelector('.config-rename-popup[style*="flex"]')?.id;
   var openDeviceId = null;
   var openInputValue = null;
+  var openCursorPos = null;
   
   if (openPopupId) {
     // 开关机弹窗：powerScenePopup_xxx
     if (openPopupId.startsWith('powerScenePopup_')) {
       openDeviceId = openPopupId.replace('powerScenePopup_', '');
       var inputEl = document.getElementById('powerSceneInput_' + openDeviceId);
-      if (inputEl) openInputValue = inputEl.value;
+      if (inputEl) {
+        openInputValue = inputEl.value;
+        openCursorPos = inputEl.selectionStart;
+      }
     }
   }
 
@@ -5069,6 +5081,10 @@ function renderConfigPowerList() {
     popup.style.display = 'flex';
     if (input && openInputValue) {
       input.value = openInputValue;
+      // 恢复光标位置
+      if (openCursorPos !== null) {
+        input.setSelectionRange(openCursorPos, openCursorPos);
+      }
     }
     if (input) {
       input.focus();
